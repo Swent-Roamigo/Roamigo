@@ -84,9 +84,9 @@ kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
 
 sonar {
   properties {
-    property("sonar.projectKey", "gf_android-sample")
-    property("sonar.projectName", "Android-Sample")
-    property("sonar.organization", "gabrielfleischer")
+    property("sonar.projectKey", "Swent-Roamigo_Roamigo")
+    property("sonar.projectName", "Roamigo")
+    property("sonar.organization", "swent-roamigo")
     property("sonar.host.url", "https://sonarcloud.io")
     // Comma-separated paths to the various directories containing the *.xml JUnit report files.
     // Each path may be absolute or relative to the project base directory.
