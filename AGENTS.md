@@ -2,7 +2,7 @@
 
 This file defines the conventions AI agents must follow when contributing to Roamigo.
 
-Before making changes, read the relevant issue, existing code, and current team decisions in the Wiki. Keep changes focused on the requested task and avoid speculative features or unrelated refactors.
+Before making changes, read the relevant issue and the existing code. Keep changes focused on the requested task and avoid speculative features or unrelated refactors.
 
 ## Product scope
 
