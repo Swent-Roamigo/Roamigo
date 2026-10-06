@@ -1,0 +1,22 @@
+Firestore:
+users/{userId}
+
+friendships/{friendshipId}
+
+tripInvitations/{invitationId}
+
+trips/{tripId}
+    members/{userId}
+    suggestions/{poiId}
+    activities/{activityId}
+    votes/{voteId}
+        ballots/{userId}
+    photos/{photoId}
+
+
+Realtime Database:
+tripLocations/{tripId}/{userId}
+presence/{userId}
+
+Storage:
+trips/{tripId}/photos/{photoId}
