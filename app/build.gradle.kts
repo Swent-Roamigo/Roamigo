@@ -5,15 +5,16 @@ plugins {
   alias(libs.plugins.kotlinCompose)
   alias(libs.plugins.ktfmt)
   alias(libs.plugins.sonar)
+  alias(libs.plugins.googleServices)
   id("jacoco")
 }
 
 android {
-  namespace = "com.android.sample"
+  namespace = "com.swent.roamigo"
   compileSdk = 37
 
   defaultConfig {
-    applicationId = "com.android.sample"
+    applicationId = "com.swent.roamigo"
     minSdk = 28
     targetSdk = 34
     versionCode = 1
@@ -115,6 +116,9 @@ fun DependencyHandlerScope.globalTestImplementation(dep: Any) {
 }
 
 dependencies {
+  implementation(platform(libs.firebase.bom))
+  implementation(libs.firebase.firestore)
+
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.appcompat)
   implementation(libs.material)

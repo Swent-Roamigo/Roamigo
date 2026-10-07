@@ -1,0 +1,10 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Keep client access closed until the trip and membership schema is defined.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
