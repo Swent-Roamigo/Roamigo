@@ -19,7 +19,7 @@ Users can access cached itineraries, planned activities, and saved points of int
 Roamigo uses Firebase Authentication for Google Sign-In. Cloud Firestore stores trips, itineraries, points of interest, group membership, votes, and trip history. Firebase Realtime Database stores information that changes frequently, such as live member locations and live voting results. Firebase Storage stores photos shared during a trip. Mapbox provides the interactive map used to display activities, points of interest, member locations andgeolocated photos.
 
 ## Design Mockups
-The application's UI/UX mockups are available on [Figma](https://www.figma.com/design/V5BFsU4bmznAOxVv2L6uEK/Roamigo?node-id=0-1&t=TC9HppMyubtk3i8C-0).
+The application's UI/UX mockups are available on [Figma](https://www.figma.com/design/MBdvemRiwWcgU1ELe5FVE6/Roamigo-%25E2%2580%2593-UX-Mockup--Copy-?node-id=0-1&p=f&t=ogY45RA5UUrANx5v-0).
 
 ## Wiki
 Additional project documentation, development conventions, and team processes are available in the **Roamigo Wiki**.
