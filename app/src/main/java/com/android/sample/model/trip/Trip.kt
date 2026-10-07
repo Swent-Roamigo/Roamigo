@@ -8,12 +8,10 @@ data class Trip(
     val uid: String,
     val name: String,
     val description: String?,
-    val destinations: List<TripLocation>?,
+    val destinations: List<TripLocation>,
     val startDate: Timestamp,
     val endDate: Timestamp,
     val ownerId: String, // this is authoritative over TripMemberRole of TripMember
-    // val memberIds: List<String>, //not suitable for easily viewing all members at once, should
-    // probably display their permission etc.
     val status: TripStatus,
 )
 
