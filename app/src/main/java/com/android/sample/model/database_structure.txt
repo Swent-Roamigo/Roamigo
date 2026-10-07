@@ -1,0 +1,23 @@
+// Initial model and data backend structure designed with assistance from ChatGPT.
+
+Firestore:
+users/{userId}
+
+friendships/{friendshipId} // later feature
+
+tripInvitations/{invitationId} // later feature
+
+trips/{tripId}
+    members/{userId}
+    activities/{activityId}
+    votes/{voteId} // later feature
+        ballots/{userId}
+    photos/{photoId} // later feature
+
+
+Realtime Database: // later feature
+tripLocations/{tripId}/{userId} // later feature
+presence/{userId} // later feature
+
+Storage: // later feature
+trips/{tripId}/photos/{photoId} // later feature
