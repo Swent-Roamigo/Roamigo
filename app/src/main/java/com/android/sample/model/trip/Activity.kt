@@ -1,12 +1,13 @@
+// Initial model and data backend structure designed with assistance from ChatGPT.
 package com.android.sample.model.trip
 
 import com.android.sample.model.Location
-import java.security.Timestamp
-
+import com.google.firebase.Timestamp
 
 data class Activity(
     val uid: String,
     val tripId: String,
+    val activityType: ActivityType,
     val name: String,
     val description: String?,
     val location: Location,
@@ -14,5 +15,10 @@ data class Activity(
     val endTime: Timestamp?,
     val createdByUserId: String,
     val creationTime: Timestamp,
-    val sourceSuggestionId: String?, //If a suggestion gets turned into an Activity
 )
+
+enum class ActivityType {
+  SUGGESTION,
+  ACCEPTED, // maybe a third for when an owner directly creates/approves without going through a
+  // suggestion?
+}

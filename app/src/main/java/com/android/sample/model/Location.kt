@@ -1,6 +1,7 @@
+// Initial model and data backend structure designed with assistance from ChatGPT.
 package com.android.sample.model
 
-//To be changed
+// To be changed
 data class Location(
     val latitude: Double,
     val longitude: Double,

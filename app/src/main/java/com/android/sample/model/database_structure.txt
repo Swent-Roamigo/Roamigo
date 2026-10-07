@@ -1,3 +1,5 @@
+// Initial model and data backend structure designed with assistance from ChatGPT.
+
 Firestore:
 users/{userId}
 

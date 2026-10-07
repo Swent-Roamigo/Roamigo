@@ -1,6 +1,7 @@
+// Initial model and data backend structure designed with assistance from ChatGPT.
 package com.android.sample.model.trip.voting
 
-import java.security.Timestamp
+import com.google.firebase.Timestamp
 
 data class Vote(
     val uid: String,
@@ -15,6 +16,6 @@ data class Vote(
 )
 
 enum class VoteStatus {
-    OPEN,
-    CLOSED,
+  OPEN,
+  CLOSED,
 }
