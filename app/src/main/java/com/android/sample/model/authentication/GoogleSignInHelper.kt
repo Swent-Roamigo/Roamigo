@@ -9,6 +9,9 @@ import com.google.firebase.auth.GoogleAuthProvider
  * Interface for extracting Google ID token credentials and converting them to Firebase credentials.
  *
  * Enables unit testing without the need to statically mock SDK methods.
+ *
+ * Adapted from the SwEnt bootcamp:
+ * https://github.com/swent-epfl/public/blob/main/bootcamp/deliverables/B3/1-Authentication.md
  */
 interface GoogleSignInHelper {
 

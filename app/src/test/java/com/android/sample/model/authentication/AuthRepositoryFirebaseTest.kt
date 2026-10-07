@@ -22,6 +22,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
+/**
+ * Unit tests for [AuthRepositoryFirebase].
+ *
+ * @author erikgodel
+ * @author Claude Opus 5.5 (AI assistant, Anthropic)
+ */
 class AuthRepositoryFirebaseTest {
 
   private val idToken = "google-id-token"

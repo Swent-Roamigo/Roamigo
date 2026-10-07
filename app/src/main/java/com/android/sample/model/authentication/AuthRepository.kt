@@ -3,7 +3,12 @@ package com.swent.roamigo.model.authentication
 import androidx.credentials.Credential
 import com.google.firebase.auth.FirebaseUser
 
-/** Handles authentication operations such as signing in with Google and signing out. */
+/**
+ * Handles authentication operations such as signing in with Google and signing out.
+ *
+ * Adapted from the SwEnt bootcamp:
+ * https://github.com/swent-epfl/public/blob/main/bootcamp/deliverables/B3/1-Authentication.md
+ */
 interface AuthRepository {
 
   /**
