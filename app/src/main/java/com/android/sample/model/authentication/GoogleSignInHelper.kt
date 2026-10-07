@@ -1,4 +1,4 @@
-package com.android.sample.model.authentication
+package com.swent.roamigo.model.authentication
 
 import android.os.Bundle
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential

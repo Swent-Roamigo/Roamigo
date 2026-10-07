@@ -1,4 +1,4 @@
-package com.android.sample.model.authentication
+package com.swent.roamigo.model.authentication
 
 import androidx.credentials.Credential
 import androidx.credentials.CredentialManager
