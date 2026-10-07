@@ -3,22 +3,21 @@
 Firestore:
 users/{userId}
 
-friendships/{friendshipId}
+friendships/{friendshipId} // later feature
 
-tripInvitations/{invitationId}
+tripInvitations/{invitationId} // later feature
 
 trips/{tripId}
     members/{userId}
-    suggestions/{poiId}
     activities/{activityId}
-    votes/{voteId}
+    votes/{voteId} // later feature
         ballots/{userId}
-    photos/{photoId}
+    photos/{photoId} // later feature
 
 
-Realtime Database:
-tripLocations/{tripId}/{userId}
-presence/{userId}
+Realtime Database: // later feature
+tripLocations/{tripId}/{userId} // later feature
+presence/{userId} // later feature
 
-Storage:
-trips/{tripId}/photos/{photoId}
+Storage: // later feature
+trips/{tripId}/photos/{photoId} // later feature

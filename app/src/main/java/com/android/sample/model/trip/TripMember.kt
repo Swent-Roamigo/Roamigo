@@ -13,7 +13,7 @@ data class TripMember(
 )
 
 enum class TripMemberRole {
-  OWNER,
+  OWNER, // Trip ownerId is authoritative over this tag
   EDITOR,
   VIEWER,
 }

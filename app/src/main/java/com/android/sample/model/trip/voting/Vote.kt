@@ -6,7 +6,7 @@ import com.google.firebase.Timestamp
 data class Vote(
     val uid: String,
     val tripId: String,
-    val question: String?,
+    val question: String,
     val options: List<VoteOption>,
     val createdByUserId: String,
     val status: VoteStatus,

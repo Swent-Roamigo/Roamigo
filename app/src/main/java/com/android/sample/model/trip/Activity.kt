@@ -1,7 +1,7 @@
 // Initial model and data backend structure designed with assistance from ChatGPT.
 package com.android.sample.model.trip
 
-import com.android.sample.model.Location
+import com.android.sample.model.TripLocation
 import com.google.firebase.Timestamp
 
 data class Activity(
@@ -10,7 +10,7 @@ data class Activity(
     val activityType: ActivityType,
     val name: String,
     val description: String?,
-    val location: Location,
+    val location: TripLocation,
     val startTime: Timestamp,
     val endTime: Timestamp?,
     val createdByUserId: String,
