@@ -154,6 +154,19 @@ dependencies {
 
   // ----------       Robolectric     ------------
   testImplementation(libs.robolectric)
+
+  // ----------    Unit test mocking   ------------
+  testImplementation(libs.mockk)
+  testImplementation(libs.kotlinx.coroutines.test)
+
+  // ------------- Firebase ------------------
+  implementation(platform(libs.firebase.bom))
+  implementation(libs.firebase.auth)
+
+  // ---------- Credential Manager (Google Sign-In) ----------
+  implementation(libs.androidx.credentials)
+  implementation(libs.androidx.credentials.play.services.auth)
+  implementation(libs.googleid)
 }
 
 tasks.withType<Test> {
