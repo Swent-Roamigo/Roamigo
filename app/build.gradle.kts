@@ -5,8 +5,12 @@ plugins {
   alias(libs.plugins.kotlinCompose)
   alias(libs.plugins.ktfmt)
   alias(libs.plugins.sonar)
-  alias(libs.plugins.googleServices)
+  alias(libs.plugins.googleServices) apply false
   id("jacoco")
+}
+
+if (file("google-services.json").exists()) {
+  pluginManager.apply("com.google.gms.google-services")
 }
 
 android {
