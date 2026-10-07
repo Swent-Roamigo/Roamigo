@@ -1,9 +1,9 @@
-package com.android.sample
+package com.swent.roamigo
 
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.android.sample.screen.MainScreen
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
+import com.swent.roamigo.screen.MainScreen
 import io.github.kakaocup.compose.node.element.ComposeScreen
 import org.junit.Assert.*
 import org.junit.Rule

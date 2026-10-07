@@ -26,6 +26,15 @@ jobs:
           submodules: recursive
           fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of Sonar analysis (if we use Sonar Later)
 
+      - name: Restore Firebase configuration
+        env:
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES" ]; then
+            echo "::error::Set the GOOGLE_SERVICES repository secret to the Base64-encoded google-services.json."
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES" | base64 --decode > app/google-services.json
 
       # Kernel-based Virtual Machine (KVM) is an open source virtualization technology built into Linux. Enabling it allows the Android emulator to run faster.
       - name: Enable KVM group perms
