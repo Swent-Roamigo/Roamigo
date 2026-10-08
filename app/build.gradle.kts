@@ -144,13 +144,16 @@ dependencies {
   implementation(libs.google.id)
   implementation(libs.coroutines.play.services)
   testImplementation(libs.mockito.core)
+  implementation(libs.kotlinx.coroutines.play.services)
 
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.appcompat)
   implementation(libs.material)
   implementation(libs.androidx.lifecycle.runtime.ktx)
+  implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(platform(libs.compose.bom))
   testImplementation(libs.junit)
+  testImplementation(libs.kotlinx.coroutines.test)
   globalTestImplementation(libs.androidx.junit)
   globalTestImplementation(libs.androidx.espresso.core)
 

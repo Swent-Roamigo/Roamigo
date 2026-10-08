@@ -27,7 +27,7 @@ Roamigo follows MVVM.
 
 Firebase Authentication handles Google Sign-In.
 Cloud Firestore stores persistent trip data.
-Firebase Realtime Database handles frequently changing data such as live locations and voting results.
+Firebase Realtime Database handles frequently changing data such as live locations.
 Firebase Storage stores shared photos.
 Mapbox provides map and location visualization.
 

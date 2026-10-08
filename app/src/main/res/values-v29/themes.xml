@@ -6,6 +6,7 @@
         <item name="colorSecondary">@color/roamigo_ochre</item>
         <item name="colorSecondaryVariant">@color/roamigo_ochre</item>
         <item name="colorOnSecondary">@color/roamigo_ink</item>
+        <item name="android:forceDarkAllowed">false</item>
         <item name="android:windowBackground">@color/roamigo_paper</item>
         <item name="android:statusBarColor">@color/roamigo_paper</item>
         <item name="android:windowLightStatusBar">true</item>
