@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.update
 data class CreateTripUiState(
     val destinationQuery: String = "",
     val destinations: List<String> = popularDestinations,
-    val selectedDestinations: List<String> = listOf("Lisbon", "Porto"),
+    val selectedDestinations: List<String> = emptyList(),
 ) {
   val visibleDestinations: List<String>
     get() =
