@@ -6,103 +6,67 @@ import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.tasks.await
 
 /** Firestore implementation of [VoteRepository], using the existing trip subcollections. */
 class VoteRepositoryFirestore(private val db: FirebaseFirestore) : VoteRepository {
-  override fun createVote(vote: Vote, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
-    val task = runCatching {
-      requireDocumentId(vote.uid)
-      val document = votes(vote.tripId).document(vote.uid)
-      db.runTransaction { transaction ->
-        if (transaction.get(document).exists()) {
-          throw FirebaseFirestoreException(
-              "Vote ${vote.uid} already exists in trip ${vote.tripId}",
-              FirebaseFirestoreException.Code.ALREADY_EXISTS,
-          )
+  override suspend fun createVote(vote: Vote) {
+    requireDocumentId(vote.uid)
+    val document = votes(vote.tripId).document(vote.uid)
+    db.runTransaction { transaction ->
+          if (transaction.get(document).exists()) {
+            throw FirebaseFirestoreException(
+                "Vote ${vote.uid} already exists in trip ${vote.tripId}",
+                FirebaseFirestoreException.Code.ALREADY_EXISTS,
+            )
+          }
+          transaction.set(document, vote.toFirestoreData())
+          Unit
         }
-        transaction.set(document, vote.toFirestoreData())
-        Unit
-      }
-    }
-        .getOrElse {
-          onFailure(it.asException())
-          return
-        }
-    task.addOnSuccessListener { onSuccess() }.addOnFailureListener(onFailure)
+        .await()
   }
 
-  override fun getVotes(
-      tripId: String,
-      onSuccess: (List<Vote>) -> Unit,
-      onFailure: (Exception) -> Unit,
-  ) {
-    val task = runCatching {
-      votes(tripId).get()
-    }
-        .getOrElse {
-          onFailure(it.asException())
-          return
-        }
-    task
-        .addOnSuccessListener { snapshot ->
-          runCatching { snapshot.documents.map { it.toVote(tripId) } }
-              .fold(onSuccess, { onFailure(it.asException()) })
-        }
-        .addOnFailureListener(onFailure)
+  override suspend fun getVotes(tripId: String): List<Vote> =
+      votes(tripId).get().await().documents.map { it.toVote(tripId) }
+
+  override suspend fun submitBallot(tripId: String, voteId: String, ballot: VoteBallot) {
+    requireDocumentId(ballot.userId)
+    ballots(tripId, voteId)
+        .document(ballot.userId)
+        .set(
+            mapOf(
+                "userId" to ballot.userId,
+                "optionId" to ballot.optionId,
+                "updatedAt" to ballot.updatedAt,
+            )
+        )
+        .await()
   }
 
-  override fun submitBallot(
-      tripId: String,
-      voteId: String,
-      ballot: VoteBallot,
-      onSuccess: () -> Unit,
-      onFailure: (Exception) -> Unit,
-  ) {
-    val task = runCatching {
-      requireDocumentId(ballot.userId)
-      ballots(tripId, voteId)
-          .document(ballot.userId)
-          .set(
-              mapOf(
-                  "userId" to ballot.userId,
-                  "optionId" to ballot.optionId,
-                  "updatedAt" to ballot.updatedAt,
-              )
-          )
-    }
-        .getOrElse {
-          onFailure(it.asException())
-          return
-        }
-    task.addOnSuccessListener { onSuccess() }.addOnFailureListener(onFailure)
-  }
-
-  override fun observeBallots(
-      tripId: String,
-      voteId: String,
-      onChange: (List<VoteBallot>) -> Unit,
-      onFailure: (Exception) -> Unit,
-  ): VoteSubscription {
-    val registration = runCatching {
-      ballots(tripId, voteId).addSnapshotListener { snapshot, error ->
-        if (error != null) {
-          onFailure(error)
-        } else {
-          runCatching {
-                requireNotNull(snapshot) { "Missing ballot snapshot" }
-                    .documents
-                    .map { it.toBallot() }
+  override fun observeBallots(tripId: String, voteId: String): Flow<List<VoteBallot>> =
+      callbackFlow {
+        val registration =
+            ballots(tripId, voteId).addSnapshotListener { snapshot, error ->
+              if (error != null) {
+                close(error)
+              } else {
+                val updates =
+                    try {
+                      requireNotNull(snapshot) { "Missing ballot snapshot" }
+                          .documents
+                          .map { it.toBallot() }
+                    } catch (error: Exception) {
+                      close(error)
+                      return@addSnapshotListener
+                    }
+                trySend(updates)
               }
-              .fold(onChange, { onFailure(it.asException()) })
-        }
+            }
+        awaitClose { registration.remove() }
       }
-    }
-        .getOrElse {
-          onFailure(it.asException())
-          return VoteSubscription {}
-        }
-    return VoteSubscription { registration.remove() }
-  }
 
   private fun votes(tripId: String): CollectionReference {
     requireDocumentId(tripId)
@@ -120,8 +84,6 @@ private fun requireDocumentId(id: String) {
     "Expected a non-blank Firestore document ID without path separators"
   }
 }
-
-private fun Throwable.asException(): Exception = this as? Exception ?: RuntimeException(this)
 
 // Explicit mapping preserves the immutable models, which have no Firestore no-argument constructor.
 private fun Vote.toFirestoreData(): Map<String, Any?> =

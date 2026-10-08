@@ -1,45 +1,57 @@
 // Voting repository implemented with assistance from Codex.
 package com.swent.roamigo.model.trip.voting
 
-/** Data access for trip votes. Failures are delivered to the onFailure callbacks. */
+import com.google.firebase.firestore.FirebaseFirestoreException
+import kotlinx.coroutines.flow.Flow
+
+/**
+ * Data access for trip votes and live ballots backed by Firestore. One-shot operations suspend
+ * until completion and propagate failures to the caller. Authorization is enforced by Firestore
+ * rules. Document IDs must be non-blank, contain no slash, and differ from "." and "..".
+ */
 interface VoteRepository {
   /**
-   * Creates a vote at trips/{vote.tripId}/votes/{vote.uid}. An existing ID fails through onFailure
-   * with FirebaseFirestoreException.Code.ALREADY_EXISTS; the vote and its ballots remain intact.
-   * Creation uses a transaction and requires an online connection.
+   * Creates a vote under its trip using an online transaction.
+   *
+   * @param vote Vote to persist, including its trip and document IDs.
+   * @throws IllegalArgumentException If the vote or trip ID is invalid.
+   * @throws FirebaseFirestoreException If creation fails, with code ALREADY_EXISTS for a reused ID.
    */
-  fun createVote(vote: Vote, onSuccess: () -> Unit, onFailure: (Exception) -> Unit)
-
-  /** Retrieves all votes for a trip; no ordering is guaranteed. */
-  fun getVotes(tripId: String, onSuccess: (List<Vote>) -> Unit, onFailure: (Exception) -> Unit)
+  suspend fun createVote(vote: Vote)
 
   /**
-   * Creates or replaces ballots/{ballot.userId}, including its choice and caller-supplied update
-   * timestamp. The caller supplies an existing trip/vote and a choice from that vote's options.
-   * Authorization is enforced by Firestore rules.
+   * Retrieves all votes for a trip, using the trip and document IDs from their paths.
+   *
+   * @param tripId ID of the trip to read.
+   * @return All votes in unspecified order, or an empty list if none exist.
+   * @throws IllegalArgumentException If the trip ID or stored vote data is invalid.
+   * @throws FirebaseFirestoreException If the read fails.
    */
-  fun submitBallot(
-      tripId: String,
-      voteId: String,
-      ballot: VoteBallot,
-      onSuccess: () -> Unit,
-      onFailure: (Exception) -> Unit,
-  )
+  suspend fun getVotes(tripId: String): List<Vote>
 
   /**
-   * Emits the initial ballot list and subsequent changes (including removals and empty lists). Call
-   * [VoteSubscription.remove] when the consumer no longer needs updates. Firestore listener errors
-   * terminate the subscription; malformed snapshots report a failure instead of partial data.
+   * Creates or replaces the user's ballot, preserving the caller-supplied update timestamp. The
+   * caller must supply an existing trip/vote and a choice from that vote's options.
+   *
+   * @param tripId ID of the ballot's trip.
+   * @param voteId ID of the vote within the trip.
+   * @param ballot User ID, selected option ID, and update timestamp to persist.
+   * @throws IllegalArgumentException If a trip, vote, or user document ID is invalid.
+   * @throws FirebaseFirestoreException If the write fails.
    */
-  fun observeBallots(
-      tripId: String,
-      voteId: String,
-      onChange: (List<VoteBallot>) -> Unit,
-      onFailure: (Exception) -> Unit,
-  ): VoteSubscription
-}
+  suspend fun submitBallot(tripId: String, voteId: String, ballot: VoteBallot)
 
-/** A listener handle that does not expose Firebase to ViewModels. */
-fun interface VoteSubscription {
-  fun remove()
+  /**
+   * Observes the initial ballots and subsequent changes, including removals and empty lists. Each
+   * collector owns a Firestore listener that is removed when collection ends. Listener or mapping
+   * errors terminate collection without emitting partial data.
+   *
+   * @param tripId ID of the trip to observe.
+   * @param voteId ID of the vote within the trip.
+   * @return A cold flow of complete ballot lists in unspecified order.
+   * @throws IllegalArgumentException During collection if IDs or stored ballot data are invalid.
+   * @throws FirebaseFirestoreException During collection if listener registration or observation
+   *   fails.
+   */
+  fun observeBallots(tripId: String, voteId: String): Flow<List<VoteBallot>>
 }

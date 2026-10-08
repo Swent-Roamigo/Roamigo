@@ -1,8 +1,7 @@
 // Voting repository tests implemented with assistance from Codex.
 package com.swent.roamigo.model.trip.voting
 
-import com.google.android.gms.tasks.OnFailureListener
-import com.google.android.gms.tasks.OnSuccessListener
+import com.google.android.gms.tasks.OnCompleteListener
 import com.google.android.gms.tasks.Task
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.CollectionReference
@@ -14,6 +13,15 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.Transaction
+import java.util.concurrent.Executor
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -22,6 +30,7 @@ import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.*
 
 /** Tests the Firebase boundary without a network connection or a running emulator. */
+@OptIn(ExperimentalCoroutinesApi::class)
 class VoteRepositoryFirestoreTest {
   private val db = mock(FirebaseFirestore::class.java)
   private val trips = mock(CollectionReference::class.java)
@@ -69,15 +78,13 @@ class VoteRepositoryFirestoreTest {
   }
 
   @Test
-  fun createVoteWritesAllFieldsUnderItsTrip() {
+  fun createVoteWritesAllFieldsUnderItsTrip() = runTest {
     val transaction = mock(Transaction::class.java)
     val snapshot = mock(DocumentSnapshot::class.java)
     `when`(snapshot.exists()).thenReturn(false)
     `when`(transaction.get(voteDocument)).thenReturn(snapshot)
     stubTransaction(transaction)
-    var completed = false
-
-    repository.createVote(vote, { completed = true }, ::unexpectedFailure)
+    repository.createVote(vote)
 
     verify(db).collection("trips")
     verify(trips).document("trip-1")
@@ -87,11 +94,10 @@ class VoteRepositoryFirestoreTest {
     order.verify(transaction).get(voteDocument)
     order.verify(transaction).set(voteDocument, voteData)
     verify(voteDocument, never()).set(any())
-    assertTrue(completed)
   }
 
   @Test
-  fun createClosedVotePreservesOptionalFields() {
+  fun createClosedVotePreservesOptionalFields() = runTest {
     val transaction = mock(Transaction::class.java)
     val snapshot = mock(DocumentSnapshot::class.java)
     `when`(snapshot.exists()).thenReturn(false)
@@ -100,7 +106,7 @@ class VoteRepositoryFirestoreTest {
     val closed =
         vote.copy(status = VoteStatus.CLOSED, closingTime = timestamp, winningOptionId = "option-2")
 
-    repository.createVote(closed, {}, ::unexpectedFailure)
+    repository.createVote(closed)
 
     verify(transaction)
         .set(
@@ -115,15 +121,13 @@ class VoteRepositoryFirestoreTest {
   }
 
   @Test
-  fun createVoteWithExistingIdFailsWithoutWriting() {
+  fun createVoteWithExistingIdFailsWithoutWriting() = runTest {
     val transaction = mock(Transaction::class.java)
     val snapshot = document("vote-1", voteData)
     `when`(snapshot.exists()).thenReturn(true)
     `when`(transaction.get(voteDocument)).thenReturn(snapshot)
     stubTransaction(transaction)
-    var failure: Exception? = null
-
-    repository.createVote(vote, { fail("Existing vote must not be replaced") }, { failure = it })
+    val failure = runCatching { repository.createVote(vote) }.exceptionOrNull()
 
     assertTrue(failure is FirebaseFirestoreException)
     assertEquals(
@@ -137,19 +141,17 @@ class VoteRepositoryFirestoreTest {
   }
 
   @Test
-  fun existingBallotCannotBecomeAttachedToReplacementVoteWithDifferentOptions() {
+  fun existingBallotCannotBecomeAttachedToReplacementVoteWithDifferentOptions() = runTest {
     val originalBallot = VoteBallot("user-1", "option-1", timestamp)
     doReturn(successfulTask<Void>(null)).`when`(ballotDocument).set(any())
-    repository.submitBallot("trip-1", "vote-1", originalBallot, {}, ::unexpectedFailure)
+    repository.submitBallot("trip-1", "vote-1", originalBallot)
     val transaction = mock(Transaction::class.java)
     val existing = document("vote-1", voteData)
     `when`(existing.exists()).thenReturn(true)
     `when`(transaction.get(voteDocument)).thenReturn(existing)
     stubTransaction(transaction)
     val replacement = vote.copy(options = listOf(VoteOption("new-option", "Beach")))
-    var failure: Exception? = null
-
-    repository.createVote(replacement, { fail("Must not replace vote options") }, { failure = it })
+    val failure = runCatching { repository.createVote(replacement) }.exceptionOrNull()
 
     assertEquals(
         FirebaseFirestoreException.Code.ALREADY_EXISTS,
@@ -164,7 +166,7 @@ class VoteRepositoryFirestoreTest {
   }
 
   @Test
-  fun getVotesMapsNestedOptionsAndUsesTripAndDocumentIds() {
+  fun getVotesMapsNestedOptionsAndUsesTripAndDocumentIds() = runTest {
     val second =
         vote.copy(
             uid = "vote-2",
@@ -186,9 +188,7 @@ class VoteRepositoryFirestoreTest {
             ),
         )
     doReturn(successfulTask(snapshot)).`when`(votes).get()
-    var result: List<Vote>? = null
-
-    repository.getVotes("trip-1", { result = it }, ::unexpectedFailure)
+    val result = repository.getVotes("trip-1")
 
     assertEquals(listOf(vote, second), result)
     verify(trips).document("trip-1")
@@ -196,17 +196,48 @@ class VoteRepositoryFirestoreTest {
   }
 
   @Test
-  fun getVotesReturnsEmptyListForTripWithoutVotes() {
-    doReturn(successfulTask(query())).`when`(votes).get()
-    var result: List<Vote>? = null
+  fun getVotesSuspendsUntilTaskCompletes() = runTest {
+    val task = successfulTask(query(document("vote-1", voteData)))
+    `when`(task.isComplete).thenReturn(false)
+    `when`(task.addOnCompleteListener(any<Executor>(), any<OnCompleteListener<QuerySnapshot>>()))
+        .thenReturn(task)
+    doReturn(task).`when`(votes).get()
+    val result = async { repository.getVotes("trip-1") }
+    runCurrent()
+    assertFalse(result.isCompleted)
+    @Suppress("UNCHECKED_CAST")
+    val captor =
+        ArgumentCaptor.forClass(OnCompleteListener::class.java)
+            as ArgumentCaptor<OnCompleteListener<QuerySnapshot>>
+    verify(task).addOnCompleteListener(any<Executor>(), captor.capture())
+    captor.value.onComplete(task)
+    assertEquals(listOf(vote), result.await())
+  }
 
-    repository.getVotes("trip-1", { result = it }, ::unexpectedFailure)
+  @Test
+  fun getVotesCanBeCancelledWhileAwaitingTask() = runTest {
+    val task = successfulTask(query())
+    `when`(task.isComplete).thenReturn(false)
+    `when`(task.addOnCompleteListener(any<Executor>(), any<OnCompleteListener<QuerySnapshot>>()))
+        .thenReturn(task)
+    doReturn(task).`when`(votes).get()
+    val result = async { repository.getVotes("trip-1") }
+    runCurrent()
+    result.cancel()
+    result.join()
+    assertTrue(result.isCancelled)
+  }
+
+  @Test
+  fun getVotesReturnsEmptyListForTripWithoutVotes() = runTest {
+    doReturn(successfulTask(query())).`when`(votes).get()
+    val result = repository.getVotes("trip-1")
 
     assertEquals(emptyList<Vote>(), result)
   }
 
   @Test
-  fun getVotesReportsMalformedDataWithoutPartialSuccess() {
+  fun getVotesReportsMalformedDataWithoutPartialSuccess() = runTest {
     val invalidDocuments =
         listOf(
             voteData - "question",
@@ -220,33 +251,29 @@ class VoteRepositoryFirestoreTest {
       doReturn(successfulTask(query(document("vote-1", voteData), document("bad", data))))
           .`when`(votes)
           .get()
-      var error: Exception? = null
-
-      repository.getVotes("trip-1", { fail("Must not return partial votes") }, { error = it })
+      val error = runCatching { repository.getVotes("trip-1") }.exceptionOrNull()
 
       assertTrue(error is IllegalArgumentException)
     }
   }
 
   @Test
-  fun changingChoiceReplacesTheSameUserBallotDocument() {
+  fun changingChoiceReplacesTheSameUserBallotDocument() = runTest {
     doReturn(successfulTask<Void>(null)).`when`(ballotDocument).set(any())
     val initial = VoteBallot("user-1", "option-1", timestamp)
     val updated = initial.copy(optionId = "option-2", updatedAt = Timestamp(200, 0))
-    var completions = 0
 
-    repository.submitBallot("trip-1", "vote-1", initial, { completions++ }, ::unexpectedFailure)
-    repository.submitBallot("trip-1", "vote-1", updated, { completions++ }, ::unexpectedFailure)
+    repository.submitBallot("trip-1", "vote-1", initial)
+    repository.submitBallot("trip-1", "vote-1", updated)
 
     verify(ballots, times(2)).document("user-1")
     verify(ballotDocument).set(ballotData(initial))
     verify(ballotDocument).set(ballotData(updated))
     verify(ballots, never()).document()
-    assertEquals(2, completions)
   }
 
   @Test
-  fun differentUsersWriteSeparateBallotDocuments() {
+  fun differentUsersWriteSeparateBallotDocuments() = runTest {
     val otherDocument = mock(DocumentReference::class.java)
     `when`(ballots.document("user-2")).thenReturn(otherDocument)
     doReturn(successfulTask<Void>(null)).`when`(ballotDocument).set(any())
@@ -254,15 +281,15 @@ class VoteRepositoryFirestoreTest {
     val first = VoteBallot("user-1", "option-1", timestamp)
     val second = first.copy(userId = "user-2")
 
-    repository.submitBallot("trip-1", "vote-1", first, {}, ::unexpectedFailure)
-    repository.submitBallot("trip-1", "vote-1", second, {}, ::unexpectedFailure)
+    repository.submitBallot("trip-1", "vote-1", first)
+    repository.submitBallot("trip-1", "vote-1", second)
 
     verify(ballotDocument).set(ballotData(first))
     verify(otherDocument).set(ballotData(second))
   }
 
   @Test
-  fun firestoreErrorsArePropagatedUnchangedForReadsAndWrites() {
+  fun firestoreErrorsArePropagatedUnchangedForReadsAndWrites() = runTest {
     val error =
         FirebaseFirestoreException("Denied", FirebaseFirestoreException.Code.PERMISSION_DENIED)
     doReturn(failedTask<Unit>(error)).`when`(db).runTransaction(any<Transaction.Function<Unit>>())
@@ -270,123 +297,138 @@ class VoteRepositoryFirestoreTest {
     doReturn(failedTask<Void>(error)).`when`(ballotDocument).set(any())
     val failures = mutableListOf<Exception>()
 
-    repository.createVote(vote, { fail("Write should fail") }, failures::add)
-    repository.getVotes("trip-1", { fail("Read should fail") }, failures::add)
-    repository.submitBallot(
-        "trip-1",
-        "vote-1",
-        VoteBallot("user-1", "option-1", timestamp),
-        { fail("Write should fail") },
-        failures::add,
-    )
+    listOf<suspend () -> Unit>(
+            { repository.createVote(vote) },
+            { repository.getVotes("trip-1") },
+            {
+              repository.submitBallot(
+                  "trip-1",
+                  "vote-1",
+                  VoteBallot("user-1", "option-1", timestamp),
+              )
+            },
+        )
+        .forEach { operation ->
+          failures.add(runCatching { operation() }.exceptionOrNull() as Exception)
+        }
 
     assertEquals(3, failures.size)
     failures.forEach { assertSame(error, it) }
   }
 
   @Test
-  fun synchronousFirestoreErrorsUseFailureCallback() {
+  fun synchronousFirestoreErrorsAreThrown() = runTest {
     val error = IllegalStateException("Firestore unavailable")
     `when`(db.collection("trips")).thenThrow(error)
-    var failure: Exception? = null
-
-    repository.createVote(vote, { fail("Write should fail") }, { failure = it })
+    val failure = runCatching { repository.createVote(vote) }.exceptionOrNull()
 
     assertSame(error, failure)
   }
 
   @Test
-  fun invalidDocumentIdsAreReportedBeforeFirestoreAccess() {
-    var failures = 0
-    repository.createVote(vote.copy(uid = "bad/id"), { fail() }, { failures++ })
-    repository.getVotes("", { fail() }, { failures++ })
-    repository.submitBallot(
-        "trip-1",
-        "vote-1",
-        VoteBallot("bad/id", "option-1", timestamp),
-        { fail() },
-        { failures++ },
-    )
-    repository.observeBallots("trip-1", "bad/id", { fail() }, { failures++ }).remove()
-
-    assertEquals(4, failures)
+  fun invalidDocumentIdsAreReportedBeforeFirestoreAccess() = runTest {
+    val operations =
+        listOf<suspend () -> Unit>(
+            { repository.createVote(vote.copy(uid = "bad/id")) },
+            { repository.getVotes("") },
+            {
+              repository.submitBallot(
+                  "trip-1",
+                  "vote-1",
+                  VoteBallot("bad/id", "option-1", timestamp),
+              )
+            },
+            { repository.observeBallots("trip-1", "bad/id").first() },
+        )
+    operations.forEach {
+      assertTrue(runCatching { it() }.exceptionOrNull() is IllegalArgumentException)
+    }
     verifyNoInteractions(db)
   }
 
   @Test
-  fun observeBallotsEmitsInitialChangesAndRemovalsAndCanBeRemoved() {
+  fun observeBallotsEmitsInitialChangesAndRemovalsAndCleansUpOnCompletion() = runTest {
     val registration = mock(ListenerRegistration::class.java)
     `when`(ballots.addSnapshotListener(any<EventListener<QuerySnapshot>>()))
         .thenReturn(registration)
     val changes = mutableListOf<List<VoteBallot>>()
-    val subscription =
-        repository.observeBallots("trip-1", "vote-1", changes::add, ::unexpectedFailure)
+    val flow = repository.observeBallots("trip-1", "vote-1")
+    verifyNoInteractions(ballots)
+    val collection = launch { flow.take(4).collect { changes.add(it) } }
+    runCurrent()
     val listener = capturedListener()
     val first = VoteBallot("user-1", "option-1", timestamp)
     val updated = first.copy(optionId = "option-2", updatedAt = Timestamp(200, 0))
-
     listener.onEvent(query(), null)
-    listener.onEvent(query(document("user-1", ballotData(first))), null)
+    listener.onEvent(query(document("user-1", ballotData(first) - "userId")), null)
     listener.onEvent(query(document("user-1", ballotData(updated))), null)
     listener.onEvent(query(), null)
-    subscription.remove()
-
+    collection.join()
     assertEquals(listOf(emptyList(), listOf(first), listOf(updated), emptyList()), changes)
     verify(registration).remove()
   }
 
   @Test
-  fun observeBallotsUsesDocumentUserIdAndReportsMalformedSnapshots() {
+  fun observeBallotsRemovesListenerOnCancellation() = runTest {
+    val registration = mock(ListenerRegistration::class.java)
     `when`(ballots.addSnapshotListener(any<EventListener<QuerySnapshot>>()))
-        .thenReturn(mock(ListenerRegistration::class.java))
-    val changes = mutableListOf<List<VoteBallot>>()
-    val errors = mutableListOf<Exception>()
-    repository.observeBallots("trip-1", "vote-1", changes::add, errors::add)
-    val listener = capturedListener()
-    val ballot = VoteBallot("user-1", "option-1", timestamp)
-
-    listener.onEvent(query(document("user-1", ballotData(ballot) - "userId")), null)
-    listener.onEvent(query(document("user-1", ballotData(ballot) - "optionId")), null)
-    listener.onEvent(
-        query(document("user-1", ballotData(ballot) + ("updatedAt" to "invalid"))),
-        null,
-    )
-    listener.onEvent(null, null)
-
-    assertEquals(listOf(listOf(ballot)), changes)
-    assertEquals(3, errors.size)
-    errors.forEach { assertTrue(it is IllegalArgumentException) }
+        .thenReturn(registration)
+    val collection = launch { repository.observeBallots("trip-1", "vote-1").collect() }
+    runCurrent()
+    collection.cancel()
+    collection.join()
+    verify(registration).remove()
   }
 
   @Test
-  fun observeBallotsPropagatesListenerErrorWithoutEmittingData() {
+  fun observeBallotsReportsMalformedSnapshotsAndRemovesListener() = runTest {
+    val ballot = VoteBallot("user-1", "option-1", timestamp)
+    val snapshots =
+        listOf(
+            query(
+                document("user-1", ballotData(ballot)),
+                document("bad", ballotData(ballot) - "optionId"),
+            ),
+            query(document("user-1", ballotData(ballot) + ("updatedAt" to "invalid"))),
+            null,
+        )
+    for (snapshot in snapshots) {
+      reset(ballots)
+      val registration = mock(ListenerRegistration::class.java)
+      `when`(ballots.addSnapshotListener(any<EventListener<QuerySnapshot>>()))
+          .thenReturn(registration)
+      val result = async { runCatching { repository.observeBallots("trip-1", "vote-1").first() } }
+      runCurrent()
+      capturedListener().onEvent(snapshot, null)
+      assertTrue(result.await().exceptionOrNull() is IllegalArgumentException)
+      verify(registration).remove()
+    }
+  }
+
+  @Test
+  fun observeBallotsPropagatesListenerErrorAndRemovesListener() = runTest {
+    val registration = mock(ListenerRegistration::class.java)
     `when`(ballots.addSnapshotListener(any<EventListener<QuerySnapshot>>()))
-        .thenReturn(mock(ListenerRegistration::class.java))
+        .thenReturn(registration)
     val error =
         FirebaseFirestoreException("Unavailable", FirebaseFirestoreException.Code.UNAVAILABLE)
-    var failure: Exception? = null
-    repository.observeBallots(
-        "trip-1",
-        "vote-1",
-        { fail("Must not emit on failure") },
-        { failure = it },
-    )
-
+    val result = async { runCatching { repository.observeBallots("trip-1", "vote-1").first() } }
+    runCurrent()
     capturedListener().onEvent(null, error)
-
-    assertSame(error, failure)
+    assertSame(error, result.await().exceptionOrNull())
+    verify(registration).remove()
   }
 
   @Test
-  fun observeBallotsReportsListenerRegistrationFailure() {
+  fun observeBallotsReportsListenerRegistrationFailure() = runTest {
     val error = IllegalStateException("Unable to register")
     `when`(ballots.addSnapshotListener(any<EventListener<QuerySnapshot>>())).thenThrow(error)
-    var failure: Exception? = null
-
-    val subscription = repository.observeBallots("trip-1", "vote-1", { fail() }, { failure = it })
-    subscription.remove()
-
-    assertSame(error, failure)
+    val failure = runCatching {
+      repository.observeBallots("trip-1", "vote-1").first()
+    }
+        .exceptionOrNull()
+    assertTrue(failure is IllegalStateException)
+    assertEquals(error.message, failure?.message)
   }
 
   private fun ballotData(ballot: VoteBallot): Map<String, Any?> =
@@ -426,30 +468,18 @@ class VoteRepositoryFirestoreTest {
     return captor.value
   }
 
-  // Execute Task callbacks synchronously so these JUnit tests do not depend on an Android Looper.
+  // Completed tasks exercise await() without requiring an Android Looper.
   @Suppress("UNCHECKED_CAST")
-  private fun <T> successfulTask(result: T?): Task<T> {
-    val task = mock(Task::class.java) as Task<T>
-    `when`(task.addOnSuccessListener(any<OnSuccessListener<T>>())).thenAnswer {
-      it.getArgument<OnSuccessListener<T>>(0).onSuccess(result)
-      task
-    }
-    `when`(task.addOnFailureListener(any<OnFailureListener>())).thenReturn(task)
-    return task
-  }
+  private fun <T> successfulTask(result: T?): Task<T> =
+      (mock(Task::class.java) as Task<T>).also {
+        `when`(it.isComplete).thenReturn(true)
+        `when`(it.result).thenReturn(result)
+      }
 
   @Suppress("UNCHECKED_CAST")
-  private fun <T> failedTask(error: Exception): Task<T> {
-    val task = mock(Task::class.java) as Task<T>
-    `when`(task.addOnSuccessListener(any<OnSuccessListener<T>>())).thenReturn(task)
-    `when`(task.addOnFailureListener(any<OnFailureListener>())).thenAnswer {
-      it.getArgument<OnFailureListener>(0).onFailure(error)
-      task
-    }
-    return task
-  }
-
-  private fun unexpectedFailure(error: Exception) {
-    throw AssertionError("Unexpected repository failure", error)
-  }
+  private fun <T> failedTask(error: Exception): Task<T> =
+      (mock(Task::class.java) as Task<T>).also {
+        `when`(it.isComplete).thenReturn(true)
+        `when`(it.exception).thenReturn(error)
+      }
 }
