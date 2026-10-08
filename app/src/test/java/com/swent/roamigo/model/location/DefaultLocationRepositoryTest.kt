@@ -115,6 +115,42 @@ class DefaultLocationRepositoryTest {
   }
 
   @Test
+  fun getCurrentLocation_usesNetworkProviderWithCoarsePermissionOnlyWhenGpsIsEnabled() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_COARSE_LOCATION)
+    val networkLocation =
+        recentLocation(LocationManager.NETWORK_PROVIDER).apply {
+          latitude = 47.3769
+          longitude = 8.5417
+        }
+    locationManager.simulateLocation(networkLocation)
+
+    val result = repository.getCurrentLocation()
+
+    assertEquals(47.3769, result!!.latitude, 0.0)
+    assertEquals(8.5417, result.longitude, 0.0)
+  }
+
+  @Test
+  fun getCurrentLocation_fallsBackToNetworkProviderWhenGpsHasNoFix() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+
+    val pending = async { repository.getCurrentLocation() }
+    runCurrent()
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMinutes(1))
+    runCurrent()
+    assertFalse(pending.isCompleted)
+
+    locationManager.simulateLocation(
+        recentLocation(LocationManager.NETWORK_PROVIDER).apply {
+          latitude = 47.3769
+          longitude = 8.5417
+        }
+    )
+
+    assertEquals(47.3769, pending.await()!!.latitude, 0.0)
+  }
+
+  @Test
   fun getCurrentLocation_hasNullAccuracyWhenProviderReportsNone() = runTest {
     application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
     locationManager.simulateLocation(
@@ -144,8 +180,11 @@ class DefaultLocationRepositoryTest {
     application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
 
     val pending = async { repository.getCurrentLocation() }
-    runCurrent()
-    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMinutes(1))
+    // GPS and then the network provider each time out without a fix.
+    repeat(2) {
+      runCurrent()
+      shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMinutes(1))
+    }
 
     assertNull(pending.await())
   }

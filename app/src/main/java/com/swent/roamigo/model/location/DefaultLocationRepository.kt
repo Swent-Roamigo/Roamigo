@@ -34,9 +34,19 @@ class DefaultLocationRepository(
 
   override suspend fun getCurrentLocation(): DeviceLocation? {
     if (!hasLocationPermission()) return null
-    val provider =
-        PREFERRED_PROVIDERS.firstOrNull { locationManager.isProviderEnabled(it) } ?: return null
-    return requestSingleLocation(provider)?.toDeviceLocation()
+    // An enabled provider may still fail to get a fix (e.g. GPS indoors), so fall back to the next.
+    return usableProviders().firstNotNullOfOrNull { requestSingleLocation(it) }?.toDeviceLocation()
+  }
+
+  // GPS requires the fine permission; a coarse-only caller would get a SecurityException.
+  private fun usableProviders(): List<String> {
+    val hasFinePermission =
+        ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+    return PREFERRED_PROVIDERS.filter {
+      (it != LocationManager.GPS_PROVIDER || hasFinePermission) &&
+          locationManager.isProviderEnabled(it)
+    }
   }
 
   // The permission is checked in getCurrentLocation(); Android kills the process when it is
@@ -68,7 +78,7 @@ class DefaultLocationRepository(
     val LOCATION_PERMISSIONS =
         listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
 
-    // GPS is more precise, the network provider is the fallback when GPS is disabled.
+    // GPS is more precise, the network provider is the fallback when GPS is unusable.
     val PREFERRED_PROVIDERS = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
 
     // Resuming a continuation is thread-safe and cheap, so no need to hop threads first.
