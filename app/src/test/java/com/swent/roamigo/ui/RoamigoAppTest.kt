@@ -1,3 +1,4 @@
+// Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui
 
 import androidx.compose.ui.test.assertCountEquals
@@ -14,6 +15,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
+/** Checks the permissions-to-profile flow, and that the footer belongs to the profile screen. */
 class RoamigoAppTest {
   @get:Rule val composeRule = createComposeRule()
 

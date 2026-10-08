@@ -1,3 +1,4 @@
+// Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui
 
 import androidx.compose.runtime.Composable
@@ -11,7 +12,12 @@ import com.swent.roamigo.ui.permissions.PermissionsScreen
 import com.swent.roamigo.ui.profile.ProfileScreen
 import com.swent.roamigo.ui.profile.ProfileViewModel
 
-/** Permissions explainer first, then the profile screen. */
+/**
+ * Permissions explainer first, then the profile screen.
+ *
+ * A saved flag is enough until more destinations exist; it survives rotation without adding a
+ * navigation dependency.
+ */
 @Composable
 fun RoamigoApp() {
   var showProfile by rememberSaveable { mutableStateOf(false) }

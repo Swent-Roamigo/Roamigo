@@ -1,3 +1,4 @@
+// Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui.profile
 
 import androidx.lifecycle.ViewModel
@@ -6,6 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+/** Everything the profile screen shows; [email] and [friendCount] are not part of [User]. */
 data class ProfileUiState(val user: User, val email: String, val friendCount: Int)
 
 class ProfileViewModel : ViewModel() {

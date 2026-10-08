@@ -1,3 +1,4 @@
+// Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui
 
 import androidx.compose.ui.test.assert
@@ -38,6 +39,7 @@ class ProfileScreenTest {
     composeRule.onNodeWithTag(C.Tag.profile_avatar).assertTextEquals(state.user.displayName.take(1))
     composeRule.onNodeWithTag(C.Tag.profile_name).assertTextEquals(state.user.displayName)
     composeRule.onNodeWithTag(C.Tag.profile_email).assertTextContains(state.email, substring = true)
+    // The row only carries the tag; its text lives in child nodes.
     composeRule
         .onNodeWithTag(C.Tag.profile_friends_row)
         .assert(hasAnyDescendant(hasText(state.friendCount.toString(), substring = true)))

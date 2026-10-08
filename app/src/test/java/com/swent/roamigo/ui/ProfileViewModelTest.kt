@@ -1,3 +1,4 @@
+// Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui
 
 import com.swent.roamigo.ui.profile.ProfileViewModel

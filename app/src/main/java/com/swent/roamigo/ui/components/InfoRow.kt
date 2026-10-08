@@ -1,3 +1,4 @@
+// Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui.components
 
 import androidx.annotation.DrawableRes
@@ -52,6 +53,7 @@ fun InfoRow(
             tint = MaterialTheme.colorScheme.onPrimaryContainer,
         )
       }
+      // The weight makes the text take all the free width, which pushes [action] to the right edge.
       Column(modifier = Modifier.weight(1f)) {
         Text(title, style = MaterialTheme.typography.titleMedium)
         Text(

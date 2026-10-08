@@ -1,3 +1,4 @@
+// Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui.profile
 
 import androidx.compose.foundation.background
@@ -58,6 +59,7 @@ fun ProfileScreen(state: ProfileUiState, modifier: Modifier = Modifier) {
         }
       },
   ) { padding ->
+    // Scaffold reports the footer height so the content is not drawn underneath it.
     Column(
         modifier = Modifier.fillMaxSize().padding(padding).padding(Spacing.screenPadding),
         verticalArrangement = Arrangement.spacedBy(Spacing.medium),
