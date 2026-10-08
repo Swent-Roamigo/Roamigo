@@ -11,16 +11,25 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.swent.roamigo.R
 import com.swent.roamigo.ui.components.InfoRow
 import com.swent.roamigo.ui.theme.Spacing
 
 // Informational only: Roamigo requests each permission in context, never up front.
 private val permissionRows =
     listOf(
-        Triple("📍", "Location sharing", "Off until you turn it on · only trip members see it"),
-        Triple("📷", "Camera", "Asked when you take a trip photo"),
-        Triple("🔔", "Notifications", "Asked when you turn on vote alerts"),
-        Triple("👥", "Trip members only", "Only invited friends can see or edit a trip"),
+        Triple(
+            R.drawable.ic_pin,
+            "Location sharing",
+            "Off until you turn it on · only trip members see it",
+        ),
+        Triple(R.drawable.ic_camera, "Camera", "Asked when you take a trip photo"),
+        Triple(R.drawable.ic_bell, "Notifications", "Asked when you turn on vote alerts"),
+        Triple(
+            R.drawable.ic_users,
+            "Trip members only",
+            "Only invited friends can see or edit a trip",
+        ),
     )
 
 @Composable

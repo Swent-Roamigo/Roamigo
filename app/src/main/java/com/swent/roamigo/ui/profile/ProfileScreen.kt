@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -20,15 +21,22 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.swent.roamigo.R
 import com.swent.roamigo.ui.components.InfoRow
 import com.swent.roamigo.ui.theme.Ochre
 import com.swent.roamigo.ui.theme.Paper
 import com.swent.roamigo.ui.theme.Spacing
 
 // The footer is only drawn here; none of its destinations exist yet, so none is selected.
-private val footerTabs = listOf("📅" to "Trips", "🗺" to "Map", "📷" to "Photos")
+private val footerTabs =
+    listOf(
+        R.drawable.ic_calendar to "Trips",
+        R.drawable.ic_map to "Map",
+        R.drawable.ic_camera to "Photos",
+    )
 
 @Composable
 fun ProfileScreen(state: ProfileUiState, modifier: Modifier = Modifier) {
@@ -40,7 +48,7 @@ fun ProfileScreen(state: ProfileUiState, modifier: Modifier = Modifier) {
             NavigationBarItem(
                 selected = false,
                 onClick = {},
-                icon = { Text(icon) },
+                icon = { Icon(painterResource(icon), contentDescription = null) },
                 label = { Text(label) },
             )
           }
@@ -78,9 +86,15 @@ fun ProfileScreen(state: ProfileUiState, modifier: Modifier = Modifier) {
             textAlign = TextAlign.Center,
         )
       }
-      InfoRow("👤", "Display name", state.user.displayName) { EditAction("Edit") }
-      InfoRow("📷", "Profile picture", "Shown to your trip members") { EditAction("Change") }
-      InfoRow("👥", "Friends", "${state.friendCount} friends · heatmaps visible to friends only") {
+      InfoRow(R.drawable.ic_user, "Display name", state.user.displayName) { EditAction("Edit") }
+      InfoRow(R.drawable.ic_camera, "Profile picture", "Shown to your trip members") {
+        EditAction("Change")
+      }
+      InfoRow(
+          R.drawable.ic_users,
+          "Friends",
+          "${state.friendCount} friends · heatmaps visible to friends only",
+      ) {
         EditAction("View")
       }
       Spacer(Modifier.weight(1f))
