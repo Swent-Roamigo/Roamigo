@@ -1,3 +1,4 @@
+// AI assistance was used for implementation support and code review.
 package com.swent.roamigo.model.trip
 
 /**
