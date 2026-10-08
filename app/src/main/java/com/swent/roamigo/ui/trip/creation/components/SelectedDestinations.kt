@@ -15,9 +15,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.ui.theme.RoamigoTheme
+
+internal object SelectedDestinationsTestTags {
+  const val REMOVE_PREFIX = "selected_destination_remove_"
+
+  fun removeFor(destination: String): String = "$REMOVE_PREFIX${destination.lowercase()}"
+}
 
 @Composable
 fun SelectedDestinations(
@@ -54,7 +62,10 @@ private fun DestinationChip(destination: String, onRemove: () -> Unit) {
     Text(
         "×",
         modifier =
-            Modifier.clip(CircleShape).clickable(onClick = onRemove).padding(horizontal = 2.dp),
+            Modifier.clip(CircleShape)
+                .clickable(onClick = onRemove)
+                .padding(horizontal = 2.dp)
+                .semantics { testTag = SelectedDestinationsTestTags.removeFor(destination) },
         color = MaterialTheme.colorScheme.onPrimary,
         style = MaterialTheme.typography.labelMedium,
     )
