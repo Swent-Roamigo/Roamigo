@@ -1,3 +1,4 @@
+// AI assistance was used for code review and implementation support.
 package com.swent.roamigo.model.authentication
 
 import android.net.Uri
