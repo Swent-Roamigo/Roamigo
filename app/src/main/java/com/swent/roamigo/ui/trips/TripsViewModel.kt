@@ -18,6 +18,7 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,6 +43,8 @@ class TripsViewModel(
 
   private val _uiState = MutableStateFlow(TripsUiState())
 
+  private var refreshJob: Job? = null
+
   /** State currently rendered by the Trips Home screen. */
   val uiState: StateFlow<TripsUiState> = _uiState.asStateFlow()
 
@@ -56,7 +59,9 @@ class TripsViewModel(
    * into an error state instead of propagating to the UI.
    */
   fun refresh() {
-    viewModelScope.launch {
+    refreshJob?.cancel()
+
+    refreshJob = viewModelScope.launch {
       _uiState.value =
           _uiState.value.copy(
               isLoading = true,
@@ -288,7 +293,6 @@ internal fun selectOtherTrips(
  * Converts a highlighted trip into the presentation model used by the main trip card.
  *
  * @param activities the activities belonging to the trip.
- * @param memberCount the number of members belonging to the trip.
  * @param memberInitials the member initials displayed on the card.
  * @param now the current date and time used to derive the trip status label.
  * @return the presentation model for the highlighted trip.

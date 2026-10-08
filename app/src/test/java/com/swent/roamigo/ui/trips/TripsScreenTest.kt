@@ -22,7 +22,9 @@ import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
+import java.time.Clock
 import java.time.Instant
+import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -44,7 +46,8 @@ class TripsScreenTest {
 
   @Test
   fun tripsRouteDisplaysRepositoryContentAndInviteAction() {
-    val now = Instant.now()
+    val now = Instant.parse("2026-10-08T12:00:00Z")
+    val clock = Clock.fixed(now, ZoneOffset.UTC)
 
     val alex =
         User(
@@ -138,6 +141,7 @@ class TripsScreenTest {
             tripRepository = tripRepository,
             userRepository = userRepository,
             onInviteClick = { inviteClicks++ },
+            clock = clock,
         )
       }
     }
@@ -202,6 +206,42 @@ class TripsScreenTest {
     assertEquals(1, tripsClicks)
     assertEquals(1, mapClicks)
     assertEquals(1, photosClicks)
+  }
+
+  @Test
+  fun singularCountsUseSingularLabels() {
+    composeTestRule.setContent {
+      MaterialTheme {
+        TripsScreen(
+            uiState =
+                TripsUiState(
+                    isLoading = false,
+                    mainTrip =
+                        MainTripUiModel(
+                            id = "main",
+                            name = "Day trip",
+                            dateRange = "8 Oct",
+                            durationDays = 1,
+                            stopCount = 1,
+                            memberInitials = emptyList(),
+                            badge = null,
+                        ),
+                    otherTrips =
+                        listOf(
+                            OtherTripUiModel(
+                                id = "other",
+                                name = "Geneva",
+                                dateRange = "10 Oct",
+                                memberCount = 1,
+                            )
+                        ),
+                )
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithText("8 Oct · 1 day · 1 stop").assertIsDisplayed()
+    composeTestRule.onNodeWithText("10 Oct · 1 traveler").assertIsDisplayed()
   }
 
   @Test

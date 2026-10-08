@@ -2,4 +2,34 @@
     <string name="app_name">SampleApp</string>
     <string name="title_activity_main">MainActivity</string>
     <string name="title_activity_second">SecondActivity</string>
+
+    <!-- Trips Home -->
+    <string name="trips_title">Your trips</string>
+    <string name="trips_next_up">Next up</string>
+    <string name="trips_other_trips">Other trips</string>
+    <string name="trips_new_trip">New trip</string>
+    <string name="trips_invite">Invite</string>
+    <string name="trips_confirmed">Confirmed</string>
+    <string name="trips_shared">Shared</string>
+
+    <string name="trips_nav_trips">Trips</string>
+    <string name="trips_nav_map">Map</string>
+    <string name="trips_nav_photos">Photos</string>
+
+    <string name="trips_greeting">%1$s, %2$s</string>
+
+    <plurals name="trips_duration_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+
+    <plurals name="trips_stop_count">
+        <item quantity="one">%d stop</item>
+        <item quantity="other">%d stops</item>
+    </plurals>
+
+    <plurals name="trips_traveler_count">
+        <item quantity="one">%d traveler</item>
+        <item quantity="other">%d travelers</item>
+    </plurals>
 </resources>

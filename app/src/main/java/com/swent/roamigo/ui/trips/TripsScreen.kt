@@ -48,15 +48,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.resources.C
+import java.time.Clock
 
 /**
  * Connects repository-backed trip data to the stateless [TripsScreen].
@@ -73,6 +77,7 @@ import com.swent.roamigo.resources.C
  * @param onTripsClick invoked when the Trips navigation destination is selected.
  * @param onMapClick invoked when the Map navigation destination is selected.
  * @param onPhotosClick invoked when the Photos navigation destination is selected.
+ * @param clock the clock used for time-dependent presentation logic.
  */
 @Composable
 fun TripsRoute(
@@ -85,6 +90,7 @@ fun TripsRoute(
     onTripsClick: () -> Unit = {},
     onMapClick: () -> Unit = {},
     onPhotosClick: () -> Unit = {},
+    clock: Clock = Clock.systemDefaultZone(),
 ) {
   val viewModel: TripsViewModel =
       viewModel(
@@ -92,6 +98,7 @@ fun TripsRoute(
               TripsViewModel.factory(
                   tripRepository = tripRepository,
                   userRepository = userRepository,
+                  clock = clock,
               )
       )
 
@@ -198,7 +205,7 @@ fun TripsScreen(
 
           uiState.nextActivity?.let { activity ->
             item {
-              SectionTitle("Next up")
+              SectionTitle(stringResource(R.string.trips_next_up))
 
               Spacer(modifier = Modifier.height(12.dp))
 
@@ -210,7 +217,7 @@ fun TripsScreen(
           }
 
           if (uiState.otherTrips.isNotEmpty()) {
-            item { SectionTitle("Other trips") }
+            item { SectionTitle(stringResource(R.string.trips_other_trips)) }
 
             items(
                 items = uiState.otherTrips,
@@ -244,7 +251,7 @@ fun TripsScreen(
           Spacer(modifier = Modifier.width(8.dp))
 
           Text(
-              text = "New trip",
+              text = stringResource(R.string.trips_new_trip),
               style = MaterialTheme.typography.titleMedium,
           )
         }
@@ -253,7 +260,6 @@ fun TripsScreen(
   }
 }
 
-/** Displays the header information of the Trips Home screen. */
 @Composable
 private fun TripsHeader(
     greeting: String,
@@ -268,7 +274,12 @@ private fun TripsHeader(
     Column {
       if (greeting.isNotBlank() && userName.isNotBlank()) {
         Text(
-            text = "$greeting, $userName",
+            text =
+                stringResource(
+                    R.string.trips_greeting,
+                    greeting,
+                    userName,
+                ),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -277,7 +288,7 @@ private fun TripsHeader(
       }
 
       Text(
-          text = "Your trips",
+          text = stringResource(R.string.trips_title),
           style = MaterialTheme.typography.headlineLarge,
           fontWeight = FontWeight.Bold,
           color = MaterialTheme.colorScheme.onBackground,
@@ -302,7 +313,6 @@ private fun TripsHeader(
   }
 }
 
-/** Displays the current or closest upcoming trip. */
 @Composable
 private fun MainTripCard(
     trip: MainTripUiModel,
@@ -359,8 +369,22 @@ private fun MainTripCard(
 
         Spacer(modifier = Modifier.height(4.dp))
 
+        val durationText =
+            pluralStringResource(
+                R.plurals.trips_duration_days,
+                trip.durationDays,
+                trip.durationDays,
+            )
+
+        val stopsText =
+            pluralStringResource(
+                R.plurals.trips_stop_count,
+                trip.stopCount,
+                trip.stopCount,
+            )
+
         Text(
-            text = "${trip.dateRange} · ${trip.durationDays} days · " + "${trip.stopCount} stops",
+            text = "${trip.dateRange} · $durationText · $stopsText",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onPrimary,
         )
@@ -396,7 +420,7 @@ private fun MainTripCard(
               Spacer(modifier = Modifier.width(4.dp))
 
               Text(
-                  text = "Invite",
+                  text = stringResource(R.string.trips_invite),
                   style = MaterialTheme.typography.bodyLarge,
                   color = MaterialTheme.colorScheme.onSurface,
               )
@@ -408,7 +432,6 @@ private fun MainTripCard(
   }
 }
 
-/** Displays up to three trip members as overlapping initials. */
 @Composable
 private fun MemberAvatars(initials: List<String>) {
   if (initials.isEmpty()) {
@@ -425,9 +448,7 @@ private fun MemberAvatars(initials: List<String>) {
       val avatarColors =
           when (index % 3) {
             0 -> MaterialTheme.colorScheme.secondary to MaterialTheme.colorScheme.onSecondary
-
             1 -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
-
             else -> MaterialTheme.colorScheme.tertiary to MaterialTheme.colorScheme.onTertiary
           }
 
@@ -454,7 +475,6 @@ private fun MemberAvatars(initials: List<String>) {
   }
 }
 
-/** Displays the closest accepted future activity of the main trip. */
 @Composable
 private fun NextActivityCard(
     activity: ActivityCardUiModel,
@@ -497,12 +517,11 @@ private fun NextActivityCard(
 
       Spacer(modifier = Modifier.width(8.dp))
 
-      StatusPill("Confirmed")
+      StatusPill(stringResource(R.string.trips_confirmed))
     }
   }
 }
 
-/** Displays one future trip that is not currently highlighted. */
 @Composable
 private fun OtherTripCard(trip: OtherTripUiModel) {
   Surface(
@@ -530,8 +549,15 @@ private fun OtherTripCard(trip: OtherTripUiModel) {
 
         Spacer(modifier = Modifier.height(3.dp))
 
+        val travelersText =
+            pluralStringResource(
+                R.plurals.trips_traveler_count,
+                trip.memberCount,
+                trip.memberCount,
+            )
+
         Text(
-            text = "${trip.dateRange} · ${trip.memberCount} travelers",
+            text = "${trip.dateRange} · $travelersText",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -539,7 +565,7 @@ private fun OtherTripCard(trip: OtherTripUiModel) {
 
       if (trip.memberCount > 1) {
         Spacer(modifier = Modifier.width(8.dp))
-        StatusPill("Shared")
+        StatusPill(stringResource(R.string.trips_shared))
       }
     }
   }
@@ -575,9 +601,10 @@ private fun SectionTitle(text: String) {
 }
 
 /**
- * Displays a drawable when available and a theme-based placeholder otherwise.
+ * Displays a trip image or a theme-based placeholder when no image resource is available.
  *
- * This keeps the screen independent from a concrete remote image-loading solution.
+ * @param imageRes the optional drawable resource to display.
+ * @param modifier the modifier applied to the image or placeholder.
  */
 @Composable
 private fun TripImage(
@@ -637,10 +664,10 @@ private fun TripsBottomBar(
           icon = {
             Icon(
                 imageVector = Icons.Outlined.CardTravel,
-                contentDescription = "Trips",
+                contentDescription = stringResource(R.string.trips_nav_trips),
             )
           },
-          label = { Text("Trips") },
+          label = { Text(stringResource(R.string.trips_nav_trips)) },
           colors = tripsNavigationColors(),
       )
 
@@ -651,10 +678,10 @@ private fun TripsBottomBar(
           icon = {
             Icon(
                 imageVector = Icons.Outlined.Map,
-                contentDescription = "Map",
+                contentDescription = stringResource(R.string.trips_nav_map),
             )
           },
-          label = { Text("Map") },
+          label = { Text(stringResource(R.string.trips_nav_map)) },
           colors = tripsNavigationColors(),
       )
 
@@ -665,10 +692,10 @@ private fun TripsBottomBar(
           icon = {
             Icon(
                 imageVector = Icons.Outlined.PhotoCamera,
-                contentDescription = "Photos",
+                contentDescription = stringResource(R.string.trips_nav_photos),
             )
           },
-          label = { Text("Photos") },
+          label = { Text(stringResource(R.string.trips_nav_photos)) },
           colors = tripsNavigationColors(),
       )
     }
