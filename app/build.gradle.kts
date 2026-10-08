@@ -145,6 +145,8 @@ dependencies {
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(platform(libs.compose.bom))
   testImplementation(libs.junit)
+  // Voting repository test dependency configured with assistance from Codex.
+  testImplementation(libs.mockito.core)
   globalTestImplementation(libs.androidx.junit)
   globalTestImplementation(libs.androidx.espresso.core)
 

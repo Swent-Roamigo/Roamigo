@@ -17,6 +17,8 @@ robolectric = "4.16.1"
 sonar = "7.5.0.8588"
 googleServices = "4.5.0"
 firebaseBom = "34.19.0"
+# Voting repository test dependency configured with assistance from Codex.
+mockito = "5.13.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -44,6 +46,7 @@ kaspresso-compose = { group = "com.kaspersky.android-components", name = "kaspre
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
+mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockito" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
