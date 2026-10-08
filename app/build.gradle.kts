@@ -203,7 +203,7 @@ tasks.register("jacocoTestReport", JacocoReport::class) {
       listOf(
           "tmp/kotlin-classes/debug", // standalone Kotlin plugin
           "intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes", // AGP 9 built-in
-                                                                             // Kotlin
+          // Kotlin
       )
   val debugTrees = kotlinClassDirs.map { dir ->
     fileTree(layout.buildDirectory.dir(dir)) { exclude(fileFilter) }
