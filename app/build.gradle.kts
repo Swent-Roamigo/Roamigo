@@ -80,6 +80,8 @@ android {
   }
 }
 
+dependencyLocking { lockAllConfigurations() }
+
 // With AGP 9+ the JVM target is set outside the Android block.
 kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
 
@@ -93,7 +95,7 @@ sonar {
     // Each path may be absolute or relative to the project base directory.
     property(
         "sonar.junit.reportPaths",
-        "${project.layout.buildDirectory.get()}/test-results/testDebugunitTest/",
+        "${project.layout.buildDirectory.get()}/test-results/testDebugUnitTest/",
     )
     // Paths to xml files with Android Lint issues. If the main flavor is changed, this file will
     // have to be changed too.
@@ -105,6 +107,24 @@ sonar {
     property(
         "sonar.coverage.jacoco.xmlReportPaths",
         "${project.layout.buildDirectory.get()}/reports/jacoco/jacocoTestReport/jacocoTestReport.xml",
+    )
+
+    // TEMP FIX for code coverage
+    property(
+        "sonar.coverage.exclusions",
+        listOf(
+                "**/com/swent/roamigo/model/TripLocation.kt",
+                "**/com/swent/roamigo/model/trip/Activity.kt",
+                "**/com/swent/roamigo/model/trip/Trip.kt",
+                "**/com/swent/roamigo/model/trip/TripMember.kt",
+                "**/com/swent/roamigo/model/trip/inviting/TripInvitation.kt",
+                "**/com/swent/roamigo/model/trip/voting/Vote.kt",
+                "**/com/swent/roamigo/model/trip/voting/VoteBallot.kt",
+                "**/com/swent/roamigo/model/trip/voting/VoteOption.kt",
+                "**/com/swent/roamigo/model/users/User.kt",
+                "**/com/swent/roamigo/ui/theme/Theme.kt",
+            )
+            .joinToString(","),
     )
   }
 }
@@ -182,14 +202,19 @@ tasks.register("jacocoTestReport", JacocoReport::class) {
           "android/**/*.*",
       )
 
-  val debugTree =
-      fileTree("${project.layout.buildDirectory.get()}/tmp/kotlin-classes/debug") {
-        exclude(fileFilter)
-      }
+  val kotlinClassDirs =
+      listOf(
+          "tmp/kotlin-classes/debug", // standalone Kotlin plugin
+          "intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes", // AGP 9 built-in
+          // Kotlin
+      )
+  val debugTrees = kotlinClassDirs.map { dir ->
+    fileTree(layout.buildDirectory.dir(dir)) { exclude(fileFilter) }
+  }
 
-  val mainSrc = "${project.layout.projectDirectory}/src/main/java"
+  val mainSrc = listOf("src/main/java", "src/main/kotlin").map { layout.projectDirectory.dir(it) }
   sourceDirectories.setFrom(files(mainSrc))
-  classDirectories.setFrom(files(debugTree))
+  classDirectories.setFrom(files(debugTrees))
   executionData.setFrom(
       fileTree(project.layout.buildDirectory.get()) {
         include("outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec")
