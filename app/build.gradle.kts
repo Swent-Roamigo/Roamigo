@@ -120,6 +120,7 @@ sonar {
                 "**/com/swent/roamigo/model/trip/voting/VoteBallot.kt",
                 "**/com/swent/roamigo/model/trip/voting/VoteOption.kt",
                 "**/com/swent/roamigo/model/users/User.kt",
+                "**/com/swent/roamigo/ui/theme/Theme.kt",
             )
             .joinToString(","),
     )
