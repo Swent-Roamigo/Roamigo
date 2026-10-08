@@ -4,8 +4,9 @@ package com.swent.roamigo.model.trip.voting
 /** Data access for trip votes. Failures are delivered to the onFailure callbacks. */
 interface VoteRepository {
   /**
-   * Stores a vote at trips/{vote.tripId}/votes/{vote.uid}. The caller supplies a unique vote ID;
-   * reusing an ID replaces the existing vote document.
+   * Creates a vote at trips/{vote.tripId}/votes/{vote.uid}. An existing ID fails through onFailure
+   * with FirebaseFirestoreException.Code.ALREADY_EXISTS; the vote and its ballots remain intact.
+   * Creation uses a transaction and requires an online connection.
    */
   fun createVote(vote: Vote, onSuccess: () -> Unit, onFailure: (Exception) -> Unit)
 

@@ -5,13 +5,24 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 
 /** Firestore implementation of [VoteRepository], using the existing trip subcollections. */
 class VoteRepositoryFirestore(private val db: FirebaseFirestore) : VoteRepository {
   override fun createVote(vote: Vote, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
     val task = runCatching {
       requireDocumentId(vote.uid)
-      votes(vote.tripId).document(vote.uid).set(vote.toFirestoreData())
+      val document = votes(vote.tripId).document(vote.uid)
+      db.runTransaction { transaction ->
+        if (transaction.get(document).exists()) {
+          throw FirebaseFirestoreException(
+              "Vote ${vote.uid} already exists in trip ${vote.tripId}",
+              FirebaseFirestoreException.Code.ALREADY_EXISTS,
+          )
+        }
+        transaction.set(document, vote.toFirestoreData())
+        Unit
+      }
     }
         .getOrElse {
           onFailure(it.asException())

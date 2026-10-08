@@ -13,6 +13,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.QuerySnapshot
+import com.google.firebase.firestore.Transaction
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -69,8 +70,11 @@ class VoteRepositoryFirestoreTest {
 
   @Test
   fun createVoteWritesAllFieldsUnderItsTrip() {
-    val task = successfulTask<Void>(null)
-    `when`(voteDocument.set(any())).thenReturn(task)
+    val transaction = mock(Transaction::class.java)
+    val snapshot = mock(DocumentSnapshot::class.java)
+    `when`(snapshot.exists()).thenReturn(false)
+    `when`(transaction.get(voteDocument)).thenReturn(snapshot)
+    stubTransaction(transaction)
     var completed = false
 
     repository.createVote(vote, { completed = true }, ::unexpectedFailure)
@@ -79,27 +83,84 @@ class VoteRepositoryFirestoreTest {
     verify(trips).document("trip-1")
     verify(trip).collection("votes")
     verify(votes).document("vote-1")
-    verify(voteDocument).set(voteData)
+    val order = inOrder(transaction)
+    order.verify(transaction).get(voteDocument)
+    order.verify(transaction).set(voteDocument, voteData)
+    verify(voteDocument, never()).set(any())
     assertTrue(completed)
   }
 
   @Test
   fun createClosedVotePreservesOptionalFields() {
-    doReturn(successfulTask<Void>(null)).`when`(voteDocument).set(any())
+    val transaction = mock(Transaction::class.java)
+    val snapshot = mock(DocumentSnapshot::class.java)
+    `when`(snapshot.exists()).thenReturn(false)
+    `when`(transaction.get(voteDocument)).thenReturn(snapshot)
+    stubTransaction(transaction)
     val closed =
         vote.copy(status = VoteStatus.CLOSED, closingTime = timestamp, winningOptionId = "option-2")
 
     repository.createVote(closed, {}, ::unexpectedFailure)
 
-    verify(voteDocument)
+    verify(transaction)
         .set(
+            voteDocument,
             voteData +
                 mapOf(
                     "status" to "CLOSED",
                     "closingTime" to timestamp,
                     "winningOptionId" to "option-2",
-                )
+                ),
         )
+  }
+
+  @Test
+  fun createVoteWithExistingIdFailsWithoutWriting() {
+    val transaction = mock(Transaction::class.java)
+    val snapshot = document("vote-1", voteData)
+    `when`(snapshot.exists()).thenReturn(true)
+    `when`(transaction.get(voteDocument)).thenReturn(snapshot)
+    stubTransaction(transaction)
+    var failure: Exception? = null
+
+    repository.createVote(vote, { fail("Existing vote must not be replaced") }, { failure = it })
+
+    assertTrue(failure is FirebaseFirestoreException)
+    assertEquals(
+        FirebaseFirestoreException.Code.ALREADY_EXISTS,
+        (failure as FirebaseFirestoreException).code,
+    )
+    verify(transaction).get(voteDocument)
+    verifyNoMoreInteractions(transaction)
+    verify(voteDocument, never()).set(any())
+    verifyNoInteractions(ballots, ballotDocument)
+  }
+
+  @Test
+  fun existingBallotCannotBecomeAttachedToReplacementVoteWithDifferentOptions() {
+    val originalBallot = VoteBallot("user-1", "option-1", timestamp)
+    doReturn(successfulTask<Void>(null)).`when`(ballotDocument).set(any())
+    repository.submitBallot("trip-1", "vote-1", originalBallot, {}, ::unexpectedFailure)
+    val transaction = mock(Transaction::class.java)
+    val existing = document("vote-1", voteData)
+    `when`(existing.exists()).thenReturn(true)
+    `when`(transaction.get(voteDocument)).thenReturn(existing)
+    stubTransaction(transaction)
+    val replacement = vote.copy(options = listOf(VoteOption("new-option", "Beach")))
+    var failure: Exception? = null
+
+    repository.createVote(replacement, { fail("Must not replace vote options") }, { failure = it })
+
+    assertEquals(
+        FirebaseFirestoreException.Code.ALREADY_EXISTS,
+        (failure as FirebaseFirestoreException).code,
+    )
+    verify(transaction).get(voteDocument)
+    verifyNoMoreInteractions(transaction)
+    verify(voteDocument, never()).set(any())
+    verify(ballots).document("user-1")
+    verify(ballotDocument).set(ballotData(originalBallot))
+    verifyNoMoreInteractions(ballots, ballotDocument)
   }
 
   @Test
@@ -204,7 +265,7 @@ class VoteRepositoryFirestoreTest {
   fun firestoreErrorsArePropagatedUnchangedForReadsAndWrites() {
     val error =
         FirebaseFirestoreException("Denied", FirebaseFirestoreException.Code.PERMISSION_DENIED)
-    doReturn(failedTask<Void>(error)).`when`(voteDocument).set(any())
+    doReturn(failedTask<Unit>(error)).`when`(db).runTransaction(any<Transaction.Function<Unit>>())
     doReturn(failedTask<QuerySnapshot>(error)).`when`(votes).get()
     doReturn(failedTask<Void>(error)).`when`(ballotDocument).set(any())
     val failures = mutableListOf<Exception>()
@@ -343,6 +404,18 @@ class VoteRepositoryFirestoreTest {
 
   private fun query(vararg documents: DocumentSnapshot): QuerySnapshot =
       mock(QuerySnapshot::class.java).also { `when`(it.documents).thenReturn(documents.toList()) }
+
+  private fun stubTransaction(transaction: Transaction) {
+    doAnswer {
+          try {
+            successfulTask(it.getArgument<Transaction.Function<Unit>>(0).apply(transaction))
+          } catch (error: Exception) {
+            failedTask<Unit>(error)
+          }
+        }
+        .`when`(db)
+        .runTransaction(any<Transaction.Function<Unit>>())
+  }
 
   @Suppress("UNCHECKED_CAST")
   private fun capturedListener(): EventListener<QuerySnapshot> {
