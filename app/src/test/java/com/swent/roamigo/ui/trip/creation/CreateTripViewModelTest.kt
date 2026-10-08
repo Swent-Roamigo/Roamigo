@@ -6,11 +6,11 @@ import org.junit.Test
 
 class CreateTripViewModelTest {
   @Test
-  fun initialStateHasFigmaRouteAndPopularDestinations() {
+  fun initialStateHasNoSelectedDestinationsAndPopularDestinations() {
     val viewModel = CreateTripViewModel()
 
     assertEquals(
-        listOf("Lisbon", "Porto"),
+        emptyList<String>(),
         viewModel.uiState.value.selectedDestinations,
     )
     assertEquals(
@@ -34,13 +34,13 @@ class CreateTripViewModelTest {
 
     viewModel.toggleDestination(barcelona)
     assertEquals(
-        listOf("Lisbon", "Porto", "Barcelona"),
+        listOf("Barcelona"),
         viewModel.uiState.value.selectedDestinations,
     )
 
     viewModel.toggleDestination(barcelona)
     assertEquals(
-        listOf("Lisbon", "Porto"),
+        emptyList<String>(),
         viewModel.uiState.value.selectedDestinations,
     )
   }
@@ -48,6 +48,8 @@ class CreateTripViewModelTest {
   @Test
   fun removingDestinationKeepsRemainingRouteOrder() {
     val viewModel = CreateTripViewModel()
+    viewModel.toggleDestination("Lisbon")
+    viewModel.toggleDestination("Porto")
     viewModel.removeDestination("Lisbon")
 
     assertEquals(listOf("Porto"), viewModel.uiState.value.selectedDestinations)
