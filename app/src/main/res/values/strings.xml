@@ -2,6 +2,13 @@
     <string name="app_name">SampleApp</string>
     <string name="title_activity_main">MainActivity</string>
     <string name="title_activity_second">SecondActivity</string>
+    <string name="auth_tagline">Plan together. Travel together.</string>
+    <string name="auth_brand">roamigo</string>
+    <string name="auth_signing_in">Signing in with Google</string>
+    <string name="auth_heading">Decide together. Stay together.</string>
+    <string name="auth_description">Shared decisions, live voting, and a group map for friends traveling together on one trip.</string>
+    <string name="auth_google_sign_in">Continue with Google</string>
+    <string name="auth_terms">By continuing, you agree to our Terms and Privacy Policy.</string>
 
     <!-- Trips Home -->
     <string name="trips_title">Your trips</string>

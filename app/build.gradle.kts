@@ -85,6 +85,13 @@ dependencyLocking { lockAllConfigurations() }
 // With AGP 9+ the JVM target is set outside the Android block.
 kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
 
+// Match CI and use a JVM supported by Mockito's bytecode instrumentation.
+val testJavaLauncher = javaToolchains.launcherFor {
+  languageVersion.set(JavaLanguageVersion.of(21))
+}
+
+tasks.withType<Test>().configureEach { javaLauncher.set(testJavaLauncher) }
+
 sonar {
   properties {
     property("sonar.projectKey", "Swent-Roamigo_Roamigo")
@@ -138,6 +145,12 @@ fun DependencyHandlerScope.globalTestImplementation(dep: Any) {
 dependencies {
   implementation(platform(libs.firebase.bom))
   implementation(libs.firebase.firestore)
+  implementation(libs.firebase.auth)
+  implementation(libs.androidx.credentials)
+  implementation(libs.androidx.credentials.play.services.auth)
+  implementation(libs.google.id)
+  implementation(libs.coroutines.play.services)
+  testImplementation(libs.mockito.core)
   implementation(libs.kotlinx.coroutines.play.services)
 
   implementation(libs.androidx.core.ktx)
