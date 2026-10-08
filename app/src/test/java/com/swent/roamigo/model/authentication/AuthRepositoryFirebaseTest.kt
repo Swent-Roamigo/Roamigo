@@ -1,4 +1,4 @@
-package com.android.sample.model.authentication
+package com.swent.roamigo.model.authentication
 
 import android.os.Bundle
 import androidx.credentials.CustomCredential
@@ -10,8 +10,6 @@ import com.google.firebase.auth.AuthCredential
 import com.google.firebase.auth.AuthResult
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
-import com.swent.roamigo.model.authentication.AuthRepositoryFirebase
-import com.swent.roamigo.model.authentication.GoogleSignInHelper
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
