@@ -44,11 +44,9 @@ class AuthRepositoryFirebase(
                     IllegalStateException("Login failed : Could not retrieve user information")
                 )
 
-        return Result.success(user.toAuthenticatedUser())
+        Result.success(user.toAuthenticatedUser())
       } else {
-        return Result.failure(
-            IllegalStateException("Login failed: Credential is not of type Google ID")
-        )
+        Result.failure(IllegalStateException("Login failed: Credential is not of type Google ID"))
       }
     } catch (e: CancellationException) {
       throw e
