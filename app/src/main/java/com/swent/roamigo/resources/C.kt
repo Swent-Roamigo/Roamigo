@@ -7,5 +7,7 @@ object C {
 
     const val main_screen_container = "main_screen_container"
     const val second_screen_container = "second_screen_container"
+
+    const val permissions_title = "permissions_screen_title"
   }
 }

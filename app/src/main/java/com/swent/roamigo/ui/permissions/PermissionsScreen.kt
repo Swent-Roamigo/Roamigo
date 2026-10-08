@@ -11,7 +11,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import com.swent.roamigo.R
+import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.InfoRow
 import com.swent.roamigo.ui.theme.Spacing
 
@@ -38,7 +41,11 @@ fun PermissionsScreen(onContinue: () -> Unit, modifier: Modifier = Modifier) {
       modifier = modifier.fillMaxSize().padding(Spacing.screenPadding),
       verticalArrangement = Arrangement.spacedBy(Spacing.medium),
   ) {
-    Text("We ask only when needed", style = MaterialTheme.typography.headlineMedium)
+    Text(
+        "We ask only when needed",
+        modifier = Modifier.semantics { testTag = C.Tag.permissions_title },
+        style = MaterialTheme.typography.headlineMedium,
+    )
     Text(
         "No permissions up front. Roamigo asks in the moment, and you can review them any time in Settings.",
         color = MaterialTheme.colorScheme.onSurfaceVariant,
