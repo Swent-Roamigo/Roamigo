@@ -138,6 +138,7 @@ fun DependencyHandlerScope.globalTestImplementation(dep: Any) {
 dependencies {
   implementation(platform(libs.firebase.bom))
   implementation(libs.firebase.firestore)
+  implementation(libs.kotlinx.coroutines.play.services)
 
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.appcompat)
@@ -145,6 +146,8 @@ dependencies {
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(platform(libs.compose.bom))
   testImplementation(libs.junit)
+  testImplementation(libs.mockito.core)
+  testImplementation(libs.kotlinx.coroutines.test)
   globalTestImplementation(libs.androidx.junit)
   globalTestImplementation(libs.androidx.espresso.core)
 
