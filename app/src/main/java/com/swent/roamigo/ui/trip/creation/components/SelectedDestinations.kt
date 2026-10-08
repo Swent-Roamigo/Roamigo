@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.tooling.preview.Preview
@@ -65,7 +66,10 @@ private fun DestinationChip(destination: String, onRemove: () -> Unit) {
             Modifier.clip(CircleShape)
                 .clickable(onClick = onRemove)
                 .padding(horizontal = 2.dp)
-                .semantics { testTag = SelectedDestinationsTestTags.removeFor(destination) },
+                .semantics {
+                  contentDescription = "Remove $destination"
+                  testTag = SelectedDestinationsTestTags.removeFor(destination)
+                },
         color = MaterialTheme.colorScheme.onPrimary,
         style = MaterialTheme.typography.labelMedium,
     )
