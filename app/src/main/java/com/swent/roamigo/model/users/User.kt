@@ -1,5 +1,5 @@
 // Initial model and data backend structure designed with assistance from ChatGPT.
-package com.android.sample.model.users
+package com.swent.roamigo.model.users
 
 // Keep authentication information out of this class because Firebase Authentication already
 // owns the account identity

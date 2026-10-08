@@ -1,5 +1,5 @@
 // Initial model and data backend structure designed with assistance from ChatGPT.
-package com.android.sample.model.trip.voting
+package com.swent.roamigo.model.trip.voting
 
 import com.google.firebase.Timestamp
 
