@@ -23,12 +23,7 @@ class MainActivityTest : TestCase() {
   @Test
   fun test() = run {
     step("Start Main Activity") {
-      ComposeScreen.onComposeScreen<MainScreen>(composeTestRule) {
-        simpleText {
-          assertIsDisplayed()
-          assertTextEquals("Hello Android!")
-        }
-      }
+      ComposeScreen.onComposeScreen<MainScreen>(composeTestRule) { title { assertIsDisplayed() } }
     }
   }
 }
