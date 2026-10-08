@@ -11,7 +11,6 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
-import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
@@ -138,8 +137,6 @@ class TripsScreenTest {
         TripsRoute(
             tripRepository = tripRepository,
             userRepository = userRepository,
-            mainTripImageRes = R.mipmap.ic_launcher,
-            nextActivityImageRes = R.mipmap.ic_launcher,
             onInviteClick = { inviteClicks++ },
         )
       }
