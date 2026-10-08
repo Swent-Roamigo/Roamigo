@@ -3,10 +3,11 @@ package com.swent.roamigo.ui.permissions
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -41,19 +42,24 @@ fun PermissionsScreen(onContinue: () -> Unit, modifier: Modifier = Modifier) {
       modifier = modifier.fillMaxSize().padding(Spacing.screenPadding),
       verticalArrangement = Arrangement.spacedBy(Spacing.medium),
   ) {
-    Text(
-        "We ask only when needed",
-        modifier = Modifier.testTag(C.Tag.permissions_title),
-        style = MaterialTheme.typography.headlineMedium,
-    )
-    Text(
-        "No permissions up front. Roamigo asks in the moment, and you can review them any time in Settings.",
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    permissionRows.forEach { (icon, title, subtitle) ->
-      InfoRow(icon, title, subtitle, Modifier.testTag(C.Tag.permissions_row))
+    // Only the content scrolls, so the button stays reachable with large fonts or small screens.
+    Column(
+        modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(Spacing.medium),
+    ) {
+      Text(
+          "We ask only when needed",
+          modifier = Modifier.testTag(C.Tag.permissions_title),
+          style = MaterialTheme.typography.headlineMedium,
+      )
+      Text(
+          "No permissions up front. Roamigo asks in the moment, and you can review them any time in Settings.",
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+      permissionRows.forEach { (icon, title, subtitle) ->
+        InfoRow(icon, title, subtitle, Modifier.testTag(C.Tag.permissions_row))
+      }
     }
-    Spacer(Modifier.weight(1f))
     Button(
         onClick = onContinue,
         modifier = Modifier.fillMaxWidth().testTag(C.Tag.permissions_continue),

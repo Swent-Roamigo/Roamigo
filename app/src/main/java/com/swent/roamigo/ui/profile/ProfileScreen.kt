@@ -5,12 +5,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -64,56 +65,61 @@ fun ProfileScreen(state: ProfileUiState, modifier: Modifier = Modifier) {
         modifier = Modifier.fillMaxSize().padding(padding).padding(Spacing.screenPadding),
         verticalArrangement = Arrangement.spacedBy(Spacing.medium),
     ) {
-      Text(
-          "Profile",
-          modifier = Modifier.testTag(C.Tag.profile_title),
-          style = MaterialTheme.typography.headlineMedium,
-      )
-      Text(
-          "The account you signed in with",
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-      )
+      // Only the content scrolls, so the button stays reachable with large fonts or small screens.
       Column(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalAlignment = Alignment.CenterHorizontally,
+          modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+          verticalArrangement = Arrangement.spacedBy(Spacing.medium),
       ) {
-        Box(
-            modifier = Modifier.size(88.dp).background(Ochre, CircleShape),
-            contentAlignment = Alignment.Center,
+        Text(
+            "Profile",
+            modifier = Modifier.testTag(C.Tag.profile_title),
+            style = MaterialTheme.typography.headlineMedium,
+        )
+        Text(
+            "The account you signed in with",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+          Box(
+              modifier = Modifier.size(88.dp).background(Ochre, CircleShape),
+              contentAlignment = Alignment.Center,
+          ) {
+            Text(
+                state.user.displayName.take(1),
+                modifier = Modifier.testTag(C.Tag.profile_avatar),
+                style = MaterialTheme.typography.displaySmall,
+                color = Paper,
+            )
+          }
           Text(
-              state.user.displayName.take(1),
-              modifier = Modifier.testTag(C.Tag.profile_avatar),
-              style = MaterialTheme.typography.displaySmall,
-              color = Paper,
+              state.user.displayName,
+              modifier = Modifier.testTag(C.Tag.profile_name),
+              style = MaterialTheme.typography.titleLarge,
+          )
+          Text(
+              "${state.email} · Signed in with Google",
+              modifier = Modifier.testTag(C.Tag.profile_email),
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              textAlign = TextAlign.Center,
           )
         }
-        Text(
-            state.user.displayName,
-            modifier = Modifier.testTag(C.Tag.profile_name),
-            style = MaterialTheme.typography.titleLarge,
-        )
-        Text(
-            "${state.email} · Signed in with Google",
-            modifier = Modifier.testTag(C.Tag.profile_email),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
+        InfoRow(R.drawable.ic_user, "Display name", state.user.displayName) { EditAction("Edit") }
+        InfoRow(R.drawable.ic_camera, "Profile picture", "Shown to your trip members") {
+          EditAction("Change")
+        }
+        InfoRow(
+            R.drawable.ic_users,
+            "Friends",
+            "${state.friendCount} friends · heatmaps visible to friends only",
+            Modifier.testTag(C.Tag.profile_friends_row),
+        ) {
+          EditAction("View")
+        }
       }
-      InfoRow(R.drawable.ic_user, "Display name", state.user.displayName) { EditAction("Edit") }
-      InfoRow(R.drawable.ic_camera, "Profile picture", "Shown to your trip members") {
-        EditAction("Change")
-      }
-      InfoRow(
-          R.drawable.ic_users,
-          "Friends",
-          "${state.friendCount} friends · heatmaps visible to friends only",
-          Modifier.testTag(C.Tag.profile_friends_row),
-      ) {
-        EditAction("View")
-      }
-      Spacer(Modifier.weight(1f))
       // No backend yet: these actions are intentionally inert.
       OutlinedButton(
           onClick = {},
