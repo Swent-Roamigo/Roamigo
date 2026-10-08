@@ -13,11 +13,11 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffold
 import com.swent.roamigo.ui.trip.creation.components.DestinationCard
@@ -31,7 +31,7 @@ fun DestinationScreen(
     onClose: () -> Unit,
     onContinue: () -> Unit,
 ) {
-  val uiState by createTripViewModel.uiState.collectAsState()
+  val uiState by createTripViewModel.uiState.collectAsStateWithLifecycle()
   DestinationScreenContent(
       uiState = uiState,
       onBack = onBack,
@@ -103,7 +103,7 @@ fun DestinationScreenContent(
 private fun DestinationScreenPreview() {
   RoamigoTheme {
     DestinationScreenContent(
-        uiState = CreateTripUiState(),
+        uiState = CreateTripUiState(selectedDestinations = listOf("Lisbon", "Porto")),
         onBack = {},
         onClose = {},
         onQueryChange = {},
