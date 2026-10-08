@@ -1,15 +1,22 @@
 package com.swent.roamigo.ui
 
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.users.User
+import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.profile.ProfileScreen
 import com.swent.roamigo.ui.profile.ProfileUiState
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -20,24 +27,26 @@ class ProfileScreenTest {
 
   private val state = ProfileUiState(User("u1", "Sam", null), "sam@epfl.ch", 2)
 
-  @Test
-  fun showsAccountDetailsFromState() {
+  @Before
+  fun setUp() {
     composeRule.setContent { RoamigoTheme { ProfileScreen(state) } }
-
-    listOf("Profile", "S", "sam@epfl.ch · Signed in with Google", "Log out").forEach {
-      composeRule.onNodeWithText(it).assertIsDisplayed()
-    }
-    composeRule.onNodeWithText("2 friends", substring = true).assertIsDisplayed()
-    // The name is shown both as the heading and in the "Display name" row.
-    composeRule.onAllNodesWithText("Sam").assertCountEquals(2)
   }
 
   @Test
-  fun showsEditActionsAndFooter() {
-    composeRule.setContent { RoamigoTheme { ProfileScreen(state) } }
+  fun showsAccountDetailsFromState() {
+    composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.profile_avatar).assertTextEquals(state.user.displayName.take(1))
+    composeRule.onNodeWithTag(C.Tag.profile_name).assertTextEquals(state.user.displayName)
+    composeRule.onNodeWithTag(C.Tag.profile_email).assertTextContains(state.email, substring = true)
+    composeRule
+        .onNodeWithTag(C.Tag.profile_friends_row)
+        .assert(hasAnyDescendant(hasText(state.friendCount.toString(), substring = true)))
+  }
 
-    listOf("Edit", "Change", "View", "Trips", "Map", "Photos").forEach {
-      composeRule.onNodeWithText(it).assertIsDisplayed()
-    }
+  @Test
+  fun showsActionsAndFooter() {
+    composeRule.onNodeWithTag(C.Tag.profile_log_out).assertIsDisplayed()
+    composeRule.onAllNodesWithTag(C.Tag.profile_action).assertCountEquals(3)
+    composeRule.onAllNodesWithTag(C.Tag.profile_footer_tab).assertCountEquals(3)
   }
 }

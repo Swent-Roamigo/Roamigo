@@ -21,10 +21,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
+import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.InfoRow
 import com.swent.roamigo.ui.theme.Ochre
 import com.swent.roamigo.ui.theme.Paper
@@ -47,6 +49,7 @@ fun ProfileScreen(state: ProfileUiState, modifier: Modifier = Modifier) {
           footerTabs.forEach { (icon, label) ->
             NavigationBarItem(
                 selected = false,
+                modifier = Modifier.testTag(C.Tag.profile_footer_tab),
                 onClick = {},
                 icon = { Icon(painterResource(icon), contentDescription = null) },
                 label = { Text(label) },
@@ -59,7 +62,11 @@ fun ProfileScreen(state: ProfileUiState, modifier: Modifier = Modifier) {
         modifier = Modifier.fillMaxSize().padding(padding).padding(Spacing.screenPadding),
         verticalArrangement = Arrangement.spacedBy(Spacing.medium),
     ) {
-      Text("Profile", style = MaterialTheme.typography.headlineMedium)
+      Text(
+          "Profile",
+          modifier = Modifier.testTag(C.Tag.profile_title),
+          style = MaterialTheme.typography.headlineMedium,
+      )
       Text(
           "The account you signed in with",
           color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -74,13 +81,19 @@ fun ProfileScreen(state: ProfileUiState, modifier: Modifier = Modifier) {
         ) {
           Text(
               state.user.displayName.take(1),
+              modifier = Modifier.testTag(C.Tag.profile_avatar),
               style = MaterialTheme.typography.displaySmall,
               color = Paper,
           )
         }
-        Text(state.user.displayName, style = MaterialTheme.typography.titleLarge)
+        Text(
+            state.user.displayName,
+            modifier = Modifier.testTag(C.Tag.profile_name),
+            style = MaterialTheme.typography.titleLarge,
+        )
         Text(
             "${state.email} · Signed in with Google",
+            modifier = Modifier.testTag(C.Tag.profile_email),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -94,14 +107,22 @@ fun ProfileScreen(state: ProfileUiState, modifier: Modifier = Modifier) {
           R.drawable.ic_users,
           "Friends",
           "${state.friendCount} friends · heatmaps visible to friends only",
+          Modifier.testTag(C.Tag.profile_friends_row),
       ) {
         EditAction("View")
       }
       Spacer(Modifier.weight(1f))
       // No backend yet: these actions are intentionally inert.
-      OutlinedButton(onClick = {}, modifier = Modifier.fillMaxWidth()) { Text("Log out") }
+      OutlinedButton(
+          onClick = {},
+          modifier = Modifier.fillMaxWidth().testTag(C.Tag.profile_log_out),
+      ) {
+        Text("Log out")
+      }
     }
   }
 }
 
-@Composable private fun EditAction(label: String) = TextButton(onClick = {}) { Text(label) }
+@Composable
+private fun EditAction(label: String) =
+    TextButton(onClick = {}, modifier = Modifier.testTag(C.Tag.profile_action)) { Text(label) }
