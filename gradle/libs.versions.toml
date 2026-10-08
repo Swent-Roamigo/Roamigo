@@ -15,6 +15,10 @@ lifecycleRuntimeKtx = "2.11.0"
 kaspresso = "1.6.1"
 robolectric = "4.16.1"
 sonar = "7.5.0.8588"
+credentials = "1.6.0"
+googleId = "1.2.0"
+mockk = "1.14.3"
+coroutinesTest = "1.11.0"
 googleServices = "4.5.0"
 firebaseBom = "34.19.0"
 
@@ -42,8 +46,20 @@ kaspresso = { group = "com.kaspersky.android-components", name = "kaspresso", ve
 kaspresso-compose = { group = "com.kaspersky.android-components", name = "kaspresso-compose-support", version.ref = "kaspresso" }
 
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
-firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
-firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
+
+# ---------- Unit test mocking ----------
+mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutinesTest" }
+
+# ---------- Firebase ----------
+firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
+firebase-auth = { module = "com.google.firebase:firebase-auth" }
+firebase-firestore = { module = "com.google.firebase:firebase-firestore" }
+
+# ---------- Credential Manager / Google Sign-In ----------
+androidx-credentials = { module = "androidx.credentials:credentials", version.ref = "credentials" }
+androidx-credentials-play-services-auth = { module = "androidx.credentials:credentials-play-services-auth", version.ref = "credentials" }
+googleid = { module = "com.google.android.libraries.identity.googleid:googleid", version.ref = "googleId" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
