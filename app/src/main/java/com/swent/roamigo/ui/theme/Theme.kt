@@ -46,7 +46,7 @@ private val LightColorScheme =
 
 // Use only the Figma-defined light palette until a dark design is provided.
 @Composable
-fun SampleAppTheme(content: @Composable () -> Unit) {
+fun RoamigoTheme(content: @Composable () -> Unit) {
   val colorScheme = LightColorScheme
   val view = LocalView.current
   if (!view.isInEditMode) {
