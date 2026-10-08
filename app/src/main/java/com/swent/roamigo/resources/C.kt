@@ -20,5 +20,13 @@ object C {
     const val profile_action = "profile_screen_action"
     const val profile_log_out = "profile_screen_log_out"
     const val profile_footer_tab = "profile_screen_footer_tab"
+    const val trips_screen = "trips_screen"
+    const val trips_main_trip_card = "trips_main_trip_card"
+    const val trips_next_activity_card = "trips_next_activity_card"
+    const val trips_invite_button = "trips_invite_button"
+    const val trips_new_trip_button = "trips_new_trip_button"
+    const val trips_navigation_trips = "trips_navigation_trips"
+    const val trips_navigation_map = "trips_navigation_map"
+    const val trips_navigation_photos = "trips_navigation_photos"
   }
 }
