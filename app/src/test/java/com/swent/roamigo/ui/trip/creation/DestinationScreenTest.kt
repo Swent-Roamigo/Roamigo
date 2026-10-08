@@ -3,6 +3,7 @@ package com.swent.roamigo.ui.trip.creation
 
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -47,7 +48,7 @@ class DestinationScreenTest {
     composeRule.runOnIdle {
       assertTrue(continued)
       assertEquals(
-          listOf("Lisbon", "Porto", "Barcelona"),
+          listOf("Barcelona"),
           viewModel.uiState.value.selectedDestinations,
       )
     }
@@ -55,15 +56,14 @@ class DestinationScreenTest {
 
   @Test
   fun continueIsDisabledWhenRouteIsEmpty() {
+    val viewModel = CreateTripViewModel()
+
     composeRule.setContent {
       RoamigoTheme {
-        DestinationScreenContent(
-            uiState = CreateTripUiState(selectedDestinations = emptyList()),
+        DestinationScreen(
+            createTripViewModel = viewModel,
             onBack = {},
             onClose = {},
-            onQueryChange = {},
-            onToggleDestination = {},
-            onRemoveDestination = {},
             onContinue = {},
         )
       }
@@ -83,13 +83,21 @@ class DestinationScreenTest {
       }
     }
 
-    composeRule.onNodeWithContentDescription("Remove Lisbon").assertExists()
-    composeRule.onNodeWithContentDescription("Remove Porto").assertExists()
+    assertEquals(
+        1,
+        composeRule.onAllNodesWithContentDescription("Remove Lisbon").fetchSemanticsNodes().size,
+    )
+    assertEquals(
+        1,
+        composeRule.onAllNodesWithContentDescription("Remove Porto").fetchSemanticsNodes().size,
+    )
   }
 
   @Test
   fun searchFiltersDestinationsAndSelectedStopCanBeRemoved() {
     val viewModel = CreateTripViewModel()
+    viewModel.toggleDestination("Lisbon")
+    viewModel.toggleDestination("Porto")
 
     composeRule.setContent {
       RoamigoTheme {
