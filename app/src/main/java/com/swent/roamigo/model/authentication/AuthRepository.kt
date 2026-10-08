@@ -13,9 +13,12 @@ interface AuthRepository {
   /**
    * Signs in the user using a Google account through the Credential Manager API.
    *
-   * @return Success when a user is authenticated, or an exception on failure.
+   * @return The authenticated account on success, or an exception on failure.
    */
-  suspend fun signInWithGoogle(credential: Credential): Result<Unit>
+  suspend fun signInWithGoogle(credential: Credential): Result<AuthenticatedUser>
+
+  /** Returns a snapshot of the current account, or null when no user is signed in. */
+  fun getCurrentUser(): AuthenticatedUser?
 
   /**
    * Signs out the currently authenticated Firebase user. The caller clears Credential Manager
