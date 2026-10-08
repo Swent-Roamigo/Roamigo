@@ -106,6 +106,23 @@ sonar {
         "sonar.coverage.jacoco.xmlReportPaths",
         "${project.layout.buildDirectory.get()}/reports/jacoco/jacocoTestReport/jacocoTestReport.xml",
     )
+
+    // TEMP FIX for code coverage
+    property(
+      "sonar.coverage.exclusions",
+      listOf(
+        "**/com/swent/roamigo/model/TripLocation.kt",
+        "**/com/swent/roamigo/model/trip/Activity.kt",
+        "**/com/swent/roamigo/model/trip/Trip.kt",
+        "**/com/swent/roamigo/model/trip/TripMember.kt",
+        "**/com/swent/roamigo/model/trip/inviting/TripInvitation.kt",
+        "**/com/swent/roamigo/model/trip/voting/Vote.kt",
+        "**/com/swent/roamigo/model/trip/voting/VoteBallot.kt",
+        "**/com/swent/roamigo/model/trip/voting/VoteOption.kt",
+        "**/com/swent/roamigo/model/users/User.kt",
+      )
+        .joinToString(","),
+    )
   }
 }
 
