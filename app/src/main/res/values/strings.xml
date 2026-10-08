@@ -9,7 +9,6 @@
     <string name="auth_description">Shared decisions, live voting, and a group map for friends traveling together on one trip.</string>
     <string name="auth_google_sign_in">Continue with Google</string>
     <string name="auth_terms">By continuing, you agree to our Terms and Privacy Policy.</string>
-</resources>
 
     <!-- Trips Home -->
     <string name="trips_title">Your trips</string>
