@@ -131,6 +131,17 @@ class DefaultLocationRepositoryTest {
   }
 
   @Test
+  fun getCurrentLocation_returnsNullWithCoarsePermissionOnlyWhenNetworkProviderIsDisabled() =
+      runTest {
+        application.grantPermissions(Manifest.permission.ACCESS_COARSE_LOCATION)
+        locationManager.setProviderEnabled(LocationManager.NETWORK_PROVIDER, false)
+        // GPS is enabled and has a fix, but must not be used without the fine permission.
+        locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+
+        assertNull(repository.getCurrentLocation())
+      }
+
+  @Test
   fun getCurrentLocation_fallsBackToNetworkProviderWhenGpsHasNoFix() = runTest {
     application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
 
