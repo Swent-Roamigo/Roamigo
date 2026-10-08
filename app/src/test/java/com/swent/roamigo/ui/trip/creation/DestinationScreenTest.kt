@@ -13,6 +13,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
 import com.swent.roamigo.ui.trip.creation.components.DestinationCardTestTags
+import com.swent.roamigo.ui.trip.creation.components.SelectedDestinations
 import com.swent.roamigo.ui.trip.creation.components.SelectedDestinationsTestTags
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -69,6 +70,21 @@ class DestinationScreenTest {
     }
 
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsNotEnabled()
+  }
+
+  @Test
+  fun removeButtonsExposeDestinationSpecificContentDescriptions() {
+    composeRule.setContent {
+      RoamigoTheme {
+        SelectedDestinations(
+            destinations = listOf("Lisbon", "Porto"),
+            onRemove = {},
+        )
+      }
+    }
+
+    composeRule.onNodeWithContentDescription("Remove Lisbon").assertExists()
+    composeRule.onNodeWithContentDescription("Remove Porto").assertExists()
   }
 
   @Test
