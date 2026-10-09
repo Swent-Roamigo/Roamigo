@@ -8,7 +8,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /** Everything the profile screen shows; [email] and [friendCount] are not part of [User]. */
-data class ProfileUiState(val user: User, val email: String, val friendCount: Int)
+data class ProfileUiState(val user: User, val email: String, val friendCount: Int) {
+  /** First letter of the name for the avatar; `?` when the name is blank. */
+  val initial: String
+    get() {
+      val name = user.displayName.trim()
+      // Step by code point, not char, so a leading emoji is not cut in half.
+      return if (name.isEmpty()) "?"
+      else name.substring(0, name.offsetByCodePoints(0, 1)).uppercase()
+    }
+}
 
 class ProfileViewModel : ViewModel() {
   // Placeholder until a repository provides the signed-in user.

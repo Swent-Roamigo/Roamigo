@@ -88,7 +88,7 @@ fun ProfileScreen(state: ProfileUiState, modifier: Modifier = Modifier) {
               contentAlignment = Alignment.Center,
           ) {
             Text(
-                state.user.displayName.take(1),
+                state.initial,
                 modifier = Modifier.testTag(C.Tag.profile_avatar),
                 style = MaterialTheme.typography.displaySmall,
                 color = Paper,

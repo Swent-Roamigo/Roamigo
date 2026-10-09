@@ -39,7 +39,7 @@ class ProfileScreenTest {
   fun showsAccountDetailsFromState() {
     show()
     composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
-    composeRule.onNodeWithTag(C.Tag.profile_avatar).assertTextEquals(state.user.displayName.take(1))
+    composeRule.onNodeWithTag(C.Tag.profile_avatar).assertTextEquals(state.initial)
     composeRule.onNodeWithTag(C.Tag.profile_name).assertTextEquals(state.user.displayName)
     composeRule.onNodeWithTag(C.Tag.profile_email).assertTextContains(state.email, substring = true)
     // The row only carries the tag; its text lives in child nodes.
