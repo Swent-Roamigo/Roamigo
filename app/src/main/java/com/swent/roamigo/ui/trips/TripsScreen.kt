@@ -50,6 +50,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -77,6 +78,7 @@ import java.time.Clock
  * @param onTripsClick invoked when the Trips navigation destination is selected.
  * @param onMapClick invoked when the Map navigation destination is selected.
  * @param onPhotosClick invoked when the Photos navigation destination is selected.
+ * @param onProfileClick invoked when the user selects their profile avatar.
  * @param clock the clock used for time-dependent presentation logic.
  */
 @Composable
@@ -90,6 +92,7 @@ fun TripsRoute(
     onTripsClick: () -> Unit = {},
     onMapClick: () -> Unit = {},
     onPhotosClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
     clock: Clock = Clock.systemDefaultZone(),
 ) {
   val viewModel: TripsViewModel =
@@ -113,6 +116,7 @@ fun TripsRoute(
       onTripsClick = onTripsClick,
       onMapClick = onMapClick,
       onPhotosClick = onPhotosClick,
+      onProfileClick = onProfileClick,
   )
 }
 
@@ -130,6 +134,7 @@ fun TripsRoute(
  * @param onTripsClick invoked when the Trips navigation destination is selected.
  * @param onMapClick invoked when the Map navigation destination is selected.
  * @param onPhotosClick invoked when the Photos navigation destination is selected.
+ * @param onProfileClick invoked when the user selects their profile avatar.
  */
 @Composable
 fun TripsScreen(
@@ -141,6 +146,7 @@ fun TripsScreen(
     onTripsClick: () -> Unit = {},
     onMapClick: () -> Unit = {},
     onPhotosClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
 ) {
   Scaffold(
       modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.trips_screen },
@@ -169,6 +175,7 @@ fun TripsScreen(
             greeting = uiState.greeting,
             userName = uiState.currentUserName,
             userInitial = uiState.currentUserInitial,
+            onProfileClick = onProfileClick,
         )
       }
 
@@ -265,6 +272,7 @@ private fun TripsHeader(
     greeting: String,
     userName: String,
     userInitial: String,
+    onProfileClick: () -> Unit,
 ) {
   Row(
       modifier = Modifier.fillMaxWidth(),
@@ -296,8 +304,14 @@ private fun TripsHeader(
     }
 
     if (userInitial.isNotBlank()) {
+      val openProfileLabel = stringResource(R.string.trips_open_profile)
       Surface(
-          modifier = Modifier.size(52.dp),
+          onClick = onProfileClick,
+          modifier =
+              Modifier.size(52.dp).semantics {
+                testTag = C.Tag.trips_profile_avatar
+                contentDescription = openProfileLabel
+              },
           shape = CircleShape,
           color = MaterialTheme.colorScheme.secondary,
       ) {
