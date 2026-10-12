@@ -72,7 +72,7 @@ Use a commit body when useful to explain what changed and why, not how the imple
 
 - Keep each pull request focused on one task.
 - Do not bundle unrelated changes into the same pull request.
-- Link the relevant issue.
+- Use `.github/pull_request_template.md` when creating a pull request, and replace its issue placeholder with a closing reference such as `Closes #123`.
 - Explain what was changed and why.
 - Include the relevant tests.
 - Run `./gradlew check` before requesting review.
