@@ -86,6 +86,28 @@ class RoamigoAppTest {
   }
 
   @Test
+  fun backButtonOnTheDestinationStepReturnsToTrips() {
+    continueToTrips()
+    composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
+
+    composeRule.onNodeWithTag(CreateTripScaffoldTestTags.BACK).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+    composeRule.onAllNodesWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertCountEquals(0)
+  }
+
+  @Test
+  fun closeButtonOnTheDestinationStepReturnsToTrips() {
+    continueToTrips()
+    composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
+
+    composeRule.onNodeWithTag(CreateTripScaffoldTestTags.CLOSE).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+    composeRule.onAllNodesWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertCountEquals(0)
+  }
+
+  @Test
   fun backFromTripsLeavesTheAppInsteadOfShowingPermissionsAgain() {
     continueToTrips()
 
