@@ -39,4 +39,16 @@
         <item quantity="one">%d traveler</item>
         <item quantity="other">%d travelers</item>
     </plurals>
+    <!-- Vote creation -->
+    <string name="vote_new">New vote</string>
+    <string name="vote_question">Question</string>
+    <string name="vote_option">Option %1$d</string>
+    <string name="vote_remove_option">Remove option %1$d</string>
+    <string name="vote_add_option">+ Add option</string>
+    <string name="vote_options_hint">Add at least two options. Fill in or remove any empty options.</string>
+    <string name="vote_start">Start vote</string>
+    <string name="vote_creating">Creating vote…</string>
+    <string name="vote_cancel">Cancel</string>
+    <string name="vote_invalid">Enter a question and at least two non-empty options.</string>
+    <string name="vote_submission_error">Unable to create the vote. Please try again.</string>
 </resources>
