@@ -131,8 +131,7 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            bash -o pipefail -c 'firebase emulators:exec --only auth --project demo-roamigo-auth --non-interactive \
-              "./gradlew connectedCheck --parallel --build-cache" 2>&1 | tee firebase-emulator.log'
+            bash -o pipefail -c "firebase emulators:exec --only auth --project demo-roamigo-auth --non-interactive './gradlew connectedCheck --parallel --build-cache' 2>&1 | tee firebase-emulator.log"
 
       - name: Upload connected test results and Firebase logs
         if: always()
