@@ -1,0 +1,19 @@
+{
+  "rules": {
+    "tripMembers": {
+      "$tripId": {
+        ".read": "auth != null && data.child(auth.uid).exists()",
+        ".write": false
+      }
+    },
+    "locations": {
+      "$tripId": {
+        ".read": "auth != null && root.child('tripMembers').child($tripId).child(auth.uid).exists()",
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid && root.child('tripMembers').child($tripId).child(auth.uid).exists()",
+          ".validate": "newData.hasChildren(['latitude','longitude','updatedAt']) && newData.child('latitude').isNumber() && newData.child('longitude').isNumber()"
+        }
+      }
+    }
+  }
+}
