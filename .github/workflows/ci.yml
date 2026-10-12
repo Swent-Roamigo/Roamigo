@@ -56,6 +56,25 @@ jobs:
       - name: Gradle cache
         uses: gradle/actions/setup-gradle@v6
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@15.33.0
+
+      - name: Validate Firebase emulators config
+        run: |
+          if [ ! -f "firebase.json" ]; then
+            echo "::error::firebase.json is missing. Please run firebase init emulators."
+            exit 1
+          fi
+          if ! jq -e '.emulators.auth.port == 9099' firebase.json >/dev/null; then
+            echo "::error::firebase.json must configure the Authentication Emulator on port 9099."
+            exit 1
+          fi
+
       # Cache the Emulator, if the cache does not hit, create the emulator.
       # API 34 matches targetSdk. compileSdk 37 is only the compile platform.
       - name: AVD cache
@@ -101,7 +120,8 @@ jobs:
           ./gradlew check --parallel --build-cache
 
       # Run connected tests on the emulator
-      - name: run tests
+      - name: Run connected tests
+        timeout-minutes: 25
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -110,7 +130,19 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: ./gradlew connectedCheck --parallel --build-cache
+          script: |
+            bash -o pipefail -c "firebase emulators:exec --only auth --project demo-roamigo --non-interactive './gradlew connectedCheck --parallel --build-cache' 2>&1 | tee firebase-emulator.log"
+
+      - name: Upload connected test results and Firebase logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: connected-test-results-and-firebase-logs
+          if-no-files-found: warn
+          path: |
+            firebase-emulator.log
+            app/build/reports/androidTests/connected/**
+            app/build/outputs/androidTest-results/connected/**
 
       # This step generates the coverage report which will be uploaded to sonar
       - name: Generate Coverage Report
