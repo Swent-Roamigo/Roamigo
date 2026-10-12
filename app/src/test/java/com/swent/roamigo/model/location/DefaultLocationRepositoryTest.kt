@@ -9,6 +9,7 @@ import android.os.Looper
 import android.os.SystemClock
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.google.firebase.database.FirebaseDatabase
 import java.time.Duration
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -21,11 +22,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.Mockito.mock
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.shadows.ShadowApplication
 import org.robolectric.shadows.ShadowLocationManager
-import com.google.firebase.database.FirebaseDatabase
-import org.mockito.Mockito.mock
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
