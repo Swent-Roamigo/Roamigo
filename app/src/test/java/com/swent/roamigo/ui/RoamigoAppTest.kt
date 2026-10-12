@@ -63,6 +63,18 @@ class RoamigoAppTest {
   }
 
   @Test
+  fun tripsTabOnTheProfileReturnsToTrips() {
+    continueToTrips()
+    waitForTag(C.Tag.trips_profile_avatar)
+    composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+    composeRule.onAllNodesWithTag(C.Tag.profile_title).assertCountEquals(0)
+  }
+
+  @Test
   fun newTripOpensDestinationStepAndBackReturnsToTrips() {
     continueToTrips()
 

@@ -12,10 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -24,7 +21,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
@@ -33,31 +29,24 @@ import com.swent.roamigo.ui.components.InfoRow
 import com.swent.roamigo.ui.theme.Ochre
 import com.swent.roamigo.ui.theme.Paper
 import com.swent.roamigo.ui.theme.Spacing
-
-// The footer is only drawn here; none of its destinations exist yet, so none is selected.
-private val footerTabs =
-    listOf(
-        R.drawable.ic_calendar to "Trips",
-        R.drawable.ic_map to "Map",
-        R.drawable.ic_camera to "Photos",
-    )
+import com.swent.roamigo.ui.trips.TripsBottomBar
 
 @Composable
-fun ProfileScreen(state: ProfileUiState, modifier: Modifier = Modifier) {
+fun ProfileScreen(
+    state: ProfileUiState,
+    onTripsClick: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
   Scaffold(
       modifier = modifier,
       bottomBar = {
-        NavigationBar {
-          footerTabs.forEach { (icon, label) ->
-            NavigationBarItem(
-                selected = false,
-                modifier = Modifier.testTag(C.Tag.profile_footer_tab),
-                onClick = {},
-                icon = { Icon(painterResource(icon), contentDescription = null) },
-                label = { Text(label) },
-            )
-          }
-        }
+        // Map and Photos have no destinations yet; the profile is not one of the three tabs.
+        TripsBottomBar(
+            onTripsClick = onTripsClick,
+            onMapClick = {},
+            onPhotosClick = {},
+            tripsSelected = false,
+        )
       },
   ) { padding ->
     // Scaffold reports the footer height so the content is not drawn underneath it.
