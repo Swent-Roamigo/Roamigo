@@ -30,8 +30,7 @@ class DefaultLocationRepository(
     context: Context,
     private val locationManager: LocationManager =
         context.getSystemService(LocationManager::class.java),
-    private val db: FirebaseDatabase = Firebase.database(DATABASE_URL)
-
+    private val db: FirebaseDatabase = Firebase.database(DATABASE_URL),
 ) : LocationRepository {
 
   private val appContext = context.applicationContext
