@@ -651,18 +651,21 @@ private fun TripImage(
 /**
  * Displays the primary Trips, Map, and Photos navigation destinations.
  *
- * The Trips destination is selected on this screen, while navigation changes are delegated to the
- * caller.
+ * Navigation changes are delegated to the caller. The bar is shared with other screens that show
+ * it.
  *
  * @param onTripsClick invoked when the Trips destination is selected.
  * @param onMapClick invoked when the Map destination is selected.
  * @param onPhotosClick invoked when the Photos destination is selected.
+ * @param tripsSelected whether the Trips destination is highlighted; false on screens that are not
+ *   the trips home.
  */
 @Composable
-private fun TripsBottomBar(
+internal fun TripsBottomBar(
     onTripsClick: () -> Unit,
     onMapClick: () -> Unit,
     onPhotosClick: () -> Unit,
+    tripsSelected: Boolean = true,
 ) {
   Column {
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -672,7 +675,7 @@ private fun TripsBottomBar(
         tonalElevation = 0.dp,
     ) {
       NavigationBarItem(
-          selected = true,
+          selected = tripsSelected,
           onClick = onTripsClick,
           modifier = Modifier.semantics { testTag = C.Tag.trips_navigation_trips },
           icon = {
