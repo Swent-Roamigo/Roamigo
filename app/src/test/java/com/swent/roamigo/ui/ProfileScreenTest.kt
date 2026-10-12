@@ -62,6 +62,15 @@ class ProfileScreenTest {
   }
 
   @Test
+  fun worksWithDefaultCallbacksAndModifier() {
+    composeRule.setContent { RoamigoTheme { ProfileScreen(state) } }
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
+  }
+
+  @Test
   fun tripsTabInvokesCallback() {
     var tripsClicks = 0
     show(onTripsClick = { tripsClicks++ })
