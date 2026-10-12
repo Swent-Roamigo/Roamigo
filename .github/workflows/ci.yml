@@ -12,6 +12,10 @@ on:
       - synchronize
       - reopened
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ci:
     name: CI
@@ -36,13 +40,6 @@ jobs:
           fi
           printf '%s' "$GOOGLE_SERVICES" | base64 --decode > app/google-services.json
 
-      # Kernel-based Virtual Machine (KVM) is an open source virtualization technology built into Linux. Enabling it allows the Android emulator to run faster.
-      - name: Enable KVM group perms
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-
       - name: Setup JDK
         uses: actions/setup-java@v6
         with:
@@ -55,6 +52,39 @@ jobs:
       # To avoid that, we cache the the gradle folder to reuse it later.
       - name: Gradle cache
         uses: gradle/actions/setup-gradle@v6
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      # Run checks that do not need Node, Firebase, KVM, or an Android emulator first.
+      - name: Run formatting, debug, and JVM checks
+        run: ./gradlew ktfmtCheck assembleDebug lintDebug check --build-cache
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@15.33.0
+
+      - name: Validate Firebase emulators config
+        run: |
+          if [ ! -f "firebase.json" ]; then
+            echo "::error::firebase.json is missing. Please run firebase init emulators."
+            exit 1
+          fi
+          if ! jq -e '.emulators.auth.port == 9099' firebase.json >/dev/null; then
+            echo "::error::firebase.json must configure the Authentication Emulator on port 9099."
+            exit 1
+          fi
+
+      # KVM is only needed after the fast checks pass, when the Android emulator starts.
+      - name: Enable KVM group perms
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
 
       # Cache the Emulator, if the cache does not hit, create the emulator.
       # API 34 matches targetSdk. compileSdk 37 is only the compile platform.
@@ -79,29 +109,9 @@ jobs:
           disable-animations: false
           script: echo "Generated AVD snapshot for caching."
 
-      - name: Grant execute permission for gradlew
-        run: |
-          chmod +x ./gradlew
-
-      # Check formatting
-      - name: KTFmt Check
-        run: |
-          ./gradlew ktfmtCheck
-
-      # This step runs gradle commands to build the application
-      - name: Assemble
-        run: |
-          # To run the CI with debug information, add --info
-          ./gradlew assemble lint --parallel --build-cache
-
-      # Run Unit tests
-      - name: Run tests
-        run: |
-          # To run the CI with debug information, add --info
-          ./gradlew check --parallel --build-cache
-
       # Run connected tests on the emulator
-      - name: run tests
+      - name: Run connected tests
+        timeout-minutes: 25
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -110,7 +120,19 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: ./gradlew connectedCheck --parallel --build-cache
+          script: |
+            bash -o pipefail -c "firebase emulators:exec --only auth --project demo-roamigo --non-interactive './gradlew connectedCheck --build-cache' 2>&1 | tee firebase-emulator.log"
+
+      - name: Upload connected test results and Firebase logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: connected-test-results-and-firebase-logs
+          if-no-files-found: warn
+          path: |
+            firebase-emulator.log
+            app/build/reports/androidTests/connected/**
+            app/build/outputs/androidTest-results/connected/**
 
       # This step generates the coverage report which will be uploaded to sonar
       - name: Generate Coverage Report
@@ -122,4 +144,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ./gradlew sonar --parallel --build-cache
+        run: ./gradlew sonar --build-cache
