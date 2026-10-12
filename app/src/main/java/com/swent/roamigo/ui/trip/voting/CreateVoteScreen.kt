@@ -53,7 +53,9 @@ fun CreateVoteScreen(
 ) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   val currentOnVoteCreated by rememberUpdatedState(onVoteCreated)
-  LaunchedEffect(state.createdVoteId) { state.createdVoteId?.let { currentOnVoteCreated(it) } }
+  LaunchedEffect(state.pendingVoteCreatedId) {
+    viewModel.consumeVoteCreated()?.let { currentOnVoteCreated(it) }
+  }
   CreateVoteScreenContent(
       state = state,
       onQuestionChange = viewModel::updateQuestion,
@@ -141,7 +143,11 @@ fun CreateVoteScreenContent(
       }
       Text(stringResource(if (state.isSubmitting) R.string.vote_creating else R.string.vote_start))
     }
-    OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)) {
+    OutlinedButton(
+        onClick = onBack,
+        enabled = !state.isSubmitting,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
+    ) {
       Text(stringResource(R.string.vote_cancel))
     }
   }
