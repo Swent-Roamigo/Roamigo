@@ -56,7 +56,7 @@ class AuthRepositoryFirebaseIntegrationTest {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val options =
         FirebaseOptions.Builder()
-            .setProjectId("demo-roamigo-auth")
+            .setProjectId("demo-roamigo")
             .setApplicationId("1:1234567890:android:roamigo-auth-emulator")
             .setApiKey("fake-api-key-for-auth-emulator")
             .build()
