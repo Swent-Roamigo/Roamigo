@@ -24,6 +24,8 @@ import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.shadows.ShadowApplication
 import org.robolectric.shadows.ShadowLocationManager
+import com.google.firebase.database.FirebaseDatabase
+import org.mockito.Mockito.mock
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
@@ -40,7 +42,7 @@ class DefaultLocationRepositoryTest {
     locationManager = shadowOf(context.getSystemService(LocationManager::class.java))
     locationManager.setProviderEnabled(LocationManager.GPS_PROVIDER, true)
     locationManager.setProviderEnabled(LocationManager.NETWORK_PROVIDER, true)
-    repository = DefaultLocationRepository(context)
+    repository = DefaultLocationRepository(context, db = mock(FirebaseDatabase::class.java))
   }
 
   @Test
