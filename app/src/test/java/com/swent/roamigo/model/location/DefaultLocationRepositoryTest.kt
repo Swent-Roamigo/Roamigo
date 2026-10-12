@@ -9,7 +9,6 @@ import android.os.Looper
 import android.os.SystemClock
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.google.firebase.database.FirebaseDatabase
 import java.time.Duration
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -22,7 +21,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito.mock
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.shadows.ShadowApplication
 import org.robolectric.shadows.ShadowLocationManager
@@ -42,7 +40,7 @@ class DefaultLocationRepositoryTest {
     locationManager = shadowOf(context.getSystemService(LocationManager::class.java))
     locationManager.setProviderEnabled(LocationManager.GPS_PROVIDER, true)
     locationManager.setProviderEnabled(LocationManager.NETWORK_PROVIDER, true)
-    repository = DefaultLocationRepository(context, db = mock(FirebaseDatabase::class.java))
+    repository = DefaultLocationRepository(context)
   }
 
   @Test
