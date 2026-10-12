@@ -23,8 +23,10 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -138,7 +140,8 @@ class CreateVoteViewModelTest {
     assertTrue(viewModel.uiState.value.isSubmitting)
     assertFalse(viewModel.uiState.value.canSubmit)
     runCurrent()
-    assertEquals(1, repository.created.size)
+    assertEquals(1, repository.createCalls.size)
+    assertTrue(repository.created.isEmpty())
     viewModel.updateQuestion("Changed")
     viewModel.addOption()
     viewModel.updateOption(0, "Changed")
@@ -161,11 +164,75 @@ class CreateVoteViewModelTest {
     assertFalse(viewModel.uiState.value.isSubmitting)
     assertTrue(viewModel.uiState.value.canSubmit)
     assertEquals("  Dinner?  ", viewModel.uiState.value.question)
+    assertTrue(repository.created.isEmpty())
+    val firstAttempt = repository.createCalls.single()
     repository.failure = null
     viewModel.submitVote()
     assertNull(viewModel.uiState.value.error)
     advanceUntilIdle()
     assertNotNull(viewModel.uiState.value.createdVoteId)
+    assertEquals(2, repository.createCalls.size)
+    assertSame(firstAttempt, repository.createCalls.last())
+    assertEquals(firstAttempt.uid, repository.created.single().uid)
+    assertEquals(firstAttempt.options, repository.created.single().options)
+  }
+
+  @Test
+  fun successIsConsumedOnceWithoutUnlockingTheCompletedDraft() = runTest {
+    validDraft()
+    viewModel.submitVote()
+    advanceUntilIdle()
+    val voteId = repository.created.single().uid
+    assertEquals(voteId, viewModel.consumeVoteCreated())
+    assertNull(viewModel.consumeVoteCreated())
+    assertNull(viewModel.uiState.value.pendingVoteCreatedId)
+    assertEquals(voteId, viewModel.uiState.value.createdVoteId)
+    assertFalse(viewModel.uiState.value.canSubmit)
+    val completed = viewModel.uiState.value
+    viewModel.updateQuestion("Changed")
+    viewModel.updateOption(0, "Changed")
+    viewModel.addOption()
+    viewModel.removeOption(0)
+    viewModel.submitVote()
+    advanceUntilIdle()
+    assertEquals(completed, viewModel.uiState.value)
+    assertEquals(1, repository.createCalls.size)
+  }
+
+  @Test
+  fun editingAfterFailureBuildsANewLogicalSubmission() = runTest {
+    val edits: List<() -> Unit> =
+        listOf(
+            { viewModel.updateQuestion("Lunch?") },
+            { viewModel.updateOption(0, "Cafe") },
+            {
+              viewModel.addOption()
+              viewModel.updateOption(2, "Bakery")
+            },
+            {
+              viewModel.removeOption(0)
+              viewModel.addOption()
+              viewModel.updateOption(1, "Bakery")
+            },
+        )
+    for (edit in edits) {
+      viewModel =
+          CreateVoteViewModel(repository, "trip", "member", Clock.fixed(now, ZoneOffset.UTC))
+      repository.failure = IllegalStateException("offline")
+      validDraft()
+      viewModel.submitVote()
+      advanceUntilIdle()
+      val previous = repository.createCalls.last()
+      edit()
+      viewModel.submitVote()
+      advanceUntilIdle()
+      val next = repository.createCalls.last()
+      assertNotEquals(previous.uid, next.uid)
+      assertTrue(
+          previous.options.map { it.uid }.intersect(next.options.map { it.uid }.toSet()).isEmpty()
+      )
+      assertTrue(repository.created.isEmpty())
+    }
   }
 
   private fun validDraft() {
@@ -180,19 +247,22 @@ class CreateVoteViewModelTest {
     // The synchronous guard must avoid even scheduling a repository operation.
     assertEquals(CreateVoteError.INVALID_INPUT, viewModel.uiState.value.error)
     assertFalse(viewModel.uiState.value.isSubmitting)
+    assertTrue(repository.createCalls.isEmpty())
     assertTrue(repository.created.isEmpty())
   }
 }
 
 internal class FakeVoteRepository : VoteRepository {
+  val createCalls = mutableListOf<Vote>()
   val created = mutableListOf<Vote>()
   var gate: CompletableDeferred<Unit>? = null
   var failure: Exception? = null
 
   override suspend fun createVote(vote: Vote) {
-    created += vote
+    createCalls += vote
     gate?.await()
     failure?.let { throw it }
+    created += vote
   }
 
   override suspend fun getVotes(tripId: String): List<Vote> = error("Not used")
