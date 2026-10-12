@@ -10,9 +10,15 @@ import android.location.LocationManager
 import android.os.CancellationSignal
 import androidx.core.content.ContextCompat
 import androidx.core.location.LocationManagerCompat
+import com.google.firebase.Firebase
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.database
 import java.util.concurrent.Executor
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
+
+private const val DATABASE_URL =
+    "https://roamigo-c6cb2-default-rtdb.europe-west1.firebasedatabase.app/"
 
 /**
  * [LocationRepository] backed by the Android framework [LocationManager].
@@ -24,6 +30,8 @@ class DefaultLocationRepository(
     context: Context,
     private val locationManager: LocationManager =
         context.getSystemService(LocationManager::class.java),
+    private val db: FirebaseDatabase = Firebase.database(DATABASE_URL)
+
 ) : LocationRepository {
 
   private val appContext = context.applicationContext
