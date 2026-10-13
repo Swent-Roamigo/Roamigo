@@ -10,6 +10,11 @@ import android.location.LocationManager
 import android.os.CancellationSignal
 import androidx.core.content.ContextCompat
 import androidx.core.location.LocationManagerCompat
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringSetPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
@@ -20,6 +25,7 @@ import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ServerValue
 import com.google.firebase.database.ValueEventListener
 import com.google.firebase.database.database
+import java.io.IOException
 import java.util.concurrent.Executor
 import kotlin.coroutines.resume
 import kotlin.time.Duration
@@ -35,11 +41,14 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.job
@@ -55,12 +64,15 @@ import kotlinx.coroutines.withTimeoutOrNull
  * Firebase Realtime Database for sharing positions with trip members at
  * `locations/{tripId}/{userId}`.
  *
- * Sharing state lives in this instance, so a single instance should be shared app-wide.
+ * Running updates live in this instance, so a single instance should be shared app-wide. The trips
+ * being shared are also saved on the device, so that [restoreSharing] can resume them after the app
+ * process was killed.
  *
  * @param context any context; only its application context is retained.
  * @param locationManager the system location service, injectable for tests.
  * @param database the Realtime Database holding shared member locations.
  * @param auth provides the signed-in user whose position is shared.
+ * @param sharedTripsStore saves the trips each user is sharing with, across app processes.
  * @param scope runs the periodic position updates while sharing is on.
  * @param updateInterval delay between two published positions while sharing is on.
  */
@@ -70,6 +82,7 @@ class DefaultLocationRepository(
         context.getSystemService(LocationManager::class.java),
     private val database: FirebaseDatabase = Firebase.database,
     private val auth: FirebaseAuth = Firebase.auth,
+    private val sharedTripsStore: DataStore<Preferences> = context.sharedTripsDataStore,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     private val updateInterval: Duration = DEFAULT_UPDATE_INTERVAL,
 ) : LocationRepository {
@@ -119,21 +132,24 @@ class DefaultLocationRepository(
       // Started only once registered, so that it can unregister itself when sharing ends.
       val job =
           scope.launch(start = CoroutineStart.LAZY) {
-            try {
-              shareLocation(tripId, userId, firstUpdate)
-            } catch (e: CancellationException) {
-              throw e
-            } catch (e: Exception) {
-              // Caught so that a failure stops sharing instead of crashing the app. Unregistered
-              // before reporting so that the caller never sees the failed trip as shared.
-              unregister(tripId, coroutineContext.job)
-              firstUpdate.completeExceptionally(
+            val failure =
+                try {
+                  shareLocation(tripId, userId, firstUpdate)
+                  null
+                } catch (e: CancellationException) {
+                  throw e
+                } catch (e: Exception) {
+                  // Caught so that a failure stops sharing instead of crashing the app.
                   e as? LocationSharingException ?: LocationSharingException("Sharing failed", e)
-              )
-            }
+                }
+            // Sharing ended by itself. Unregistered before reporting so that the caller never sees
+            // the failed trip as shared.
+            unregister(tripId, userId, coroutineContext.job)
+            failure?.let { firstUpdate.completeExceptionally(it) }
           }
       job.invokeOnCompletion {
-        unregister(tripId, job)
+        // A cancelled job does not unregister itself; its saved trip is handled by stopSharing.
+        removeSharing(tripId, job)
         // A stop during the first update must not leave the caller waiting forever.
         firstUpdate.cancel()
       }
@@ -148,9 +164,10 @@ class DefaultLocationRepository(
    * The database only lets users remove their own entry, so call this before signing out:
    * afterwards the entry stays until the user leaves the trip.
    *
-   * @throws LocationSharingException if the entry could not be removed or the removal is not
-   *   acknowledged in time, e.g. while offline. Sharing is stopped anyway, and an unacknowledged
-   *   removal is still applied once the device is back online.
+   * @throws LocationSharingException if the trip could not be forgotten on the device, or if the
+   *   entry could not be removed or the removal is not acknowledged in time, e.g. while offline.
+   *   Sharing is stopped anyway, and an unacknowledged removal is still applied once the device is
+   *   back online.
    */
   override suspend fun stopSharing(tripId: String) {
     val removal = sharingMutex.withLock {
@@ -160,8 +177,11 @@ class DefaultLocationRepository(
         sharing.job.cancelAndJoin()
         sharings.update { it - tripId }
       }
-      val userId = auth.currentUser?.uid ?: return
-      if (sharing != null && sharing.userId != userId) return
+      val userId = sharing?.userId ?: auth.currentUser?.uid ?: return
+      // Forgotten before the removal, so that a failure cannot let restoreSharing resume a sharing
+      // the user stopped.
+      editSharedTrips(userId) { it - tripId }
+      if (userId != auth.currentUser?.uid) return
       // Issued under the lock so that a restarted sharing can only write after this removal. Also
       // removes an entry left over by a previous app session.
       startWrite { memberLocationReference(tripId, userId).removeValue(it) }
@@ -170,6 +190,31 @@ class DefaultLocationRepository(
     // Denied once the user left the trip, which already removed the entry.
     if (error != null && error.code != DatabaseError.PERMISSION_DENIED) {
       throw LocationSharingException("Could not remove the shared location", error.toException())
+    }
+  }
+
+  /**
+   * @throws LocationSharingException if the saved trips could not be read. Failing to resume or
+   *   stop the sharing of a single trip is not reported, so that the other trips are still
+   *   restored.
+   */
+  override suspend fun restoreSharing() {
+    val userId = auth.currentUser?.uid ?: return
+    for (tripId in readSharedTrips(userId)) {
+      try {
+        startSharing(tripId)
+      } catch (e: CancellationException) {
+        // Also thrown when the user stops this trip's sharing meanwhile, which needs no cleanup.
+        currentCoroutineContext().ensureActive()
+      } catch (e: Exception) {
+        // E.g. the permission was revoked or there is no fix: the position left by the previous
+        // process must not stay published while the trip is not shown as shared.
+        try {
+          stopSharing(tripId)
+        } catch (e: LocationSharingException) {
+          // A removal that is not acknowledged yet is still applied once back online.
+        }
+      }
     }
   }
 
@@ -208,6 +253,7 @@ class DefaultLocationRepository(
       firstUpdate: CompletableDeferred<Unit>,
   ) {
     publishFirstLocation(tripId, userId)
+    saveSharedTrip(tripId, userId)
     firstUpdate.complete(Unit)
     while (true) {
       delay(updateInterval)
@@ -217,10 +263,55 @@ class DefaultLocationRepository(
     }
   }
 
-  private fun unregister(tripId: String, job: Job) {
+  private suspend fun unregister(tripId: String, userId: String, job: Job) {
+    // Forgotten while still registered, so that a new start for the trip, which saves it again,
+    // cannot run before this removal.
+    try {
+      editSharedTrips(userId) { it - tripId }
+    } catch (e: LocationSharingException) {
+      // Left saved, so restoreSharing retries the trip at the next startup and stops it if needed.
+    }
+    removeSharing(tripId, job)
+  }
+
+  private fun removeSharing(tripId: String, job: Job) {
     // A newer start may already have replaced this job, which must stay registered.
     sharings.update { if (it[tripId]?.job == job) it - tripId else it }
   }
+
+  /** @throws LocationSharingException if the trip could not be saved; it is then not shared. */
+  private suspend fun saveSharedTrip(tripId: String, userId: String) {
+    try {
+      editSharedTrips(userId) { it + tripId }
+    } catch (e: LocationSharingException) {
+      // An unsaved trip could not be restored after the process is killed, so its position would
+      // stay published.
+      startWrite { memberLocationReference(tripId, userId).removeValue(it) }
+      throw e
+    }
+  }
+
+  /** @throws LocationSharingException if the saved trips could not be read. */
+  private suspend fun readSharedTrips(userId: String): Set<String> =
+      try {
+        sharedTripsStore.data.first()[sharedTripsKey(userId)].orEmpty()
+      } catch (e: IOException) {
+        throw LocationSharingException("Could not read the shared trips", e)
+      }
+
+  /** @throws LocationSharingException if the saved trips could not be written. */
+  private suspend fun editSharedTrips(userId: String, transform: (Set<String>) -> Set<String>) {
+    try {
+      sharedTripsStore.edit {
+        it[sharedTripsKey(userId)] = transform(it[sharedTripsKey(userId)].orEmpty())
+      }
+    } catch (e: IOException) {
+      throw LocationSharingException("Could not save the shared trips", e)
+    }
+  }
+
+  // Kept per user, so that a trip shared by an account that signed out is not resumed for another.
+  private fun sharedTripsKey(userId: String) = stringSetPreferencesKey("shared_trips_$userId")
 
   /** @throws LocationSharingException if there is no fix or the update fails or times out. */
   private suspend fun publishFirstLocation(tripId: String, userId: String) {
@@ -346,6 +437,9 @@ class DefaultLocationRepository(
     private val DIRECT_EXECUTOR = Executor(Runnable::run)
 
     private const val LOCATIONS_PATH = "locations"
+
+    // A single instance per file is allowed in a process, hence the extension property.
+    private val Context.sharedTripsDataStore by preferencesDataStore(name = "location_sharing")
 
     // Fresh enough to follow members walking around while keeping GPS usage battery-friendly.
     private val DEFAULT_UPDATE_INTERVAL = 20.seconds

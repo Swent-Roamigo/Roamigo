@@ -37,6 +37,14 @@ interface LocationRepository {
   suspend fun stopSharing(tripId: String)
 
   /**
+   * Resumes the current user's location sharing that was still on when the app process last ended,
+   * e.g. because the system killed it. Trips whose sharing cannot be resumed are stopped instead,
+   * so that no position stays published without [isSharing] reporting it. Call it at app startup
+   * once a user is signed in; it does nothing otherwise.
+   */
+  suspend fun restoreSharing()
+
+  /**
    * Streams the locations of the trip members currently sharing their position. A new list is
    * emitted whenever a member moves, starts sharing or stops sharing. The current user is excluded,
    * since their own position comes from [getCurrentLocation]. Observing does not require this
