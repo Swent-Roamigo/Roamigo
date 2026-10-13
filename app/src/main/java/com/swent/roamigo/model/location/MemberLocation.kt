@@ -8,31 +8,19 @@ package com.swent.roamigo.model.location
  * @property userId unique identifier of the trip member.
  * @property latitude latitude in degrees, within [-90, 90].
  * @property longitude longitude in degrees, within [-180, 180].
- * @property lastUpdated time of the last location update, in milliseconds since the epoch. Lets the
+ * @property updatedAt time of the last location update, in milliseconds since the epoch. Lets the
  *   UI show how old a position is and detect stale members.
  */
 data class MemberLocation(
     val userId: String,
     val latitude: Double,
     val longitude: Double,
-    val lastUpdated: Long,
+    val updatedAt: Long,
 ) {
-  /**
-   * Converts this location to Realtime Database data. The [userId] is not included because it is
-   * the key of the entry.
-   */
-  fun toMap(): Map<String, Any> =
-      mapOf(
-          LATITUDE to latitude,
-          LONGITUDE to longitude,
-          LAST_UPDATED to lastUpdated,
-      )
-
   companion object {
     internal const val LATITUDE = "latitude"
     internal const val LONGITUDE = "longitude"
-    // Named after the field the database security rules validate.
-    internal const val LAST_UPDATED = "updatedAt"
+    internal const val UPDATED_AT = "updatedAt"
 
     /**
      * Builds a [MemberLocation] from Realtime Database data.
@@ -47,9 +35,9 @@ data class MemberLocation(
       // The database returns whole numbers as Long and others as Double, so accept any Number.
       val latitude = (data[LATITUDE] as? Number)?.toDouble() ?: return null
       val longitude = (data[LONGITUDE] as? Number)?.toDouble() ?: return null
-      val lastUpdated = (data[LAST_UPDATED] as? Number)?.toLong() ?: return null
+      val updatedAt = (data[UPDATED_AT] as? Number)?.toLong() ?: return null
       if (latitude !in -90.0..90.0 || longitude !in -180.0..180.0) return null
-      return MemberLocation(userId, latitude, longitude, lastUpdated)
+      return MemberLocation(userId, latitude, longitude, updatedAt)
     }
   }
 }
