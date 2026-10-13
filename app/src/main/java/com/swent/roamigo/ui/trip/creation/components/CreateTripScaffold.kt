@@ -23,12 +23,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.swent.roamigo.R
 import com.swent.roamigo.ui.theme.RoamigoTheme
 
 internal object CreateTripScaffoldTestTags {
@@ -61,13 +64,17 @@ fun CreateTripScaffold(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-      HeaderAction(label = "Back", glyph = "‹", onClick = onBack)
+      HeaderAction(label = stringResource(R.string.create_trip_back), glyph = "‹", onClick = onBack)
       Text(
-          "Step $step of 2",
+          stringResource(R.string.create_trip_step, step, 2),
           style = MaterialTheme.typography.labelMedium,
           color = colors.onSurfaceVariant,
       )
-      HeaderAction(label = "Close", glyph = "×", onClick = onClose)
+      HeaderAction(
+          label = stringResource(R.string.create_trip_close),
+          glyph = "×",
+          onClick = onClose,
+      )
     }
     Spacer(Modifier.height(14.dp))
     Box(
@@ -133,14 +140,14 @@ private fun CreateTripScaffoldPreview() {
   RoamigoTheme {
     CreateTripScaffold(
         step = 1,
-        title = "Where to?",
-        subtitle = "Add one city or a whole route. You can change it later.",
+        title = stringResource(R.string.create_trip_destination_title),
+        subtitle = stringResource(R.string.create_trip_destination_subtitle),
         onBack = {},
         onClose = {},
-        primaryActionLabel = "Continue · 2 stops",
+        primaryActionLabel = pluralStringResource(R.plurals.create_trip_destination_continue, 2, 2),
         onPrimaryAction = {},
     ) {
-      Text("Step content", modifier = Modifier.padding(top = 8.dp))
+      Text(stringResource(R.string.preview_step_content), modifier = Modifier.padding(top = 8.dp))
     }
   }
 }

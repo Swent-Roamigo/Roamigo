@@ -22,11 +22,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.swent.roamigo.R
 import com.swent.roamigo.ui.theme.RoamigoTheme
 
 @Composable
@@ -35,6 +37,7 @@ fun DestinationSearchBar(
     onQueryChange: (String) -> Unit,
 ) {
   val colors = MaterialTheme.colorScheme
+  val searchDescription = stringResource(R.string.destination_search_description)
   Row(
       modifier =
           Modifier.fillMaxWidth()
@@ -48,7 +51,7 @@ fun DestinationSearchBar(
     Box(Modifier.fillMaxWidth()) {
       if (query.isEmpty()) {
         Text(
-            "Search cities or countries",
+            stringResource(R.string.destination_search_hint),
             color = colors.onSurfaceVariant,
             style = MaterialTheme.typography.bodyLarge,
         )
@@ -56,8 +59,7 @@ fun DestinationSearchBar(
       BasicTextField(
           value = query,
           onValueChange = onQueryChange,
-          modifier =
-              Modifier.fillMaxWidth().semantics { contentDescription = "Search destinations" },
+          modifier = Modifier.fillMaxWidth().semantics { contentDescription = searchDescription },
           singleLine = true,
           keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
           textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.onBackground),

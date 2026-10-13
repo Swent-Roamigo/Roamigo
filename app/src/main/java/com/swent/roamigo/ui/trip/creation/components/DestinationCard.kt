@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
@@ -41,6 +42,9 @@ internal object DestinationCardTestTags {
 @Composable
 fun DestinationCard(destination: String, selected: Boolean, onClick: () -> Unit) {
   val colors = MaterialTheme.colorScheme
+  val accessibilityLabel =
+      if (selected) stringResource(R.string.destination_selected_description, destination)
+      else destination
   Box(
       modifier =
           Modifier.fillMaxWidth()
@@ -52,7 +56,7 @@ fun DestinationCard(destination: String, selected: Boolean, onClick: () -> Unit)
               )
               .clickable(onClick = onClick)
               .semantics {
-                contentDescription = "$destination${if (selected) ", selected" else ""}"
+                contentDescription = accessibilityLabel
                 testTag = DestinationCardTestTags.forDestination(destination)
               },
   ) {

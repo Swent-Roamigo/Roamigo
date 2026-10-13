@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
@@ -70,6 +71,28 @@ class DestinationScreenTest {
     }
 
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsNotEnabled()
+  }
+
+  @Test
+  fun continueLabelUsesSingularAndPluralStopForms() {
+    val viewModel = CreateTripViewModel()
+
+    composeRule.setContent {
+      RoamigoTheme {
+        DestinationScreen(
+            createTripViewModel = viewModel,
+            onBack = {},
+            onClose = {},
+            onContinue = {},
+        )
+      }
+    }
+
+    viewModel.toggleDestination("Lisbon")
+    composeRule.onNodeWithText("Continue · 1 stop").assertExists()
+
+    viewModel.toggleDestination("Porto")
+    composeRule.onNodeWithText("Continue · 2 stops").assertExists()
   }
 
   @Test

@@ -10,6 +10,23 @@
     <string name="auth_google_sign_in">Continue with Google</string>
     <string name="auth_terms">By continuing, you agree to our Terms and Privacy Policy.</string>
 
+    <!-- Shared trip creation -->
+    <string name="create_trip_back">Back</string>
+    <string name="create_trip_close">Close</string>
+    <string name="create_trip_step">Step %1$d of %2$d</string>
+    <string name="create_trip_destination_title">Where to?</string>
+    <string name="create_trip_destination_subtitle">Add one city or a whole route. You can change it later.</string>
+    <plurals name="create_trip_destination_continue">
+        <item quantity="one">Continue · %1$d stop</item>
+        <item quantity="other">Continue · %1$d stops</item>
+    </plurals>
+    <string name="create_trip_popular_destinations">Popular with students</string>
+    <string name="destination_search_hint">Search cities or countries</string>
+    <string name="destination_search_description">Search destinations</string>
+    <string name="destination_selected_description">%1$s, selected</string>
+    <string name="destination_remove_description">Remove %1$s</string>
+    <string name="preview_step_content">Step content</string>
+
     <!-- Trips Home -->
     <string name="trips_title">Your trips</string>
     <string name="trips_next_up">Next up</string>
