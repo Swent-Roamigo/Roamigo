@@ -16,17 +16,29 @@ class VoteRepositoryFirestore(private val db: FirebaseFirestore) : VoteRepositor
   override suspend fun createVote(vote: Vote) {
     requireDocumentId(vote.uid)
     val document = votes(vote.tripId).document(vote.uid)
-    db.runTransaction { transaction ->
-          if (transaction.get(document).exists()) {
-            throw FirebaseFirestoreException(
-                "Vote ${vote.uid} already exists in trip ${vote.tripId}",
-                FirebaseFirestoreException.Code.ALREADY_EXISTS,
-            )
+    try {
+      db.runTransaction { transaction ->
+            if (transaction.get(document).exists()) {
+              throw FirebaseFirestoreException(
+                  "Vote ${vote.uid} already exists in trip ${vote.tripId}",
+                  FirebaseFirestoreException.Code.ALREADY_EXISTS,
+              )
+            }
+            transaction.set(document, vote.toFirestoreData())
+            Unit
           }
-          transaction.set(document, vote.toFirestoreData())
-          Unit
-        }
-        .await()
+          .await()
+    } catch (error: FirebaseFirestoreException) {
+      if (error.code != FirebaseFirestoreException.Code.ALREADY_EXISTS) throw error
+      val existing = getVote(vote.tripId, vote.uid)
+      if (existing == null || !existing.matchesCreationRequest(vote)) throw error
+    }
+  }
+
+  override suspend fun getVote(tripId: String, voteId: String): Vote? {
+    requireDocumentId(voteId)
+    val snapshot = votes(tripId).document(voteId).get().await()
+    return if (snapshot.exists()) snapshot.toVote(tripId) else null
   }
 
   override suspend fun getVotes(tripId: String): List<Vote> =
@@ -141,3 +153,13 @@ private fun Map<*, *>.optionalString(field: String): String? {
   require(value == null || value is String) { "Invalid $field" }
   return value
 }
+
+// Status and the winning option can change after creation and do not identify the request.
+private fun Vote.matchesCreationRequest(request: Vote): Boolean =
+    uid == request.uid &&
+        tripId == request.tripId &&
+        question == request.question &&
+        options == request.options && // Ordered option IDs and contents.
+        createdByUserId == request.createdByUserId &&
+        creationTime == request.creationTime &&
+        closingTime == request.closingTime

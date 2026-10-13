@@ -121,13 +121,17 @@ class VoteRepositoryFirestoreTest {
   }
 
   @Test
-  fun createVoteWithExistingIdFailsWithoutWriting() = runTest {
+  fun createVoteWithConflictingQuestionFailsWithoutWriting() = runTest {
     val transaction = mock(Transaction::class.java)
     val snapshot = document("vote-1", voteData)
     `when`(snapshot.exists()).thenReturn(true)
     `when`(transaction.get(voteDocument)).thenReturn(snapshot)
     stubTransaction(transaction)
-    val failure = runCatching { repository.createVote(vote) }.exceptionOrNull()
+    doReturn(successfulTask(snapshot)).`when`(voteDocument).get()
+    val failure = runCatching {
+      repository.createVote(vote.copy(question = "Different?"))
+    }
+        .exceptionOrNull()
 
     assertTrue(failure is FirebaseFirestoreException)
     assertEquals(
@@ -150,6 +154,7 @@ class VoteRepositoryFirestoreTest {
     `when`(existing.exists()).thenReturn(true)
     `when`(transaction.get(voteDocument)).thenReturn(existing)
     stubTransaction(transaction)
+    doReturn(successfulTask(existing)).`when`(voteDocument).get()
     val replacement = vote.copy(options = listOf(VoteOption("new-option", "Beach")))
     val failure = runCatching { repository.createVote(replacement) }.exceptionOrNull()
 
@@ -163,6 +168,102 @@ class VoteRepositoryFirestoreTest {
     verify(ballots).document("user-1")
     verify(ballotDocument).set(ballotData(originalBallot))
     verifyNoMoreInteractions(ballots, ballotDocument)
+  }
+
+  @Test
+  fun getVoteReturnsExistingVoteUsingDirectPath() = runTest {
+    doReturn(successfulTask(document("vote-1", voteData))).`when`(voteDocument).get()
+    assertEquals(vote, repository.getVote("trip-1", "vote-1"))
+    verify(votes).document("vote-1")
+    verify(votes, never()).get()
+  }
+
+  @Test
+  fun getVoteReturnsNullForMissingDocument() = runTest {
+    val missing = mock(DocumentSnapshot::class.java)
+    doReturn(successfulTask(missing)).`when`(voteDocument).get()
+    assertNull(repository.getVote("trip-1", "vote-1"))
+  }
+
+  @Test
+  fun getVotePropagatesFirestoreFailure() = runTest {
+    val error = FirebaseFirestoreException("offline", FirebaseFirestoreException.Code.UNAVAILABLE)
+    doReturn(failedTask<DocumentSnapshot>(error)).`when`(voteDocument).get()
+    assertSame(error, runCatching { repository.getVote("trip-1", "vote-1") }.exceptionOrNull())
+  }
+
+  @Test
+  fun duplicateCreationSucceedsEvenAfterStatusAndWinnerChange() = runTest {
+    for (data in
+        listOf(voteData, voteData + mapOf("status" to "CLOSED", "winningOptionId" to "option-1"))) {
+      val transaction = mock(Transaction::class.java)
+      val existing = document("vote-1", data)
+      `when`(transaction.get(voteDocument)).thenReturn(existing)
+      stubTransaction(transaction)
+      doReturn(successfulTask(existing)).`when`(voteDocument).get()
+      repository.createVote(vote)
+      verify(transaction, never()).set(any(), any())
+    }
+  }
+
+  @Test
+  fun duplicateCreationRejectsEachConflictingCreationField() = runTest {
+    val conflicts =
+        listOf(
+            voteData + ("question" to "Other?"),
+            voteData +
+                ("options" to
+                    vote.options.reversed().map { mapOf("uid" to it.uid, "name" to it.name) }),
+            voteData +
+                ("options" to
+                    listOf(
+                        mapOf("uid" to "new-id", "name" to "Museum"),
+                        mapOf("uid" to "option-2", "name" to "Park"),
+                    )),
+            voteData +
+                ("options" to
+                    listOf(
+                        mapOf("uid" to "option-1", "name" to "Beach"),
+                        mapOf("uid" to "option-2", "name" to "Park"),
+                    )),
+            voteData + ("createdByUserId" to "other-user"),
+            voteData + ("creationTime" to Timestamp(101, 123)),
+            voteData + ("closingTime" to timestamp),
+        )
+    for (data in conflicts) {
+      val transaction = mock(Transaction::class.java)
+      val existing = document("vote-1", data)
+      `when`(transaction.get(voteDocument)).thenReturn(existing)
+      stubTransaction(transaction)
+      doReturn(successfulTask(existing)).`when`(voteDocument).get()
+      val error = runCatching { repository.createVote(vote) }.exceptionOrNull()
+      assertEquals(
+          FirebaseFirestoreException.Code.ALREADY_EXISTS,
+          (error as FirebaseFirestoreException).code,
+      )
+      verify(transaction, never()).set(any(), any())
+    }
+  }
+
+  @Test
+  fun duplicateCreationWithMissingDocumentRemainsFailure() = runTest {
+    val error = FirebaseFirestoreException("exists", FirebaseFirestoreException.Code.ALREADY_EXISTS)
+    doReturn(failedTask<Unit>(error)).`when`(db).runTransaction(any<Transaction.Function<Unit>>())
+    doReturn(successfulTask(mock(DocumentSnapshot::class.java))).`when`(voteDocument).get()
+    assertSame(error, runCatching { repository.createVote(vote) }.exceptionOrNull())
+  }
+
+  @Test
+  fun duplicateCreationPropagatesLookupFailure() = runTest {
+    val duplicate =
+        FirebaseFirestoreException("exists", FirebaseFirestoreException.Code.ALREADY_EXISTS)
+    val readError =
+        FirebaseFirestoreException("denied", FirebaseFirestoreException.Code.PERMISSION_DENIED)
+    doReturn(failedTask<Unit>(duplicate))
+        .`when`(db)
+        .runTransaction(any<Transaction.Function<Unit>>())
+    doReturn(failedTask<DocumentSnapshot>(readError)).`when`(voteDocument).get()
+    assertSame(readError, runCatching { repository.createVote(vote) }.exceptionOrNull())
   }
 
   @Test
@@ -440,6 +541,7 @@ class VoteRepositoryFirestoreTest {
 
   private fun document(id: String, data: Map<String, Any?>): DocumentSnapshot =
       mock(DocumentSnapshot::class.java).also {
+        `when`(it.exists()).thenReturn(true)
         `when`(it.id).thenReturn(id)
         `when`(it.data).thenReturn(data)
       }
