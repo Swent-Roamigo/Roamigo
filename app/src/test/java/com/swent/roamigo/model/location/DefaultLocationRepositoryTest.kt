@@ -7,6 +7,9 @@ import android.location.Location
 import android.location.LocationManager
 import android.os.Looper
 import android.os.SystemClock
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.auth.FirebaseAuth
@@ -18,14 +21,20 @@ import com.google.firebase.database.DatabaseReference.CompletionListener
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ServerValue
 import com.google.firebase.database.ValueEventListener
+import java.io.IOException
 import java.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -67,6 +76,9 @@ class DefaultLocationRepositoryTest {
   private val otherTripLocations = mock(DatabaseReference::class.java)
   private val ownOtherTripLocation = mock(DatabaseReference::class.java)
   private val listeners = mutableListOf<ValueEventListener>()
+
+  // Outlives the repositories, like the files on the device outlive the app process.
+  private var sharedTripsStore: DataStore<Preferences> = InMemoryDataStore()
 
   // Outcome reported by the database for the next writes; null means success.
   private var updateError: DatabaseError? = null
@@ -682,6 +694,151 @@ class DefaultLocationRepositoryTest {
   }
 
   @Test
+  fun restoreSharing_resumesSharingAfterTheProcessWasKilled() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    val repository = createRepository(backgroundScope)
+
+    repository.restoreSharing()
+    advanceTimeBy(UPDATE_INTERVAL)
+    runCurrent()
+
+    verifyUpdates(ownLocation, 3)
+    assertTrue(repository.isSharing(TRIP_ID).first())
+    assertFalse(repository.isSharing(OTHER_TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_doesNotResumeAStoppedSharing() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val previousProcess = killableScope()
+    val previousRepository = createRepository(previousProcess)
+    previousRepository.startSharing(TRIP_ID)
+    previousRepository.stopSharing(TRIP_ID)
+    previousProcess.cancel()
+    val repository = createRepository(backgroundScope)
+
+    repository.restoreSharing()
+
+    verifyUpdates(ownLocation, 1)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_doesNotResumeASharingThatStoppedByItself() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val previousProcess = killableScope()
+    createRepository(previousProcess).startSharing(TRIP_ID)
+    updateError = DatabaseError.fromCode(DatabaseError.PERMISSION_DENIED)
+    advanceTimeBy(UPDATE_INTERVAL)
+    runCurrent()
+    previousProcess.cancel()
+    val repository = createRepository(backgroundScope)
+
+    repository.restoreSharing()
+
+    verifyUpdates(ownLocation, 2)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_doesNotResumeAFailedStart() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    updateError = DatabaseError.fromCode(DatabaseError.PERMISSION_DENIED)
+    runCatching { createRepository(backgroundScope).startSharing(TRIP_ID) }
+    updateError = null
+    val repository = createRepository(backgroundScope)
+
+    repository.restoreSharing()
+
+    verifyUpdates(ownLocation, 1)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_removesThePositionWhenSharingCannotResume() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    application.denyPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    val repository = createRepository(backgroundScope)
+
+    repository.restoreSharing()
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    repository.restoreSharing()
+
+    // Removed once, and forgotten so that the second restore does not share again.
+    verifyRemovals(ownLocation, 1)
+    verifyUpdates(ownLocation, 1)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_doesNotResumeTheSharingOfAnotherAccount() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    val otherUserLocation = signInAsOtherUser()
+    val repository = createRepository(backgroundScope)
+
+    repository.restoreSharing()
+
+    verifyUpdates(otherUserLocation, 0)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_doesNothingWhenSignedOut() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    `when`(auth.currentUser).thenReturn(null)
+    val repository = createRepository(backgroundScope)
+
+    repository.restoreSharing()
+
+    verifyUpdates(ownLocation, 1)
+    verifyRemovals(ownLocation, 0)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_throwsWhenTheSavedTripsCannotBeRead() = runTest {
+    sharedTripsStore = FailingDataStore()
+    val repository = createRepository(backgroundScope)
+
+    val error = runCatching { repository.restoreSharing() }.exceptionOrNull()
+
+    assertTrue(error is LocationSharingException)
+  }
+
+  @Test
+  fun startSharing_failsAndRemovesThePositionWhenTheTripCannotBeSaved() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    sharedTripsStore = FailingDataStore()
+    val repository = createRepository(backgroundScope)
+
+    val error = runCatching { repository.startSharing(TRIP_ID) }.exceptionOrNull()
+
+    assertTrue(error is LocationSharingException)
+    verifyRemovals(ownLocation, 1)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
   fun observeMemberLocations_emitsEmptyListWithoutSharingMembers() = runTest {
     val emissions = collectMemberLocations()
 
@@ -782,9 +939,14 @@ class DefaultLocationRepositoryTest {
           context = ApplicationProvider.getApplicationContext<Application>(),
           database = database,
           auth = auth,
+          sharedTripsStore = sharedTripsStore,
           scope = scope,
           updateInterval = UPDATE_INTERVAL,
       )
+
+  // Can be cancelled to simulate the system killing the app process.
+  private fun TestScope.killableScope() =
+      CoroutineScope(backgroundScope.coroutineContext + Job(backgroundScope.coroutineContext.job))
 
   private fun signInAsOtherUser(): DatabaseReference {
     val otherUser = mock(FirebaseUser::class.java)
@@ -844,6 +1006,22 @@ class DefaultLocationRepositoryTest {
         time = System.currentTimeMillis()
         elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
       }
+
+  private class InMemoryDataStore : DataStore<Preferences> {
+    override val data = MutableStateFlow(emptyPreferences())
+
+    override suspend fun updateData(
+        transform: suspend (t: Preferences) -> Preferences
+    ): Preferences = transform(data.value).also { data.value = it }
+  }
+
+  private class FailingDataStore : DataStore<Preferences> {
+    override val data = flow<Preferences> { throw IOException("Disk error") }
+
+    override suspend fun updateData(
+        transform: suspend (t: Preferences) -> Preferences
+    ): Preferences = throw IOException("Disk error")
+  }
 
   private companion object {
     const val USER_ID = "user-1"

@@ -153,6 +153,7 @@ dependencies {
   implementation(libs.coroutines.play.services)
   testImplementation(libs.mockito.core)
   implementation(libs.kotlinx.coroutines.play.services)
+  implementation(libs.androidx.datastore.preferences)
 
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.appcompat)
