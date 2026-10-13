@@ -1,0 +1,17 @@
+{
+  "rules": {
+    "tripMembers": {
+      ".read": false,
+      ".write": false
+    },
+    "locations": {
+      "$tripId": {
+        ".read": "auth != null && root.child('tripMembers').child($tripId).child(auth.uid).exists()",
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid && root.child('tripMembers').child($tripId).child(auth.uid).exists()",
+          ".validate": "newData.hasChildren(['latitude', 'longitude', 'updatedAt']) && newData.child('latitude').isNumber() && newData.child('latitude').val() >= -90 && newData.child('latitude').val() <= 90 && newData.child('longitude').isNumber()&& newData.child('longitude').val() >= -180 && newData.child('longitude').val() <= 180&& newData.child('updatedAt').val() === now"
+        }
+      }
+    }
+  }
+}
