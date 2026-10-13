@@ -25,11 +25,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.InfoRow
 import com.swent.roamigo.ui.theme.Ochre
 import com.swent.roamigo.ui.theme.Paper
 import com.swent.roamigo.ui.theme.Spacing
-import com.swent.roamigo.ui.trips.TripsBottomBar
 
 @Composable
 fun ProfileScreen(
@@ -41,7 +41,7 @@ fun ProfileScreen(
       modifier = modifier,
       bottomBar = {
         // Map and Photos have no destinations yet; the profile is not one of the three tabs.
-        TripsBottomBar(
+        AppBottomBar(
             onTripsClick = onTripsClick,
             onMapClick = {},
             onPhotosClick = {},
