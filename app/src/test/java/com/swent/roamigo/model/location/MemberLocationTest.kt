@@ -19,7 +19,7 @@ class MemberLocationTest {
       mapOf(
           "latitude" to 46.5197,
           "longitude" to 6.6323,
-          "lastUpdated" to 1_700_000_000_000L,
+          "updatedAt" to 1_700_000_000_000L,
       )
 
   @Test
@@ -34,7 +34,7 @@ class MemberLocationTest {
 
   @Test
   fun fromMap_acceptsWholeNumberCoordinatesAndDoubleTimestamp() {
-    val data = mapOf("latitude" to 46L, "longitude" to 6L, "lastUpdated" to 1.0e12)
+    val data = mapOf("latitude" to 46L, "longitude" to 6L, "updatedAt" to 1.0e12)
 
     assertEquals(
         MemberLocation("user-1", 46.0, 6.0, 1_000_000_000_000L),
@@ -56,14 +56,14 @@ class MemberLocationTest {
 
   @Test
   fun fromMap_returnsNullForMissingField() {
-    listOf("latitude", "longitude", "lastUpdated").forEach { field ->
+    listOf("latitude", "longitude", "updatedAt").forEach { field ->
       assertNull(field, MemberLocation.fromMap("user-1", validData - field))
     }
   }
 
   @Test
   fun fromMap_returnsNullForWrongType() {
-    listOf("latitude", "longitude", "lastUpdated").forEach { field ->
+    listOf("latitude", "longitude", "updatedAt").forEach { field ->
       assertNull(field, MemberLocation.fromMap("user-1", validData + (field to "invalid")))
     }
   }
