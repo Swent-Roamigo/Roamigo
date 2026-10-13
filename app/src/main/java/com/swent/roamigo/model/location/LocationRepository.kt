@@ -23,6 +23,7 @@ interface LocationRepository {
    * starts when this function is called. It stops by itself if the user loses access to the trip.
    *
    * @param tripId identifier of the trip to share the location with.
+   * @throws LocationSharingException if the first position could not be published.
    */
   suspend fun startSharing(tripId: String)
 
@@ -31,6 +32,7 @@ interface LocationRepository {
    * appears in other members' [observeMemberLocations] flow.
    *
    * @param tripId identifier of the trip to stop sharing the location with.
+   * @throws LocationSharingException if the shared position could not be removed.
    */
   suspend fun stopSharing(tripId: String)
 
@@ -41,7 +43,8 @@ interface LocationRepository {
    * device to hold a location permission.
    *
    * @param tripId identifier of the trip whose member locations are observed.
-   * @return a flow of the sharing members' locations, each with its last-update timestamp.
+   * @return a flow of the sharing members' locations, each with its last-update timestamp. It fails
+   *   with a [LocationSharingException] if the locations cannot be read.
    */
   fun observeMemberLocations(tripId: String): Flow<List<MemberLocation>>
 
