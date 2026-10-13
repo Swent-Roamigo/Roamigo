@@ -9,13 +9,13 @@ import android.os.Looper
 import android.os.SystemClock
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.google.android.gms.tasks.Tasks
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseException
 import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.DatabaseReference.CompletionListener
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ServerValue
 import com.google.firebase.database.ValueEventListener
@@ -40,9 +40,9 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.eq
 import org.mockito.Mockito.doAnswer
 import org.mockito.Mockito.mock
-import org.mockito.Mockito.never
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
@@ -68,6 +68,13 @@ class DefaultLocationRepositoryTest {
   private val ownOtherTripLocation = mock(DatabaseReference::class.java)
   private val listeners = mutableListOf<ValueEventListener>()
 
+  // Outcome reported by the database for the next writes; null means success.
+  private var updateError: DatabaseError? = null
+  private var removalError: DatabaseError? = null
+
+  // Leaves updates unacknowledged, like the database does while offline.
+  private var holdUpdates = false
+
   @Before
   fun setUp() {
     val context = ApplicationProvider.getApplicationContext<Application>()
@@ -83,9 +90,19 @@ class DefaultLocationRepositoryTest {
     `when`(locations.child(OTHER_TRIP_ID)).thenReturn(otherTripLocations)
     `when`(tripLocations.child(USER_ID)).thenReturn(ownLocation)
     `when`(otherTripLocations.child(USER_ID)).thenReturn(ownOtherTripLocation)
-    listOf(ownLocation, ownOtherTripLocation).forEach {
-      `when`(it.setValue(any())).thenReturn(Tasks.forResult(null))
-      `when`(it.removeValue()).thenReturn(Tasks.forResult(null))
+    listOf(ownLocation, ownOtherTripLocation).forEach { reference ->
+      doAnswer { invocation ->
+            if (!holdUpdates) {
+              invocation.getArgument<CompletionListener>(1).onComplete(updateError, reference)
+            }
+          }
+          .`when`(reference)
+          .setValue(any(), any(CompletionListener::class.java))
+      doAnswer { invocation ->
+            invocation.getArgument<CompletionListener>(0).onComplete(removalError, reference)
+          }
+          .`when`(reference)
+          .removeValue(any(CompletionListener::class.java))
     }
     doAnswer { invocation ->
           invocation.getArgument<ValueEventListener>(0).also { listeners += it }
@@ -281,11 +298,14 @@ class DefaultLocationRepositoryTest {
 
     verify(ownLocation)
         .setValue(
-            mapOf(
-                "latitude" to 46.5191,
-                "longitude" to 6.5668,
-                "updatedAt" to ServerValue.TIMESTAMP,
-            )
+            eq(
+                mapOf(
+                    "latitude" to 46.5191,
+                    "longitude" to 6.5668,
+                    "updatedAt" to ServerValue.TIMESTAMP,
+                )
+            ),
+            any(CompletionListener::class.java),
         )
     assertTrue(repository.isSharing(TRIP_ID).first())
   }
@@ -299,27 +319,65 @@ class DefaultLocationRepositoryTest {
     repository.startSharing(TRIP_ID)
     advanceTimeBy(UPDATE_INTERVAL * 2)
     runCurrent()
-    verify(ownLocation, times(3)).setValue(any())
+    verifyUpdates(ownLocation, 3)
 
     repository.stopSharing(TRIP_ID)
     advanceTimeBy(UPDATE_INTERVAL * 2)
     runCurrent()
-    verify(ownLocation, times(3)).setValue(any())
+    verifyUpdates(ownLocation, 3)
   }
 
   @Test
-  fun startSharing_keepsSharingWhenAnUpdateFails() = runTest {
+  fun startSharing_keepsSharingWhenAnUpdateFailsTransiently() = runTest {
     application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
     locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
     val repository = createRepository(backgroundScope)
     repository.startSharing(TRIP_ID)
 
-    `when`(ownLocation.setValue(any()))
-        .thenReturn(Tasks.forException(DatabaseException("Permission denied")))
+    updateError = DatabaseError.fromCode(DatabaseError.NETWORK_ERROR)
+    advanceTimeBy(UPDATE_INTERVAL)
+    runCurrent()
+    updateError = null
     advanceTimeBy(UPDATE_INTERVAL)
     runCurrent()
 
-    verify(ownLocation, times(2)).setValue(any())
+    verifyUpdates(ownLocation, 3)
+    assertTrue(repository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun startSharing_stopsWhenAnUpdateIsDenied() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val repository = createRepository(backgroundScope)
+    repository.startSharing(TRIP_ID)
+
+    // The user was removed from the trip, so the database rules now deny their updates.
+    updateError = DatabaseError.fromCode(DatabaseError.PERMISSION_DENIED)
+    advanceTimeBy(UPDATE_INTERVAL)
+    runCurrent()
+    advanceTimeBy(UPDATE_INTERVAL * 2)
+    runCurrent()
+
+    verifyUpdates(ownLocation, 2)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun startSharing_canRestartAfterAnUpdateWasDenied() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val repository = createRepository(backgroundScope)
+    repository.startSharing(TRIP_ID)
+    updateError = DatabaseError.fromCode(DatabaseError.PERMISSION_DENIED)
+    advanceTimeBy(UPDATE_INTERVAL)
+    runCurrent()
+
+    // The user was added back to the trip.
+    updateError = null
+    repository.startSharing(TRIP_ID)
+
+    verifyUpdates(ownLocation, 3)
     assertTrue(repository.isSharing(TRIP_ID).first())
   }
 
@@ -334,7 +392,7 @@ class DefaultLocationRepositoryTest {
     advanceTimeBy(UPDATE_INTERVAL)
     runCurrent()
 
-    verify(ownLocation, times(2)).setValue(any())
+    verifyUpdates(ownLocation, 2)
   }
 
   @Test
@@ -346,7 +404,7 @@ class DefaultLocationRepositoryTest {
     repository.startSharing(TRIP_ID)
 
     assertFalse(repository.isSharing(OTHER_TRIP_ID).first())
-    verify(ownOtherTripLocation, never()).setValue(any())
+    verifyUpdates(ownOtherTripLocation, 0)
   }
 
   @Test
@@ -356,7 +414,7 @@ class DefaultLocationRepositoryTest {
     val error = runCatching { repository.startSharing(TRIP_ID) }.exceptionOrNull()
     assertTrue(error is IllegalStateException)
 
-    verify(ownLocation, never()).setValue(any())
+    verifyUpdates(ownLocation, 0)
     assertFalse(repository.isSharing(TRIP_ID).first())
   }
 
@@ -369,7 +427,7 @@ class DefaultLocationRepositoryTest {
     val error = runCatching { repository.startSharing(TRIP_ID) }.exceptionOrNull()
     assertTrue(error is IllegalStateException)
 
-    verify(ownLocation, never()).setValue(any())
+    verifyUpdates(ownLocation, 0)
     assertFalse(repository.isSharing(TRIP_ID).first())
   }
 
@@ -377,8 +435,7 @@ class DefaultLocationRepositoryTest {
   fun startSharing_doesNotShareWhenTheFirstUpdateFails() = runTest {
     application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
     locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
-    `when`(ownLocation.setValue(any()))
-        .thenReturn(Tasks.forException(DatabaseException("Permission denied")))
+    updateError = DatabaseError.fromCode(DatabaseError.PERMISSION_DENIED)
     val repository = createRepository(backgroundScope)
 
     val error = runCatching { repository.startSharing(TRIP_ID) }.exceptionOrNull()
@@ -401,7 +458,7 @@ class DefaultLocationRepositoryTest {
     repository.stopSharing(TRIP_ID)
     runCurrent()
 
-    verify(ownLocation).removeValue()
+    verifyRemovals(ownLocation, 1)
     assertEquals(listOf(false, true, false), sharingStates)
   }
 
@@ -409,7 +466,79 @@ class DefaultLocationRepositoryTest {
   fun stopSharing_removesEntryLeftByAPreviousSession() = runTest {
     repository.stopSharing(TRIP_ID)
 
-    verify(ownLocation).removeValue()
+    verifyRemovals(ownLocation, 1)
+  }
+
+  @Test
+  fun stopSharing_stopsUpdatesAfterSignOut() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val repository = createRepository(backgroundScope)
+    repository.startSharing(TRIP_ID)
+
+    `when`(auth.currentUser).thenReturn(null)
+    repository.stopSharing(TRIP_ID)
+    advanceTimeBy(UPDATE_INTERVAL * 2)
+    runCurrent()
+
+    verifyUpdates(ownLocation, 1)
+    verifyRemovals(ownLocation, 0)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun stopSharing_doesNotRemoveEntryOfAnotherAccount() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val repository = createRepository(backgroundScope)
+    repository.startSharing(TRIP_ID)
+    val otherUser = mock(FirebaseUser::class.java)
+    `when`(otherUser.uid).thenReturn(OTHER_USER_ID)
+    val otherUserLocation = mock(DatabaseReference::class.java)
+    `when`(tripLocations.child(OTHER_USER_ID)).thenReturn(otherUserLocation)
+
+    `when`(auth.currentUser).thenReturn(otherUser)
+    repository.stopSharing(TRIP_ID)
+
+    verifyRemovals(ownLocation, 0)
+    verifyRemovals(otherUserLocation, 0)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun stopSharing_succeedsWhenRemovalIsDeniedAfterLeavingTheTrip() = runTest {
+    removalError = DatabaseError.fromCode(DatabaseError.PERMISSION_DENIED)
+
+    repository.stopSharing(TRIP_ID)
+
+    verifyRemovals(ownLocation, 1)
+  }
+
+  @Test
+  fun stopSharing_throwsWhenRemovalFails() = runTest {
+    removalError = DatabaseError.fromCode(DatabaseError.NETWORK_ERROR)
+
+    val error = runCatching { repository.stopSharing(TRIP_ID) }.exceptionOrNull()
+
+    assertTrue(error is DatabaseException)
+  }
+
+  @Test
+  fun stopSharing_doesNotWaitForAPendingFirstUpdate() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val repository = createRepository(backgroundScope)
+    holdUpdates = true
+    val start = async { runCatching { repository.startSharing(TRIP_ID) } }
+    runCurrent()
+    assertFalse(start.isCompleted)
+
+    repository.stopSharing(TRIP_ID)
+
+    verifyRemovals(ownLocation, 1)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+    // The interrupted start ends instead of waiting for an update that no longer matters.
+    assertTrue(start.await().isFailure)
   }
 
   @Test
@@ -517,6 +646,14 @@ class DefaultLocationRepositoryTest {
           updateInterval = UPDATE_INTERVAL,
       )
 
+  private fun verifyUpdates(reference: DatabaseReference, count: Int) {
+    verify(reference, times(count)).setValue(any(), any(CompletionListener::class.java))
+  }
+
+  private fun verifyRemovals(reference: DatabaseReference, count: Int) {
+    verify(reference, times(count)).removeValue(any(CompletionListener::class.java))
+  }
+
   private fun TestScope.collectMemberLocations(): List<List<MemberLocation>> {
     val emissions = mutableListOf<List<MemberLocation>>()
     backgroundScope.launch { repository.observeMemberLocations(TRIP_ID).toList(emissions) }
@@ -556,6 +693,7 @@ class DefaultLocationRepositoryTest {
 
   private companion object {
     const val USER_ID = "user-1"
+    const val OTHER_USER_ID = "user-2"
     const val TRIP_ID = "trip-1"
     const val OTHER_TRIP_ID = "trip-2"
     val UPDATE_INTERVAL = 20.seconds

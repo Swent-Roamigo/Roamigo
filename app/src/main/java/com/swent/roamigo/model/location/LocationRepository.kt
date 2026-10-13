@@ -20,7 +20,7 @@ interface LocationRepository {
   /**
    * Opts the current user in to location sharing for a trip and publishes their current position.
    * While sharing is on, the position is updated periodically. Sharing is off by default and only
-   * starts when this function is called.
+   * starts when this function is called. It stops by itself if the user loses access to the trip.
    *
    * @param tripId identifier of the trip to share the location with.
    */
