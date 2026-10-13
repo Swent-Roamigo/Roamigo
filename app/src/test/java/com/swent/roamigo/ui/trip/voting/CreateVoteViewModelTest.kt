@@ -175,6 +175,15 @@ class CreateVoteViewModelTest {
     assertSame(firstAttempt, repository.createCalls.last())
     assertEquals(firstAttempt.uid, repository.created.single().uid)
     assertEquals(firstAttempt.options, repository.created.single().options)
+    assertEquals(
+        firstAttempt.options.map { it.uid },
+        repository.created.single().options.map { it.uid },
+    )
+    assertEquals(firstAttempt.uid, viewModel.consumeVoteCreated())
+    assertNull(viewModel.consumeVoteCreated())
+    viewModel.submitVote()
+    advanceUntilIdle()
+    assertEquals(2, repository.createCalls.size)
   }
 
   @Test
@@ -264,6 +273,8 @@ internal class FakeVoteRepository : VoteRepository {
     failure?.let { throw it }
     created += vote
   }
+
+  override suspend fun getVote(tripId: String, voteId: String): Vote? = error("Not used")
 
   override suspend fun getVotes(tripId: String): List<Vote> = error("Not used")
 
