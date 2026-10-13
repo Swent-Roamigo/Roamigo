@@ -3,7 +3,7 @@ package com.swent.roamigo.model.location
 
 /**
  * Last known position of a trip member, as shared through Firebase Realtime Database at
- * `tripLocations/{tripId}/{userId}`.
+ * `locations/{tripId}/{userId}`.
  *
  * @property userId unique identifier of the trip member.
  * @property latitude latitude in degrees, within [-90, 90].
@@ -29,9 +29,10 @@ data class MemberLocation(
       )
 
   companion object {
-    private const val LATITUDE = "latitude"
-    private const val LONGITUDE = "longitude"
-    private const val LAST_UPDATED = "lastUpdated"
+    internal const val LATITUDE = "latitude"
+    internal const val LONGITUDE = "longitude"
+    // Named after the field the database security rules validate.
+    internal const val LAST_UPDATED = "updatedAt"
 
     /**
      * Builds a [MemberLocation] from Realtime Database data.
