@@ -14,6 +14,8 @@ import java.util.concurrent.Executor
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
 
+// TODO : Extend to access other trip members positions
+
 /**
  * [LocationRepository] backed by the Android framework [LocationManager].
  *
