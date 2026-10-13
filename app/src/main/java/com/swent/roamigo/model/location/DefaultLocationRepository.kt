@@ -159,7 +159,7 @@ class DefaultLocationRepository(
                 MemberLocation.LONGITUDE to location.longitude,
                 // The security rules only accept the server time, which also keeps members'
                 // timestamps comparable regardless of their device clocks.
-                MemberLocation.LAST_UPDATED to ServerValue.TIMESTAMP,
+                MemberLocation.UPDATED_AT to ServerValue.TIMESTAMP,
             )
         )
         .await()
