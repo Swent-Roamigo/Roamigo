@@ -7,14 +7,6 @@ import org.junit.Test
 
 class MemberLocationTest {
 
-  private val location =
-      MemberLocation(
-          userId = "user-1",
-          latitude = 46.5197,
-          longitude = 6.6323,
-          lastUpdated = 1_700_000_000_000L,
-      )
-
   private val validData =
       mapOf(
           "latitude" to 46.5197,
@@ -23,13 +15,11 @@ class MemberLocationTest {
       )
 
   @Test
-  fun toMap_containsAllFieldsExceptUserId() {
-    assertEquals(validData, location.toMap())
-  }
-
-  @Test
-  fun toMapThenFromMap_returnsEqualLocation() {
-    assertEquals(location, MemberLocation.fromMap(location.userId, location.toMap()))
+  fun fromMap_returnsLocationForValidData() {
+    assertEquals(
+        MemberLocation("user-1", 46.5197, 6.6323, 1_700_000_000_000L),
+        MemberLocation.fromMap("user-1", validData),
+    )
   }
 
   @Test
@@ -46,7 +36,10 @@ class MemberLocationTest {
   fun fromMap_acceptsBoundaryCoordinates() {
     val data = validData + mapOf("latitude" to -90.0, "longitude" to 180.0)
 
-    assertEquals(-90.0, MemberLocation.fromMap("user-1", data)?.latitude)
+    assertEquals(
+        MemberLocation("user-1", -90.0, 180.0, 1_700_000_000_000L),
+        MemberLocation.fromMap("user-1", data),
+    )
   }
 
   @Test
