@@ -24,15 +24,17 @@ import java.util.concurrent.Executor
 import kotlin.coroutines.resume
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,6 +47,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * [LocationRepository] backed by the Android framework [LocationManager] for this device and by
@@ -86,29 +90,53 @@ class DefaultLocationRepository(
   override suspend fun getCurrentLocation(): DeviceLocation? {
     if (!hasLocationPermission()) return null
     // An enabled provider may still fail to get a fix (e.g. GPS indoors), so fall back to the next.
-    return usableProviders().firstNotNullOfOrNull { requestSingleLocation(it) }?.toDeviceLocation()
+    return usableProviders()
+        .firstNotNullOfOrNull { withTimeoutOrNull(PROVIDER_TIMEOUT) { requestSingleLocation(it) } }
+        ?.toDeviceLocation()
   }
 
   /**
    * Sharing stops by itself, and [isSharing] turns false, once the database denies an update, e.g.
-   * after the user left the trip or signed out.
+   * after the user left the trip or signed out, or once an update fails unexpectedly.
    *
    * @throws kotlinx.coroutines.CancellationException if [stopSharing] is called for the trip before
    *   the first update completes.
    * @throws IllegalStateException if location permission is missing or no user is signed in.
-   * @throws com.google.firebase.database.DatabaseException if the first update fails.
+   * @throws LocationSharingException if no position is available, or if the first update is denied
+   *   or not acknowledged in time, e.g. while offline.
    */
   override suspend fun startSharing(tripId: String) {
     check(hasLocationPermission()) { "Location permission is required to share the location" }
     val userId = requireCurrentUserId()
     val firstUpdate = sharingMutex.withLock {
-      if (tripId in sharings.value) return
+      val current = sharings.value[tripId]
+      if (current != null) {
+        if (current.userId == userId) return
+        // Left running by an account that signed out without stopping; its updates are denied.
+        current.job.cancelAndJoin()
+      }
       val firstUpdate = CompletableDeferred<Unit>()
-      // Started only once registered, so that it can unregister itself when access is lost.
+      // Started only once registered, so that it can unregister itself when sharing ends.
       val job =
-          scope.launch(start = CoroutineStart.LAZY) { shareLocation(tripId, userId, firstUpdate) }
-      // A stop during the first update must not leave the caller waiting forever.
-      job.invokeOnCompletion { firstUpdate.cancel() }
+          scope.launch(start = CoroutineStart.LAZY) {
+            try {
+              shareLocation(tripId, userId, firstUpdate)
+            } catch (e: CancellationException) {
+              throw e
+            } catch (e: Exception) {
+              // Caught so that a failure stops sharing instead of crashing the app. Unregistered
+              // before reporting so that the caller never sees the failed trip as shared.
+              unregister(tripId, coroutineContext.job)
+              firstUpdate.completeExceptionally(
+                  e as? LocationSharingException ?: LocationSharingException("Sharing failed", e)
+              )
+            }
+          }
+      job.invokeOnCompletion {
+        unregister(tripId, job)
+        // A stop during the first update must not leave the caller waiting forever.
+        firstUpdate.cancel()
+      }
       sharings.update { it + (tripId to TripSharing(userId, job)) }
       job.start()
       firstUpdate
@@ -120,22 +148,29 @@ class DefaultLocationRepository(
    * The database only lets users remove their own entry, so call this before signing out:
    * afterwards the entry stays until the user leaves the trip.
    *
-   * @throws com.google.firebase.database.DatabaseException if the entry could not be removed.
+   * @throws LocationSharingException if the entry could not be removed or the removal is not
+   *   acknowledged in time, e.g. while offline. Sharing is stopped anyway, and an unacknowledged
+   *   removal is still applied once the device is back online.
    */
   override suspend fun stopSharing(tripId: String) {
-    val sharing = sharingMutex.withLock {
-      sharings.value[tripId]?.also { sharing ->
+    val removal = sharingMutex.withLock {
+      val sharing = sharings.value[tripId]
+      if (sharing != null) {
         // Waiting for the job ensures no update can be written after the entry is removed.
         sharing.job.cancelAndJoin()
         sharings.update { it - tripId }
       }
+      val userId = auth.currentUser?.uid ?: return
+      if (sharing != null && sharing.userId != userId) return
+      // Issued under the lock so that a restarted sharing can only write after this removal. Also
+      // removes an entry left over by a previous app session.
+      startWrite { memberLocationReference(tripId, userId).removeValue(it) }
     }
-    val userId = auth.currentUser?.uid ?: return
-    if (sharing != null && sharing.userId != userId) return
-    // Also removes an entry left over by a previous app session.
-    val error = awaitWrite { memberLocationReference(tripId, userId).removeValue(it) }
+    val error = removal.awaitAcknowledged()
     // Denied once the user left the trip, which already removed the entry.
-    if (error != null && error.code != DatabaseError.PERMISSION_DENIED) throw error.toException()
+    if (error != null && error.code != DatabaseError.PERMISSION_DENIED) {
+      throw LocationSharingException("Could not remove the shared location", error.toException())
+    }
   }
 
   override fun observeMemberLocations(tripId: String): Flow<List<MemberLocation>> = callbackFlow {
@@ -154,7 +189,9 @@ class DefaultLocationRepository(
           }
 
           override fun onCancelled(error: DatabaseError) {
-            close(error.toException())
+            close(
+                LocationSharingException("Could not read the trip locations", error.toException())
+            )
           }
         }
     val tripLocations = tripLocationsReference(tripId)
@@ -170,53 +207,78 @@ class DefaultLocationRepository(
       userId: String,
       firstUpdate: CompletableDeferred<Unit>,
   ) {
-    val firstError = publishCurrentLocation(tripId, userId)
-    if (firstError != null) {
-      // Unregistered first so that the caller never sees the failed trip as shared.
-      unregisterCurrentJob(tripId)
-      firstUpdate.completeExceptionally(firstError.toException())
-      return
-    }
+    publishFirstLocation(tripId, userId)
     firstUpdate.complete(Unit)
     while (true) {
       delay(updateInterval)
       // Other failures only make the position older and the next update retries, but a denied
       // update means the user lost access to the trip, so every following one would be denied too.
-      if (publishCurrentLocation(tripId, userId)?.code == DatabaseError.PERMISSION_DENIED) {
-        unregisterCurrentJob(tripId)
-        return
-      }
+      if (publishCurrentLocation(tripId, userId)?.code == DatabaseError.PERMISSION_DENIED) return
     }
   }
 
-  private suspend fun unregisterCurrentJob(tripId: String) {
-    val job = currentCoroutineContext().job
+  private fun unregister(tripId: String, job: Job) {
     // A newer start may already have replaced this job, which must stay registered.
     sharings.update { if (it[tripId]?.job == job) it - tripId else it }
+  }
+
+  /** @throws LocationSharingException if there is no fix or the update fails or times out. */
+  private suspend fun publishFirstLocation(tripId: String, userId: String) {
+    val location =
+        getCurrentLocation() ?: throw LocationSharingException("No location is available to share")
+    val reference = memberLocationReference(tripId, userId)
+    val update = startWrite { reference.setValue(location.toDatabaseValue(), it) }
+    val error =
+        try {
+          update.awaitAcknowledged()
+        } catch (e: LocationSharingException) {
+          // The update stays queued until the device is back online, so queue its removal after
+          // it, or the position would be published while sharing shows as off.
+          startWrite { reference.removeValue(it) }
+          throw e
+        }
+    if (error != null) {
+      throw LocationSharingException("Could not publish the location", error.toException())
+    }
   }
 
   /** @return the database error, or null if the update succeeded or there was no fix to share. */
   private suspend fun publishCurrentLocation(tripId: String, userId: String): DatabaseError? {
     // Without a fix there is nothing new to share; the previous position simply ages.
     val location = getCurrentLocation() ?: return null
-    val value =
-        mapOf(
-            MemberLocation.LATITUDE to location.latitude,
-            MemberLocation.LONGITUDE to location.longitude,
-            // The security rules only accept the server time, which also keeps members'
-            // timestamps comparable regardless of their device clocks.
-            MemberLocation.UPDATED_AT to ServerValue.TIMESTAMP,
-        )
-    return awaitWrite { memberLocationReference(tripId, userId).setValue(value, it) }
+    // Not bounded by a timeout: while offline, updates simply pause until the connection is back.
+    return startWrite {
+      memberLocationReference(tripId, userId).setValue(location.toDatabaseValue(), it)
+    }
+        .await()
   }
+
+  private fun DeviceLocation.toDatabaseValue() =
+      mapOf(
+          MemberLocation.LATITUDE to latitude,
+          MemberLocation.LONGITUDE to longitude,
+          // The security rules only accept the server time, which also keeps members'
+          // timestamps comparable regardless of their device clocks.
+          MemberLocation.UPDATED_AT to ServerValue.TIMESTAMP,
+      )
 
   // Unlike the Task API, the completion listener exposes the error code, which tells a lost
   // access apart from a transient failure.
-  private suspend fun awaitWrite(
+  private fun startWrite(
       write: (DatabaseReference.CompletionListener) -> Unit
-  ): DatabaseError? = suspendCancellableCoroutine { continuation ->
-    write { error, _ -> continuation.resume(error) }
-  }
+  ): Deferred<DatabaseError?> =
+      CompletableDeferred<DatabaseError?>().also { result ->
+        write { error, _ -> result.complete(error) }
+      }
+
+  // The database only acknowledges a write once online, so without a bound the caller would wait
+  // indefinitely while offline.
+  private suspend fun Deferred<DatabaseError?>.awaitAcknowledged(): DatabaseError? =
+      try {
+        withTimeout(WRITE_TIMEOUT) { await() }
+      } catch (e: TimeoutCancellationException) {
+        throw LocationSharingException("The database did not acknowledge the write in time", e)
+      }
 
   private fun requireCurrentUserId(): String =
       checkNotNull(auth.currentUser?.uid) { "A signed-in user is required to share the location" }
@@ -265,19 +327,27 @@ class DefaultLocationRepository(
 
   private class TripSharing(val userId: String, val job: Job)
 
-  private companion object {
-    val LOCATION_PERMISSIONS =
+  companion object {
+    // Long enough for a usual fix, short enough not to delay the fallback to the next provider
+    // when GPS cannot get one, e.g. indoors.
+    internal val PROVIDER_TIMEOUT = 10.seconds
+
+    // Leaves room for a slow network while keeping callers from waiting on an offline database.
+    internal val WRITE_TIMEOUT = 10.seconds
+
+    private val LOCATION_PERMISSIONS =
         listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
 
     // GPS is more precise, the network provider is the fallback when GPS is unusable.
-    val PREFERRED_PROVIDERS = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+    private val PREFERRED_PROVIDERS =
+        listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
 
     // Resuming a continuation is thread-safe and cheap, so no need to hop threads first.
-    val DIRECT_EXECUTOR = Executor(Runnable::run)
+    private val DIRECT_EXECUTOR = Executor(Runnable::run)
 
-    const val LOCATIONS_PATH = "locations"
+    private const val LOCATIONS_PATH = "locations"
 
     // Fresh enough to follow members walking around while keeping GPS usage battery-friendly.
-    val DEFAULT_UPDATE_INTERVAL = 20.seconds
+    private val DEFAULT_UPDATE_INTERVAL = 20.seconds
   }
 }

@@ -14,7 +14,6 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.DatabaseException
 import com.google.firebase.database.FirebaseDatabase
 import com.swent.roamigo.MainActivity
 import java.net.HttpURLConnection
@@ -99,7 +98,7 @@ class DefaultLocationRepositoryEmulatorTest {
   fun startSharing_isDeniedForNonMember() = runBlocking {
     val error = runCatching { sharer.repository.startSharing(tripId) }.exceptionOrNull()
 
-    assertTrue(error.toString(), error is DatabaseException)
+    assertTrue(error.toString(), error is LocationSharingException)
     assertFalse(sharer.repository.isSharing(tripId).first())
   }
 
@@ -124,7 +123,7 @@ class DefaultLocationRepositoryEmulatorTest {
     }
         .exceptionOrNull()
 
-    assertTrue(error.toString(), error is DatabaseException)
+    assertTrue(error.toString(), error is LocationSharingException)
   }
 
   @Test
