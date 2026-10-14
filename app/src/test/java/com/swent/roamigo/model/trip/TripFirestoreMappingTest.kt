@@ -151,7 +151,7 @@ class TripFirestoreMappingTest {
   }
 
   @Test
-  fun activitySurvivesRoundTrip() {
+  fun activityIsReadFromFirestoreData() {
     val activity =
         Activity(
             uid = "activity-1",
@@ -166,9 +166,18 @@ class TripFirestoreMappingTest {
             creationTime = Timestamp(900, 0),
         )
 
-    assertEquals(
-        activity,
-        activityFromFirestore(activity.uid, activity.tripId, activity.toFirestoreData()),
-    )
+    val data =
+        mapOf(
+            "activityType" to "ACCEPTED",
+            "name" to "Tram 28",
+            "description" to null,
+            "location" to mapOf("name" to "Lisbon", "latitude" to 38.7223, "longitude" to -9.1393),
+            "startTime" to Timestamp(1200, 0),
+            "endTime" to null,
+            "createdByUserId" to "owner",
+            "creationTime" to Timestamp(900, 0),
+        )
+
+    assertEquals(activity, activityFromFirestore(activity.uid, activity.tripId, data))
   }
 }

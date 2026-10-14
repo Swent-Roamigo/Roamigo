@@ -173,18 +173,6 @@ internal fun tripMemberFromFirestore(data: Map<String, Any?>): TripMember =
         joinTime = data.requiredTimestamp("joinTime"),
     )
 
-internal fun Activity.toFirestoreData(): Map<String, Any?> =
-    mapOf(
-        "activityType" to activityType.name,
-        "name" to name,
-        "description" to description,
-        "location" to location.toFirestoreData(),
-        "startTime" to startTime,
-        "endTime" to endTime,
-        "createdByUserId" to createdByUserId,
-        "creationTime" to creationTime,
-    )
-
 internal fun activityFromFirestore(id: String, tripId: String, data: Map<String, Any?>): Activity =
     Activity(
         uid = id,
