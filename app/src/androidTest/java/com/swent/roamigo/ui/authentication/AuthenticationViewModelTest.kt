@@ -106,13 +106,13 @@ class AuthenticationViewModelTest {
   }
 
   @Test
-  fun credentialErrorWithoutMessageUsesFallback() {
+  fun noCredentialsStopsLoadingAndReportsError() {
     val viewModel = AuthenticationViewModel(FakeAuthRepository(user))
     val manager = TestCredentialManager(context).apply { failure = NoCredentialException() }
     signIn(viewModel, manager)
     assertEquals(
         AuthenticationUiState(
-            errorMsg = "Failed to get credentials: Unknown error",
+            errorMsg = "No Google credentials available. Try signing in again.",
             signedOut = true,
         ),
         viewModel.uiState.value,
