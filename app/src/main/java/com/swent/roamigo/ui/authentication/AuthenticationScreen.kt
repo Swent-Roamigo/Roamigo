@@ -55,17 +55,20 @@ fun AuthenticationScreen(
     onSignedIn: () -> Unit,
     modifier: Modifier = Modifier,
     authViewModel: AuthenticationViewModel = viewModel(),
+    credentialManager: CredentialManager? = null,
 ) {
   val context = LocalContext.current
-  val credentialManager = remember(context) { CredentialManager.create(context) }
+  val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }
   val uiState by authViewModel.uiState.collectAsStateWithLifecycle()
   val currentOnSignedIn by rememberUpdatedState(onSignedIn)
 
   LaunchedEffect(uiState.user) { uiState.user?.let { currentOnSignedIn() } }
 
+
+
   AuthenticationScreen(
       uiState = uiState,
-      onSignInClick = { authViewModel.signIn(context, credentialManager) },
+      onSignInClick = { authViewModel.signIn(context, manager) },
       modifier = modifier,
   )
 }

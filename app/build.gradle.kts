@@ -78,6 +78,10 @@ android {
     res.directories.clear()
     resources.directories.clear()
   }
+
+  // Share test fakes between JVM and instrumented tests without including them in the app.
+  sourceSets.getByName("testDebug").kotlin.srcDir("src/testShared/java")
+  sourceSets.getByName("androidTest").kotlin.srcDir("src/testShared/java")
 }
 
 dependencyLocking { lockAllConfigurations() }
@@ -242,6 +246,7 @@ tasks.register("jacocoTestReport", JacocoReport::class) {
       fileTree(project.layout.buildDirectory.get()) {
         include("outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec")
         include("outputs/code_coverage/debugAndroidTest/connected/*/coverage.ec")
+        include("outputs/code_coverage/authentication/*.ec")
       }
   )
 }
