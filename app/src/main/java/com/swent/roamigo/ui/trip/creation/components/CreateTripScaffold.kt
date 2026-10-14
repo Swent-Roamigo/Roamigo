@@ -68,7 +68,12 @@ fun CreateTripScaffold(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-      HeaderAction(label = stringResource(R.string.create_trip_back), glyph = "‹", onClick = onBack)
+      HeaderAction(
+          label = stringResource(R.string.create_trip_back),
+          glyph = "‹",
+          tag = CreateTripScaffoldTestTags.BACK,
+          onClick = onBack,
+      )
       Text(
           stringResource(R.string.create_trip_step, step, CREATE_TRIP_TOTAL_STEPS),
           style = MaterialTheme.typography.labelMedium,
@@ -77,6 +82,7 @@ fun CreateTripScaffold(
       HeaderAction(
           label = stringResource(R.string.create_trip_close),
           glyph = "×",
+          tag = CreateTripScaffoldTestTags.CLOSE,
           onClick = onClose,
       )
     }
