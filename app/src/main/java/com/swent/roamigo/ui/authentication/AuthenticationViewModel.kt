@@ -5,6 +5,7 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
@@ -78,6 +79,15 @@ class AuthenticationViewModel(private val repository: AuthRepository = AuthRepos
       } catch (_: GetCredentialCancellationException) {
         _uiState.update {
           it.copy(isLoading = false, user = null, errorMsg = "Sign-in cancelled", signedOut = true)
+        }
+      } catch (_: NoCredentialException) {
+        _uiState.update {
+          it.copy(
+              isLoading = false,
+              user = null,
+              errorMsg = "No Google credentials available. Try signing in again.",
+              signedOut = true,
+          )
         }
       } catch (e: GetCredentialException) {
         _uiState.update {
