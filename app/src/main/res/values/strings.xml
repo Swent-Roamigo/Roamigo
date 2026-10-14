@@ -57,6 +57,7 @@
     <string name="friends_title">Friends</string>
     <string name="friends_privacy_subtitle">Maps are visible to friends only</string>
     <string name="friends_view_map">View map</string>
+    <string name="friends_view_map_accessibility">View map for %1$s</string>
     <string name="friends_pending">Pending</string>
     <string name="friends_request_sent">request sent</string>
     <string name="friends_add_friend">Add a friend</string>

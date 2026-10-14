@@ -2,6 +2,7 @@
 package com.swent.roamigo.ui.friends
 
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasText
@@ -91,6 +92,19 @@ class FriendsScreenTest {
   }
 
   @Test
+  fun avatarsDisplayCorrectInitialsForFriendsAndPendingRequests() {
+    show()
+
+    composeRule
+        .onNodeWithTag(C.Tag.friends_avatar_prefix + "mia")
+        .assert(hasAnyDescendant(hasText("M")))
+
+    composeRule
+        .onNodeWithTag(C.Tag.friends_avatar_prefix + "jonas")
+        .assert(hasAnyDescendant(hasText("J")))
+  }
+
+  @Test
   fun friendActionsAreForwardedToCaller() {
     var addFriendClicks = 0
     var viewedUserId: String? = null
@@ -105,6 +119,19 @@ class FriendsScreenTest {
 
     assertEquals(1, addFriendClicks)
     assertEquals("mia", viewedUserId)
+  }
+
+  @Test
+  fun viewMapActionsHaveFriendSpecificAccessibilityLabels() {
+    show()
+
+    composeRule
+        .onNodeWithTag(C.Tag.friends_view_map_prefix + "sam")
+        .assertContentDescriptionEquals("View map for Sam")
+
+    composeRule
+        .onNodeWithTag(C.Tag.friends_view_map_prefix + "mia")
+        .assertContentDescriptionEquals("View map for Mia")
   }
 
   @Test

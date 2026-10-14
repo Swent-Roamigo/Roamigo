@@ -27,12 +27,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
+import com.swent.roamigo.ui.theme.FriendAvatarBlue
+import com.swent.roamigo.ui.theme.FriendAvatarGreen
+import com.swent.roamigo.ui.theme.FriendAvatarRose
+import com.swent.roamigo.ui.theme.Paper
 import com.swent.roamigo.ui.theme.Spacing
+
+/** Colors used for friend avatars to provide visual variety. */
+private val friendAvatarColors = listOf(FriendAvatarBlue, FriendAvatarRose, FriendAvatarGreen)
 
 /**
  * Renders the Friends list from presentation-ready state and forwards user actions to the caller.
@@ -40,22 +49,22 @@ import com.swent.roamigo.ui.theme.Spacing
  * Friendship data, navigation, and persistence are intentionally handled outside this screen.
  *
  * @param uiState the state displayed by the screen.
+ * @param modifier the modifier applied to the screen.
  * @param onAddFriendClick invoked when the user selects the add-friend action.
  * @param onViewMapClick invoked with a friend's user ID when the user selects their map action.
  * @param onTripsClick invoked when the Trips destination is selected.
  * @param onMapClick invoked when the Map destination is selected.
  * @param onPhotosClick invoked when the Photos destination is selected.
- * @param modifier the modifier applied to the screen.
  */
 @Composable
 fun FriendsScreen(
     uiState: FriendsUiState,
+    modifier: Modifier = Modifier,
     onAddFriendClick: () -> Unit = {},
     onViewMapClick: (String) -> Unit = {},
     onTripsClick: () -> Unit = {},
     onMapClick: () -> Unit = {},
     onPhotosClick: () -> Unit = {},
-    modifier: Modifier = Modifier,
 ) {
   Scaffold(
       modifier = modifier.fillMaxSize().testTag(C.Tag.friends_screen),
@@ -192,9 +201,18 @@ private fun FriendRow(
         )
       }
 
+      val viewMapDescription =
+          stringResource(
+              R.string.friends_view_map_accessibility,
+              friend.displayName,
+          )
+
       Surface(
           onClick = { onViewMapClick(friend.userId) },
-          modifier = Modifier.testTag(C.Tag.friends_view_map_prefix + friend.userId),
+          modifier =
+              Modifier.testTag(C.Tag.friends_view_map_prefix + friend.userId).semantics {
+                contentDescription = viewMapDescription
+              },
           shape = MaterialTheme.shapes.small,
           color = MaterialTheme.colorScheme.surfaceContainerHigh,
       ) {
@@ -268,11 +286,13 @@ private fun InitialAvatar(
 ) {
   val initial = displayName.trim().firstOrNull()?.uppercase() ?: "?"
 
+  val avatarColor = friendAvatarColors[(userId.hashCode() ushr 2) % friendAvatarColors.size]
+
   Box(
       modifier =
           Modifier.size(48.dp)
               .background(
-                  color = MaterialTheme.colorScheme.primaryContainer,
+                  color = avatarColor,
                   shape = CircleShape,
               )
               .testTag(C.Tag.friends_avatar_prefix + userId),
@@ -281,7 +301,7 @@ private fun InitialAvatar(
     Text(
         text = initial,
         style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.onPrimaryContainer,
+        color = Paper,
     )
   }
 }
