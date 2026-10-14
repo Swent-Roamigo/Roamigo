@@ -31,7 +31,7 @@ import com.swent.roamigo.ui.theme.RoamigoTheme
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Before
+import org.junit.Assert.assertSame
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -41,11 +41,11 @@ import org.junit.runner.RunWith
 class AuthenticationFlowTest {
   @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
   private val user = AuthenticatedUser("test-user", "Test User", "test@example.test", null)
-  private val repository = FakeAuthRepository(user)
+  private lateinit var repository: FakeAuthRepository
   private lateinit var credentialManager: TestCredentialManager
 
-  @Before
-  fun setUp() {
+  private fun launchApp(signedIn: Boolean = false) {
+    repository = FakeAuthRepository(user, initiallySignedIn = signedIn)
     credentialManager = TestCredentialManager(composeRule.activity)
     composeRule.setContent {
       RoamigoTheme {
@@ -98,16 +98,19 @@ class AuthenticationFlowTest {
 
   @Test
   fun signInOpensTripsAndBackDoesNotReturnToAuthentication() {
+    launchApp()
     assertAuthenticationIsFirstScreen()
     assertNull(repository.getCurrentUser())
     signIn()
     assertSignedInOnTrips()
+    assertSame(credentialManager.credential, repository.lastCredential)
 
     pressBackAndWaitForExit()
   }
 
   @Test
   fun cancelledAccountSelectionStaysOnAuthenticationAndAllowsRetry() {
+    launchApp()
     credentialManager.failure = GetCredentialCancellationException()
     assertAuthenticationIsFirstScreen()
     signIn()
@@ -127,6 +130,7 @@ class AuthenticationFlowTest {
 
   @Test
   fun credentialErrorStaysOnAuthenticationAndAllowsRetry() {
+    launchApp()
     credentialManager.failure = NoCredentialException("No test credential")
     assertAuthenticationIsFirstScreen()
     signIn()
@@ -146,6 +150,7 @@ class AuthenticationFlowTest {
 
   @Test
   fun pendingCredentialsShowProgressAndFailureAllowsRetry() {
+    launchApp()
     val pending = CompletableDeferred<GetCredentialResponse>()
     credentialManager.pendingResponse = pending
     assertAuthenticationIsFirstScreen()
@@ -173,8 +178,41 @@ class AuthenticationFlowTest {
 
   @Test
   fun backFromAuthenticationDoesNotReturnToPermissions() {
+    launchApp()
     assertAuthenticationIsFirstScreen()
     pressBackAndWaitForExit()
+  }
+
+  @Test
+  fun existingSessionOpensTripsWithoutAuthenticationOrPermissions() {
+    launchApp(signedIn = true)
+    waitForTag(C.Tag.trips_screen)
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+    composeRule.onAllNodesWithTag(AuthenticationScreenTestTags.heading).assertCountEquals(0)
+    composeRule.onAllNodesWithTag(C.Tag.permissions_title).assertCountEquals(0)
+    assertEquals(user, repository.getCurrentUser())
+    assertNull(repository.lastCredential)
+  }
+
+  @Test
+  fun repositoryFailureStaysOnAuthenticationAndAllowsRetry() {
+    launchApp()
+    repository.failure = IllegalStateException("Technical backend details")
+    assertAuthenticationIsFirstScreen()
+    signIn()
+    waitForTag(AuthenticationScreenTestTags.errorMessage)
+    composeRule
+        .onNodeWithTag(AuthenticationScreenTestTags.errorMessage)
+        .assertTextEquals("Sign-in failed. Try again.")
+    composeRule.onNodeWithTag(AuthenticationScreenTestTags.signInButton).assertIsEnabled()
+    composeRule.onAllNodesWithTag(C.Tag.trips_screen).assertCountEquals(0)
+    composeRule.onAllNodesWithTag(C.Tag.permissions_title).assertCountEquals(0)
+    assertNull(repository.getCurrentUser())
+    assertSame(credentialManager.credential, repository.lastCredential)
+
+    composeRule.runOnIdle { repository.failure = null }
+    signIn()
+    assertSignedInOnTrips()
   }
 
   /** Supplies credentials without opening Google's account picker. */
@@ -182,6 +220,7 @@ class AuthenticationFlowTest {
       CredentialManager by CredentialManager.create(context) {
     var failure: GetCredentialException? = null
     var pendingResponse: CompletableDeferred<GetCredentialResponse>? = null
+    val credential = CustomCredential("test-credential", Bundle())
 
     override suspend fun getCredential(
         context: Context,
@@ -191,7 +230,7 @@ class AuthenticationFlowTest {
       pendingResponse?.let {
         return it.await()
       }
-      return GetCredentialResponse(CustomCredential("test-credential", Bundle()))
+      return GetCredentialResponse(credential)
     }
   }
 }
