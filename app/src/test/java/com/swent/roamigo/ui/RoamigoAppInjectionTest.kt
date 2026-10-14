@@ -13,6 +13,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.authentication.AuthenticatedUser
+import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripStatus
@@ -56,6 +58,11 @@ class RoamigoAppInjectionTest {
             tripRepository = FakeTripRepository(trips = listOf(trip)),
             userRepository = FakeUserRepository(User("sam", "Sam", null)),
             navController = navController,
+            authRepository =
+                FakeAuthRepository(
+                    AuthenticatedUser("sam", "Sam", null, null),
+                    initiallySignedIn = true,
+                ),
         )
       }
     }

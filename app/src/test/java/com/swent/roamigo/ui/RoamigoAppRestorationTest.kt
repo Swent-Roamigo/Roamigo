@@ -8,6 +8,8 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.swent.roamigo.model.authentication.AuthenticatedUser
+import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import org.junit.Rule
@@ -22,7 +24,9 @@ class RoamigoAppRestorationTest {
   @Test
   fun staysOnTheProfileAfterTheActivityIsRecreated() {
     val restoration = StateRestorationTester(composeRule)
-    restoration.setContent { RoamigoTheme { RoamigoApp() } }
+    val authRepository =
+        FakeAuthRepository(AuthenticatedUser("alex", "Alex", null, null), initiallySignedIn = true)
+    restoration.setContent { RoamigoTheme { RoamigoApp(authRepository = authRepository) } }
     composeRule.onNodeWithTag(C.Tag.permissions_continue).performClick()
     composeRule.waitUntil {
       composeRule.onAllNodesWithTag(C.Tag.trips_profile_avatar).fetchSemanticsNodes().isNotEmpty()

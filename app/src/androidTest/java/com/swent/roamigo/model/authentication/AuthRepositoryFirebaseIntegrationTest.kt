@@ -4,16 +4,16 @@ package com.swent.roamigo.model.authentication
 import android.os.Bundle
 import android.util.Base64
 import androidx.credentials.CustomCredential
+import androidx.credentials.PasswordCredential
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.GoogleAuthProvider
-import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.AfterClass
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -24,6 +24,17 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class AuthRepositoryFirebaseIntegrationTest {
+
+  companion object {
+    private const val testAppName = "auth-emulator-test"
+
+    @AfterClass
+    @JvmStatic
+    fun deleteTestApp() {
+      val context = InstrumentationRegistry.getInstrumentation().targetContext
+      FirebaseApp.getApps(context).firstOrNull { it.name == testAppName }?.delete()
+    }
+  }
 
   private lateinit var app: FirebaseApp
   private lateinit var auth: FirebaseAuth
@@ -42,15 +53,6 @@ class AuthRepositoryFirebaseIntegrationTest {
           )
           .joinToString(".")
 
-  private val helper =
-      object : GoogleSignInHelper {
-        override fun extractIdTokenCredential(bundle: Bundle) =
-            GoogleIdTokenCredential.Builder().setId(testEmail).setIdToken(googleIdToken).build()
-
-        override fun toFirebaseCredential(idToken: String) =
-            GoogleAuthProvider.getCredential(idToken, null)
-      }
-
   @Before
   fun setUp() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -61,16 +63,34 @@ class AuthRepositoryFirebaseIntegrationTest {
             .setApiKey("fake-api-key-for-auth-emulator")
             .build()
 
-    app = FirebaseApp.initializeApp(context, options, "auth-test-${UUID.randomUUID()}")
+    // Reuse the app because the SDK caches emulator configuration across test methods.
+    app =
+        FirebaseApp.getApps(context).firstOrNull { it.name == testAppName }
+            ?: FirebaseApp.initializeApp(context, options, testAppName)
     auth = FirebaseAuth.getInstance(app)
     auth.useEmulator("10.0.2.2", 9099)
-    repository = AuthRepositoryFirebase(auth, helper)
+    repository = AuthRepositoryFirebase(auth)
   }
 
   @After
   fun tearDown() {
     auth.signOut()
-    app.delete()
+  }
+
+  @Test
+  fun passwordCredentialDoesNotCreateSession() = runBlocking {
+    val result = repository.signInWithGoogle(PasswordCredential(testEmail, "test-password"))
+
+    assertTrue(result.isFailure)
+    assertNull(repository.getCurrentUser())
+  }
+
+  @Test
+  fun unsupportedCredentialDoesNotCreateSession() = runBlocking {
+    val result = repository.signInWithGoogle(CustomCredential("unsupported", Bundle()))
+
+    assertTrue(result.isFailure)
+    assertNull(repository.getCurrentUser())
   }
 
   @Test
@@ -90,7 +110,7 @@ class AuthRepositoryFirebaseIntegrationTest {
   }
 
   private fun googleCredential() =
-      CustomCredential(GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL, Bundle())
+      GoogleIdTokenCredential.Builder().setId(testEmail).setIdToken(googleIdToken).build()
 
   private fun encodeJwtSegment(value: String) =
       Base64.encodeToString(
