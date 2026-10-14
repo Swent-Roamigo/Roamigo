@@ -28,5 +28,19 @@ object C {
     const val trips_navigation_trips = "trips_navigation_trips"
     const val trips_navigation_map = "trips_navigation_map"
     const val trips_navigation_photos = "trips_navigation_photos"
+
+    const val c2_screen = "c2_screen"
+    const val c2_date_range = "c2_date_range"
+    const val c2_duration_summary = "c2_duration_summary"
+    const val c2_month_previous = "c2_month_previous"
+    const val c2_month_next = "c2_month_next"
+    const val c2_calendar_day_prefix = "c2_calendar_day_"
+    const val c2_flexible_toggle = "c2_flexible_toggle"
+    const val c2_trip_type_solo = "c2_trip_type_solo"
+    const val c2_trip_type_group = "c2_trip_type_group"
+    const val c2_travelers_decrement = "c2_travelers_decrement"
+    const val c2_travelers_increment = "c2_travelers_increment"
+    const val c2_traveler_count = "c2_traveler_count"
+    const val c2_create_trip = "c2_create_trip"
   }
 }

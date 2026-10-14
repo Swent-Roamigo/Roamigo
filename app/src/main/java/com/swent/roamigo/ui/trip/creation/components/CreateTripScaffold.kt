@@ -45,6 +45,7 @@ fun CreateTripScaffold(
     primaryActionLabel: String,
     onPrimaryAction: () -> Unit,
     primaryActionEnabled: Boolean = true,
+    primaryActionTestTag: String = CreateTripScaffoldTestTags.PRIMARY_ACTION,
     content: @Composable ColumnScope.() -> Unit,
 ) {
   val colors = MaterialTheme.colorScheme
@@ -96,9 +97,7 @@ fun CreateTripScaffold(
     Button(
         onClick = onPrimaryAction,
         modifier =
-            Modifier.fillMaxWidth().height(50.dp).semantics {
-              testTag = CreateTripScaffoldTestTags.PRIMARY_ACTION
-            },
+            Modifier.fillMaxWidth().height(50.dp).semantics { testTag = primaryActionTestTag },
         enabled = primaryActionEnabled,
         shape = MaterialTheme.shapes.extraSmall,
     ) {
