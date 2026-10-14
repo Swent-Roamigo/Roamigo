@@ -4,13 +4,13 @@ package com.swent.roamigo.ui.trip.creation.components
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -21,7 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
@@ -42,9 +42,6 @@ internal object DestinationCardTestTags {
 @Composable
 fun DestinationCard(destination: String, selected: Boolean, onClick: () -> Unit) {
   val colors = MaterialTheme.colorScheme
-  val accessibilityLabel =
-      if (selected) stringResource(R.string.destination_selected_description, destination)
-      else destination
   Box(
       modifier =
           Modifier.fillMaxWidth()
@@ -54,9 +51,9 @@ fun DestinationCard(destination: String, selected: Boolean, onClick: () -> Unit)
                   if (selected) Modifier.border(3.dp, colors.primary, MaterialTheme.shapes.medium)
                   else Modifier
               )
-              .clickable(onClick = onClick)
+              .selectable(selected = selected, role = Role.Checkbox, onClick = onClick)
               .semantics {
-                contentDescription = accessibilityLabel
+                contentDescription = destination
                 testTag = DestinationCardTestTags.forDestination(destination)
               },
   ) {

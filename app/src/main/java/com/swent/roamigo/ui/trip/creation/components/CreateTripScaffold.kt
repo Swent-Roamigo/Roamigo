@@ -38,6 +38,8 @@ internal object CreateTripScaffoldTestTags {
   const val PRIMARY_ACTION = "create_trip_primary_action"
 }
 
+private const val CREATE_TRIP_TOTAL_STEPS = 2
+
 @Composable
 fun CreateTripScaffold(
     step: Int,
@@ -66,7 +68,7 @@ fun CreateTripScaffold(
     ) {
       HeaderAction(label = stringResource(R.string.create_trip_back), glyph = "‹", onClick = onBack)
       Text(
-          stringResource(R.string.create_trip_step, step, 2),
+          stringResource(R.string.create_trip_step, step, CREATE_TRIP_TOTAL_STEPS),
           style = MaterialTheme.typography.labelMedium,
           color = colors.onSurfaceVariant,
       )
@@ -85,7 +87,7 @@ fun CreateTripScaffold(
                 .background(colors.outlineVariant)
     ) {
       Box(
-          Modifier.fillMaxWidth((step / 2f).coerceIn(0f, 1f))
+          Modifier.fillMaxWidth((step / CREATE_TRIP_TOTAL_STEPS.toFloat()).coerceIn(0f, 1f))
               .height(6.dp)
               .clip(RoundedCornerShape(3.dp))
               .background(colors.primary)

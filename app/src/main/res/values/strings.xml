@@ -23,7 +23,6 @@
     <string name="create_trip_popular_destinations">Popular with students</string>
     <string name="destination_search_hint">Search cities or countries</string>
     <string name="destination_search_description">Search destinations</string>
-    <string name="destination_selected_description">%1$s, selected</string>
     <string name="destination_remove_description">Remove %1$s</string>
     <string name="preview_step_content">Step content</string>
 

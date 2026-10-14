@@ -3,6 +3,7 @@ package com.swent.roamigo.ui.trip.creation
 
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -44,6 +45,9 @@ class DestinationScreenTest {
     }
 
     composeRule.onNodeWithTag(DestinationCardTestTags.forDestination("Barcelona")).performClick()
+    composeRule
+        .onNodeWithTag(DestinationCardTestTags.forDestination("Barcelona"))
+        .assertIsSelected()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
 
     composeRule.runOnIdle {
