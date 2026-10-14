@@ -209,6 +209,24 @@ class TripsScreenTest {
   }
 
   @Test
+  fun profileAvatarInvokesProfileCallback() {
+    var profileClicks = 0
+
+    composeTestRule.setContent {
+      MaterialTheme {
+        TripsScreen(
+            uiState = TripsUiState(isLoading = false, currentUserInitial = "A"),
+            onProfileClick = { profileClicks++ },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
+
+    assertEquals(1, profileClicks)
+  }
+
+  @Test
   fun singularCountsUseSingularLabels() {
     composeTestRule.setContent {
       MaterialTheme {

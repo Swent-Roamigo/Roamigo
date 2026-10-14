@@ -24,18 +24,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.outlined.CardTravel
-import androidx.compose.material.icons.outlined.Map
-import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -50,6 +43,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -60,6 +54,7 @@ import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.components.AppBottomBar
 import java.time.Clock
 
 /**
@@ -77,6 +72,7 @@ import java.time.Clock
  * @param onTripsClick invoked when the Trips navigation destination is selected.
  * @param onMapClick invoked when the Map navigation destination is selected.
  * @param onPhotosClick invoked when the Photos navigation destination is selected.
+ * @param onProfileClick invoked when the user selects their profile avatar.
  * @param clock the clock used for time-dependent presentation logic.
  */
 @Composable
@@ -90,6 +86,7 @@ fun TripsRoute(
     onTripsClick: () -> Unit = {},
     onMapClick: () -> Unit = {},
     onPhotosClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
     clock: Clock = Clock.systemDefaultZone(),
 ) {
   val viewModel: TripsViewModel =
@@ -113,6 +110,7 @@ fun TripsRoute(
       onTripsClick = onTripsClick,
       onMapClick = onMapClick,
       onPhotosClick = onPhotosClick,
+      onProfileClick = onProfileClick,
   )
 }
 
@@ -130,6 +128,7 @@ fun TripsRoute(
  * @param onTripsClick invoked when the Trips navigation destination is selected.
  * @param onMapClick invoked when the Map navigation destination is selected.
  * @param onPhotosClick invoked when the Photos navigation destination is selected.
+ * @param onProfileClick invoked when the user selects their profile avatar.
  */
 @Composable
 fun TripsScreen(
@@ -141,12 +140,13 @@ fun TripsScreen(
     onTripsClick: () -> Unit = {},
     onMapClick: () -> Unit = {},
     onPhotosClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
 ) {
   Scaffold(
       modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.trips_screen },
       containerColor = MaterialTheme.colorScheme.background,
       bottomBar = {
-        TripsBottomBar(
+        AppBottomBar(
             onTripsClick = onTripsClick,
             onMapClick = onMapClick,
             onPhotosClick = onPhotosClick,
@@ -169,6 +169,7 @@ fun TripsScreen(
             greeting = uiState.greeting,
             userName = uiState.currentUserName,
             userInitial = uiState.currentUserInitial,
+            onProfileClick = onProfileClick,
         )
       }
 
@@ -265,6 +266,7 @@ private fun TripsHeader(
     greeting: String,
     userName: String,
     userInitial: String,
+    onProfileClick: () -> Unit,
 ) {
   Row(
       modifier = Modifier.fillMaxWidth(),
@@ -296,8 +298,14 @@ private fun TripsHeader(
     }
 
     if (userInitial.isNotBlank()) {
+      val openProfileLabel = stringResource(R.string.trips_open_profile)
       Surface(
-          modifier = Modifier.size(52.dp),
+          onClick = onProfileClick,
+          modifier =
+              Modifier.size(52.dp).semantics {
+                testTag = C.Tag.trips_profile_avatar
+                contentDescription = openProfileLabel
+              },
           shape = CircleShape,
           color = MaterialTheme.colorScheme.secondary,
       ) {
@@ -633,81 +641,3 @@ private fun TripImage(
     )
   }
 }
-
-/**
- * Displays the primary Trips, Map, and Photos navigation destinations.
- *
- * The Trips destination is selected on this screen, while navigation changes are delegated to the
- * caller.
- *
- * @param onTripsClick invoked when the Trips destination is selected.
- * @param onMapClick invoked when the Map destination is selected.
- * @param onPhotosClick invoked when the Photos destination is selected.
- */
-@Composable
-private fun TripsBottomBar(
-    onTripsClick: () -> Unit,
-    onMapClick: () -> Unit,
-    onPhotosClick: () -> Unit,
-) {
-  Column {
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-    NavigationBar(
-        containerColor = MaterialTheme.colorScheme.background,
-        tonalElevation = 0.dp,
-    ) {
-      NavigationBarItem(
-          selected = true,
-          onClick = onTripsClick,
-          modifier = Modifier.semantics { testTag = C.Tag.trips_navigation_trips },
-          icon = {
-            Icon(
-                imageVector = Icons.Outlined.CardTravel,
-                contentDescription = stringResource(R.string.trips_nav_trips),
-            )
-          },
-          label = { Text(stringResource(R.string.trips_nav_trips)) },
-          colors = tripsNavigationColors(),
-      )
-
-      NavigationBarItem(
-          selected = false,
-          onClick = onMapClick,
-          modifier = Modifier.semantics { testTag = C.Tag.trips_navigation_map },
-          icon = {
-            Icon(
-                imageVector = Icons.Outlined.Map,
-                contentDescription = stringResource(R.string.trips_nav_map),
-            )
-          },
-          label = { Text(stringResource(R.string.trips_nav_map)) },
-          colors = tripsNavigationColors(),
-      )
-
-      NavigationBarItem(
-          selected = false,
-          onClick = onPhotosClick,
-          modifier = Modifier.semantics { testTag = C.Tag.trips_navigation_photos },
-          icon = {
-            Icon(
-                imageVector = Icons.Outlined.PhotoCamera,
-                contentDescription = stringResource(R.string.trips_nav_photos),
-            )
-          },
-          label = { Text(stringResource(R.string.trips_nav_photos)) },
-          colors = tripsNavigationColors(),
-      )
-    }
-  }
-}
-
-@Composable
-private fun tripsNavigationColors() =
-    NavigationBarItemDefaults.colors(
-        selectedIconColor = MaterialTheme.colorScheme.primary,
-        selectedTextColor = MaterialTheme.colorScheme.primary,
-        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        indicatorColor = MaterialTheme.colorScheme.surface,
-    )

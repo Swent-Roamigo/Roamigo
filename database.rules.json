@@ -9,7 +9,19 @@
         ".read": "auth != null && root.child('tripMembers').child($tripId).child(auth.uid).exists()",
         "$uid": {
           ".write": "auth != null && auth.uid === $uid && root.child('tripMembers').child($tripId).child(auth.uid).exists()",
-          ".validate": "newData.hasChildren(['latitude', 'longitude', 'updatedAt']) && newData.child('latitude').isNumber() && newData.child('latitude').val() >= -90 && newData.child('latitude').val() <= 90 && newData.child('longitude').isNumber()&& newData.child('longitude').val() >= -180 && newData.child('longitude').val() <= 180&& newData.child('updatedAt').val() === now"
+          ".validate": "newData.hasChildren(['latitude', 'longitude', 'updatedAt'])",
+          "latitude": {
+            ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90"
+          },
+          "longitude": {
+            ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180"
+          },
+          "updatedAt": {
+            ".validate": "newData.val() === now"
+          },
+          "$other": {
+            ".validate": false
+          }
         }
       }
     }

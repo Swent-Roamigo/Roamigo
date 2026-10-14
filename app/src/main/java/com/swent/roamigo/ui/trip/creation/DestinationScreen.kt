@@ -15,9 +15,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.swent.roamigo.R
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffold
 import com.swent.roamigo.ui.trip.creation.components.DestinationCard
@@ -55,11 +58,16 @@ fun DestinationScreenContent(
 ) {
   CreateTripScaffold(
       step = 1,
-      title = "Where to?",
-      subtitle = "Add one city or a whole route. You can change it later.",
+      title = stringResource(R.string.create_trip_destination_title),
+      subtitle = stringResource(R.string.create_trip_destination_subtitle),
       onBack = onBack,
       onClose = onClose,
-      primaryActionLabel = "Continue · ${uiState.selectedDestinations.size} stops",
+      primaryActionLabel =
+          pluralStringResource(
+              R.plurals.create_trip_destination_continue,
+              uiState.selectedDestinations.size,
+              uiState.selectedDestinations.size,
+          ),
       onPrimaryAction = onContinue,
       primaryActionEnabled = uiState.selectedDestinations.isNotEmpty(),
   ) {
@@ -75,7 +83,7 @@ fun DestinationScreenContent(
       )
       Spacer(Modifier.height(20.dp))
       Text(
-          "Popular with students",
+          stringResource(R.string.create_trip_popular_destinations),
           style = MaterialTheme.typography.titleMedium,
           color = MaterialTheme.colorScheme.onBackground,
       )

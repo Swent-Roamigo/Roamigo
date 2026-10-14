@@ -13,6 +13,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -21,6 +22,7 @@ import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.profile.ProfileScreen
 import com.swent.roamigo.ui.profile.ProfileUiState
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -31,8 +33,10 @@ class ProfileScreenTest {
 
   private val state = ProfileUiState(User("u1", "Sam", null), "sam@epfl.ch", 2)
 
-  private fun show(modifier: Modifier = Modifier) {
-    composeRule.setContent { RoamigoTheme { ProfileScreen(state, modifier) } }
+  private fun show(modifier: Modifier = Modifier, onTripsClick: () -> Unit = {}) {
+    composeRule.setContent {
+      RoamigoTheme { ProfileScreen(state, onTripsClick = onTripsClick, modifier = modifier) }
+    }
   }
 
   @Test
@@ -53,7 +57,27 @@ class ProfileScreenTest {
     show()
     composeRule.onNodeWithTag(C.Tag.profile_log_out).assertIsDisplayed()
     composeRule.onAllNodesWithTag(C.Tag.profile_action).assertCountEquals(3)
-    composeRule.onAllNodesWithTag(C.Tag.profile_footer_tab).assertCountEquals(3)
+    listOf(C.Tag.trips_navigation_trips, C.Tag.trips_navigation_map, C.Tag.trips_navigation_photos)
+        .forEach { composeRule.onNodeWithTag(it).assertIsDisplayed() }
+  }
+
+  @Test
+  fun worksWithDefaultCallbacksAndModifier() {
+    composeRule.setContent { RoamigoTheme { ProfileScreen(state) } }
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
+  }
+
+  @Test
+  fun tripsTabInvokesCallback() {
+    var tripsClicks = 0
+    show(onTripsClick = { tripsClicks++ })
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
+
+    assertEquals(1, tripsClicks)
   }
 
   @Test

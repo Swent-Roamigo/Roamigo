@@ -153,6 +153,7 @@ dependencies {
   implementation(libs.coroutines.play.services)
   testImplementation(libs.mockito.core)
   implementation(libs.kotlinx.coroutines.play.services)
+  implementation(libs.androidx.datastore.preferences)
 
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.appcompat)
@@ -181,6 +182,8 @@ dependencies {
   implementation(libs.compose.activity)
   // Integration with ViewModels
   implementation(libs.compose.viewmodel)
+  // In-app navigation between screens
+  implementation(libs.compose.navigation)
   // Android Studio Preview support
   implementation(libs.compose.preview)
   debugImplementation(libs.compose.tooling)
