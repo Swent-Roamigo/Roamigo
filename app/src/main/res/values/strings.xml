@@ -98,4 +98,27 @@
     <string name="vote_cancel">Cancel</string>
     <string name="vote_invalid">Enter a question and at least two non-empty options.</string>
     <string name="vote_submission_error">Unable to create the vote. Please try again.</string>
+
+    <!-- Friends -->
+    <string name="friends_title">Friends</string>
+    <string name="friends_privacy_subtitle">Maps are visible to friends only</string>
+    <string name="friends_view_map">View map</string>
+    <string name="friends_view_map_accessibility">View map for %1$s</string>
+    <string name="friends_pending">Pending</string>
+    <string name="friends_request_sent">request sent</string>
+    <string name="friends_add_friend">Add a friend</string>
+    <string name="friends_empty_title">No friends yet</string>
+    <string name="friends_empty_description">Add a friend to see them here.</string>
+    <string name="friends_metadata">%1$s · %2$s</string>
+    <string name="friends_request_metadata">%1$s · %2$s</string>
+
+    <plurals name="friends_country_count">
+        <item quantity="one">%d country</item>
+        <item quantity="other">%d countries</item>
+    </plurals>
+
+    <plurals name="friends_trip_together_count">
+        <item quantity="one">%d trip together</item>
+        <item quantity="other">%d trips together</item>
+    </plurals>
 </resources>

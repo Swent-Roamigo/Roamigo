@@ -15,3 +15,8 @@ val Border = Color(0xFFE1E2DB)
 
 // Material has no success role; keep this semantic token separate from its accent roles.
 val Success = Color(0xFF4F8A6A)
+
+// Friend avatar colors inspired by the Friends Figma design.
+val FriendAvatarBlue = Color(0xFF4676A8)
+val FriendAvatarRose = Color(0xFFA85071)
+val FriendAvatarGreen = Color(0xFF507F60)
