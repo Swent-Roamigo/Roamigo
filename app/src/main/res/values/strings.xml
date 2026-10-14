@@ -30,6 +30,32 @@
     <string name="destination_remove_description">Remove %1$s</string>
     <string name="preview_step_content">Step content</string>
 
+    <!-- C2 dates and travelers -->
+    <string name="c2_title">When are you going?</string>
+    <string name="c2_flexible_dates">Flexible ±2 days</string>
+    <string name="c2_who_is_coming">Who’s coming?</string>
+    <string name="c2_solo">Solo</string>
+    <string name="c2_group">Group</string>
+    <string name="c2_travelers">Travelers</string>
+    <string name="c2_create_trip">Create trip</string>
+    <string name="c2_date_range">%1$s → %2$s</string>
+    <string name="c2_duration_summary">%1$s · %2$s</string>
+    <string name="c2_previous_month">Previous month</string>
+    <string name="c2_next_month">Next month</string>
+    <string name="c2_select_end_date">Select your end date</string>
+    <string name="c2_decrease_travelers">Decrease travelers</string>
+    <string name="c2_increase_travelers">Increase travelers</string>
+
+    <plurals name="c2_trip_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <plurals name="c2_trip_nights">
+        <item quantity="one">%d night</item>
+        <item quantity="other">%d nights</item>
+    </plurals>
+
+
     <!-- Trips Home -->
     <string name="trips_title">Your trips</string>
     <string name="trips_next_up">Next up</string>
