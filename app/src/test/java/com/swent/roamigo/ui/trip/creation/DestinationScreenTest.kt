@@ -1,11 +1,12 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.trip.creation
 
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
@@ -14,6 +15,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
 import com.swent.roamigo.ui.trip.creation.components.DestinationCardTestTags
+import com.swent.roamigo.ui.trip.creation.components.DestinationSearchBarTestTags
 import com.swent.roamigo.ui.trip.creation.components.SelectedDestinations
 import com.swent.roamigo.ui.trip.creation.components.SelectedDestinationsTestTags
 import org.junit.Assert.assertEquals
@@ -43,6 +45,9 @@ class DestinationScreenTest {
     }
 
     composeRule.onNodeWithTag(DestinationCardTestTags.forDestination("Barcelona")).performClick()
+    composeRule
+        .onNodeWithTag(DestinationCardTestTags.forDestination("Barcelona"))
+        .assertIsSelected()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
 
     composeRule.runOnIdle {
@@ -73,6 +78,32 @@ class DestinationScreenTest {
   }
 
   @Test
+  fun continueLabelUsesSingularAndPluralStopForms() {
+    val viewModel = CreateTripViewModel()
+
+    composeRule.setContent {
+      RoamigoTheme {
+        DestinationScreen(
+            createTripViewModel = viewModel,
+            onBack = {},
+            onClose = {},
+            onContinue = {},
+        )
+      }
+    }
+
+    viewModel.toggleDestination("Lisbon")
+    composeRule
+        .onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION)
+        .assertTextEquals("Continue · 1 stop")
+
+    viewModel.toggleDestination("Porto")
+    composeRule
+        .onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION)
+        .assertTextEquals("Continue · 2 stops")
+  }
+
+  @Test
   fun removeButtonsExposeDestinationSpecificContentDescriptions() {
     composeRule.setContent {
       RoamigoTheme {
@@ -83,14 +114,12 @@ class DestinationScreenTest {
       }
     }
 
-    assertEquals(
-        1,
-        composeRule.onAllNodesWithContentDescription("Remove Lisbon").fetchSemanticsNodes().size,
-    )
-    assertEquals(
-        1,
-        composeRule.onAllNodesWithContentDescription("Remove Porto").fetchSemanticsNodes().size,
-    )
+    composeRule
+        .onNodeWithTag(SelectedDestinationsTestTags.removeFor("Lisbon"))
+        .assertContentDescriptionEquals("Remove Lisbon")
+    composeRule
+        .onNodeWithTag(SelectedDestinationsTestTags.removeFor("Porto"))
+        .assertContentDescriptionEquals("Remove Porto")
   }
 
   @Test
@@ -110,7 +139,7 @@ class DestinationScreenTest {
       }
     }
 
-    composeRule.onNodeWithContentDescription("Search destinations").performTextInput("bar")
+    composeRule.onNodeWithTag(DestinationSearchBarTestTags.SEARCH_FIELD).performTextInput("bar")
     composeRule.runOnIdle {
       assertEquals(
           1,
@@ -128,7 +157,7 @@ class DestinationScreenTest {
       )
     }
 
-    composeRule.onNodeWithContentDescription("Search destinations").performTextClearance()
+    composeRule.onNodeWithTag(DestinationSearchBarTestTags.SEARCH_FIELD).performTextClearance()
     composeRule.onNodeWithTag(SelectedDestinationsTestTags.removeFor("Lisbon")).performClick()
 
     composeRule.runOnIdle {
