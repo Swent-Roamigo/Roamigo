@@ -15,6 +15,7 @@ import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.FakeTripRepository
+import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripMember
 import com.swent.roamigo.model.trip.TripMemberRole
@@ -315,8 +316,13 @@ class TripsScreenTest {
           destinations = listOf(location),
           startDate = timestamp(start),
           endDate = timestamp(end),
+          flexibleDates = false,
+          travelMode = TravelMode.SOLO,
+          travelerCount = 1,
           ownerId = ownerId,
+          memberIds = listOf(ownerId),
           status = status,
+          createdAt = timestamp(start),
       )
 
   private fun member(

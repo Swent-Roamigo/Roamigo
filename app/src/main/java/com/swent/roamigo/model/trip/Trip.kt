@@ -11,8 +11,13 @@ data class Trip(
     val destinations: List<TripLocation>,
     val startDate: Timestamp,
     val endDate: Timestamp,
+    val flexibleDates: Boolean,
+    val travelMode: TravelMode,
+    val travelerCount: Int,
     val ownerId: String, // this is authoritative over TripMemberRole of TripMember
+    val memberIds: List<String>,
     val status: TripStatus,
+    val createdAt: Timestamp,
 )
 
 // Placeholder
@@ -20,4 +25,9 @@ enum class TripStatus {
   PLANNED,
   ACTIVE,
   COMPLETED,
+}
+
+enum class TravelMode {
+  SOLO,
+  GROUP,
 }

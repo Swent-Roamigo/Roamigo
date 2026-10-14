@@ -8,6 +8,7 @@ import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.FakeTripRepository
+import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripMember
 import com.swent.roamigo.model.trip.TripMemberRole
@@ -456,8 +457,13 @@ class TripsViewModelTest {
           destinations = listOf(location),
           startDate = timestamp(start),
           endDate = timestamp(end),
+          flexibleDates = false,
+          travelMode = TravelMode.SOLO,
+          travelerCount = 1,
           ownerId = alex.uid,
+          memberIds = listOf(alex.uid),
           status = status,
+          createdAt = timestamp("2026-10-01T10:00:00Z"),
       )
 
   private fun activity(

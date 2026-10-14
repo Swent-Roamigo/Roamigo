@@ -26,8 +26,13 @@ class FakeTripRepositoryTest {
           destinations = listOf(location),
           startDate = Timestamp(1000, 0),
           endDate = Timestamp(2000, 0),
+          flexibleDates = false,
+          travelMode = TravelMode.SOLO,
+          travelerCount = 1,
           ownerId = "user-1",
+          memberIds = listOf("user-1"),
           status = TripStatus.PLANNED,
+          createdAt = Timestamp(500, 0),
       )
 
   private val activity =
