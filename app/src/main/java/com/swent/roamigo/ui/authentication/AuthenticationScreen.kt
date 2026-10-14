@@ -64,8 +64,6 @@ fun AuthenticationScreen(
 
   LaunchedEffect(uiState.user) { uiState.user?.let { currentOnSignedIn() } }
 
-
-
   AuthenticationScreen(
       uiState = uiState,
       onSignInClick = { authViewModel.signIn(context, manager) },
