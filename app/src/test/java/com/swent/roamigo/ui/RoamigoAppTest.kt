@@ -36,8 +36,7 @@ class RoamigoAppTest {
     composeRule.waitUntil { composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty() }
   }
 
-  private fun continueToTrips() {
-    composeRule.onNodeWithTag(C.Tag.permissions_continue).performClick()
+  private fun waitForTrips() {
     waitForTag(C.Tag.trips_screen)
   }
 
@@ -46,17 +45,15 @@ class RoamigoAppTest {
   }
 
   @Test
-  fun startsOnPermissionsAndContinueOpensTrips() {
-    composeRule.onNodeWithTag(C.Tag.permissions_title).assertIsDisplayed()
-
-    continueToTrips()
+  fun existingSessionStartsOnTrips() {
+    waitForTrips()
 
     composeRule.onAllNodesWithTag(C.Tag.permissions_title).assertCountEquals(0)
   }
 
   @Test
   fun avatarOpensProfileAndBackReturnsToTrips() {
-    continueToTrips()
+    waitForTrips()
     waitForTag(C.Tag.trips_profile_avatar)
 
     composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
@@ -68,7 +65,7 @@ class RoamigoAppTest {
 
   @Test
   fun tripsTabOnTheProfileReturnsToTrips() {
-    continueToTrips()
+    waitForTrips()
     waitForTag(C.Tag.trips_profile_avatar)
     composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
 
@@ -80,7 +77,7 @@ class RoamigoAppTest {
 
   @Test
   fun newTripOpensDestinationStepAndBackReturnsToTrips() {
-    continueToTrips()
+    waitForTrips()
 
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsDisplayed()
@@ -91,7 +88,7 @@ class RoamigoAppTest {
 
   @Test
   fun backButtonOnTheDestinationStepReturnsToTrips() {
-    continueToTrips()
+    waitForTrips()
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
 
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.BACK).performClick()
@@ -102,7 +99,7 @@ class RoamigoAppTest {
 
   @Test
   fun closeButtonOnTheDestinationStepReturnsToTrips() {
-    continueToTrips()
+    waitForTrips()
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
 
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.CLOSE).performClick()
@@ -113,7 +110,7 @@ class RoamigoAppTest {
 
   @Test
   fun backFromTripsLeavesTheAppInsteadOfShowingPermissionsAgain() {
-    continueToTrips()
+    waitForTrips()
 
     pressBack()
 

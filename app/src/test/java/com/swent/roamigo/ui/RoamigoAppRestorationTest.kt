@@ -27,7 +27,6 @@ class RoamigoAppRestorationTest {
     val authRepository =
         FakeAuthRepository(AuthenticatedUser("alex", "Alex", null, null), initiallySignedIn = true)
     restoration.setContent { RoamigoTheme { RoamigoApp(authRepository = authRepository) } }
-    composeRule.onNodeWithTag(C.Tag.permissions_continue).performClick()
     composeRule.waitUntil {
       composeRule.onAllNodesWithTag(C.Tag.trips_profile_avatar).fetchSemanticsNodes().isNotEmpty()
     }
