@@ -934,6 +934,126 @@ class DefaultLocationRepositoryTest {
     assertTrue(result.await().exceptionOrNull() is LocationSharingException)
   }
 
+  @Test
+  fun isSharing_isFalseWhileTheFirstUpdateIsPending() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val repository = createRepository(backgroundScope)
+    holdUpdates = true
+
+    val start = async { runCatching { repository.startSharing(TRIP_ID) } }
+    runCurrent()
+
+    assertFalse(start.isCompleted)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+    start.cancel()
+  }
+
+  @Test
+  fun startSharing_secondCallWaitsForThePendingFirstUpdate() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val repository = createRepository(backgroundScope)
+    holdUpdates = true
+    val first = async { runCatching { repository.startSharing(TRIP_ID) } }
+    runCurrent()
+
+    val second = async { runCatching { repository.startSharing(TRIP_ID) } }
+    runCurrent()
+
+    assertFalse(second.isCompleted)
+    advanceTimeBy(DefaultLocationRepository.WRITE_TIMEOUT)
+    runCurrent()
+    // Both calls report the failed first update, and only one update was attempted.
+    assertTrue(first.await().exceptionOrNull() is LocationSharingException)
+    assertTrue(second.await().exceptionOrNull() is LocationSharingException)
+    verifyUpdates(ownLocation, 1)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_restoresTheTripsConcurrently() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    val previousRepository = createRepository(killedProcess)
+    previousRepository.startSharing(TRIP_ID)
+    previousRepository.startSharing(OTHER_TRIP_ID)
+    killedProcess.cancel()
+    val repository = createRepository(backgroundScope)
+    holdUpdates = true
+
+    val restore = async { repository.restoreSharing() }
+    runCurrent()
+
+    // Both first updates are issued before either is acknowledged.
+    verifyUpdates(ownLocation, 2)
+    verifyUpdates(ownOtherTripLocation, 2)
+    restore.cancel()
+  }
+
+  @Test
+  fun stopAllSharing_stopsEveryTripAndRemovesItsEntry() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val repository = createRepository(backgroundScope)
+    repository.startSharing(TRIP_ID)
+    repository.startSharing(OTHER_TRIP_ID)
+
+    repository.stopAllSharing()
+    advanceTimeBy(UPDATE_INTERVAL)
+    runCurrent()
+
+    verifyRemovals(ownLocation, 1)
+    verifyRemovals(ownOtherTripLocation, 1)
+    verifyUpdates(ownLocation, 1)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+    assertFalse(repository.isSharing(OTHER_TRIP_ID).first())
+  }
+
+  @Test
+  fun stopAllSharing_removesEntriesLeftByAPreviousProcess() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    val repository = createRepository(backgroundScope)
+
+    repository.stopAllSharing()
+    repository.restoreSharing()
+
+    verifyRemovals(ownLocation, 1)
+    verifyUpdates(ownLocation, 1)
+  }
+
+  @Test
+  fun stopAllSharing_stopsEveryTripEvenWhenARemovalFails() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val repository = createRepository(backgroundScope)
+    repository.startSharing(TRIP_ID)
+    repository.startSharing(OTHER_TRIP_ID)
+    removalError = DatabaseError.fromCode(DatabaseError.NETWORK_ERROR)
+
+    val error = runCatching { repository.stopAllSharing() }.exceptionOrNull()
+
+    assertTrue(error is LocationSharingException)
+    verifyRemovals(ownLocation, 1)
+    verifyRemovals(ownOtherTripLocation, 1)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+    assertFalse(repository.isSharing(OTHER_TRIP_ID).first())
+  }
+
+  @Test
+  fun stopAllSharing_doesNothingWhenSignedOut() = runTest {
+    `when`(auth.currentUser).thenReturn(null)
+
+    repository.stopAllSharing()
+
+    verifyRemovals(ownLocation, 0)
+  }
+
   private fun createRepository(scope: CoroutineScope) =
       DefaultLocationRepository(
           context = ApplicationProvider.getApplicationContext<Application>(),

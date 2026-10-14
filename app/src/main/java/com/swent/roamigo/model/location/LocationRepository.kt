@@ -23,6 +23,7 @@ interface LocationRepository {
    * starts when this function is called. It stops by itself if the user loses access to the trip.
    *
    * @param tripId identifier of the trip to share the location with.
+   * @throws IllegalStateException if location permission is missing or no user is signed in.
    * @throws LocationSharingException if the first position could not be published.
    */
   suspend fun startSharing(tripId: String)
@@ -37,10 +38,21 @@ interface LocationRepository {
   suspend fun stopSharing(tripId: String)
 
   /**
+   * Stops every location sharing of the current user, including positions left published by a
+   * previous app process. Call it before signing out: the user can no longer remove their positions
+   * afterwards, so they would stay visible to trip members until the server removes them as stale.
+   *
+   * @throws LocationSharingException if a shared position could not be removed. Every sharing is
+   *   stopped anyway.
+   */
+  suspend fun stopAllSharing()
+
+  /**
    * Resumes the current user's location sharing that was still on when the app process last ended,
    * e.g. because the system killed it. Trips whose sharing cannot be resumed are stopped instead,
-   * so that no position stays published without [isSharing] reporting it. Call it at app startup
-   * once a user is signed in; it does nothing otherwise.
+   * so that no position stays published without [isSharing] reporting it. Call it once a user is
+   * signed in, e.g. by registering a [LocationSharingRestorer] at app startup; it does nothing
+   * otherwise. It may take several seconds, so it must not run on a path the UI waits for.
    */
   suspend fun restoreSharing()
 
