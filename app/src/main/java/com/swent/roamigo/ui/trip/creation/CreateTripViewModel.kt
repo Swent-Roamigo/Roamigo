@@ -16,7 +16,7 @@ data class CreateTripUiState(
     val selectedDestinations: List<String> = emptyList(),
     val visibleMonth: YearMonth = YearMonth.now(),
     val startDate: LocalDate = LocalDate.now(),
-    val endDate: LocalDate = startDate.plusDays(DEFAULT_TRIP_DURATION_DAYS),
+    val endDate: LocalDate = startDate.plusDays(DEFAULT_TRIP_DURATION_DAYS - 1),
     val isSelectingEndDate: Boolean = false,
     val flexibleDates: Boolean = false,
     val tripType: TripType = TripType.GROUP,
@@ -36,6 +36,7 @@ data class CreateTripUiState(
   val canCreateTrip: Boolean
     get() =
         !isSelectingEndDate &&
+            !startDate.isBefore(LocalDate.now()) &&
             !endDate.isBefore(startDate) &&
             selectedDestinations.isNotEmpty() &&
             when (tripType) {
@@ -86,7 +87,14 @@ class CreateTripViewModel : ViewModel() {
   }
 
   fun showPreviousMonth() {
-    _uiState.update { it.copy(visibleMonth = it.visibleMonth.minusMonths(1)) }
+    val currentMonth = YearMonth.now()
+    _uiState.update { state ->
+      if (state.visibleMonth.isAfter(currentMonth)) {
+        state.copy(visibleMonth = state.visibleMonth.minusMonths(1))
+      } else {
+        state
+      }
+    }
   }
 
   fun showNextMonth() {
@@ -94,6 +102,7 @@ class CreateTripViewModel : ViewModel() {
   }
 
   fun selectDate(date: LocalDate) {
+    if (date.isBefore(LocalDate.now())) return
     _uiState.update { state ->
       when {
         !state.isSelectingEndDate ->
@@ -121,7 +130,10 @@ class CreateTripViewModel : ViewModel() {
             tripType = type,
             travelerCount =
                 if (type == TripType.SOLO) MIN_TRAVELERS
-                else state.travelerCount.coerceAtLeast(DEFAULT_GROUP_SIZE),
+                else {
+                  // Returning to Group starts a fresh group draft at its default size.
+                  DEFAULT_GROUP_SIZE
+                },
         )
       }
     }

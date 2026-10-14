@@ -35,16 +35,6 @@
         <item quantity="other">%d nights</item>
     </plurals>
 
-    <string-array name="c2_weekdays">
-        <item>M</item>
-        <item>T</item>
-        <item>W</item>
-        <item>T</item>
-        <item>F</item>
-        <item>S</item>
-        <item>S</item>
-    </string-array>
-
     <!-- Trips Home -->
     <string name="trips_title">Your trips</string>
     <string name="trips_next_up">Next up</string>

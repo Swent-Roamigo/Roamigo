@@ -11,12 +11,14 @@ import org.junit.Test
 
 class CreateTripC2ViewModelTest {
   @Test
-  fun initialDateRangeStartsTodayAndEndsThreeDaysLater() {
+  fun initialDateRangeStartsTodayAndCoversThreeDays() {
     val today = LocalDate.now()
     val viewModel = CreateTripViewModel()
 
     assertEquals(today, viewModel.uiState.value.startDate)
-    assertEquals(today.plusDays(3), viewModel.uiState.value.endDate)
+    assertEquals(today.plusDays(2), viewModel.uiState.value.endDate)
+    assertEquals(3L, viewModel.uiState.value.tripDays)
+    assertEquals(2L, viewModel.uiState.value.tripNights)
     assertFalse(viewModel.uiState.value.isSelectingEndDate)
     assertFalse(viewModel.uiState.value.canCreateTrip)
   }
@@ -27,12 +29,14 @@ class CreateTripC2ViewModelTest {
     val currentMonth = YearMonth.now()
 
     viewModel.showPreviousMonth()
-    assertEquals(currentMonth.minusMonths(1), viewModel.uiState.value.visibleMonth)
+    assertEquals(currentMonth, viewModel.uiState.value.visibleMonth)
     viewModel.showNextMonth()
+    assertEquals(currentMonth.plusMonths(1), viewModel.uiState.value.visibleMonth)
+    viewModel.showPreviousMonth()
     assertEquals(currentMonth, viewModel.uiState.value.visibleMonth)
 
-    val start = LocalDate.of(2026, 12, 31)
-    val end = LocalDate.of(2027, 1, 2)
+    val start = LocalDate.of(YearMonth.now().year + 1, 12, 31)
+    val end = start.plusDays(2)
     viewModel.selectDate(start)
     viewModel.selectDate(end)
 
@@ -45,7 +49,7 @@ class CreateTripC2ViewModelTest {
   @Test
   fun selectingAnEarlierDateStartsANewRangeAndFlexiblePreferenceStaysIndependent() {
     val viewModel = CreateTripViewModel()
-    val firstStart = LocalDate.of(2026, 7, 8)
+    val firstStart = YearMonth.now().plusMonths(1).atDay(8)
     viewModel.selectDate(firstStart)
     viewModel.selectDate(firstStart.plusDays(4))
     viewModel.selectDate(firstStart.minusDays(2))
@@ -76,8 +80,10 @@ class CreateTripC2ViewModelTest {
     assertEquals(10, viewModel.uiState.value.travelerCount)
     repeat(12) { viewModel.decrementTravelers() }
     assertEquals(2, viewModel.uiState.value.travelerCount)
+    viewModel.selectTripType(TripType.SOLO)
+    assertEquals(1, viewModel.uiState.value.travelerCount)
     viewModel.selectTripType(TripType.GROUP)
-    assertEquals(2, viewModel.uiState.value.travelerCount)
+    assertEquals(3, viewModel.uiState.value.travelerCount)
     assertEquals(TripType.GROUP, viewModel.uiState.value.tripType)
   }
 
@@ -105,6 +111,24 @@ class CreateTripC2ViewModelTest {
 
     assertTrue(viewModel.uiState.value.isSelectingEndDate)
     assertFalse(viewModel.uiState.value.canCreateTrip)
+  }
+
+  @Test
+  fun pastDatesAreRejectedAndCannotMakeTheDraftCreatable() {
+    val pastDate = LocalDate.now().minusDays(1)
+    val viewModel = CreateTripViewModel()
+    val originalState = viewModel.uiState.value
+
+    viewModel.selectDate(pastDate)
+
+    assertEquals(originalState, viewModel.uiState.value)
+    val stateWithPastStart =
+        originalState.copy(
+            startDate = pastDate,
+            endDate = LocalDate.now().plusDays(1),
+            selectedDestinations = listOf("Lisbon"),
+        )
+    assertFalse(stateWithPastStart.canCreateTrip)
   }
 
   @Test

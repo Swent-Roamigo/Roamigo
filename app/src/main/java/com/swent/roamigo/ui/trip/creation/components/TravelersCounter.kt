@@ -25,14 +25,17 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
-import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.trip.creation.MIN_GROUP_TRAVELERS
-import com.swent.roamigo.ui.trip.creation.TripType
+
+internal object TravelersCounterTestTags {
+  const val DECREMENT = "c2_travelers_decrement"
+  const val COUNT = "c2_traveler_count"
+  const val INCREMENT = "c2_travelers_increment"
+}
 
 @Composable
 internal fun TravelersCounter(
     count: Int,
-    tripType: TripType,
     onDecrement: () -> Unit,
     onIncrement: () -> Unit,
 ) {
@@ -54,23 +57,25 @@ internal fun TravelersCounter(
     )
     TravelerButton(
         description = stringResource(R.string.c2_decrease_travelers),
-        tag = C.Tag.c2_travelers_decrement,
+        tag = TravelersCounterTestTags.DECREMENT,
         icon = R.drawable.ic_c2_minus,
-        enabled = tripType == TripType.GROUP && count > MIN_GROUP_TRAVELERS,
+        enabled = count > MIN_GROUP_TRAVELERS,
         onClick = onDecrement,
     )
     Text(
         text = count.toString(),
         modifier =
-            Modifier.padding(horizontal = 14.dp).semantics { testTag = C.Tag.c2_traveler_count },
+            Modifier.padding(horizontal = 14.dp).semantics {
+              testTag = TravelersCounterTestTags.COUNT
+            },
         style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.onBackground,
     )
     TravelerButton(
         description = stringResource(R.string.c2_increase_travelers),
-        tag = C.Tag.c2_travelers_increment,
+        tag = TravelersCounterTestTags.INCREMENT,
         icon = R.drawable.ic_c2_plus,
-        enabled = tripType == TripType.GROUP && count < 10,
+        enabled = count < 10,
         onClick = onIncrement,
     )
   }

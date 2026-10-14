@@ -12,14 +12,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.roamigo.R
-import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.components.CalendarCard
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffold
@@ -33,12 +31,14 @@ fun DatesTravelersScreen(
     createTripViewModel: CreateTripViewModel,
     onBack: () -> Unit,
     onClose: () -> Unit,
+    onCreateTrip: () -> Unit,
 ) {
   val uiState by createTripViewModel.uiState.collectAsStateWithLifecycle()
   DatesTravelersScreenContent(
       uiState = uiState,
       onBack = onBack,
       onClose = onClose,
+      onCreateTrip = onCreateTrip,
       onPreviousMonth = createTripViewModel::showPreviousMonth,
       onNextMonth = createTripViewModel::showNextMonth,
       onSelectDate = createTripViewModel::selectDate,
@@ -54,6 +54,7 @@ fun DatesTravelersScreenContent(
     uiState: CreateTripUiState,
     onBack: () -> Unit,
     onClose: () -> Unit,
+    onCreateTrip: () -> Unit,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onSelectDate: (LocalDate) -> Unit,
@@ -68,15 +69,14 @@ fun DatesTravelersScreenContent(
       onBack = onBack,
       onClose = onClose,
       primaryActionLabel = stringResource(R.string.c2_create_trip),
-      onPrimaryAction = {},
+      onPrimaryAction = onCreateTrip,
       primaryActionEnabled = uiState.canCreateTrip,
-      primaryActionTestTag = C.Tag.c2_create_trip,
   ) {
     Column(
         modifier =
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).semantics {
-              testTag = C.Tag.c2_screen
-            },
+            Modifier.fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .testTag(DatesTravelersScreenTestTags.SCREEN),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
       CalendarCard(
@@ -95,7 +95,6 @@ fun DatesTravelersScreenContent(
       if (uiState.tripType == TripType.GROUP) {
         TravelersCounter(
             count = uiState.travelerCount,
-            tripType = uiState.tripType,
             onDecrement = onDecrementTravelers,
             onIncrement = onIncrementTravelers,
         )
@@ -116,6 +115,7 @@ private fun DatesTravelersScreenPreview() {
             ),
         onBack = {},
         onClose = {},
+        onCreateTrip = {},
         onPreviousMonth = {},
         onNextMonth = {},
         onSelectDate = {},
@@ -125,4 +125,8 @@ private fun DatesTravelersScreenPreview() {
         onIncrementTravelers = {},
     )
   }
+}
+
+internal object DatesTravelersScreenTestTags {
+  const val SCREEN = "c2_screen"
 }

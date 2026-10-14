@@ -21,23 +21,33 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
-import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.trip.creation.CreateTripUiState
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.time.format.TextStyle
+import java.time.temporal.WeekFields
+import java.util.Locale
+
+internal object TripCalendarTestTags {
+  const val PREVIOUS_MONTH = "c2_month_previous"
+  const val NEXT_MONTH = "c2_month_next"
+
+  fun dayFor(date: LocalDate): String = "c2_calendar_day_$date"
+}
 
 @Composable
 internal fun CalendarCard(
@@ -47,12 +57,22 @@ internal fun CalendarCard(
     onSelectDate: (LocalDate) -> Unit,
 ) {
   val colors = MaterialTheme.colorScheme
-  val locale = LocalConfiguration.current.locales[0]
-  val monthFormatter = DateTimeFormatter.ofPattern("MMMM yyyy", locale)
+  val monthFormatter = remember { DateTimeFormatter.ofPattern("LLLL yyyy", Locale.ENGLISH) }
+  val dayDescriptionFormatter = remember {
+    DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(Locale.ENGLISH)
+  }
   val daysInMonth = state.visibleMonth.lengthOfMonth()
-  val firstDayOffset = state.visibleMonth.atDay(1).dayOfWeek.value - 1
+  val locale = LocalConfiguration.current.locales[0]
+  val firstDayOfWeek = WeekFields.of(locale).firstDayOfWeek
+  val firstDayOffset =
+      Math.floorMod(state.visibleMonth.atDay(1).dayOfWeek.value - firstDayOfWeek.value, 7)
   val weeks = (firstDayOffset + daysInMonth + 6) / 7
-  val weekdayLabels = stringArrayResource(R.array.c2_weekdays)
+  val weekdayLabels =
+      remember(locale) {
+        (0..6).map { offset ->
+          firstDayOfWeek.plus(offset.toLong()).getDisplayName(TextStyle.NARROW, Locale.ENGLISH)
+        }
+      }
 
   Column(
       modifier =
@@ -70,8 +90,9 @@ internal fun CalendarCard(
     ) {
       CalendarMonthButton(
           description = stringResource(R.string.c2_previous_month),
-          tag = C.Tag.c2_month_previous,
+          tag = TripCalendarTestTags.PREVIOUS_MONTH,
           icon = R.drawable.ic_c2_chevron_left,
+          enabled = state.visibleMonth.isAfter(YearMonth.now()),
           onClick = onPreviousMonth,
       )
       Text(
@@ -81,8 +102,9 @@ internal fun CalendarCard(
       )
       CalendarMonthButton(
           description = stringResource(R.string.c2_next_month),
-          tag = C.Tag.c2_month_next,
+          tag = TripCalendarTestTags.NEXT_MONTH,
           icon = R.drawable.ic_c2_chevron_right,
+          enabled = true,
           onClick = onNextMonth,
       )
     }
@@ -98,10 +120,12 @@ internal fun CalendarCard(
         repeat(7) { dayOfWeek ->
           val dayNumber = week * 7 + dayOfWeek - firstDayOffset + 1
           if (dayNumber in 1..daysInMonth) {
+            val date = state.visibleMonth.atDay(dayNumber)
             CalendarDay(
-                date = state.visibleMonth.atDay(dayNumber),
+                date = date,
                 startDate = state.startDate,
                 endDate = state.endDate,
+                dateDescription = date.format(dayDescriptionFormatter),
                 onClick = onSelectDate,
                 modifier = Modifier.weight(1f),
             )
@@ -119,20 +143,26 @@ private fun CalendarMonthButton(
     description: String,
     tag: String,
     icon: Int,
+    enabled: Boolean,
     onClick: () -> Unit,
 ) {
   Box(
       modifier =
-          Modifier.size(28.dp).clip(CircleShape).clickable(onClick = onClick).semantics {
-            contentDescription = description
-            testTag = tag
-          },
+          Modifier.size(28.dp)
+              .clip(CircleShape)
+              .clickable(enabled = enabled, onClick = onClick)
+              .semantics {
+                contentDescription = description
+                testTag = tag
+              },
       contentAlignment = Alignment.Center,
   ) {
     Icon(
         painter = painterResource(icon),
         contentDescription = null,
-        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        tint =
+            if (enabled) MaterialTheme.colorScheme.onSurfaceVariant
+            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
         modifier = Modifier.size(18.dp),
     )
   }
@@ -143,15 +173,14 @@ private fun CalendarDay(
     date: LocalDate,
     startDate: LocalDate,
     endDate: LocalDate,
+    dateDescription: String,
     onClick: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-  val isEndpoint = date == startDate || date == endDate
-  val inRange = date > startDate && date < endDate
+  val isPast = date.isBefore(LocalDate.now())
+  val isEndpoint = !isPast && (date == startDate || date == endDate)
+  val inRange = !isPast && date > startDate && date < endDate
   val colors = MaterialTheme.colorScheme
-  val locale = LocalConfiguration.current.locales[0]
-  val dateDescription =
-      date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(locale))
   Box(
       modifier =
           modifier
@@ -161,19 +190,25 @@ private fun CalendarDay(
                   when {
                     isEndpoint -> colors.primary
                     inRange -> colors.primaryContainer
+                    isPast -> colors.surfaceVariant
                     else -> colors.surface
                   }
               )
-              .clickable { onClick(date) }
+              .clickable(enabled = !isPast) { onClick(date) }
               .semantics {
                 contentDescription = dateDescription
-                testTag = C.Tag.c2_calendar_day_prefix + date
+                testTag = TripCalendarTestTags.dayFor(date)
               },
       contentAlignment = Alignment.Center,
   ) {
     Text(
         text = date.dayOfMonth.toString(),
-        color = if (isEndpoint) colors.onPrimary else colors.onBackground,
+        color =
+            when {
+              isEndpoint -> colors.onPrimary
+              isPast -> colors.onSurfaceVariant.copy(alpha = 0.55f)
+              else -> colors.onBackground
+            },
         style = MaterialTheme.typography.bodyMedium,
     )
   }

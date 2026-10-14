@@ -19,10 +19,16 @@ import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.R
-import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
+import com.swent.roamigo.ui.trip.creation.components.DateSummaryTestTags
+import com.swent.roamigo.ui.trip.creation.components.TravelersCounterTestTags
+import com.swent.roamigo.ui.trip.creation.components.TripCalendarTestTags
+import com.swent.roamigo.ui.trip.creation.components.TripTypeSelectorTestTags
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -39,14 +45,14 @@ class DatesTravelersScreenTest {
     viewModel.toggleDestination("Lisbon")
     showScreen(viewModel)
 
-    composeRule.onNodeWithTag(C.Tag.c2_screen).assertExists()
-    composeRule.onNodeWithTag(C.Tag.c2_month_previous).assertExists()
-    composeRule.onNodeWithTag(C.Tag.c2_month_next).assertExists()
-    composeRule.onNodeWithTag(C.Tag.c2_flexible_toggle).assertExists()
-    composeRule.onNodeWithTag(C.Tag.c2_trip_type_solo).assertExists()
-    composeRule.onNodeWithTag(C.Tag.c2_trip_type_group).assertExists()
-    composeRule.onNodeWithTag(C.Tag.c2_traveler_count).assertTextEquals("3")
-    composeRule.onNodeWithTag(C.Tag.c2_create_trip).assertIsEnabled()
+    composeRule.onNodeWithTag(DatesTravelersScreenTestTags.SCREEN).assertExists()
+    composeRule.onNodeWithTag(TripCalendarTestTags.PREVIOUS_MONTH).assertExists()
+    composeRule.onNodeWithTag(TripCalendarTestTags.NEXT_MONTH).assertExists()
+    composeRule.onNodeWithTag(DateSummaryTestTags.FLEXIBLE_TOGGLE).assertExists()
+    composeRule.onNodeWithTag(TripTypeSelectorTestTags.SOLO).assertExists()
+    composeRule.onNodeWithTag(TripTypeSelectorTestTags.GROUP).assertExists()
+    composeRule.onNodeWithTag(TravelersCounterTestTags.COUNT).assertTextEquals("3")
+    composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsEnabled()
   }
 
   @Test
@@ -60,17 +66,21 @@ class DatesTravelersScreenTest {
               createTripViewModel = viewModel,
               onBack = {},
               onClose = {},
+              onCreateTrip = {},
           )
         }
       }
     }
 
-    composeRule.onNodeWithTag(C.Tag.c2_create_trip).assertIsDisplayed().assertIsEnabled()
     composeRule
-        .onNodeWithTag(C.Tag.c2_screen)
-        .performScrollToNode(hasTestTag(C.Tag.c2_traveler_count))
-    composeRule.onNodeWithTag(C.Tag.c2_traveler_count).assertIsDisplayed()
-    composeRule.onNodeWithTag(C.Tag.c2_create_trip).assertIsDisplayed()
+        .onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION)
+        .assertIsDisplayed()
+        .assertIsEnabled()
+    composeRule
+        .onNodeWithTag(DatesTravelersScreenTestTags.SCREEN)
+        .performScrollToNode(hasTestTag(TravelersCounterTestTags.COUNT))
+    composeRule.onNodeWithTag(TravelersCounterTestTags.COUNT).assertIsDisplayed()
+    composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsDisplayed()
   }
 
   @Test
@@ -79,24 +89,26 @@ class DatesTravelersScreenTest {
     showScreen(viewModel)
     val currentMonth = YearMonth.now()
 
-    composeRule.onNodeWithTag(C.Tag.c2_calendar_day_prefix + currentMonth.atDay(1)).assertExists()
-    composeRule.onNodeWithTag(C.Tag.c2_month_previous).performClick()
+    composeRule.onNodeWithTag(TripCalendarTestTags.dayFor(currentMonth.atDay(1))).assertExists()
+    composeRule.onNodeWithTag(TripCalendarTestTags.PREVIOUS_MONTH).assertIsNotEnabled()
+    composeRule.onNodeWithTag(TripCalendarTestTags.NEXT_MONTH).performClick()
     composeRule
-        .onNodeWithTag(C.Tag.c2_calendar_day_prefix + currentMonth.minusMonths(1).atDay(1))
+        .onNodeWithTag(TripCalendarTestTags.dayFor(currentMonth.plusMonths(1).atDay(1)))
         .assertExists()
     composeRule
-        .onNodeWithTag(C.Tag.c2_calendar_day_prefix + currentMonth.atDay(1))
+        .onNodeWithTag(TripCalendarTestTags.dayFor(currentMonth.atDay(1)))
         .assertDoesNotExist()
 
-    composeRule.onNodeWithTag(C.Tag.c2_month_next).performClick()
     val monthsToNextJanuary = 13 - currentMonth.monthValue
-    repeat(monthsToNextJanuary) { composeRule.onNodeWithTag(C.Tag.c2_month_next).performClick() }
-    val nextJanuary = currentMonth.plusMonths(monthsToNextJanuary.toLong())
-    composeRule.onNodeWithTag(C.Tag.c2_calendar_day_prefix + nextJanuary.atDay(1)).assertExists()
-    repeat(monthsToNextJanuary) {
-      composeRule.onNodeWithTag(C.Tag.c2_month_previous).performClick()
+    repeat(monthsToNextJanuary - 1) {
+      composeRule.onNodeWithTag(TripCalendarTestTags.NEXT_MONTH).performClick()
     }
-    composeRule.onNodeWithTag(C.Tag.c2_calendar_day_prefix + currentMonth.atDay(1)).assertExists()
+    val nextJanuary = currentMonth.plusMonths(monthsToNextJanuary.toLong())
+    composeRule.onNodeWithTag(TripCalendarTestTags.dayFor(nextJanuary.atDay(1))).assertExists()
+    repeat(monthsToNextJanuary) {
+      composeRule.onNodeWithTag(TripCalendarTestTags.PREVIOUS_MONTH).performClick()
+    }
+    composeRule.onNodeWithTag(TripCalendarTestTags.dayFor(currentMonth.atDay(1))).assertExists()
   }
 
   @Test
@@ -107,9 +119,9 @@ class DatesTravelersScreenTest {
     val end = YearMonth.from(start).plusMonths(1).atDay(2)
 
     viewModel.toggleDestination("Lisbon")
-    composeRule.onNodeWithTag(C.Tag.c2_calendar_day_prefix + start).performClick()
-    composeRule.onNodeWithTag(C.Tag.c2_month_next).performClick()
-    composeRule.onNodeWithTag(C.Tag.c2_calendar_day_prefix + end).performClick()
+    composeRule.onNodeWithTag(TripCalendarTestTags.dayFor(start)).performClick()
+    composeRule.onNodeWithTag(TripCalendarTestTags.NEXT_MONTH).performClick()
+    composeRule.onNodeWithTag(TripCalendarTestTags.dayFor(end)).performClick()
 
     composeRule.runOnIdle {
       assertEquals(start, viewModel.uiState.value.startDate)
@@ -118,8 +130,8 @@ class DatesTravelersScreenTest {
       assertEquals(2L, viewModel.uiState.value.tripNights)
     }
     val context = ApplicationProvider.getApplicationContext<Context>()
-    val locale = context.resources.configuration.locales[0]
-    val dateFormatter = DateTimeFormatter.ofPattern("EEE d MMM", locale)
+    val dateFormatter =
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Locale.ENGLISH)
     val expectedDateRange =
         context.getString(
             R.string.c2_date_range,
@@ -132,22 +144,24 @@ class DatesTravelersScreenTest {
             context.resources.getQuantityString(R.plurals.c2_trip_days, 3, 3),
             context.resources.getQuantityString(R.plurals.c2_trip_nights, 2, 2),
         )
-    composeRule.onNodeWithTag(C.Tag.c2_date_range).assertTextEquals(expectedDateRange)
-    composeRule.onNodeWithTag(C.Tag.c2_duration_summary).assertTextEquals(expectedDuration)
-    composeRule.onNodeWithTag(C.Tag.c2_create_trip).assertIsEnabled()
+    composeRule.onNodeWithTag(DateSummaryTestTags.DATE_RANGE).assertTextEquals(expectedDateRange)
+    composeRule
+        .onNodeWithTag(DateSummaryTestTags.DURATION_SUMMARY)
+        .assertTextEquals(expectedDuration)
+    composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsEnabled()
   }
 
   @Test
   fun selectingEarlierDateRestartsRangeAndFlexiblePreferenceIsRetained() {
     val viewModel = CreateTripViewModel()
     viewModel.toggleDestination("Lisbon")
+    viewModel.showNextMonth()
     showScreen(viewModel)
-    val month = YearMonth.now()
-
-    composeRule.onNodeWithTag(C.Tag.c2_calendar_day_prefix + month.atDay(8)).performClick()
-    composeRule.onNodeWithTag(C.Tag.c2_calendar_day_prefix + month.atDay(12)).performClick()
-    composeRule.onNodeWithTag(C.Tag.c2_calendar_day_prefix + month.atDay(4)).performClick()
-    composeRule.onNodeWithTag(C.Tag.c2_flexible_toggle).performClick()
+    val month = YearMonth.now().plusMonths(1)
+    composeRule.onNodeWithTag(TripCalendarTestTags.dayFor(month.atDay(8))).performClick()
+    composeRule.onNodeWithTag(TripCalendarTestTags.dayFor(month.atDay(12))).performClick()
+    composeRule.onNodeWithTag(TripCalendarTestTags.dayFor(month.atDay(4))).performClick()
+    composeRule.onNodeWithTag(DateSummaryTestTags.FLEXIBLE_TOGGLE).performClick()
 
     composeRule.runOnIdle {
       assertEquals(month.atDay(4), viewModel.uiState.value.startDate)
@@ -155,7 +169,7 @@ class DatesTravelersScreenTest {
       assertTrue(viewModel.uiState.value.isSelectingEndDate)
       assertTrue(viewModel.uiState.value.flexibleDates)
     }
-    composeRule.onNodeWithTag(C.Tag.c2_create_trip).assertIsNotEnabled()
+    composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsNotEnabled()
   }
 
   @Test
@@ -163,47 +177,86 @@ class DatesTravelersScreenTest {
     val viewModel = CreateTripViewModel()
     showScreen(viewModel)
 
-    composeRule.onNodeWithTag(C.Tag.c2_trip_type_solo).performClick()
-    composeRule.onNodeWithTag(C.Tag.c2_traveler_count).assertDoesNotExist()
-    composeRule.onNodeWithTag(C.Tag.c2_travelers_decrement).assertDoesNotExist()
-    composeRule.onNodeWithTag(C.Tag.c2_travelers_increment).assertDoesNotExist()
+    composeRule.onNodeWithTag(TripTypeSelectorTestTags.SOLO).performClick()
+    composeRule.onNodeWithTag(TravelersCounterTestTags.COUNT).assertDoesNotExist()
+    composeRule.onNodeWithTag(TravelersCounterTestTags.DECREMENT).assertDoesNotExist()
+    composeRule.onNodeWithTag(TravelersCounterTestTags.INCREMENT).assertDoesNotExist()
 
-    composeRule.onNodeWithTag(C.Tag.c2_trip_type_group).performClick()
-    composeRule.onNodeWithTag(C.Tag.c2_traveler_count).assertExists()
-    composeRule.onNodeWithTag(C.Tag.c2_traveler_count).assertTextEquals("3")
-    repeat(10) { composeRule.onNodeWithTag(C.Tag.c2_travelers_increment).performClick() }
-    composeRule.onNodeWithTag(C.Tag.c2_traveler_count).assertTextEquals("10")
-    composeRule.onNodeWithTag(C.Tag.c2_travelers_increment).assertIsNotEnabled()
-    repeat(10) { composeRule.onNodeWithTag(C.Tag.c2_travelers_decrement).performClick() }
-    composeRule.onNodeWithTag(C.Tag.c2_traveler_count).assertTextEquals("2")
-    composeRule.onNodeWithTag(C.Tag.c2_travelers_decrement).assertIsNotEnabled()
+    composeRule.onNodeWithTag(TripTypeSelectorTestTags.GROUP).performClick()
+    composeRule.onNodeWithTag(TravelersCounterTestTags.COUNT).assertExists()
+    composeRule.onNodeWithTag(TravelersCounterTestTags.COUNT).assertTextEquals("3")
+    repeat(10) { composeRule.onNodeWithTag(TravelersCounterTestTags.INCREMENT).performClick() }
+    composeRule.onNodeWithTag(TravelersCounterTestTags.COUNT).assertTextEquals("10")
+    composeRule.onNodeWithTag(TravelersCounterTestTags.INCREMENT).assertIsNotEnabled()
+    repeat(10) { composeRule.onNodeWithTag(TravelersCounterTestTags.DECREMENT).performClick() }
+    composeRule.onNodeWithTag(TravelersCounterTestTags.COUNT).assertTextEquals("2")
+    composeRule.onNodeWithTag(TravelersCounterTestTags.DECREMENT).assertIsNotEnabled()
+    composeRule.onNodeWithTag(TripTypeSelectorTestTags.SOLO).performClick()
+    composeRule.onNodeWithTag(TripTypeSelectorTestTags.GROUP).performClick()
+    composeRule.onNodeWithTag(TravelersCounterTestTags.COUNT).assertTextEquals("3")
 
     composeRule.runOnIdle {
       assertEquals(TripType.GROUP, viewModel.uiState.value.tripType)
-      assertEquals(2, viewModel.uiState.value.travelerCount)
+      assertEquals(3, viewModel.uiState.value.travelerCount)
     }
   }
 
   @Test
-  fun clickingCreateTripLeavesTheDraftUnchanged() {
+  fun pastCalendarDaysAreDisabledAndCannotChangeTheDraft() {
+    val pastMonth = YearMonth.now().minusMonths(1)
+    val initialState = CreateTripUiState(visibleMonth = pastMonth)
+    composeRule.setContent {
+      RoamigoTheme {
+        DatesTravelersScreenContent(
+            uiState = initialState,
+            onBack = {},
+            onClose = {},
+            onCreateTrip = {},
+            onPreviousMonth = {},
+            onNextMonth = {},
+            onSelectDate = {},
+            onFlexibleDatesChange = {},
+            onTripTypeChange = {},
+            onDecrementTravelers = {},
+            onIncrementTravelers = {},
+        )
+      }
+    }
+
+    composeRule
+        .onNodeWithTag(TripCalendarTestTags.dayFor(pastMonth.atDay(1)))
+        .assertIsNotEnabled()
+        .performClick()
+  }
+
+  @Test
+  fun clickingCreateTripInvokesCallbackWithoutMutatingDraft() {
     val viewModel = CreateTripViewModel()
-    showScreen(viewModel)
+    var createTripCalled = false
+    showScreen(viewModel) { createTripCalled = true }
     selectTwoDatesInVisibleMonth(viewModel)
     val draftBeforeClick = viewModel.uiState.value
 
-    composeRule.onNodeWithTag(C.Tag.c2_create_trip).assertIsEnabled().performClick()
+    composeRule
+        .onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION)
+        .assertIsEnabled()
+        .performClick()
 
-    composeRule.runOnIdle { assertEquals(draftBeforeClick, viewModel.uiState.value) }
-    composeRule.onNodeWithTag(C.Tag.c2_create_trip).assertIsEnabled()
+    composeRule.runOnIdle {
+      assertEquals(draftBeforeClick, viewModel.uiState.value)
+      assertTrue(createTripCalled)
+    }
+    composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsEnabled()
   }
 
-  private fun showScreen(viewModel: CreateTripViewModel) {
+  private fun showScreen(viewModel: CreateTripViewModel, onCreateTrip: () -> Unit = {}) {
     composeRule.setContent {
       RoamigoTheme {
         DatesTravelersScreen(
             createTripViewModel = viewModel,
             onBack = {},
             onClose = {},
+            onCreateTrip = onCreateTrip,
         )
       }
     }
@@ -212,11 +265,12 @@ class DatesTravelersScreenTest {
   private fun selectTwoDatesInVisibleMonth(
       viewModel: CreateTripViewModel,
   ) {
-    val month = viewModel.uiState.value.visibleMonth
+    val month = viewModel.uiState.value.visibleMonth.plusMonths(1)
+    viewModel.showNextMonth()
     val start = month.atDay(5)
     val end = month.atDay(8)
     viewModel.toggleDestination("Lisbon")
-    composeRule.onNodeWithTag(C.Tag.c2_calendar_day_prefix + start).performClick()
-    composeRule.onNodeWithTag(C.Tag.c2_calendar_day_prefix + end).performClick()
+    composeRule.onNodeWithTag(TripCalendarTestTags.dayFor(start)).performClick()
+    composeRule.onNodeWithTag(TripCalendarTestTags.dayFor(end)).performClick()
   }
 }

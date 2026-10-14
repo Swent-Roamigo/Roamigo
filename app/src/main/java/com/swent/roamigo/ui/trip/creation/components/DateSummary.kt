@@ -2,26 +2,20 @@
 // Co-author : ChatGPT-Codex
 package com.swent.roamigo.ui.trip.creation.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
@@ -29,14 +23,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.swent.roamigo.R
-import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.trip.creation.CreateTripUiState
 import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Locale
+
+internal object DateSummaryTestTags {
+  const val DATE_RANGE = "c2_date_range"
+  const val DURATION_SUMMARY = "c2_duration_summary"
+  const val FLEXIBLE_TOGGLE = "c2_flexible_toggle"
+}
 
 @Composable
 internal fun DateSummary(state: CreateTripUiState, onFlexibleDatesChange: (Boolean) -> Unit) {
-  val start = state.startDate
-  val end = state.endDate
+  val dateFormatter = remember {
+    DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Locale.ENGLISH)
+  }
   Row(
       modifier = Modifier.fillMaxWidth(),
       verticalAlignment = Alignment.CenterVertically,
@@ -44,15 +46,13 @@ internal fun DateSummary(state: CreateTripUiState, onFlexibleDatesChange: (Boole
   ) {
     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
       if (!state.isSelectingEndDate) {
-        val dateFormatter =
-            DateTimeFormatter.ofPattern("EEE d MMM", LocalConfiguration.current.locales[0])
         Text(
-            modifier = Modifier.semantics { testTag = C.Tag.c2_date_range },
+            modifier = Modifier.semantics { testTag = DateSummaryTestTags.DATE_RANGE },
             text =
                 stringResource(
                     R.string.c2_date_range,
-                    start.format(dateFormatter),
-                    end.format(dateFormatter),
+                    state.startDate.format(dateFormatter),
+                    state.endDate.format(dateFormatter),
                 ),
             style =
                 MaterialTheme.typography.bodyMedium.copy(
@@ -62,7 +62,7 @@ internal fun DateSummary(state: CreateTripUiState, onFlexibleDatesChange: (Boole
             color = MaterialTheme.colorScheme.onBackground,
         )
         Text(
-            modifier = Modifier.semantics { testTag = C.Tag.c2_duration_summary },
+            modifier = Modifier.semantics { testTag = DateSummaryTestTags.DURATION_SUMMARY },
             text =
                 stringResource(
                     R.string.c2_duration_summary,
@@ -109,33 +109,20 @@ internal fun DateSummary(state: CreateTripUiState, onFlexibleDatesChange: (Boole
 @Composable
 private fun FlexibleDatesToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
   val description = stringResource(R.string.c2_flexible_dates)
-  Box(
+  Switch(
+      checked = checked,
+      onCheckedChange = onCheckedChange,
       modifier =
-          Modifier.size(48.dp)
-              .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
-              .semantics {
-                contentDescription = description
-                testTag = C.Tag.c2_flexible_toggle
-              },
-      contentAlignment = Alignment.Center,
-  ) {
-    Box(
-        modifier =
-            Modifier.size(width = 46.dp, height = 26.dp)
-                .clip(CircleShape)
-                .background(
-                    if (checked) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.outlineVariant
-                ),
-    ) {
-      Box(
-          modifier =
-              Modifier.align(if (checked) Alignment.CenterEnd else Alignment.CenterStart)
-                  .padding(3.dp)
-                  .size(20.dp)
-                  .clip(CircleShape)
-                  .background(MaterialTheme.colorScheme.surface)
-      )
-    }
-  }
+          Modifier.semantics {
+            contentDescription = description
+            testTag = DateSummaryTestTags.FLEXIBLE_TOGGLE
+          },
+      colors =
+          SwitchDefaults.colors(
+              checkedThumbColor = MaterialTheme.colorScheme.surface,
+              checkedTrackColor = MaterialTheme.colorScheme.primary,
+              uncheckedThumbColor = MaterialTheme.colorScheme.surface,
+              uncheckedTrackColor = MaterialTheme.colorScheme.outlineVariant,
+          ),
+  )
 }
