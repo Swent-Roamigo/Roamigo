@@ -24,6 +24,7 @@
     <string name="trips_nav_photos">Photos</string>
 
     <string name="trips_greeting">%1$s, %2$s</string>
+    <string name="trips_open_profile">Open profile</string>
 
     <plurals name="trips_duration_days">
         <item quantity="one">%d day</item>
