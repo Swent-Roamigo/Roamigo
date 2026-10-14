@@ -39,8 +39,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -124,7 +127,9 @@ class DefaultLocationRepository(
     val firstUpdate = sharingMutex.withLock {
       val current = sharings.value[tripId]
       if (current != null) {
-        if (current.userId == userId) return
+        // A start still in progress is awaited, so that this call cannot report a sharing whose
+        // first update later fails.
+        if (current.userId == userId) return@withLock current.firstUpdate
         // Left running by an account that signed out without stopping; its updates are denied.
         current.job.cancelAndJoin()
       }
@@ -134,7 +139,7 @@ class DefaultLocationRepository(
           scope.launch(start = CoroutineStart.LAZY) {
             val failure =
                 try {
-                  shareLocation(tripId, userId, firstUpdate)
+                  shareLocation(tripId, userId, coroutineContext.job, firstUpdate)
                   null
                 } catch (e: CancellationException) {
                   throw e
@@ -153,7 +158,7 @@ class DefaultLocationRepository(
         // A stop during the first update must not leave the caller waiting forever.
         firstUpdate.cancel()
       }
-      sharings.update { it + (tripId to TripSharing(userId, job)) }
+      sharings.update { it + (tripId to TripSharing(userId, job, firstUpdate)) }
       job.start()
       firstUpdate
     }
@@ -161,8 +166,10 @@ class DefaultLocationRepository(
   }
 
   /**
-   * The database only lets users remove their own entry, so call this before signing out:
-   * afterwards the entry stays until the user leaves the trip.
+   * The database only lets users remove their own entry, so once the user who started the sharing
+   * signed out, the sharing is stopped on the device but its entry stays until the server removes
+   * it as stale or because the user left the trip. Call [stopAllSharing] before signing out to
+   * remove it right away.
    *
    * @throws LocationSharingException if the trip could not be forgotten on the device, or if the
    *   entry could not be removed or the removal is not acknowledged in time, e.g. while offline.
@@ -200,22 +207,24 @@ class DefaultLocationRepository(
    */
   override suspend fun restoreSharing() {
     val userId = auth.currentUser?.uid ?: return
-    for (tripId in readSharedTrips(userId)) {
-      try {
-        startSharing(tripId)
-      } catch (e: CancellationException) {
-        // Also thrown when the user stops this trip's sharing meanwhile, which needs no cleanup.
-        currentCoroutineContext().ensureActive()
-      } catch (e: Exception) {
-        // E.g. the permission was revoked or there is no fix: the position left by the previous
-        // process must not stay published while the trip is not shown as shared.
-        try {
-          stopSharing(tripId)
-        } catch (e: LocationSharingException) {
-          // A removal that is not acknowledged yet is still applied once back online.
-        }
-      }
+    val tripIds = readSharedTrips(userId)
+    // Concurrent, since each trip may wait several seconds for a fix and for the database.
+    coroutineScope { tripIds.forEach { launch { restoreTrip(it) } } }
+  }
+
+  /**
+   * @throws LocationSharingException if the saved trips could not be read, or if the entry of at
+   *   least one trip could not be removed. Every trip is stopped anyway.
+   */
+  override suspend fun stopAllSharing() {
+    val userId = auth.currentUser?.uid ?: return
+    val running = sharings.value.filterValues { it.userId == userId }.keys
+    // Saved trips also cover the entries left by a previous process that were not restored.
+    val tripIds = running + readSharedTrips(userId)
+    val failures = coroutineScope {
+      tripIds.map { tripId -> async { stopSharingOrFailure(tripId) } }.awaitAll()
     }
+    failures.firstOrNull { it != null }?.let { throw it }
   }
 
   override fun observeMemberLocations(tripId: String): Flow<List<MemberLocation>> = callbackFlow {
@@ -245,15 +254,46 @@ class DefaultLocationRepository(
   }
 
   override fun isSharing(tripId: String): Flow<Boolean> =
-      sharings.map { tripId in it }.distinctUntilChanged()
+      sharings.map { it[tripId]?.isPublished == true }.distinctUntilChanged()
+
+  private suspend fun restoreTrip(tripId: String) {
+    try {
+      startSharing(tripId)
+    } catch (e: CancellationException) {
+      // Also thrown when the user stops this trip's sharing meanwhile, which needs no cleanup.
+      currentCoroutineContext().ensureActive()
+    } catch (e: Exception) {
+      // E.g. the permission was revoked or there is no fix: the position left by the previous
+      // process must not stay published while the trip is not shown as shared.
+      try {
+        stopSharing(tripId)
+      } catch (e: LocationSharingException) {
+        // A removal that is not acknowledged yet is still applied once back online.
+      }
+    }
+  }
+
+  private suspend fun stopSharingOrFailure(tripId: String): LocationSharingException? =
+      try {
+        stopSharing(tripId)
+        null
+      } catch (e: LocationSharingException) {
+        e
+      }
 
   private suspend fun shareLocation(
       tripId: String,
       userId: String,
+      job: Job,
       firstUpdate: CompletableDeferred<Unit>,
   ) {
     publishFirstLocation(tripId, userId)
     saveSharedTrip(tripId, userId)
+    // Reported as shared only now, so that a start whose first update fails never shows as shared.
+    sharings.update { current ->
+      val sharing = current[tripId]?.takeIf { it.job == job } ?: return@update current
+      current + (tripId to sharing.copy(isPublished = true))
+    }
     firstUpdate.complete(Unit)
     while (true) {
       delay(updateInterval)
@@ -286,7 +326,7 @@ class DefaultLocationRepository(
     } catch (e: LocationSharingException) {
       // An unsaved trip could not be restored after the process is killed, so its position would
       // stay published.
-      startWrite { memberLocationReference(tripId, userId).removeValue(it) }
+      queueWrite { memberLocationReference(tripId, userId).removeValue(it) }
       throw e
     }
   }
@@ -325,7 +365,7 @@ class DefaultLocationRepository(
         } catch (e: LocationSharingException) {
           // The update stays queued until the device is back online, so queue its removal after
           // it, or the position would be published while sharing shows as off.
-          startWrite { reference.removeValue(it) }
+          queueWrite { reference.removeValue(it) }
           throw e
         }
     if (error != null) {
@@ -361,6 +401,12 @@ class DefaultLocationRepository(
       CompletableDeferred<DatabaseError?>().also { result ->
         write { error, _ -> result.complete(error) }
       }
+
+  // For cleanups nobody waits for: the database applies the write once online, and a failure could
+  // not be reported to anyone since the operation that queued it already failed.
+  private fun queueWrite(write: (DatabaseReference.CompletionListener) -> Unit) {
+    write { _, _ -> }
+  }
 
   // The database only acknowledges a write once online, so without a bound the caller would wait
   // indefinitely while offline.
@@ -416,7 +462,14 @@ class DefaultLocationRepository(
           timestampMillis = time,
       )
 
-  private class TripSharing(val userId: String, val job: Job)
+  // Registered as soon as the start begins, so that a stop can interrupt it, but only published
+  // once its first update succeeded.
+  private data class TripSharing(
+      val userId: String,
+      val job: Job,
+      val firstUpdate: Deferred<Unit>,
+      val isPublished: Boolean = false,
+  )
 
   companion object {
     // Long enough for a usual fix, short enough not to delay the fallback to the next provider
