@@ -33,6 +33,8 @@ import com.swent.roamigo.ui.theme.RoamigoTheme
 
 internal object CreateTripScaffoldTestTags {
   const val PRIMARY_ACTION = "create_trip_primary_action"
+  const val BACK = "create_trip_back"
+  const val CLOSE = "create_trip_close"
 }
 
 @Composable
@@ -61,13 +63,23 @@ fun CreateTripScaffold(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-      HeaderAction(label = "Back", glyph = "‹", onClick = onBack)
+      HeaderAction(
+          label = "Back",
+          glyph = "‹",
+          tag = CreateTripScaffoldTestTags.BACK,
+          onClick = onBack,
+      )
       Text(
           "Step $step of 2",
           style = MaterialTheme.typography.labelMedium,
           color = colors.onSurfaceVariant,
       )
-      HeaderAction(label = "Close", glyph = "×", onClick = onClose)
+      HeaderAction(
+          label = "Close",
+          glyph = "×",
+          tag = CreateTripScaffoldTestTags.CLOSE,
+          onClick = onClose,
+      )
     }
     Spacer(Modifier.height(14.dp))
     Box(
@@ -108,14 +120,17 @@ fun CreateTripScaffold(
 }
 
 @Composable
-private fun HeaderAction(label: String, glyph: String, onClick: () -> Unit) {
+private fun HeaderAction(label: String, glyph: String, tag: String, onClick: () -> Unit) {
   Box(
       modifier =
           Modifier.size(36.dp)
               .clip(RoundedCornerShape(18.dp))
               .background(MaterialTheme.colorScheme.surfaceVariant)
               .clickable(onClick = onClick)
-              .semantics { contentDescription = label },
+              .semantics {
+                contentDescription = label
+                testTag = tag
+              },
       contentAlignment = Alignment.Center,
   ) {
     Text(
