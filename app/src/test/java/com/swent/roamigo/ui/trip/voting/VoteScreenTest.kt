@@ -18,6 +18,7 @@ import androidx.lifecycle.ViewModelStore
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.trip.voting.VoteBallot
+import com.swent.roamigo.model.trip.voting.VoteStatus
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -28,8 +29,7 @@ import org.junit.runner.RunWith
 class VoteScreenTest {
   @get:Rule val composeRule = createComposeRule()
 
-  private fun loaded() =
-      VoteUiState(isLoading = false, vote = interactionVote(), ballotsLoaded = true)
+  private fun loaded() = VoteUiState.Ready(vote = interactionVote())
 
   @Test
   fun displaysQuestionOptionsAndSelectionEnablesSubmit() {
@@ -64,7 +64,7 @@ class VoteScreenTest {
         loaded()
             .copy(
                 selectedOptionId = "b",
-                currentBallot = VoteBallot("member", "b", Timestamp(1, 0)),
+                persistedOptionId = "b",
             )
     )
     composeRule.onNodeWithText("Restaurant").assertIsSelected()
@@ -98,7 +98,7 @@ class VoteScreenTest {
 
   @Test
   fun submittingDisablesOptionsAndActionAndShowsProgress() {
-    content(loaded().copy(selectedOptionId = "a", isSubmitting = true))
+    content(loaded().copy(selectedOptionId = "a", submissionState = VoteSubmissionState.Submitting))
     composeRule.onNodeWithText("Market").assertIsSelected().assertIsNotEnabled()
     composeRule.onNodeWithText("Restaurant").assertIsNotEnabled()
     composeRule.onNodeWithText("Submitting vote…").assertIsNotEnabled()
@@ -110,7 +110,7 @@ class VoteScreenTest {
 
   @Test
   fun loadingBlocksSubmissionAndShowsProgress() {
-    content(VoteUiState())
+    content(VoteUiState.Loading)
     composeRule.onNodeWithText("Loading vote…").assertIsDisplayed()
     composeRule.onNodeWithText("Submit vote").assertIsNotEnabled()
     composeRule
@@ -120,7 +120,7 @@ class VoteScreenTest {
 
   @Test
   fun submissionErrorKeepsChoiceAndEnabledRetrySubmission() {
-    content(loaded().copy(selectedOptionId = "a", error = VoteError.SUBMISSION_FAILED))
+    content(loaded().copy(selectedOptionId = "a", submissionState = VoteSubmissionState.Failed))
     composeRule.onNodeWithText("Unable to submit your vote. Please try again.").assertIsDisplayed()
     composeRule.onNodeWithText("Market").assertIsSelected()
     composeRule.onNodeWithText("Submit vote").assertIsEnabled()
@@ -132,7 +132,7 @@ class VoteScreenTest {
     composeRule.setContent {
       RoamigoTheme {
         VoteScreenContent(
-            VoteUiState(isLoading = false, error = VoteError.BALLOTS_FAILED),
+            VoteUiState.LoadError(VoteLoadError.BALLOTS_FAILED),
             {},
             {},
             { retries++ },
@@ -146,6 +146,58 @@ class VoteScreenTest {
     composeRule.onNodeWithText("Submit vote").assertIsNotEnabled()
     composeRule.onNodeWithText("Retry").performClick()
     composeRule.runOnIdle { assertEquals(1, retries) }
+  }
+
+  @Test
+  fun listenerFailureKeepsQuestionAndDraftVisibleButDisablesInteraction() {
+    content(
+        loaded()
+            .copy(
+                persistedOptionId = "a",
+                selectedOptionId = "b",
+                observationState = BallotObservationState.Failed,
+            )
+    )
+    composeRule.onNodeWithText("Dinner?").assertIsDisplayed()
+    composeRule.onNodeWithText("Restaurant").assertIsSelected().assertIsNotEnabled()
+    composeRule.onNodeWithText("Market").assertIsNotEnabled()
+    composeRule.onNodeWithText("Update vote").assertIsNotEnabled()
+    composeRule.onNodeWithText("Retry").assertIsEnabled()
+    composeRule
+        .onNodeWithText("Unable to load your vote selection. Please try again.")
+        .assertIsDisplayed()
+  }
+
+  @Test
+  fun listenerRetryRetainsSelectionAndShowsLoading() {
+    content(
+        loaded()
+            .copy(
+                persistedOptionId = "a",
+                selectedOptionId = "b",
+                observationState = BallotObservationState.Retrying,
+            )
+    )
+    composeRule.onNodeWithText("Dinner?").assertIsDisplayed()
+    composeRule.onNodeWithText("Restaurant").assertIsSelected().assertIsNotEnabled()
+    composeRule.onNodeWithText("Update vote").assertIsNotEnabled()
+    composeRule.onNodeWithText("Loading vote…").assertIsDisplayed()
+  }
+
+  @Test
+  fun closedVoteShowsSavedSelectionAndBlocksVoting() {
+    content(
+        loaded()
+            .copy(
+                vote = interactionVote().copy(status = VoteStatus.CLOSED),
+                persistedOptionId = "a",
+                selectedOptionId = "a",
+            )
+    )
+    composeRule.onNodeWithText("This vote is closed.").assertIsDisplayed()
+    composeRule.onNodeWithText("Market").assertIsSelected().assertIsNotEnabled()
+    composeRule.onNodeWithText("Restaurant").assertIsNotEnabled()
+    composeRule.onNodeWithText("Update vote").assertIsNotEnabled()
   }
 
   private fun content(state: VoteUiState) {

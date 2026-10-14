@@ -26,7 +26,6 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -58,68 +57,71 @@ class VoteViewModelTest {
     Dispatchers.setMain(dispatcher)
   }
 
-  private fun createViewModel() {
-    viewModel =
-        VoteViewModel(repository, "trip", "vote", "member", Clock.fixed(now, ZoneOffset.UTC))
-    store.put("vote", viewModel)
-  }
-
   @After
   fun tearDown() {
     store.clear()
     Dispatchers.resetMain()
   }
 
+  private fun createViewModel() {
+    viewModel =
+        VoteViewModel(repository, "trip", "vote", "member", Clock.fixed(now, ZoneOffset.UTC))
+    store.put("vote", viewModel)
+  }
+
+  private fun ready() = viewModel.uiState.value as VoteUiState.Ready
+
+  private fun ballot(optionId: String) = VoteBallot("member", optionId, Timestamp(1, 0))
+
   @Test
   fun loadsQuestionOptionsAndNoInitialChoice() = runTest {
     createViewModel()
-    assertTrue(viewModel.uiState.value.isLoading)
+    assertEquals(VoteUiState.Loading, viewModel.uiState.value)
     advanceUntilIdle()
     assertEquals("trip" to "vote", repository.lookup)
-    assertEquals(repository.vote, viewModel.uiState.value.vote)
-    assertEquals("Dinner?", viewModel.uiState.value.vote?.question)
-    assertEquals(
-        listOf("Market", "Restaurant"),
-        viewModel.uiState.value.vote?.options?.map { it.name },
-    )
-    assertFalse(viewModel.uiState.value.isLoading)
-    assertNull(viewModel.uiState.value.selectedOptionId)
-    assertNull(viewModel.uiState.value.currentBallot)
+    assertEquals(repository.vote, ready().vote)
+    assertEquals("Dinner?", ready().vote.question)
+    assertEquals(listOf("Market", "Restaurant"), ready().vote.options.map { it.name })
+    assertNull(ready().selectedOptionId)
+    assertNull(ready().persistedOptionId)
+    assertFalse(ready().canSubmit)
   }
 
   @Test
   fun waitsForInitialBallotsBeforeEnablingInteraction() = runTest {
-    createViewModel()
     repository.observationGate = CompletableDeferred()
+    createViewModel()
     runCurrent()
-    assertNotNull(viewModel.uiState.value.vote)
-    assertTrue(viewModel.uiState.value.isLoading)
+    assertEquals(VoteUiState.Loading, viewModel.uiState.value)
     viewModel.selectOption("a")
-    assertNull(viewModel.uiState.value.selectedOptionId)
+    viewModel.submitVote()
+    assertTrue(repository.calls.isEmpty())
     repository.observationGate!!.complete(Unit)
     advanceUntilIdle()
-    assertFalse(viewModel.uiState.value.isLoading)
+    assertTrue(ready().canSelect)
   }
 
   @Test
   fun restoresOnlyCurrentMembersBallot() = runTest {
+    repository.ballots.value = listOf(VoteBallot("other", "a", Timestamp(1, 0)), ballot("b"))
     createViewModel()
-    val ballot = VoteBallot("member", "b", Timestamp(1, 0))
-    repository.ballots.value = listOf(VoteBallot("other", "a", Timestamp(1, 0)), ballot)
     advanceUntilIdle()
-    assertEquals(ballot, viewModel.uiState.value.currentBallot)
-    assertEquals("b", viewModel.uiState.value.selectedOptionId)
+    assertEquals("b", ready().persistedOptionId)
+    assertEquals("b", ready().selectedOptionId)
+    assertTrue(ready().hasPersistedBallot)
+    assertFalse(ready().hasUnsavedSelection)
   }
 
   @Test
   fun selectionIsLocalAndInvalidSelectionIsIgnored() = runTest {
+    repository.ballots.value = listOf(ballot("a"))
     createViewModel()
     advanceUntilIdle()
-    viewModel.selectOption("a")
-    assertEquals("a", viewModel.uiState.value.selectedOptionId)
+    viewModel.selectOption("b")
     viewModel.selectOption("invalid")
-    assertEquals("a", viewModel.uiState.value.selectedOptionId)
-    assertNull(viewModel.uiState.value.currentBallot)
+    assertEquals("b", ready().selectedOptionId)
+    assertEquals("a", ready().persistedOptionId)
+    assertTrue(ready().hasUnsavedSelection)
     assertTrue(repository.calls.isEmpty())
   }
 
@@ -130,7 +132,7 @@ class VoteViewModelTest {
     viewModel.submitVote()
     advanceUntilIdle()
     assertTrue(repository.calls.isEmpty())
-    assertFalse(viewModel.uiState.value.isSubmitting)
+    assertEquals(VoteSubmissionState.Idle, ready().submissionState)
   }
 
   @Test
@@ -142,18 +144,19 @@ class VoteViewModelTest {
     advanceUntilIdle()
     val expected = VoteBallot("member", "a", Timestamp(now.epochSecond, now.nano))
     assertEquals(Triple("trip", "vote", expected), repository.calls.single())
-    assertEquals(expected, viewModel.uiState.value.currentBallot)
+    assertEquals("a", ready().persistedOptionId)
+    assertFalse(ready().hasUnsavedSelection)
     viewModel.selectOption("b")
-    assertEquals("a", viewModel.uiState.value.currentBallot?.optionId)
+    assertEquals("a", ready().persistedOptionId)
     viewModel.submitVote()
     advanceUntilIdle()
     assertEquals(2, repository.calls.size)
     assertEquals(setOf("member"), repository.calls.map { it.third.userId }.toSet())
     assertEquals(1, repository.persisted.size)
     assertEquals("b", repository.persisted["member"]?.optionId)
-    assertEquals("b", viewModel.uiState.value.currentBallot?.optionId)
-    assertNull(viewModel.uiState.value.error)
-    assertTrue(viewModel.uiState.value.canSubmit)
+    assertEquals("b", ready().persistedOptionId)
+    assertEquals(VoteSubmissionState.Idle, ready().submissionState)
+    assertTrue(ready().canSubmit)
   }
 
   @Test
@@ -165,13 +168,14 @@ class VoteViewModelTest {
     viewModel.submitVote()
     viewModel.submitVote()
     viewModel.selectOption("b")
-    assertTrue(viewModel.uiState.value.isSubmitting)
-    assertEquals("a", viewModel.uiState.value.selectedOptionId)
+    assertEquals(VoteSubmissionState.Submitting, ready().submissionState)
+    assertEquals("a", ready().selectedOptionId)
+    assertFalse(ready().canSubmit)
     runCurrent()
     assertEquals(1, repository.calls.size)
     repository.submitGate!!.complete(Unit)
     advanceUntilIdle()
-    assertFalse(viewModel.uiState.value.isSubmitting)
+    assertEquals(VoteSubmissionState.Idle, ready().submissionState)
   }
 
   @Test
@@ -182,91 +186,138 @@ class VoteViewModelTest {
     viewModel.selectOption("b")
     viewModel.submitVote()
     advanceUntilIdle()
-    assertEquals(VoteError.SUBMISSION_FAILED, viewModel.uiState.value.error)
-    assertEquals("b", viewModel.uiState.value.selectedOptionId)
-    assertNull(viewModel.uiState.value.currentBallot)
-    assertTrue(viewModel.uiState.value.canSubmit)
+    assertEquals(VoteSubmissionState.Failed, ready().submissionState)
+    assertEquals("b", ready().selectedOptionId)
+    assertNull(ready().persistedOptionId)
+    assertTrue(ready().canSubmit)
     repository.submitFailure = null
     viewModel.submitVote()
     advanceUntilIdle()
-    assertNull(viewModel.uiState.value.error)
-    assertEquals("b", viewModel.uiState.value.currentBallot?.optionId)
+    assertEquals(VoteSubmissionState.Idle, ready().submissionState)
+    assertEquals("b", ready().persistedOptionId)
   }
 
   @Test
   fun missingVoteAndLoadFailureCanBeRetried() = runTest {
-    createViewModel()
     repository.vote = null
+    createViewModel()
     advanceUntilIdle()
-    assertEquals(VoteError.NOT_FOUND, viewModel.uiState.value.error)
-    assertFalse(viewModel.uiState.value.canSubmit)
+    assertEquals(VoteUiState.LoadError(VoteLoadError.NOT_FOUND), viewModel.uiState.value)
+    assertEquals(0, repository.activeObservers)
     repository.loadFailure = IllegalStateException("offline")
     viewModel.retryLoad()
+    assertEquals(VoteUiState.Loading, viewModel.uiState.value)
     advanceUntilIdle()
-    assertEquals(VoteError.LOAD_FAILED, viewModel.uiState.value.error)
-    assertFalse(viewModel.uiState.value.isLoading)
+    assertEquals(VoteUiState.LoadError(VoteLoadError.VOTE_FAILED), viewModel.uiState.value)
     repository.loadFailure = null
     repository.vote = interactionVote()
     viewModel.retryLoad()
     advanceUntilIdle()
-    assertNull(viewModel.uiState.value.error)
-    assertNotNull(viewModel.uiState.value.vote)
+    assertEquals(repository.vote, ready().vote)
   }
 
   @Test
-  fun observationFailureExposesErrorAndRetryRestoresBallot() = runTest {
-    createViewModel()
+  fun initialObservationFailureExposesLoadErrorAndRetryRestoresBallot() = runTest {
     repository.observationFailure = IllegalStateException("listener failed")
+    createViewModel()
     advanceUntilIdle()
-    assertEquals(VoteError.BALLOTS_FAILED, viewModel.uiState.value.error)
-    assertFalse(viewModel.uiState.value.canSelect)
+    assertEquals(VoteUiState.LoadError(VoteLoadError.BALLOTS_FAILED), viewModel.uiState.value)
     repository.observationFailure = null
-    repository.ballots.value = listOf(VoteBallot("member", "a", Timestamp(1, 0)))
+    repository.ballots.value = listOf(ballot("a"))
     viewModel.retryLoad()
     advanceUntilIdle()
-    assertNull(viewModel.uiState.value.error)
-    assertEquals("a", viewModel.uiState.value.selectedOptionId)
+    assertEquals("a", ready().persistedOptionId)
+    assertEquals("a", ready().selectedOptionId)
   }
 
   @Test
-  fun observationFollowsPersistedChoiceButPreservesUnsavedDraft() = runTest {
+  fun remoteChangesFollowCleanSelectionAndPreserveUnsavedDraft() = runTest {
     createViewModel()
     advanceUntilIdle()
-    val first = VoteBallot("member", "a", Timestamp(1, 0))
-    repository.ballots.value = listOf(first)
+    repository.ballots.value = listOf(ballot("a"))
     runCurrent()
-    assertEquals("a", viewModel.uiState.value.selectedOptionId)
-    val changed = first.copy(optionId = "b")
-    repository.ballots.value = listOf(changed)
+    assertEquals("a", ready().persistedOptionId)
+    assertEquals("a", ready().selectedOptionId)
+    repository.ballots.value = listOf(ballot("b"))
     runCurrent()
-    assertEquals("b", viewModel.uiState.value.selectedOptionId)
+    assertEquals("b", ready().persistedOptionId)
+    assertEquals("b", ready().selectedOptionId)
     viewModel.selectOption("a")
-    repository.ballots.value = listOf(changed.copy(updatedAt = Timestamp(2, 0)))
-    runCurrent()
-    assertEquals("a", viewModel.uiState.value.selectedOptionId)
-    assertEquals(Timestamp(2, 0), viewModel.uiState.value.currentBallot?.updatedAt)
     repository.ballots.value = emptyList()
     runCurrent()
-    assertNull(viewModel.uiState.value.currentBallot)
-    assertEquals("a", viewModel.uiState.value.selectedOptionId)
+    assertNull(ready().persistedOptionId)
+    assertEquals("a", ready().selectedOptionId)
   }
 
   @Test
-  fun observerFailureAfterEditingPreservesDraftOnRetry() = runTest {
+  fun matchingEmissionConvergesDraftThenLaterRemoteChangeFollowsIt() = runTest {
+    createViewModel()
+    advanceUntilIdle()
+    viewModel.selectOption("a")
+    repository.ballots.value = listOf(ballot("a"))
+    runCurrent()
+    assertFalse(ready().hasUnsavedSelection)
+    repository.ballots.value = listOf(ballot("b"))
+    runCurrent()
+    assertEquals("b", ready().selectedOptionId)
+    assertEquals("b", ready().persistedOptionId)
+  }
+
+  @Test
+  fun returningToPersistedChoiceLetsRemoteChangesFollowAgain() = runTest {
+    repository.ballots.value = listOf(ballot("a"))
+    createViewModel()
+    advanceUntilIdle()
+    viewModel.selectOption("b")
+    viewModel.selectOption("a")
+    repository.ballots.value = listOf(ballot("b"))
+    runCurrent()
+    assertEquals("b", ready().selectedOptionId)
+    assertFalse(ready().hasUnsavedSelection)
+  }
+
+  @Test
+  fun otherMembersEmissionsDoNotDiscardDraft() = runTest {
+    createViewModel()
+    advanceUntilIdle()
+    viewModel.selectOption("b")
+    repository.ballots.value = listOf(VoteBallot("other", "a", Timestamp(1, 0)))
+    runCurrent()
+    assertNull(ready().persistedOptionId)
+    assertEquals("b", ready().selectedOptionId)
+  }
+
+  @Test
+  fun observerFailureKeepsReadyStateAndRetriesOnlyListener() = runTest {
+    repository.ballots.value = listOf(ballot("a"))
     createViewModel()
     advanceUntilIdle()
     viewModel.selectOption("b")
     repository.observationFailure = IllegalStateException("listener disconnected")
-    repository.ballots.value = listOf(VoteBallot("other", "a", Timestamp(1, 0)))
+    repository.ballots.value = listOf(ballot("a"), VoteBallot("other", "a", Timestamp(1, 0)))
     runCurrent()
-    assertEquals(VoteError.BALLOTS_FAILED, viewModel.uiState.value.error)
-    assertEquals("b", viewModel.uiState.value.selectedOptionId)
+    assertEquals(BallotObservationState.Failed, ready().observationState)
+    assertEquals(interactionVote(), ready().vote)
+    assertEquals("a", ready().persistedOptionId)
+    assertEquals("b", ready().selectedOptionId)
+    assertFalse(ready().canSelect)
+    assertEquals(0, repository.activeObservers)
     repository.observationFailure = null
-    repository.ballots.value = listOf(VoteBallot("member", "a", Timestamp(1, 0)))
+    repository.observationGate = CompletableDeferred()
     viewModel.retryLoad()
+    viewModel.retryLoad()
+    assertEquals(BallotObservationState.Retrying, ready().observationState)
+    assertEquals("b", ready().selectedOptionId)
+    assertFalse(ready().canSubmit)
+    runCurrent()
+    assertEquals(1, repository.activeObservers)
+    repository.observationGate!!.complete(Unit)
     advanceUntilIdle()
-    assertEquals("a", viewModel.uiState.value.currentBallot?.optionId)
-    assertEquals("b", viewModel.uiState.value.selectedOptionId)
+    assertEquals(1, repository.lookupCount)
+    assertEquals(BallotObservationState.Active, ready().observationState)
+    assertEquals("a", ready().persistedOptionId)
+    assertEquals("b", ready().selectedOptionId)
+    assertTrue(ready().canSubmit)
   }
 
   @Test
@@ -277,39 +328,164 @@ class VoteViewModelTest {
     viewModel.selectOption("b")
     viewModel.submitVote()
     runCurrent()
-    val ballot = repository.calls.single().third
-    repository.ballots.value = listOf(ballot)
+    val written = repository.calls.single().third
+    repository.ballots.value = listOf(written)
     runCurrent()
-    assertEquals("b", viewModel.uiState.value.selectedOptionId)
-    assertTrue(viewModel.uiState.value.isSubmitting)
+    assertEquals("b", ready().selectedOptionId)
+    assertEquals("b", ready().persistedOptionId)
+    assertTrue(ready().isSubmitting)
     repository.submitGate!!.complete(Unit)
     advanceUntilIdle()
     val reopened = VoteViewModel(repository, "trip", "vote", "member")
     store.put("reopened", reopened)
     advanceUntilIdle()
-    assertEquals(ballot, reopened.uiState.value.currentBallot)
-    assertEquals("b", reopened.uiState.value.selectedOptionId)
+    val reopenedState = reopened.uiState.value as VoteUiState.Ready
+    assertEquals("b", reopenedState.persistedOptionId)
+    assertEquals("b", reopenedState.selectedOptionId)
+  }
+
+  @Test
+  fun writeCompletionWaitsForStreamToConfirmPersistedChoice() = runTest {
+    repository.emitOnSubmit = false
+    createViewModel()
+    advanceUntilIdle()
+    viewModel.selectOption("a")
+    viewModel.submitVote()
+    advanceUntilIdle()
+    assertEquals(VoteSubmissionState.Idle, ready().submissionState)
+    assertNull(ready().persistedOptionId)
+    assertEquals("a", ready().selectedOptionId)
+    repository.ballots.value = listOf(repository.calls.single().third)
+    runCurrent()
+    assertEquals("a", ready().persistedOptionId)
+    assertFalse(ready().hasUnsavedSelection)
+  }
+
+  @Test
+  fun writeCompletionDoesNotOverwriteNewerObservedBallot() = runTest {
+    repository.emitOnSubmit = false
+    repository.submitGate = CompletableDeferred()
+    createViewModel()
+    advanceUntilIdle()
+    viewModel.selectOption("a")
+    viewModel.submitVote()
+    runCurrent()
+    repository.ballots.value = listOf(ballot("a"))
+    runCurrent()
+    repository.ballots.value = listOf(ballot("b"))
+    runCurrent()
+    repository.submitGate!!.complete(Unit)
+    advanceUntilIdle()
+    assertEquals(VoteSubmissionState.Idle, ready().submissionState)
+    assertEquals("b", ready().persistedOptionId)
+    assertEquals("a", ready().selectedOptionId)
+    assertTrue(ready().hasUnsavedSelection)
+  }
+
+  @Test
+  fun failedUpdateRetainsPreviousPersistedChoiceAndNewDraft() = runTest {
+    repository.ballots.value = listOf(ballot("a"))
+    repository.submitFailure = IllegalStateException("offline")
+    createViewModel()
+    advanceUntilIdle()
+    viewModel.selectOption("b")
+    viewModel.submitVote()
+    advanceUntilIdle()
+    assertEquals("a", ready().persistedOptionId)
+    assertEquals("b", ready().selectedOptionId)
+    assertEquals(VoteSubmissionState.Failed, ready().submissionState)
+    assertTrue(ready().canSubmit)
+  }
+
+  @Test
+  fun remoteChangeDuringResubmissionCannotResetInFlightChoice() = runTest {
+    repository.ballots.value = listOf(ballot("a"))
+    createViewModel()
+    advanceUntilIdle()
+    repository.submitGate = CompletableDeferred()
+    viewModel.submitVote()
+    runCurrent()
+    repository.ballots.value = listOf(ballot("b"))
+    runCurrent()
+    assertEquals("b", ready().persistedOptionId)
+    assertEquals("a", ready().selectedOptionId)
+    repository.submitGate!!.complete(Unit)
+    advanceUntilIdle()
+    assertEquals("a", ready().persistedOptionId)
+    assertEquals("a", ready().selectedOptionId)
+  }
+
+  @Test
+  fun submissionAndObservationFailuresRemainIndependent() = runTest {
+    createViewModel()
+    advanceUntilIdle()
+    repository.submitGate = CompletableDeferred()
+    repository.submitFailure = IllegalStateException("write failed")
+    viewModel.selectOption("b")
+    viewModel.submitVote()
+    runCurrent()
+    repository.observationFailure = IllegalStateException("stream failed")
+    repository.ballots.value = listOf(VoteBallot("other", "a", Timestamp(1, 0)))
+    runCurrent()
+    viewModel.retryLoad()
+    assertEquals(BallotObservationState.Failed, ready().observationState)
+    repository.submitGate!!.complete(Unit)
+    advanceUntilIdle()
+    assertEquals(VoteSubmissionState.Failed, ready().submissionState)
+    assertEquals(BallotObservationState.Failed, ready().observationState)
+    assertEquals("b", ready().selectedOptionId)
+    repository.observationFailure = null
+    viewModel.retryLoad()
+    advanceUntilIdle()
+    assertEquals(BallotObservationState.Active, ready().observationState)
+    assertEquals(VoteSubmissionState.Failed, ready().submissionState)
+    repository.submitFailure = null
+    viewModel.submitVote()
+    advanceUntilIdle()
+    assertEquals(VoteSubmissionState.Idle, ready().submissionState)
+    assertEquals("b", ready().persistedOptionId)
   }
 
   @Test
   fun removalWithoutDraftClearsSelectionAndClosedVoteBlocksSubmission() = runTest {
-    createViewModel()
-    repository.ballots.value = listOf(VoteBallot("member", "a", Timestamp(1, 0)))
+    repository.ballots.value = listOf(ballot("a"))
     repository.vote = interactionVote().copy(status = VoteStatus.CLOSED)
+    createViewModel()
     advanceUntilIdle()
-    assertEquals("a", viewModel.uiState.value.selectedOptionId)
+    assertEquals("a", ready().selectedOptionId)
     viewModel.selectOption("b")
     viewModel.submitVote()
+    assertFalse(ready().canSelect)
     assertTrue(repository.calls.isEmpty())
     repository.ballots.value = emptyList()
     runCurrent()
-    assertNull(viewModel.uiState.value.selectedOptionId)
+    assertNull(ready().selectedOptionId)
+    assertNull(ready().persistedOptionId)
+  }
+
+  @Test
+  fun continuousObserverStaysActiveAndIsReleasedWithViewModel() = runTest {
+    createViewModel()
+    advanceUntilIdle()
+    assertEquals(1, repository.activeObservers)
+    repository.ballots.value = listOf(ballot("a"))
+    runCurrent()
+    repository.ballots.value = listOf(ballot("b"))
+    runCurrent()
+    assertEquals("b", ready().persistedOptionId)
+    assertEquals(1, repository.activeObservers)
+    store.clear()
+    runCurrent()
+    assertEquals(0, repository.activeObservers)
   }
 }
 
 internal class InteractionVoteRepository : VoteRepository {
   var vote: Vote? = interactionVote()
   var lookup: Pair<String, String>? = null
+  var lookupCount = 0
+  var activeObservers = 0
+  var emitOnSubmit = true
   val ballots = MutableStateFlow<List<VoteBallot>>(emptyList())
   val calls = mutableListOf<Triple<String, String, VoteBallot>>()
   val persisted = mutableMapOf<String, VoteBallot>()
@@ -320,17 +496,23 @@ internal class InteractionVoteRepository : VoteRepository {
   var observationGate: CompletableDeferred<Unit>? = null
 
   override suspend fun getVote(tripId: String, voteId: String): Vote? {
+    lookupCount++
     lookup = tripId to voteId
     loadFailure?.let { throw it }
     return vote
   }
 
   override fun observeBallots(tripId: String, voteId: String): Flow<List<VoteBallot>> = flow {
-    observationGate?.await()
-    observationFailure?.let { throw it }
-    ballots.collect {
-      observationFailure?.let { failure -> throw failure }
-      emit(it)
+    activeObservers++
+    try {
+      observationGate?.await()
+      observationFailure?.let { throw it }
+      ballots.collect {
+        observationFailure?.let { failure -> throw failure }
+        emit(it)
+      }
+    } finally {
+      activeObservers--
     }
   }
 
@@ -339,6 +521,8 @@ internal class InteractionVoteRepository : VoteRepository {
     submitGate?.await()
     submitFailure?.let { throw it }
     persisted[ballot.userId] = ballot
+    if (emitOnSubmit)
+        ballots.value = ballots.value.filterNot { it.userId == ballot.userId } + ballot
   }
 
   override suspend fun createVote(vote: Vote) = error("Not used")
