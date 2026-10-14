@@ -146,6 +146,14 @@ fun DependencyHandlerScope.globalTestImplementation(dep: Any) {
   testImplementation(dep)
 }
 
+// Espresso's accessibility checks bring the obsolete protobuf-lite, whose classes clash with the
+// protobuf-javalite that Firestore needs and crash Firestore in connected tests.
+configurations.configureEach {
+  if (name.contains("androidTest", ignoreCase = true)) {
+    exclude(group = "com.google.protobuf", module = "protobuf-lite")
+  }
+}
+
 dependencies {
   implementation(platform(libs.firebase.bom))
   implementation(libs.firebase.firestore)
