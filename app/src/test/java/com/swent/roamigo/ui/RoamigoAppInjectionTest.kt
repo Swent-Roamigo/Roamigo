@@ -15,6 +15,7 @@ import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
+import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.users.FakeUserRepository
@@ -46,8 +47,13 @@ class RoamigoAppInjectionTest {
             destinations = listOf(TripLocation(38.7223, -9.1393, "Lisbon")),
             startDate = timestamp(now.minusSeconds(3600)),
             endDate = timestamp(now.plusSeconds(86_400)),
+            flexibleDates = false,
+            travelMode = TravelMode.SOLO,
+            travelerCount = 1,
             ownerId = "sam",
+            memberIds = listOf("sam"),
             status = TripStatus.ACTIVE,
+            createdAt = timestamp(now.minusSeconds(7200)),
         )
     lateinit var navController: NavHostController
     composeRule.setContent {
