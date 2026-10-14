@@ -121,4 +121,16 @@
         <item quantity="one">%d trip together</item>
         <item quantity="other">%d trips together</item>
     </plurals>
+    <!-- Existing vote interaction -->
+    <string name="vote_submit">Submit vote</string>
+    <string name="vote_update">Update vote</string>
+    <string name="vote_submitting">Submitting vote…</string>
+    <string name="vote_loading">Loading vote…</string>
+    <string name="vote_closed">This vote is closed.</string>
+    <string name="vote_not_found">This vote could not be found.</string>
+    <string name="vote_load_error">Unable to load the vote. Please try again.</string>
+    <string name="vote_ballots_error">Unable to load your vote selection. Please try again.</string>
+    <string name="vote_ballot_submission_error">Unable to submit your vote. Please try again.</string>
+    <string name="vote_retry">Retry</string>
+    <string name="vote_back">Back</string>
 </resources>
