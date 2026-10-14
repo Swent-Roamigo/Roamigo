@@ -6,6 +6,8 @@ import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -121,5 +123,118 @@ class FakeTripRepositoryTest {
         }
 
     assertEquals(expected, thrown)
+  }
+
+  private val draft =
+      TripDraft(
+          name = "Iberian tour",
+          destinations =
+              listOf(
+                  TripLocation(38.7223, -9.1393, "Lisbon"),
+                  TripLocation(41.1579, -8.6291, "Porto"),
+                  TripLocation(41.3874, 2.1686, "Barcelona"),
+              ),
+          startDate = Timestamp(1000, 0),
+          endDate = Timestamp(2000, 0),
+          flexibleDates = true,
+          travelMode = TravelMode.GROUP,
+          travelerCount = 3,
+      )
+
+  @Test
+  fun createTripStoresTripOwnedByCurrentUser() = runBlocking {
+    val repository = FakeTripRepository(trips = listOf(trip), currentUserId = "owner")
+
+    val created = repository.createTrip("new-trip", draft)
+
+    assertEquals("new-trip", created.uid)
+    assertEquals(draft.name, created.name)
+    assertEquals(draft.destinations, created.destinations)
+    assertEquals(draft.startDate, created.startDate)
+    assertEquals(draft.endDate, created.endDate)
+    assertEquals(draft.flexibleDates, created.flexibleDates)
+    assertEquals(draft.travelMode, created.travelMode)
+    assertEquals(draft.travelerCount, created.travelerCount)
+    assertEquals("owner", created.ownerId)
+    assertEquals(listOf("owner"), created.memberIds)
+    assertEquals(TripStatus.PLANNED, created.status)
+    assertEquals(listOf(trip, created), repository.getTrips())
+  }
+
+  @Test
+  fun createTripAddsSingleOwnerMember() = runBlocking {
+    val repository = FakeTripRepository(currentUserId = "owner")
+
+    val created = repository.createTrip("new-trip", draft)
+
+    val members = repository.getMembersForTrip("new-trip")
+    assertEquals(1, members.size)
+    assertEquals("owner", members.single().userId)
+    assertEquals(TripMemberRole.OWNER, members.single().role)
+    assertEquals(created.createdAt, members.single().joinTime)
+  }
+
+  @Test
+  fun createTripTwiceWithSameIdReturnsExistingTrip() = runBlocking {
+    val repository = FakeTripRepository(currentUserId = "owner")
+
+    val first = repository.createTrip("new-trip", draft)
+    val second = repository.createTrip("new-trip", draft)
+
+    assertSame(first, second)
+    assertEquals(listOf(first), repository.getTrips())
+    assertEquals(1, repository.getMembersForTrip("new-trip").size)
+  }
+
+  @Test
+  fun createTripWithIdOwnedByAnotherUserIsDenied() = runBlocking {
+    val repository = FakeTripRepository(trips = listOf(trip), currentUserId = "intruder")
+
+    assertThrows(TripCreationException.PermissionDenied::class.java) {
+      runBlocking { repository.createTrip(trip.uid, draft) }
+    }
+    assertEquals(listOf(trip), repository.getTrips())
+    assertTrue(repository.getMembersForTrip(trip.uid).isEmpty())
+  }
+
+  @Test
+  fun createTripWithInvalidDraftStoresNothing() = runBlocking {
+    val repository = FakeTripRepository(currentUserId = "owner")
+    val invalid = draft.copy(name = " ", destinations = emptyList())
+
+    val thrown =
+        assertThrows(TripCreationException.Validation::class.java) {
+          runBlocking { repository.createTrip("new-trip", invalid) }
+        }
+
+    assertEquals(
+        listOf(TripDraftError.NoDestinations, TripDraftError.BlankName),
+        thrown.errors,
+    )
+    assertTrue(repository.getTrips().isEmpty())
+    assertTrue(repository.getMembersForTrip("new-trip").isEmpty())
+  }
+
+  @Test
+  fun createTripWithoutUserIsNotAuthenticated() = runBlocking {
+    val repository = FakeTripRepository(currentUserId = null)
+
+    assertThrows(TripCreationException.NotAuthenticated::class.java) {
+      runBlocking { repository.createTrip("new-trip", draft) }
+    }
+    assertTrue(repository.getTrips().isEmpty())
+  }
+
+  @Test
+  fun createTripPropagatesConfiguredFailure() {
+    val expected = IllegalStateException("Repository failure")
+    val repository = FakeTripRepository(failure = expected, currentUserId = "owner")
+
+    val thrown =
+        assertThrows(IllegalStateException::class.java) {
+          runBlocking { repository.createTrip("new-trip", draft) }
+        }
+
+    assertSame(expected, thrown)
   }
 }
