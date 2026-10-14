@@ -48,7 +48,10 @@ class AuthenticationFlowTest {
     credentialManager = TestCredentialManager(composeRule.activity)
     composeRule.setContent {
       RoamigoTheme {
-        RoamigoApp(authRepository = repository, credentialManager = credentialManager)
+        RoamigoApp(
+            authRepository = repository,
+            credentialManager = credentialManager,
+        )
       }
     }
   }
@@ -59,11 +62,11 @@ class AuthenticationFlowTest {
     }
   }
 
-  private fun continueToAuthentication() {
-    composeRule.onNodeWithTag(C.Tag.permissions_continue).performClick()
+  private fun assertAuthenticationIsFirstScreen() {
     waitForTag(AuthenticationScreenTestTags.heading)
     composeRule.onNodeWithTag(AuthenticationScreenTestTags.heading).assertIsDisplayed()
     composeRule.onAllNodesWithTag(C.Tag.trips_screen).assertCountEquals(0)
+    composeRule.onAllNodesWithTag(C.Tag.permissions_title).assertCountEquals(0)
   }
 
   private fun signIn() {
@@ -80,6 +83,11 @@ class AuthenticationFlowTest {
   }
 
   private fun assertSignedInOnTrips() {
+    waitForTag(C.Tag.permissions_title)
+    composeRule.onNodeWithTag(C.Tag.permissions_title).assertIsDisplayed()
+    composeRule.onAllNodesWithTag(AuthenticationScreenTestTags.heading).assertCountEquals(0)
+    assertEquals(user, repository.getCurrentUser())
+    composeRule.onNodeWithTag(C.Tag.permissions_continue).performClick()
     waitForTag(C.Tag.trips_screen)
     composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
     composeRule.onAllNodesWithTag(AuthenticationScreenTestTags.heading).assertCountEquals(0)
@@ -89,7 +97,7 @@ class AuthenticationFlowTest {
 
   @Test
   fun signInOpensTripsAndBackDoesNotReturnToAuthentication() {
-    continueToAuthentication()
+    assertAuthenticationIsFirstScreen()
     assertNull(repository.getCurrentUser())
     signIn()
     assertSignedInOnTrips()
@@ -100,7 +108,7 @@ class AuthenticationFlowTest {
   @Test
   fun cancelledAccountSelectionStaysOnAuthenticationAndAllowsRetry() {
     credentialManager.failure = GetCredentialCancellationException()
-    continueToAuthentication()
+    assertAuthenticationIsFirstScreen()
     signIn()
     waitForTag(AuthenticationScreenTestTags.errorMessage)
 
@@ -119,7 +127,7 @@ class AuthenticationFlowTest {
   @Test
   fun credentialErrorStaysOnAuthenticationAndAllowsRetry() {
     credentialManager.failure = NoCredentialException("No test credential")
-    continueToAuthentication()
+    assertAuthenticationIsFirstScreen()
     signIn()
     waitForTag(AuthenticationScreenTestTags.errorMessage)
 
@@ -139,7 +147,7 @@ class AuthenticationFlowTest {
   fun pendingCredentialsShowProgressAndFailureAllowsRetry() {
     val pending = CompletableDeferred<GetCredentialResponse>()
     credentialManager.pendingResponse = pending
-    continueToAuthentication()
+    assertAuthenticationIsFirstScreen()
     signIn()
     waitForTag(AuthenticationScreenTestTags.loadingIndicator)
     composeRule.onNodeWithTag(AuthenticationScreenTestTags.signInButton).assertIsNotEnabled()
@@ -164,7 +172,7 @@ class AuthenticationFlowTest {
 
   @Test
   fun backFromAuthenticationDoesNotReturnToPermissions() {
-    continueToAuthentication()
+    assertAuthenticationIsFirstScreen()
     pressBackAndWaitForExit()
   }
 
