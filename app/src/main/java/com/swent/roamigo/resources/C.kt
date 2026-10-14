@@ -28,5 +28,13 @@ object C {
     const val trips_navigation_map = "trips_navigation_map"
     const val trips_navigation_photos = "trips_navigation_photos"
     const val trips_profile_avatar = "trips_profile_avatar"
+
+    const val friends_screen = "friends_screen"
+    const val friends_friend_row = "friends_friend_row"
+    const val friends_pending_request_row = "friends_pending_request_row"
+    const val friends_empty_state = "friends_empty_state"
+    const val friends_add_friend = "friends_add_friend"
+    const val friends_avatar_prefix = "friends_avatar_"
+    const val friends_view_map_prefix = "friends_view_map_"
   }
 }
