@@ -29,7 +29,7 @@ import com.swent.roamigo.ui.trip.creation.DestinationScreen
 import com.swent.roamigo.ui.trips.TripsRoute
 
 /**
- * The app's navigation graph: permissions, authentication, then trips, profile, and trip creation.
+ * New sign-ins continue through the permissions explainer to trips; existing sessions open trips.
  *
  * Trip and user repositories default to in-memory placeholders until real data sources are wired
  * in.
@@ -42,11 +42,15 @@ fun RoamigoApp(
     authRepository: AuthRepository = remember { AuthRepositoryFirebase() },
     credentialManager: CredentialManager? = null,
 ) {
-  NavHost(navController = navController, startDestination = Route.PERMISSIONS) {
+  val startDestination =
+      remember(authRepository) {
+        if (authRepository.getCurrentUser() == null) Route.AUTHENTICATION else Route.TRIPS
+      }
+  NavHost(navController = navController, startDestination = startDestination) {
     composable(Route.PERMISSIONS) {
       PermissionsScreen(
           onContinue = {
-            navController.navigate(Route.AUTHENTICATION) {
+            navController.navigate(Route.TRIPS) {
               popUpTo(Route.PERMISSIONS) { inclusive = true }
               launchSingleTop = true
             }
@@ -59,7 +63,7 @@ fun RoamigoApp(
           credentialManager = credentialManager,
           onSignedIn = {
             // Back from trips must not return to authentication or permissions.
-            navController.navigate(Route.TRIPS) {
+            navController.navigate(Route.PERMISSIONS) {
               popUpTo(Route.AUTHENTICATION) { inclusive = true }
               launchSingleTop = true
             }
