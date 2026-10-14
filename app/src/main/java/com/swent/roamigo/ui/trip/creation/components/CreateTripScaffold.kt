@@ -36,6 +36,8 @@ import com.swent.roamigo.ui.theme.RoamigoTheme
 
 internal object CreateTripScaffoldTestTags {
   const val PRIMARY_ACTION = "create_trip_primary_action"
+  const val BACK = "create_trip_back"
+  const val CLOSE = "create_trip_close"
 }
 
 private const val CREATE_TRIP_TOTAL_STEPS = 2
@@ -117,14 +119,17 @@ fun CreateTripScaffold(
 }
 
 @Composable
-private fun HeaderAction(label: String, glyph: String, onClick: () -> Unit) {
+private fun HeaderAction(label: String, glyph: String, tag: String, onClick: () -> Unit) {
   Box(
       modifier =
           Modifier.size(36.dp)
               .clip(RoundedCornerShape(18.dp))
               .background(MaterialTheme.colorScheme.surfaceVariant)
               .clickable(onClick = onClick)
-              .semantics { contentDescription = label },
+              .semantics {
+                contentDescription = label
+                testTag = tag
+              },
       contentAlignment = Alignment.Center,
   ) {
     Text(

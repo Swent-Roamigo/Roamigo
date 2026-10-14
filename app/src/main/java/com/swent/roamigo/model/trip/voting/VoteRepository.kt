@@ -11,13 +11,24 @@ import kotlinx.coroutines.flow.Flow
  */
 interface VoteRepository {
   /**
-   * Creates a vote under its trip using an online transaction.
+   * Creates a vote under its trip using an online transaction. Retrying the same creation request
+   * succeeds without overwriting an existing vote, even if its status or winner has changed.
    *
    * @param vote Vote to persist, including its trip and document IDs.
    * @throws IllegalArgumentException If the vote or trip ID is invalid.
-   * @throws FirebaseFirestoreException If creation fails, with code ALREADY_EXISTS for a reused ID.
+   * @throws FirebaseFirestoreException If creation fails, with code ALREADY_EXISTS for a
+   *   conflicting reused ID.
    */
   suspend fun createVote(vote: Vote)
+
+  /**
+   * Reads a vote directly from its trip and document IDs.
+   *
+   * @return The vote, or null if the document does not exist.
+   * @throws IllegalArgumentException If either ID or stored vote data is invalid.
+   * @throws FirebaseFirestoreException If the read fails.
+   */
+  suspend fun getVote(tripId: String, voteId: String): Vote?
 
   /**
    * Retrieves all votes for a trip, using the trip and document IDs from their paths.
