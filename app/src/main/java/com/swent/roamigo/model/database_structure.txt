@@ -8,11 +8,30 @@ friendships/{friendshipId} // later feature
 tripInvitations/{invitationId} // later feature
 
 trips/{tripId}
+    name: string
+    description: string | null
+    destinations: array<{name: string, latitude: number, longitude: number}>  // ordered
+    startDate: timestamp
+    endDate: timestamp
+    flexibleDates: bool
+    travelMode: "SOLO" | "GROUP"
+    travelerCount: int (>= 1)
+    ownerId: string            // auth uid of the creator, authoritative owner
+    memberIds: array<string>   // contains ownerId at creation
+    status: "PLANNED" | "ACTIVE" | "COMPLETED"
+    createdAt: timestamp
     members/{userId}
+        userId: string
+        role: "OWNER" | "EDITOR" | "VIEWER"
+        joinTime: timestamp
     activities/{activityId}
     votes/{voteId} // later feature
         ballots/{userId}
     photos/{photoId} // later feature
+
+// memberIds exists so "my trips" can be queried with array-contains and checked by security rules.
+// The trip document and the owner member document are written in one transaction, keyed by a
+// client-generated tripId so that retries are idempotent.
 
 
 Realtime Database: // later feature
