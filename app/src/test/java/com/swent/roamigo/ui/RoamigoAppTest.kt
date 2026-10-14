@@ -9,6 +9,8 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.swent.roamigo.model.authentication.AuthenticatedUser
+import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
@@ -25,7 +27,9 @@ class RoamigoAppTest {
 
   @Before
   fun setUp() {
-    composeRule.setContent { RoamigoTheme { RoamigoApp() } }
+    val authRepository =
+        FakeAuthRepository(AuthenticatedUser("alex", "Alex", null, null), initiallySignedIn = true)
+    composeRule.setContent { RoamigoTheme { RoamigoApp(authRepository = authRepository) } }
   }
 
   private fun waitForTag(tag: String) {
