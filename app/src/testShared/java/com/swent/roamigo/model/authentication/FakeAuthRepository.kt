@@ -9,8 +9,13 @@ internal class FakeAuthRepository(
     initiallySignedIn: Boolean = false,
 ) : AuthRepository {
   private var currentAccount: AuthenticatedUser? = if (initiallySignedIn) user else null
+  var lastCredential: Credential? = null
+    private set
+  var failure: Exception? = null
 
   override suspend fun signInWithGoogle(credential: Credential): Result<AuthenticatedUser> {
+    lastCredential = credential
+    failure?.let { return Result.failure(it) }
     currentAccount = user
     return Result.success(user)
   }
