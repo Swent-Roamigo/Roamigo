@@ -1,8 +1,76 @@
 rules_version = '2';
 
+// AI assistance was used for implementation support and code review.
+//
+// Membership model: a trip document lists its members in memberIds, and ownerId is the
+// authoritative owner. Only members can read a trip and its subcollections. A client may only
+// create a new trip it owns, together with its own OWNER member document, in one transaction.
+// Trips and members cannot be changed or deleted by clients yet.
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Keep client access closed until the trip and membership schema is defined.
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isMember(tripId) {
+      return signedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds;
+    }
+
+    function isValidNewTrip(trip) {
+      return trip.keys().hasAll([
+            'name', 'description', 'destinations', 'startDate', 'endDate', 'flexibleDates',
+            'travelMode', 'travelerCount', 'ownerId', 'memberIds', 'status', 'createdAt'
+          ])
+          && trip.keys().hasOnly([
+            'name', 'description', 'destinations', 'startDate', 'endDate', 'flexibleDates',
+            'travelMode', 'travelerCount', 'ownerId', 'memberIds', 'status', 'createdAt'
+          ])
+          && trip.name is string
+          && (trip.description == null || trip.description is string)
+          && trip.destinations is list
+          && trip.startDate is timestamp
+          && trip.endDate is timestamp
+          && trip.flexibleDates is bool
+          && trip.travelMode in ['SOLO', 'GROUP']
+          && trip.travelerCount is int
+          && trip.travelerCount >= 1
+          && trip.ownerId == request.auth.uid
+          && trip.memberIds == [request.auth.uid]
+          && trip.status == 'PLANNED'
+          && trip.createdAt is timestamp;
+    }
+
+    match /trips/{tripId} {
+      allow create: if signedIn() && isValidNewTrip(request.resource.data);
+      // A missing trip is readable so that creation can first check whether it already exists.
+      allow get: if signedIn()
+          && (resource == null || request.auth.uid in resource.data.memberIds);
+      allow list: if signedIn() && request.auth.uid in resource.data.memberIds;
+      allow update, delete: if false;
+
+      match /members/{userId} {
+        allow create: if signedIn()
+            && userId == request.auth.uid
+            && request.resource.data.keys().hasAll(['userId', 'role', 'joinTime'])
+            && request.resource.data.keys().hasOnly(['userId', 'role', 'joinTime'])
+            && request.resource.data.userId == userId
+            && request.resource.data.role == 'OWNER'
+            && request.resource.data.joinTime is timestamp
+            && getAfter(/databases/$(database)/documents/trips/$(tripId)).data.ownerId
+                == request.auth.uid;
+        allow read: if isMember(tripId);
+        allow update, delete: if false;
+      }
+
+      match /activities/{activityId} {
+        allow read: if isMember(tripId);
+        allow write: if false;
+      }
+    }
+
+    // Everything else, including votes and ballots, stays closed.
     match /{document=**} {
       allow read, write: if false;
     }
