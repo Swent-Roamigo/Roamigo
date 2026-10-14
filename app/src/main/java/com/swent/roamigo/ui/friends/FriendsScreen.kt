@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.theme.Spacing
 
 /**
@@ -41,6 +42,9 @@ import com.swent.roamigo.ui.theme.Spacing
  * @param uiState the state displayed by the screen.
  * @param onAddFriendClick invoked when the user selects the add-friend action.
  * @param onViewMapClick invoked with a friend's user ID when the user selects their map action.
+ * @param onTripsClick invoked when the Trips destination is selected.
+ * @param onMapClick invoked when the Map destination is selected.
+ * @param onPhotosClick invoked when the Photos destination is selected.
  * @param modifier the modifier applied to the screen.
  */
 @Composable
@@ -48,10 +52,21 @@ fun FriendsScreen(
     uiState: FriendsUiState,
     onAddFriendClick: () -> Unit = {},
     onViewMapClick: (String) -> Unit = {},
+    onTripsClick: () -> Unit = {},
+    onMapClick: () -> Unit = {},
+    onPhotosClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
   Scaffold(
       modifier = modifier.fillMaxSize().testTag(C.Tag.friends_screen),
+      bottomBar = {
+        AppBottomBar(
+            onTripsClick = onTripsClick,
+            onMapClick = onMapClick,
+            onPhotosClick = onPhotosClick,
+            tripsSelected = false,
+        )
+      },
       containerColor = MaterialTheme.colorScheme.background,
   ) { innerPadding ->
     Column(

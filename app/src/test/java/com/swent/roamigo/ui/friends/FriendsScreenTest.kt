@@ -13,7 +13,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -54,6 +53,9 @@ class FriendsScreenTest {
       uiState: FriendsUiState = populatedState,
       onAddFriendClick: () -> Unit = {},
       onViewMapClick: (String) -> Unit = {},
+      onTripsClick: () -> Unit = {},
+      onMapClick: () -> Unit = {},
+      onPhotosClick: () -> Unit = {},
   ) {
     composeRule.setContent {
       RoamigoTheme {
@@ -61,6 +63,9 @@ class FriendsScreenTest {
             uiState = uiState,
             onAddFriendClick = onAddFriendClick,
             onViewMapClick = onViewMapClick,
+            onTripsClick = onTripsClick,
+            onMapClick = onMapClick,
+            onPhotosClick = onPhotosClick,
         )
       }
     }
@@ -86,20 +91,50 @@ class FriendsScreenTest {
   }
 
   @Test
-  fun actionsAreForwardedToCaller() {
-    var addFriendClicked = false
+  fun friendActionsAreForwardedToCaller() {
+    var addFriendClicks = 0
     var viewedUserId: String? = null
 
     show(
-        onAddFriendClick = { addFriendClicked = true },
+        onAddFriendClick = { addFriendClicks++ },
         onViewMapClick = { viewedUserId = it },
     )
 
     composeRule.onNodeWithTag(C.Tag.friends_add_friend).performClick()
-    assertTrue(addFriendClicked)
-
     composeRule.onNodeWithTag(C.Tag.friends_view_map_prefix + "mia").performClick()
+
+    assertEquals(1, addFriendClicks)
     assertEquals("mia", viewedUserId)
+  }
+
+  @Test
+  fun bottomNavigationIsDisplayed() {
+    show()
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_map).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).assertIsDisplayed()
+  }
+
+  @Test
+  fun bottomNavigationActionsAreForwardedToCaller() {
+    var tripsClicks = 0
+    var mapClicks = 0
+    var photosClicks = 0
+
+    show(
+        onTripsClick = { tripsClicks++ },
+        onMapClick = { mapClicks++ },
+        onPhotosClick = { photosClicks++ },
+    )
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_map).performClick()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).performClick()
+
+    assertEquals(1, tripsClicks)
+    assertEquals(1, mapClicks)
+    assertEquals(1, photosClicks)
   }
 
   @Test
@@ -132,7 +167,6 @@ class FriendsScreenTest {
     composeRule.onNodeWithText("Pending").assertIsDisplayed()
 
     composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertDoesNotExist()
-
     composeRule.onNodeWithTag(C.Tag.friends_view_map_prefix + "jonas").assertDoesNotExist()
   }
 }
