@@ -1,6 +1,8 @@
+// AI assistance was used for implementation support.
 package com.swent.roamigo.ui.authentication
 
 import android.content.Context
+import android.util.Log
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
@@ -29,11 +31,6 @@ class AuthenticationViewModel(private val repository: AuthRepository = AuthRepos
   private val _uiState = MutableStateFlow(AuthenticationUiState(user = repository.getCurrentUser()))
   val uiState = _uiState.asStateFlow()
 
-  /** Clears the error message in the UI state. */
-  fun clearErrorMsg() {
-    _uiState.update { it.copy(errorMsg = null) }
-  }
-
   private fun getSignInOptions(context: Context) =
       GetSignInWithGoogleOption.Builder(context.getString(R.string.default_web_client_id)).build()
 
@@ -49,7 +46,7 @@ class AuthenticationViewModel(private val repository: AuthRepository = AuthRepos
   /** Requests a Google account using the caller's activity context, then authenticates it. */
   fun signIn(context: Context, credentialManager: CredentialManager) {
     if (_uiState.value.isLoading || _uiState.value.user != null) return
-    _uiState.update { it.copy(isLoading = true, errorMsg = null) }
+    _uiState.update { it.copy(isLoading = true, errorMessageRes = null) }
 
     viewModelScope.launch {
       try {
@@ -61,16 +58,22 @@ class AuthenticationViewModel(private val repository: AuthRepository = AuthRepos
             .fold(
                 onSuccess = { user ->
                   _uiState.update {
-                    it.copy(isLoading = false, user = user, errorMsg = null, signedOut = false)
+                    it.copy(
+                        isLoading = false,
+                        user = user,
+                        errorMessageRes = null,
+                        signedOut = false,
+                    )
                   }
                 },
                 onFailure = { failure ->
                   if (failure is CancellationException) throw failure
+                  Log.w("AuthenticationViewModel", "Repository sign-in failed", failure)
                   _uiState.update {
                     it.copy(
                         isLoading = false,
                         user = null,
-                        errorMsg = failure.localizedMessage ?: "Sign-in failed. Try again.",
+                        errorMessageRes = R.string.auth_sign_in_failed,
                         signedOut = true,
                     )
                   }
@@ -78,23 +81,29 @@ class AuthenticationViewModel(private val repository: AuthRepository = AuthRepos
             )
       } catch (_: GetCredentialCancellationException) {
         _uiState.update {
-          it.copy(isLoading = false, user = null, errorMsg = "Sign-in cancelled", signedOut = true)
+          it.copy(
+              isLoading = false,
+              user = null,
+              errorMessageRes = R.string.auth_sign_in_cancelled,
+              signedOut = true,
+          )
         }
       } catch (_: NoCredentialException) {
         _uiState.update {
           it.copy(
               isLoading = false,
               user = null,
-              errorMsg = "No Google credentials available. Try signing in again.",
+              errorMessageRes = R.string.auth_no_credentials,
               signedOut = true,
           )
         }
       } catch (e: GetCredentialException) {
+        Log.w("AuthenticationViewModel", "Credential acquisition failed", e)
         _uiState.update {
           it.copy(
               isLoading = false,
               user = null,
-              errorMsg = "Failed to get credentials: ${e.localizedMessage ?: "Unknown error"}",
+              errorMessageRes = R.string.auth_credentials_failed,
               signedOut = true,
           )
         }
@@ -102,11 +111,12 @@ class AuthenticationViewModel(private val repository: AuthRepository = AuthRepos
         _uiState.update { it.copy(isLoading = false) }
         throw e
       } catch (e: Exception) {
+        Log.w("AuthenticationViewModel", "Unexpected sign-in failure", e)
         _uiState.update {
           it.copy(
               isLoading = false,
               user = null,
-              errorMsg = "Unexpected error: ${e.localizedMessage ?: "Unknown error"}",
+              errorMessageRes = R.string.auth_sign_in_failed,
               signedOut = true,
           )
         }

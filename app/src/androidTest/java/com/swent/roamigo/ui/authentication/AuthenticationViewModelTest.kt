@@ -1,3 +1,4 @@
+// AI assistance was used for implementation support.
 package com.swent.roamigo.ui.authentication
 
 import android.content.Context
@@ -7,9 +8,11 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
+import androidx.credentials.exceptions.GetCredentialUnknownException
 import androidx.credentials.exceptions.NoCredentialException
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.swent.roamigo.R
 import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
@@ -74,14 +77,12 @@ class AuthenticationViewModelTest {
       signIn(viewModel, manager)
       assertEquals(
           AuthenticationUiState(
-              errorMsg = message ?: "Sign-in failed. Try again.",
+              errorMessageRes = R.string.auth_sign_in_failed,
               signedOut = true,
           ),
           viewModel.uiState.value,
       )
 
-      viewModel.clearErrorMsg()
-      assertEquals(AuthenticationUiState(signedOut = true), viewModel.uiState.value)
       failure = null
       signIn(viewModel, manager)
       assertEquals(AuthenticationUiState(user = user), viewModel.uiState.value)
@@ -89,7 +90,7 @@ class AuthenticationViewModelTest {
   }
 
   @Test
-  fun unexpectedFailureUsesMessageOrFallback() {
+  fun unexpectedFailureHidesTechnicalDetails() {
     for (message in listOf("Invalid configuration", null)) {
       val viewModel = AuthenticationViewModel(FakeAuthRepository(user))
       val manager =
@@ -97,12 +98,26 @@ class AuthenticationViewModelTest {
       signIn(viewModel, manager)
       assertEquals(
           AuthenticationUiState(
-              errorMsg = "Unexpected error: ${message ?: "Unknown error"}",
+              errorMessageRes = R.string.auth_sign_in_failed,
               signedOut = true,
           ),
           viewModel.uiState.value,
       )
     }
+  }
+
+  @Test
+  fun credentialFailureHidesTechnicalDetails() {
+    val viewModel = AuthenticationViewModel(FakeAuthRepository(user))
+    val manager =
+        TestCredentialManager(context).apply {
+          failure = GetCredentialUnknownException("Technical provider details")
+        }
+    signIn(viewModel, manager)
+    assertEquals(
+        AuthenticationUiState(errorMessageRes = R.string.auth_credentials_failed, signedOut = true),
+        viewModel.uiState.value,
+    )
   }
 
   @Test
@@ -112,7 +127,7 @@ class AuthenticationViewModelTest {
     signIn(viewModel, manager)
     assertEquals(
         AuthenticationUiState(
-            errorMsg = "No Google credentials available. Try signing in again.",
+            errorMessageRes = R.string.auth_no_credentials,
             signedOut = true,
         ),
         viewModel.uiState.value,
@@ -139,7 +154,7 @@ class AuthenticationViewModelTest {
     val viewModel = AuthenticationViewModel(repository)
     signIn(viewModel, TestCredentialManager(context))
     assertFalse(viewModel.uiState.value.isLoading)
-    assertNull(viewModel.uiState.value.errorMsg)
+    assertNull(viewModel.uiState.value.errorMessageRes)
     assertFalse(viewModel.uiState.value.signedOut)
     assertNull(viewModel.uiState.value.user)
   }

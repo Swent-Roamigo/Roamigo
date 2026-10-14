@@ -1,3 +1,4 @@
+// AI assistance was used for implementation support.
 package com.swent.roamigo.model.authentication
 
 import androidx.credentials.Credential
