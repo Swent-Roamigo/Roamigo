@@ -29,6 +29,10 @@ class FakeTripRepository(
     return membersByTripId[tripId].orEmpty()
   }
 
+  // The configured trips are fixed, so creation is not supported yet.
+  override suspend fun createTrip(tripId: String, draft: TripDraft): Trip =
+      throw UnsupportedOperationException("FakeTripRepository does not support trip creation yet")
+
   private fun throwIfNeeded() {
     failure?.let { throw it }
   }
