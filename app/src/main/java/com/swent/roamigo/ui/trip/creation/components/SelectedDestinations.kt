@@ -15,11 +15,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.swent.roamigo.R
 import com.swent.roamigo.ui.theme.RoamigoTheme
 
 internal object SelectedDestinationsTestTags {
@@ -47,6 +49,7 @@ fun SelectedDestinations(
 
 @Composable
 private fun DestinationChip(destination: String, onRemove: () -> Unit) {
+  val removeDescription = stringResource(R.string.destination_remove_description, destination)
   Row(
       modifier =
           Modifier.clip(CircleShape)
@@ -67,7 +70,7 @@ private fun DestinationChip(destination: String, onRemove: () -> Unit) {
                 .clickable(onClick = onRemove)
                 .padding(horizontal = 2.dp)
                 .semantics {
-                  contentDescription = "Remove $destination"
+                  contentDescription = removeDescription
                   testTag = SelectedDestinationsTestTags.removeFor(destination)
                 },
         color = MaterialTheme.colorScheme.onPrimary,
