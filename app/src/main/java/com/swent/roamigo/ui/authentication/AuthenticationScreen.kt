@@ -2,6 +2,7 @@
 package com.swent.roamigo.ui.authentication
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,10 +18,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,23 +32,23 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
+import com.swent.roamigo.ui.theme.RoamigoTheme
+import com.swent.roamigo.ui.theme.Spacing
 
 /** Connects authentication to its ViewModel and delegates successful sign-in to navigation. */
 @Composable
@@ -78,44 +79,52 @@ fun AuthenticationScreen(
     onSignInClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-  BoxWithConstraints(modifier.fillMaxSize().background(Color.White).safeDrawingPadding()) {
+  BoxWithConstraints(
+      modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding()
+  ) {
     val screenHeight = maxHeight
     Column(
         Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = screenHeight)
     ) {
       Column(
           Modifier.fillMaxWidth()
-              .background(Color(0xFF3D484F))
-              .padding(horizontal = 24.dp, vertical = 16.dp),
-          verticalArrangement = Arrangement.spacedBy(12.dp),
+              .background(MaterialTheme.colorScheme.primary)
+              .padding(horizontal = Spacing.extraLarge, vertical = Spacing.large),
+          verticalArrangement = Arrangement.spacedBy(Spacing.medium),
       ) {
         TravelPlaceholders(tileHeight = (screenHeight * 0.15f).coerceIn(64.dp, 120.dp))
         Text(
             stringResource(R.string.auth_brand),
-            color = Color.White,
-            fontSize = 32.sp,
-            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onPrimary,
+            style = MaterialTheme.typography.displayLarge,
         )
-        Text(stringResource(R.string.auth_tagline), color = Color.White, fontSize = 16.sp)
+        Text(
+            stringResource(R.string.auth_tagline),
+            color = MaterialTheme.colorScheme.onPrimary,
+            style = MaterialTheme.typography.bodyLarge,
+        )
       }
-      Column(Modifier.fillMaxWidth().weight(1f).padding(24.dp)) {
+      Column(Modifier.fillMaxWidth().weight(1f).padding(Spacing.extraLarge)) {
         Text(
             stringResource(R.string.auth_heading),
             modifier = Modifier.testTag(AuthenticationScreenTestTags.heading),
-            color = Color(0xFF303B41),
-            fontSize = 22.sp,
-            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.headlineSmall,
         )
-        Spacer(Modifier.height(12.dp))
-        Text(stringResource(R.string.auth_description), color = Color(0xFF687278), fontSize = 14.sp)
-        Spacer(Modifier.weight(1f).heightIn(min = 48.dp))
-        uiState.errorMsg?.let {
+        Spacer(Modifier.height(Spacing.medium))
+        Text(
+            stringResource(R.string.auth_description),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Spacer(Modifier.weight(1f).heightIn(min = Spacing.extraLarge * 2))
+        uiState.errorMessageRes?.let {
           Text(
-              it,
-              color = Color(0xFFB3261E),
+              stringResource(it),
+              color = MaterialTheme.colorScheme.error,
               modifier =
                   Modifier.testTag(AuthenticationScreenTestTags.errorMessage)
-                      .padding(bottom = 12.dp)
+                      .padding(bottom = Spacing.medium)
                       .semantics { liveRegion = LiveRegionMode.Polite },
           )
         }
@@ -126,9 +135,12 @@ fun AuthenticationScreen(
                 Modifier.testTag(AuthenticationScreenTestTags.signInButton)
                     .fillMaxWidth()
                     .height(52.dp),
-            shape = RoundedCornerShape(8.dp),
-            border = BorderStroke(1.dp, Color(0xFFDADCE0)),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF303B41)),
+            shape = MaterialTheme.shapes.small,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            colors =
+                ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ),
         ) {
           if (uiState.isLoading) {
             val loadingDescription = stringResource(R.string.auth_signing_in)
@@ -136,26 +148,25 @@ fun AuthenticationScreen(
                 Modifier.testTag(AuthenticationScreenTestTags.loadingIndicator)
                     .size(22.dp)
                     .semantics { contentDescription = loadingDescription },
-                color = Color(0xFF4285F4),
+                color = MaterialTheme.colorScheme.primary,
                 strokeWidth = 2.dp,
             )
           } else {
-            Text(
-                "G",
-                color = Color(0xFF4285F4),
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(end = 12.dp),
+            Image(
+                painter = painterResource(R.drawable.google_g),
+                contentDescription = null,
+                modifier = Modifier.padding(end = Spacing.medium).size(20.dp),
             )
             Text(stringResource(R.string.auth_google_sign_in))
           }
         }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(Spacing.large))
         Text(
             stringResource(R.string.auth_terms),
             modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center,
-            color = Color(0xFF687278),
-            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelSmall,
         )
       }
     }
@@ -165,15 +176,20 @@ fun AuthenticationScreen(
 /** Temporary decorative tiles until the travel photography is available. */
 @Composable
 private fun TravelPlaceholders(tileHeight: androidx.compose.ui.unit.Dp) {
-  val colors = listOf(Color(0xFFABC2D1), Color(0xFFD2BB9C), Color(0xFF8FA69B))
-  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+  val colors =
+      listOf(
+          MaterialTheme.colorScheme.primaryContainer,
+          MaterialTheme.colorScheme.secondaryContainer,
+          MaterialTheme.colorScheme.surfaceContainerHigh,
+      )
+  Column(verticalArrangement = Arrangement.spacedBy(Spacing.small)) {
     repeat(2) { row ->
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+      Row(horizontalArrangement = Arrangement.spacedBy(Spacing.small)) {
         repeat(3) { column ->
           Box(
               Modifier.weight(1f)
                   .height(tileHeight)
-                  .clip(RoundedCornerShape(12.dp))
+                  .clip(MaterialTheme.shapes.medium)
                   .background(colors[(row + column) % colors.size]),
               contentAlignment = Alignment.Center,
           ) {
@@ -188,5 +204,5 @@ private fun TravelPlaceholders(tileHeight: androidx.compose.ui.unit.Dp) {
 @Preview(showBackground = true)
 @Composable
 private fun AuthenticationScreenPreview() {
-  AuthenticationScreen(AuthenticationUiState(), onSignInClick = {})
+  RoamigoTheme { AuthenticationScreen(AuthenticationUiState(), onSignInClick = {}) }
 }

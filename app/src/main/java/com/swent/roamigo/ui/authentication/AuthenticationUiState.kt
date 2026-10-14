@@ -1,5 +1,7 @@
+// AI assistance was used for implementation support.
 package com.swent.roamigo.ui.authentication
 
+import androidx.annotation.StringRes
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 
 /**
@@ -10,12 +12,13 @@ import com.swent.roamigo.model.authentication.AuthenticatedUser
  *
  * @property isLoading Whether an authentication operation is in progress.
  * @property user The currently signed-in account, or null when not signed in.
- * @property errorMsg An error message to display, or null when there is no error.
+ * @property errorMessageRes A string resource resolved by the screen, or null when there is no
+ *   error.
  * @property signedOut Whether the last completed authentication attempt left the UI signed out.
  */
 data class AuthenticationUiState(
     val isLoading: Boolean = false,
     val user: AuthenticatedUser? = null,
-    val errorMsg: String? = null,
+    @StringRes val errorMessageRes: Int? = null,
     val signedOut: Boolean = false,
 )
