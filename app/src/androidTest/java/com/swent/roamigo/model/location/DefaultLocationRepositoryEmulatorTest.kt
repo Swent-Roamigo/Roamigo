@@ -135,9 +135,9 @@ class DefaultLocationRepositoryEmulatorTest {
     removeFromTrip(sharer)
 
     withTimeout(TIMEOUT) { sharer.repository.isSharing(tripId).first { !it } }
-    awaitMemberLocations(observer) { it.isEmpty() }
-    // The rules deny removing the entry of a former member, which is already gone anyway.
+    // The rules deny removing the entry of a former member: only syncTripMember can remove it.
     sharer.repository.stopSharing(tripId)
+    assertEquals(listOf(sharer.userId), awaitMemberLocations(observer) { true }.map { it.userId })
   }
 
   private class Member(val userId: String, val repository: DefaultLocationRepository)
@@ -182,9 +182,10 @@ class DefaultLocationRepositoryEmulatorTest {
     members.forEach { adminRequest("PUT", "tripMembers/$tripId/${it.userId}", "true") }
   }
 
+  // Only revokes the access. syncTripMember also removes the member's entry in the same update, but
+  // this suite runs without the functions emulator, so it checks that the client cannot do it.
   private fun removeFromTrip(member: Member) {
     adminRequest("DELETE", "tripMembers/$tripId/${member.userId}")
-    adminRequest("DELETE", "locations/$tripId/${member.userId}")
   }
 
   private fun adminRequest(method: String, path: String, body: String? = null) {
