@@ -17,18 +17,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ci:
-    name: CI
-    # Execute the CI on the course's runners
+  # Fast checks that need neither Node, Firebase, KVM, nor an Android emulator.
+  checks:
+    name: Checks
     runs-on: ubuntu-latest
-
     steps:
-      # First step : Checkout the repository on the runner
       - name: Checkout
         uses: actions/checkout@v7
         with:
           submodules: recursive
-          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of Sonar analysis (if we use Sonar Later)
 
       - name: Restore Firebase configuration
         env:
@@ -46,19 +43,67 @@ jobs:
           distribution: "temurin"
           java-version: "21"
 
-      # Caching is a very useful part of a CI, as a workflow is executed in a clean environment every time,
-      # this means that one would need to re-download and re-process gradle files for every run. Which is very time consuming.
-      #
-      # To avoid that, we cache the the gradle folder to reuse it later.
+      # A workflow starts from a clean environment, so the Gradle folder is cached to avoid
+      # downloading and processing the same files on every run.
       - name: Gradle cache
         uses: gradle/actions/setup-gradle@v6
 
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
-      # Run checks that do not need Node, Firebase, KVM, or an Android emulator first.
       - name: Run formatting, debug, and JVM checks
         run: ./gradlew ktfmtCheck assembleDebug lintDebug check --build-cache
+
+      # The report job reads these, but it does not recompile or rerun the unit tests.
+      - name: Collect unit test coverage inputs
+        if: always()
+        run: |
+          tar czf checks-outputs.tgz --ignore-failed-read \
+            app/build/outputs/unit_test_code_coverage \
+            app/build/test-results/testDebugUnitTest \
+            app/build/reports/lint-results-debug.xml \
+            app/build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes \
+            app/build/tmp/kotlin-classes/debug
+
+      - name: Upload checks outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checks-outputs
+          if-no-files-found: warn
+          path: checks-outputs.tgz
+
+  # Runs at the same time as the checks job instead of after it.
+  connected-tests:
+    name: Connected tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Restore Firebase configuration
+        env:
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES" ]; then
+            echo "::error::Set the GOOGLE_SERVICES repository secret to the Base64-encoded google-services.json."
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES" | base64 --decode > app/google-services.json
+
+      - name: Setup JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - name: Gradle cache
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -79,7 +124,6 @@ jobs:
             exit 1
           fi
 
-      # KVM is only needed after the fast checks pass, when the Android emulator starts.
       - name: Enable KVM group perms
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -109,7 +153,6 @@ jobs:
           disable-animations: false
           script: echo "Generated AVD snapshot for caching."
 
-      # Run connected tests on the emulator
       - name: Run connected tests
         timeout-minutes: 25
         uses: reactivecircus/android-emulator-runner@v2
@@ -134,14 +177,88 @@ jobs:
             app/build/reports/androidTests/connected/**
             app/build/outputs/androidTest-results/connected/**
 
-      # This step generates the coverage report which will be uploaded to sonar
-      - name: Generate Coverage Report
-        run: |
-          ./gradlew jacocoTestReport
+      - name: Collect connected test coverage
+        run: tar czf connected-coverage.tgz app/build/outputs/code_coverage
 
-      # Upload the various reports to sonar
+      - name: Upload connected test coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: connected-coverage
+          if-no-files-found: error
+          path: connected-coverage.tgz
+
+  # Merges both coverage sources and sends them to SonarCloud once both jobs have passed.
+  report:
+    name: Coverage report
+    needs: [checks, connected-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of Sonar analysis
+
+      - name: Restore Firebase configuration
+        env:
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES" ]; then
+            echo "::error::Set the GOOGLE_SERVICES repository secret to the Base64-encoded google-services.json."
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES" | base64 --decode > app/google-services.json
+
+      - name: Setup JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - name: Gradle cache
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      - name: Download checks outputs
+        uses: actions/download-artifact@v4
+        with:
+          name: checks-outputs
+
+      - name: Download connected test coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: connected-coverage
+
+      - name: Restore build outputs
+        run: |
+          tar xzf checks-outputs.tgz
+          tar xzf connected-coverage.tgz
+
+      - name: Generate Coverage Report
+        run: ./gradlew jacocoTestReport
+
       - name: Upload report to SonarCloud
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: ./gradlew sonar --build-cache
+
+  # Branch protection requires a status check named "CI", which was the single job before the
+  # split. This job keeps that name and passes only if every job above succeeded. It must run
+  # even when a needed job fails or is skipped: a skipped required check would count as passing.
+  ci:
+    name: CI
+    needs: [checks, connected-tests, report]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every job to succeed
+        env:
+          CHECKS: ${{ needs.checks.result }}
+          CONNECTED: ${{ needs.connected-tests.result }}
+          REPORT: ${{ needs.report.result }}
+        run: |
+          echo "checks=$CHECKS connected-tests=$CONNECTED report=$REPORT"
+          [ "$CHECKS" = success ] && [ "$CONNECTED" = success ] && [ "$REPORT" = success ]
