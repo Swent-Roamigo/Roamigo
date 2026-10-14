@@ -133,7 +133,7 @@ class AuthenticationFlowTest {
 
     composeRule
         .onNodeWithTag(AuthenticationScreenTestTags.errorMessage)
-        .assertTextEquals("Failed to get credentials: No test credential")
+        .assertTextEquals("No Google credentials available. Try signing in again.")
     composeRule.onNodeWithTag(AuthenticationScreenTestTags.signInButton).assertIsEnabled()
     composeRule.onAllNodesWithTag(C.Tag.trips_screen).assertCountEquals(0)
     assertNull(repository.getCurrentUser())
@@ -162,7 +162,7 @@ class AuthenticationFlowTest {
     waitForTag(AuthenticationScreenTestTags.errorMessage)
     composeRule
         .onNodeWithTag(AuthenticationScreenTestTags.errorMessage)
-        .assertTextEquals("Failed to get credentials: No test credential")
+        .assertTextEquals("No Google credentials available. Try signing in again.")
     composeRule.onNodeWithTag(AuthenticationScreenTestTags.signInButton).assertIsEnabled()
 
     composeRule.runOnIdle { credentialManager.pendingResponse = null }
