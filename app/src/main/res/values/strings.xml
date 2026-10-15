@@ -125,6 +125,7 @@
     <string name="vote_submit">Submit vote</string>
     <string name="vote_update">Update vote</string>
     <string name="vote_submitting">Submitting vote…</string>
+    <string name="vote_syncing">Reconnecting…</string>
     <string name="vote_loading">Loading vote…</string>
     <string name="vote_closed">This vote is closed.</string>
     <string name="vote_not_found">This vote could not be found.</string>

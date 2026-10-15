@@ -3,8 +3,10 @@ package com.swent.roamigo.ui.trip.voting
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
@@ -15,8 +17,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.firebase.Timestamp
@@ -58,46 +62,49 @@ fun VoteScreenContent(
           .padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium),
       verticalArrangement = Arrangement.spacedBy(Spacing.large),
   ) {
-    Column(
-        Modifier.weight(1f).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(Spacing.large),
-    ) {
+    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
       when (state) {
         VoteUiState.Loading -> VoteLoadingContent()
+        VoteUiState.Closed ->
+            Text(stringResource(R.string.vote_closed), textAlign = TextAlign.Center)
         is VoteUiState.LoadError ->
             VoteErrorContent(
                 messageResource =
-                    when (state.reason) {
-                      VoteLoadError.NOT_FOUND -> R.string.vote_not_found
-                      VoteLoadError.VOTE_FAILED -> R.string.vote_load_error
-                      VoteLoadError.BALLOTS_FAILED -> R.string.vote_ballots_error
-                    },
-                onRetry = onRetry,
+                    if (state.reason == VoteLoadError.NOT_FOUND) R.string.vote_not_found
+                    else R.string.vote_load_error,
+                onRetry = if (state.canRetry) onRetry else null,
             )
-        is VoteUiState.Ready -> {
-          Text(state.vote.question, style = MaterialTheme.typography.headlineLarge)
-          Column(
-              Modifier.selectableGroup(),
-              verticalArrangement = Arrangement.spacedBy(Spacing.small),
-          ) {
-            state.vote.options.forEach { option ->
-              VoteOptionRow(
-                  option.name,
-                  state.selectedOptionId == option.uid,
-                  state.canSelect,
-                  onClick = { onSelectOption(option.uid) },
-              )
+        is VoteUiState.Ready ->
+            Column(
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(Spacing.large),
+            ) {
+              Text(state.vote.question, style = MaterialTheme.typography.headlineLarge)
+              Column(
+                  Modifier.selectableGroup(),
+                  verticalArrangement = Arrangement.spacedBy(Spacing.small),
+              ) {
+                state.vote.options.forEach { option ->
+                  VoteOptionRow(
+                      option.name,
+                      state.selectedOptionId == option.uid,
+                      state.canSelect,
+                      onClick = { onSelectOption(option.uid) },
+                  )
+                }
+              }
             }
-          }
-          if (state.vote.status == VoteStatus.CLOSED) Text(stringResource(R.string.vote_closed))
-        }
       }
     }
     if (state is VoteUiState.Ready) {
-      when (state.observationState) {
-        BallotObservationState.Active -> Unit
-        BallotObservationState.Retrying -> VoteLoadingContent()
-        BallotObservationState.Failed ->
+      when (state.syncState) {
+        VoteSyncState.Synced -> Unit
+        VoteSyncState.Retrying ->
+            Text(
+                stringResource(R.string.vote_syncing),
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
+        VoteSyncState.Failed ->
             VoteErrorContent(
                 R.string.vote_ballots_error,
                 onRetry,
@@ -115,14 +122,20 @@ fun VoteScreenContent(
         hasPersistedBallot = ready?.hasPersistedBallot == true,
         onSubmit = onSubmit,
         onBack = onBack,
+        showSubmit = ready != null,
     )
   }
 }
 
 @Composable
 private fun VoteLoadingContent() {
-  CircularProgressIndicator()
-  Text(stringResource(R.string.vote_loading))
+  Column(
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.spacedBy(Spacing.medium),
+  ) {
+    CircularProgressIndicator()
+    Text(stringResource(R.string.vote_loading))
+  }
 }
 
 @Preview(showBackground = true, widthDp = 390, heightDp = 844)
