@@ -18,6 +18,12 @@ service cloud.firestore {
           && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds;
     }
 
+    // Mirrors TravelMode.allowedTravelerCounts in model/trip/Trip.kt.
+    function hasValidTravelerCount(trip) {
+      return (trip.travelMode == 'SOLO' && trip.travelerCount == 1)
+          || (trip.travelMode == 'GROUP' && trip.travelerCount >= 2 && trip.travelerCount <= 10);
+    }
+
     function isValidNewTrip(trip) {
       return trip.keys().hasAll([
             'name', 'description', 'destinations', 'startDate', 'endDate', 'flexibleDates',
@@ -32,10 +38,11 @@ service cloud.firestore {
           && trip.destinations is list
           && trip.startDate is timestamp
           && trip.endDate is timestamp
+          // Both dates are stored even when flexibleDates is true, so their order always holds.
+          && trip.endDate >= trip.startDate
           && trip.flexibleDates is bool
-          && trip.travelMode in ['SOLO', 'GROUP']
           && trip.travelerCount is int
-          && trip.travelerCount >= 1
+          && hasValidTravelerCount(trip)
           && trip.ownerId == request.auth.uid
           && trip.memberIds == [request.auth.uid]
           && trip.status == 'PLANNED'

@@ -32,13 +32,6 @@ class TripDraftTest {
   }
 
   @Test
-  fun soloTripWithOneTravelerIsValid() {
-    val draft = validDraft.copy(travelMode = TravelMode.SOLO, travelerCount = 1)
-
-    assertEquals(emptyList<TripDraftError>(), draft.validate())
-  }
-
-  @Test
   fun draftWithoutDestinationsIsInvalid() {
     val draft = validDraft.copy(destinations = emptyList())
 
@@ -60,24 +53,38 @@ class TripDraftTest {
   }
 
   @Test
-  fun draftWithoutTravelersIsInvalid() {
-    val draft = validDraft.copy(travelerCount = 0)
-
-    assertEquals(listOf(TripDraftError.InvalidTravelerCount), draft.validate())
+  fun soloTripWithoutTravelersIsInvalid() {
+    assertTravelerCountIsInvalid(TravelMode.SOLO, 0)
   }
 
   @Test
-  fun soloTripWithMultipleTravelersIsInvalid() {
-    val draft = validDraft.copy(travelMode = TravelMode.SOLO, travelerCount = 2)
-
-    assertEquals(listOf(TripDraftError.SoloWithMultipleTravelers), draft.validate())
+  fun soloTripWithOneTravelerIsValid() {
+    assertTravelerCountIsValid(TravelMode.SOLO, 1)
   }
 
   @Test
-  fun soloTripWithoutTravelersReportsOnlyTheInvalidCount() {
-    val draft = validDraft.copy(travelMode = TravelMode.SOLO, travelerCount = 0)
+  fun soloTripWithTwoTravelersIsInvalid() {
+    assertTravelerCountIsInvalid(TravelMode.SOLO, 2)
+  }
 
-    assertEquals(listOf(TripDraftError.InvalidTravelerCount), draft.validate())
+  @Test
+  fun groupTripWithOneTravelerIsInvalid() {
+    assertTravelerCountIsInvalid(TravelMode.GROUP, 1)
+  }
+
+  @Test
+  fun groupTripWithTwoTravelersIsValid() {
+    assertTravelerCountIsValid(TravelMode.GROUP, 2)
+  }
+
+  @Test
+  fun groupTripWithTenTravelersIsValid() {
+    assertTravelerCountIsValid(TravelMode.GROUP, 10)
+  }
+
+  @Test
+  fun groupTripWithElevenTravelersIsInvalid() {
+    assertTravelerCountIsInvalid(TravelMode.GROUP, 11)
   }
 
   @Test
@@ -98,9 +105,21 @@ class TripDraftTest {
             TripDraftError.NoDestinations,
             TripDraftError.BlankName,
             TripDraftError.EndBeforeStart,
-            TripDraftError.SoloWithMultipleTravelers,
+            TripDraftError.InvalidTravelerCount,
         ),
         draft.validate(),
     )
+  }
+
+  private fun assertTravelerCountIsValid(travelMode: TravelMode, travelerCount: Int) {
+    val draft = validDraft.copy(travelMode = travelMode, travelerCount = travelerCount)
+
+    assertEquals(emptyList<TripDraftError>(), draft.validate())
+  }
+
+  private fun assertTravelerCountIsInvalid(travelMode: TravelMode, travelerCount: Int) {
+    val draft = validDraft.copy(travelMode = travelMode, travelerCount = travelerCount)
+
+    assertEquals(listOf(TripDraftError.InvalidTravelerCount), draft.validate())
   }
 }

@@ -39,10 +39,8 @@ data class TripDraft(
     if (destinations.isEmpty()) add(TripDraftError.NoDestinations)
     if (name.isBlank()) add(TripDraftError.BlankName)
     if (endDate < startDate) add(TripDraftError.EndBeforeStart)
-    if (travelerCount < 1) add(TripDraftError.InvalidTravelerCount)
-    // A count below one is already reported above, so only extra travelers are reported here.
-    if (travelMode == TravelMode.SOLO && travelerCount > 1) {
-      add(TripDraftError.SoloWithMultipleTravelers)
+    if (travelerCount !in travelMode.allowedTravelerCounts) {
+      add(TripDraftError.InvalidTravelerCount)
     }
   }
 }
@@ -58,9 +56,6 @@ sealed interface TripDraftError {
   /** The end date is before the start date. */
   data object EndBeforeStart : TripDraftError
 
-  /** The traveler count is below one. */
+  /** The traveler count is outside [TravelMode.allowedTravelerCounts] for the trip's mode. */
   data object InvalidTravelerCount : TripDraftError
-
-  /** A solo trip has more than one traveler. */
-  data object SoloWithMultipleTravelers : TripDraftError
 }

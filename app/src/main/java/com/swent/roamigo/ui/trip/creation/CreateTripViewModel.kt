@@ -3,6 +3,9 @@
 package com.swent.roamigo.ui.trip.creation
 
 import androidx.lifecycle.ViewModel
+import com.swent.roamigo.model.trip.MAX_GROUP_TRAVELER_COUNT
+import com.swent.roamigo.model.trip.MIN_GROUP_TRAVELER_COUNT
+import com.swent.roamigo.model.trip.SOLO_TRAVELER_COUNT
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,15 +43,12 @@ data class CreateTripUiState(
             !endDate.isBefore(startDate) &&
             selectedDestinations.isNotEmpty() &&
             when (tripType) {
-              TripType.SOLO -> travelerCount == MIN_TRAVELERS
-              TripType.GROUP -> travelerCount in MIN_GROUP_TRAVELERS..MAX_TRAVELERS
+              TripType.SOLO -> travelerCount == SOLO_TRAVELER_COUNT
+              TripType.GROUP -> travelerCount in MIN_GROUP_TRAVELER_COUNT..MAX_GROUP_TRAVELER_COUNT
             }
 }
 
 private val popularDestinations = listOf("Lisbon", "Porto", "Barcelona", "Prague")
-private const val MIN_TRAVELERS = 1
-internal const val MIN_GROUP_TRAVELERS = 2
-private const val MAX_TRAVELERS = 10
 private const val DEFAULT_GROUP_SIZE = 3
 private const val DEFAULT_TRIP_DURATION_DAYS = 3L
 
@@ -129,7 +129,7 @@ class CreateTripViewModel : ViewModel() {
         state.copy(
             tripType = type,
             travelerCount =
-                if (type == TripType.SOLO) MIN_TRAVELERS
+                if (type == TripType.SOLO) SOLO_TRAVELER_COUNT
                 else {
                   // Returning to Group starts a fresh group draft at its default size.
                   DEFAULT_GROUP_SIZE
@@ -141,12 +141,12 @@ class CreateTripViewModel : ViewModel() {
 
   fun decrementTravelers() {
     if (uiState.value.tripType == TripType.SOLO) return
-    updateTravelerCount { (it - 1).coerceAtLeast(MIN_GROUP_TRAVELERS) }
+    updateTravelerCount { (it - 1).coerceAtLeast(MIN_GROUP_TRAVELER_COUNT) }
   }
 
   fun incrementTravelers() {
     if (uiState.value.tripType == TripType.SOLO) return
-    updateTravelerCount { (it + 1).coerceAtMost(MAX_TRAVELERS) }
+    updateTravelerCount { (it + 1).coerceAtMost(MAX_GROUP_TRAVELER_COUNT) }
   }
 
   private fun updateTravelerCount(update: (Int) -> Int) {

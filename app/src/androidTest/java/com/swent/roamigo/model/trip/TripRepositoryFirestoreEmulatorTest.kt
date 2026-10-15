@@ -109,25 +109,45 @@ class TripRepositoryFirestoreEmulatorTest {
 
   @Test
   fun tripOwnedByAnotherUserCannotBeWritten() = runBlocking {
-    val trip =
-        Trip(
-            uid = tripId,
-            name = draft.name,
-            description = null,
-            destinations = draft.destinations,
-            startDate = draft.startDate,
-            endDate = draft.endDate,
-            flexibleDates = draft.flexibleDates,
-            travelMode = draft.travelMode,
-            travelerCount = draft.travelerCount,
-            ownerId = alice.userId,
-            memberIds = listOf(alice.userId),
-            status = TripStatus.PLANNED,
-            createdAt = Timestamp.now(),
+    assertPermissionDenied { writeTripDirectly(bob, tripOwnedBy(alice)) }
+  }
+
+  @Test
+  fun directWriteWithinTravelerBoundsAndDateOrderIsAllowed() = runBlocking {
+    val validTrips =
+        listOf(
+            tripOwnedBy(alice).copy(travelMode = TravelMode.SOLO, travelerCount = 1),
+            tripOwnedBy(alice).copy(travelMode = TravelMode.GROUP, travelerCount = 2),
+            tripOwnedBy(alice).copy(travelMode = TravelMode.GROUP, travelerCount = 10),
+            tripOwnedBy(alice).copy(endDate = draft.startDate),
         )
 
-    assertPermissionDenied {
-      bob.db.collection("trips").document(tripId).set(trip.toFirestoreData()).await()
+    validTrips.forEachIndexed { index, trip -> writeTripDirectly(alice, trip, "$tripId-$index") }
+  }
+
+  @Test
+  fun directWriteWithTravelerCountOutsideItsModeIsDenied() = runBlocking {
+    val invalidCounts =
+        listOf(
+            TravelMode.SOLO to 0,
+            TravelMode.SOLO to 2,
+            TravelMode.GROUP to 1,
+            TravelMode.GROUP to 11,
+        )
+
+    invalidCounts.forEach { (travelMode, travelerCount) ->
+      val trip = tripOwnedBy(alice).copy(travelMode = travelMode, travelerCount = travelerCount)
+      assertPermissionDenied { writeTripDirectly(alice, trip) }
+    }
+  }
+
+  @Test
+  fun directWriteEndingBeforeItStartsIsDenied() = runBlocking {
+    val endBeforeStart = Timestamp(draft.startDate.seconds - 1, 0)
+
+    listOf(false, true).forEach { flexibleDates ->
+      val trip = tripOwnedBy(alice).copy(endDate = endBeforeStart, flexibleDates = flexibleDates)
+      assertPermissionDenied { writeTripDirectly(alice, trip) }
     }
   }
 
@@ -169,6 +189,28 @@ class TripRepositoryFirestoreEmulatorTest {
         }
     val userId = auth.signInAnonymously().await().user!!.uid
     return User(userId, db, TripRepositoryFirestore(db) { auth.currentUser?.uid })
+  }
+
+  private fun tripOwnedBy(owner: User) =
+      Trip(
+          uid = tripId,
+          name = draft.name,
+          description = null,
+          destinations = draft.destinations,
+          startDate = draft.startDate,
+          endDate = draft.endDate,
+          flexibleDates = draft.flexibleDates,
+          travelMode = draft.travelMode,
+          travelerCount = draft.travelerCount,
+          ownerId = owner.userId,
+          memberIds = listOf(owner.userId),
+          status = TripStatus.PLANNED,
+          createdAt = Timestamp.now(),
+      )
+
+  // Bypasses the repository and its Kotlin validation, so only the rules decide.
+  private suspend fun writeTripDirectly(user: User, trip: Trip, id: String = tripId) {
+    user.db.collection("trips").document(id).set(trip.toFirestoreData()).await()
   }
 
   private fun memberDocument(user: User, tripId: String) =
