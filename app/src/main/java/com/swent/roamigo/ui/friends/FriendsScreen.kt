@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
+import com.swent.roamigo.ui.components.markNotImplemented
+import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.FriendAvatarBlue
 import com.swent.roamigo.ui.theme.FriendAvatarGreen
 import com.swent.roamigo.ui.theme.FriendAvatarRose
@@ -60,11 +62,11 @@ private val friendAvatarColors = listOf(FriendAvatarBlue, FriendAvatarRose, Frie
 fun FriendsScreen(
     uiState: FriendsUiState,
     modifier: Modifier = Modifier,
-    onAddFriendClick: () -> Unit = {},
-    onViewMapClick: (String) -> Unit = {},
-    onTripsClick: () -> Unit = {},
-    onMapClick: () -> Unit = {},
-    onPhotosClick: () -> Unit = {},
+    onAddFriendClick: () -> Unit = rememberNotImplementedAction(),
+    onViewMapClick: ((String) -> Unit)? = null,
+    onTripsClick: () -> Unit = rememberNotImplementedAction(),
+    onMapClick: () -> Unit = rememberNotImplementedAction(),
+    onPhotosClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   Scaffold(
       modifier = modifier.fillMaxSize().testTag(C.Tag.friends_screen),
@@ -101,7 +103,8 @@ fun FriendsScreen(
           modifier =
               Modifier.fillMaxWidth()
                   .padding(bottom = Spacing.large)
-                  .testTag(C.Tag.friends_add_friend),
+                  .testTag(C.Tag.friends_add_friend)
+                  .markNotImplemented(onAddFriendClick),
       ) {
         Text(stringResource(R.string.friends_add_friend))
       }
@@ -132,7 +135,7 @@ private fun FriendsHeader() {
 @Composable
 private fun FriendsList(
     uiState: FriendsUiState,
-    onViewMapClick: (String) -> Unit,
+    onViewMapClick: ((String) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
   LazyColumn(
@@ -150,7 +153,9 @@ private fun FriendsList(
     ) { friend ->
       FriendRow(
           friend = friend,
-          onViewMapClick = onViewMapClick,
+          onViewMapClick =
+              onViewMapClick?.let { callback -> { callback(friend.userId) } }
+                  ?: rememberNotImplementedAction(),
       )
     }
 
@@ -166,7 +171,7 @@ private fun FriendsList(
 @Composable
 private fun FriendRow(
     friend: FriendUiModel,
-    onViewMapClick: (String) -> Unit,
+    onViewMapClick: () -> Unit,
 ) {
   Surface(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.friends_friend_row),
@@ -208,11 +213,11 @@ private fun FriendRow(
           )
 
       Surface(
-          onClick = { onViewMapClick(friend.userId) },
+          onClick = onViewMapClick,
           modifier =
-              Modifier.testTag(C.Tag.friends_view_map_prefix + friend.userId).semantics {
-                contentDescription = viewMapDescription
-              },
+              Modifier.testTag(C.Tag.friends_view_map_prefix + friend.userId)
+                  .markNotImplemented(onViewMapClick)
+                  .semantics { contentDescription = viewMapDescription },
           shape = MaterialTheme.shapes.small,
           color = MaterialTheme.colorScheme.surfaceContainerHigh,
       ) {

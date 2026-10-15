@@ -1,23 +1,24 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.model.trip
 
-import com.google.firebase.Timestamp
 import com.swent.roamigo.model.MAX_LATITUDE
 import com.swent.roamigo.model.MAX_LONGITUDE
 import com.swent.roamigo.model.MIN_LATITUDE
 import com.swent.roamigo.model.MIN_LONGITUDE
 import com.swent.roamigo.model.TripLocation
+import java.time.Instant
 
 /**
  * Details chosen by the user when creating a trip, before it is persisted.
  *
  * A draft holds only what the user decides. The trip ID, owner, members, status, and creation time
- * are assigned by the repository when the trip is created.
+ * are assigned by the repository when the trip is created. Dates are represented as
+ * platform-neutral instants; repositories handle conversion to their storage format.
  *
  * @property name the name of the trip.
  * @property destinations the destinations of the trip, in visiting order.
- * @property startDate the first day of the trip.
- * @property endDate the last day of the trip.
+ * @property startDate the start of the first day in the timezone chosen by the caller.
+ * @property endDate the start of the last day in the timezone chosen by the caller.
  * @property flexibleDates whether the group is open to shifting the dates.
  * @property travelMode whether the trip is solo or for a group.
  * @property travelerCount the number of people expected on the trip.
@@ -25,8 +26,8 @@ import com.swent.roamigo.model.TripLocation
 data class TripDraft(
     val name: String,
     val destinations: List<TripLocation>,
-    val startDate: Timestamp,
-    val endDate: Timestamp,
+    val startDate: Instant,
+    val endDate: Instant,
     val flexibleDates: Boolean,
     val travelMode: TravelMode,
     val travelerCount: Int,

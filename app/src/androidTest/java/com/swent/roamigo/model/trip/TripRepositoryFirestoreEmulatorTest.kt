@@ -15,6 +15,7 @@ import com.google.firebase.firestore.MemoryCacheSettings
 import com.swent.roamigo.model.TripLocation
 import java.net.HttpURLConnection
 import java.net.URL
+import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
@@ -47,8 +48,8 @@ class TripRepositoryFirestoreEmulatorTest {
                   TripLocation(38.7223, -9.1393, "Lisbon"),
                   TripLocation(41.1579, -8.6291, "Porto"),
               ),
-          startDate = Timestamp(1_900_000_000, 0),
-          endDate = Timestamp(1_900_300_000, 0),
+          startDate = Instant.ofEpochSecond(1_900_000_000),
+          endDate = Instant.ofEpochSecond(1_900_300_000),
           flexibleDates = false,
           travelMode = TravelMode.GROUP,
           travelerCount = 3,
@@ -130,7 +131,8 @@ class TripRepositoryFirestoreEmulatorTest {
             tripOwnedBy(alice).copy(travelMode = TravelMode.SOLO, travelerCount = 1),
             tripOwnedBy(alice).copy(travelMode = TravelMode.GROUP, travelerCount = 2),
             tripOwnedBy(alice).copy(travelMode = TravelMode.GROUP, travelerCount = 10),
-            tripOwnedBy(alice).copy(endDate = draft.startDate),
+            tripOwnedBy(alice)
+                .copy(endDate = Timestamp(draft.startDate.epochSecond, draft.startDate.nano)),
         )
 
     validTrips.forEachIndexed { index, trip -> writeTripDirectly(alice, trip, "$tripId-$index") }
@@ -154,7 +156,7 @@ class TripRepositoryFirestoreEmulatorTest {
 
   @Test
   fun directWriteEndingBeforeItStartsIsDenied() = runBlocking {
-    val endBeforeStart = Timestamp(draft.startDate.seconds - 1, 0)
+    val endBeforeStart = Timestamp(draft.startDate.epochSecond - 1, 0)
 
     listOf(false, true).forEach { flexibleDates ->
       val trip = tripOwnedBy(alice).copy(endDate = endBeforeStart, flexibleDates = flexibleDates)
@@ -270,8 +272,8 @@ class TripRepositoryFirestoreEmulatorTest {
           name = draft.name,
           description = null,
           destinations = draft.destinations,
-          startDate = draft.startDate,
-          endDate = draft.endDate,
+          startDate = Timestamp(draft.startDate.epochSecond, draft.startDate.nano),
+          endDate = Timestamp(draft.endDate.epochSecond, draft.endDate.nano),
           flexibleDates = draft.flexibleDates,
           travelMode = draft.travelMode,
           travelerCount = draft.travelerCount,

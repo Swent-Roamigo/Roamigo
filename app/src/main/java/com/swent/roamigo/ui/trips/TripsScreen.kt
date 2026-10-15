@@ -33,6 +33,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -55,6 +56,8 @@ import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
+import com.swent.roamigo.ui.components.markNotImplemented
+import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import java.time.Clock
 
 /**
@@ -74,6 +77,8 @@ import java.time.Clock
  * @param onPhotosClick invoked when the Photos navigation destination is selected.
  * @param onProfileClick invoked when the user selects their profile avatar.
  * @param clock the clock used for time-dependent presentation logic.
+ * @param refreshRequested whether a completed creation requires fresh trip data.
+ * @param onRefreshConsumed clears the one-time creation result after starting the refresh.
  */
 @Composable
 fun TripsRoute(
@@ -81,13 +86,15 @@ fun TripsRoute(
     userRepository: UserRepository,
     @DrawableRes mainTripImageRes: Int? = null,
     @DrawableRes nextActivityImageRes: Int? = null,
-    onInviteClick: () -> Unit = {},
-    onNewTripClick: () -> Unit = {},
+    onInviteClick: () -> Unit = rememberNotImplementedAction(),
+    onNewTripClick: () -> Unit = rememberNotImplementedAction(),
     onTripsClick: () -> Unit = {},
-    onMapClick: () -> Unit = {},
-    onPhotosClick: () -> Unit = {},
-    onProfileClick: () -> Unit = {},
+    onMapClick: () -> Unit = rememberNotImplementedAction(),
+    onPhotosClick: () -> Unit = rememberNotImplementedAction(),
+    onProfileClick: () -> Unit = rememberNotImplementedAction(),
     clock: Clock = Clock.systemDefaultZone(),
+    refreshRequested: Boolean = false,
+    onRefreshConsumed: () -> Unit = {},
 ) {
   val viewModel: TripsViewModel =
       viewModel(
@@ -99,6 +106,12 @@ fun TripsRoute(
               )
       )
 
+  LaunchedEffect(refreshRequested) {
+    if (refreshRequested) {
+      viewModel.refresh()
+      onRefreshConsumed()
+    }
+  }
   val uiState by viewModel.uiState.collectAsState()
 
   TripsScreen(
@@ -135,12 +148,12 @@ fun TripsScreen(
     uiState: TripsUiState,
     @DrawableRes mainTripImageRes: Int? = null,
     @DrawableRes nextActivityImageRes: Int? = null,
-    onInviteClick: () -> Unit = {},
-    onNewTripClick: () -> Unit = {},
+    onInviteClick: () -> Unit = rememberNotImplementedAction(),
+    onNewTripClick: () -> Unit = rememberNotImplementedAction(),
     onTripsClick: () -> Unit = {},
-    onMapClick: () -> Unit = {},
-    onPhotosClick: () -> Unit = {},
-    onProfileClick: () -> Unit = {},
+    onMapClick: () -> Unit = rememberNotImplementedAction(),
+    onPhotosClick: () -> Unit = rememberNotImplementedAction(),
+    onProfileClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   Scaffold(
       modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.trips_screen },
@@ -234,7 +247,7 @@ fun TripsScreen(
         Button(
             onClick = onNewTripClick,
             modifier =
-                Modifier.fillMaxWidth().height(58.dp).semantics {
+                Modifier.fillMaxWidth().height(58.dp).markNotImplemented(onNewTripClick).semantics {
                   testTag = C.Tag.trips_new_trip_button
                 },
             shape = MaterialTheme.shapes.medium,
@@ -302,7 +315,7 @@ private fun TripsHeader(
       Surface(
           onClick = onProfileClick,
           modifier =
-              Modifier.size(52.dp).semantics {
+              Modifier.size(52.dp).markNotImplemented(onProfileClick).semantics {
                 testTag = C.Tag.trips_profile_avatar
                 contentDescription = openProfileLabel
               },
@@ -406,7 +419,10 @@ private fun MainTripCard(
 
           Surface(
               onClick = onInviteClick,
-              modifier = Modifier.semantics { testTag = C.Tag.trips_invite_button },
+              modifier =
+                  Modifier.markNotImplemented(onInviteClick).semantics {
+                    testTag = C.Tag.trips_invite_button
+                  },
               shape = CircleShape,
               color = MaterialTheme.colorScheme.surface,
           ) {

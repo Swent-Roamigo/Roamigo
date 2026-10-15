@@ -1,10 +1,15 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -33,6 +38,7 @@ import com.swent.roamigo.ui.permissions.PermissionsScreen
 import com.swent.roamigo.ui.profile.ProfileScreen
 import com.swent.roamigo.ui.profile.ProfileViewModel
 import com.swent.roamigo.ui.trip.creation.CreateTripViewModel
+import com.swent.roamigo.ui.trip.creation.DatesTravelersScreen
 import com.swent.roamigo.ui.trip.creation.DestinationScreen
 import com.swent.roamigo.ui.trip.voting.CreateVoteScreen
 import com.swent.roamigo.ui.trip.voting.CreateVoteViewModel
@@ -43,8 +49,8 @@ import com.swent.roamigo.ui.trips.TripsRoute
 /**
  * New sign-ins continue through the permissions explainer to trips; existing sessions open trips.
  *
- * Trip and user repositories default to in-memory placeholders until real data sources are wired
- * in.
+ * Repository defaults provide placeholders for previews and tests; MainActivity supplies real
+ * trips.
  */
 @Composable
 fun RoamigoApp(
@@ -84,8 +90,12 @@ fun RoamigoApp(
           },
       )
     }
-    composable(Route.TRIPS) {
+    composable(Route.TRIPS) { entry ->
+      val refreshRequested by
+          entry.savedStateHandle.getStateFlow("trip_created", false).collectAsState()
       TripsRoute(
+          refreshRequested = refreshRequested,
+          onRefreshConsumed = { entry.savedStateHandle["trip_created"] = false },
           tripRepository = tripRepository,
           userRepository = userRepository,
           onNewTripClick = { navController.navigate(Route.NEW_TRIP) },
@@ -108,13 +118,42 @@ fun RoamigoApp(
       )
     }
     composable(Route.NEW_TRIP) {
-      DestinationScreen(
-          createTripViewModel = viewModel<CreateTripViewModel>(),
-          onBack = { navController.popBackStack() },
-          onClose = { navController.popBackStack() },
-          // The next step of the flow does not exist yet.
-          onContinue = {},
-      )
+      val creationViewModel = viewModel { CreateTripViewModel(tripRepository) }
+      val state by creationViewModel.uiState.collectAsState()
+      var datesStep by rememberSaveable { mutableStateOf(false) }
+      val back: () -> Unit = {
+        if (!state.isSubmitting) {
+          if (datesStep) datesStep = false else navController.popBackStack()
+        }
+      }
+      BackHandler(onBack = back)
+      LaunchedEffect(state.createdTripId) {
+        if (state.createdTripId != null) {
+          navController.getBackStackEntry(Route.TRIPS).savedStateHandle["trip_created"] = true
+          navController.popBackStack(Route.TRIPS, inclusive = false)
+        }
+      }
+      if (datesStep) {
+        DatesTravelersScreen(
+            createTripViewModel = creationViewModel,
+            onBack = back,
+            onClose = { if (!state.isSubmitting) navController.popBackStack() },
+            onCreateTrip = creationViewModel::createTrip,
+            onSignIn = {
+              navController.navigate(Route.AUTHENTICATION) {
+                popUpTo(Route.TRIPS) { inclusive = true }
+                launchSingleTop = true
+              }
+            },
+        )
+      } else {
+        DestinationScreen(
+            createTripViewModel = creationViewModel,
+            onBack = back,
+            onClose = { navController.popBackStack() },
+            onContinue = { datesStep = true },
+        )
+      }
     }
     composable(
         Route.CREATE_VOTE,
