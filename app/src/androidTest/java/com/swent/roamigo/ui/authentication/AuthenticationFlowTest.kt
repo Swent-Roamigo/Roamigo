@@ -15,10 +15,12 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
+import androidx.credentials.exceptions.ClearCredentialUnknownException
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
 import androidx.credentials.exceptions.NoCredentialException
@@ -194,6 +196,7 @@ class AuthenticationFlowTest {
     assertAuthenticationIsFirstScreen()
     composeRule.onAllNodesWithTag(C.Tag.profile_title).assertCountEquals(0)
     assertNull(repository.getCurrentUser())
+    assertEquals(1, credentialManager.clearRequests)
     pressBackAndWaitForExit()
   }
 
@@ -205,15 +208,50 @@ class AuthenticationFlowTest {
     composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
     waitForTag(C.Tag.profile_log_out)
     composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
-    composeRule.onNodeWithText("Unable to sign out. Please try again.").assertIsDisplayed()
+    composeRule
+        .onNodeWithText(
+            composeRule.activity.getString(com.swent.roamigo.R.string.profile_sign_out_failed)
+        )
+        .assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.profile_log_out).assertIsEnabled()
     composeRule.onAllNodesWithTag(AuthenticationScreenTestTags.heading).assertCountEquals(0)
     assertEquals(user, repository.getCurrentUser())
+    assertEquals(0, credentialManager.clearRequests)
     composeRule.runOnIdle { repository.signOutFailure = null }
     composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
     assertAuthenticationIsFirstScreen()
     assertNull(repository.getCurrentUser())
+    assertEquals(1, credentialManager.clearRequests)
+  }
+
+  @Test
+  fun credentialClearFailureStillOpensAuthentication() {
+    launchApp(signedIn = true)
+    credentialManager.clearFailure = ClearCredentialUnknownException("Provider unavailable")
+    waitForTag(C.Tag.trips_profile_avatar)
+    composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
+    waitForTag(C.Tag.profile_log_out)
+    composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    assertAuthenticationIsFirstScreen()
+    assertNull(repository.getCurrentUser())
+    assertEquals(1, credentialManager.clearRequests)
+  }
+
+  @Test
+  fun navigationWaitsForCredentialStateToBeCleared() {
+    launchApp(signedIn = true)
+    val pending = CompletableDeferred<Unit>()
+    credentialManager.pendingClear = pending
+    waitForTag(C.Tag.trips_profile_avatar)
+    composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
+    waitForTag(C.Tag.profile_log_out)
+    composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
+    composeRule.onAllNodesWithTag(AuthenticationScreenTestTags.heading).assertCountEquals(0)
+    assertEquals(1, credentialManager.clearRequests)
+    composeRule.runOnIdle { pending.complete(Unit) }
+    assertAuthenticationIsFirstScreen()
   }
 
   @Test
@@ -254,6 +292,15 @@ class AuthenticationFlowTest {
     var failure: GetCredentialException? = null
     var pendingResponse: CompletableDeferred<GetCredentialResponse>? = null
     val credential = CustomCredential("test-credential", Bundle())
+    var clearRequests = 0
+    var clearFailure: ClearCredentialUnknownException? = null
+    var pendingClear: CompletableDeferred<Unit>? = null
+
+    override suspend fun clearCredentialState(request: ClearCredentialStateRequest) {
+      clearRequests++
+      pendingClear?.await()
+      clearFailure?.let { throw it }
+    }
 
     override suspend fun getCredential(
         context: Context,

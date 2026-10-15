@@ -1,5 +1,4 @@
-// Implemented with assistance from Claude (Anthropic).
-// Sign-out tests implemented with AI assistance.
+// Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui
 
 import androidx.activity.ComponentActivity
@@ -15,6 +14,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.credentials.ClearCredentialStateRequest
+import androidx.credentials.CredentialManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
@@ -44,8 +45,18 @@ class RoamigoAppTest {
 
   @Before
   fun setUp() {
+    val credentialManager =
+        object : CredentialManager by CredentialManager.create(composeRule.activity) {
+          override suspend fun clearCredentialState(request: ClearCredentialStateRequest) {}
+        }
     composeRule.setContent {
-      RoamigoTheme { RoamigoApp(authRepository = authRepository, tripRepository = repository) }
+      RoamigoTheme {
+        RoamigoApp(
+            authRepository = authRepository,
+            tripRepository = repository,
+            credentialManager = credentialManager,
+        )
+      }
     }
   }
 
@@ -85,7 +96,11 @@ class RoamigoAppTest {
     composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
     composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.profile_log_out).assertIsEnabled()
-    composeRule.onNodeWithText("Unable to sign out. Please try again.").assertIsDisplayed()
+    composeRule
+        .onNodeWithText(
+            composeRule.activity.getString(com.swent.roamigo.R.string.profile_sign_out_failed)
+        )
+        .assertIsDisplayed()
     composeRule.onAllNodesWithTag(AuthenticationScreenTestTags.heading).assertCountEquals(0)
     assertEquals("alex", authRepository.getCurrentUser()?.uid)
     composeRule.runOnIdle { authRepository.signOutFailure = null }

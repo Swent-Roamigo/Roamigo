@@ -1,5 +1,4 @@
-// Implemented with assistance from Claude (Anthropic).
-// Sign-out implemented with AI assistance.
+// Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui.profile
 
 import android.util.Log
