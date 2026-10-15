@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 plugins {
   alias(libs.plugins.androidApplication)
@@ -8,6 +9,13 @@ plugins {
   alias(libs.plugins.googleServices)
   id("jacoco")
 }
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+val mapboxToken: String = localProps.getProperty("MAPBOX_ACCESS_TOKEN")
+    ?: System.getenv("MAPBOX_ACCESS_TOKEN")
+    ?: ""
 
 android {
   namespace = "com.swent.roamigo"
@@ -22,6 +30,8 @@ android {
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     vectorDrawables { useSupportLibrary = true }
+
+    resValue("string", "mapbox_access_token", mapboxToken)
   }
 
   buildTypes {
@@ -41,7 +51,10 @@ android {
 
   testCoverage { jacocoVersion = "0.8.11" }
 
-  buildFeatures { compose = true }
+  buildFeatures {
+      compose = true
+      resValues = true
+  }
 
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -178,6 +191,10 @@ dependencies {
   testImplementation(libs.kotlinx.coroutines.test)
   globalTestImplementation(libs.androidx.junit)
   globalTestImplementation(libs.androidx.espresso.core)
+
+  // ------------- Mapbox ------------------
+  implementation("com.mapbox.maps:android-ndk27:11.32.1")
+  implementation("com.mapbox.extension:maps-compose-ndk27:11.32.1")
 
   // ------------- Jetpack Compose ------------------
   val composeBom = platform(libs.compose.bom)
