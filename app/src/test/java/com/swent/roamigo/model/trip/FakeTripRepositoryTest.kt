@@ -4,6 +4,7 @@ package com.swent.roamigo.model.trip
 
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
+import java.time.Instant
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
@@ -134,8 +135,8 @@ class FakeTripRepositoryTest {
                   TripLocation(41.1579, -8.6291, "Porto"),
                   TripLocation(41.3874, 2.1686, "Barcelona"),
               ),
-          startDate = Timestamp(1000, 0),
-          endDate = Timestamp(2000, 0),
+          startDate = Instant.ofEpochSecond(1000),
+          endDate = Instant.ofEpochSecond(2000),
           flexibleDates = true,
           travelMode = TravelMode.GROUP,
           travelerCount = 3,
@@ -150,8 +151,8 @@ class FakeTripRepositoryTest {
     assertEquals("new-trip", created.uid)
     assertEquals(draft.name, created.name)
     assertEquals(draft.destinations, created.destinations)
-    assertEquals(draft.startDate, created.startDate)
-    assertEquals(draft.endDate, created.endDate)
+    assertEquals(Timestamp(1000, 0), created.startDate)
+    assertEquals(Timestamp(2000, 0), created.endDate)
     assertEquals(draft.flexibleDates, created.flexibleDates)
     assertEquals(draft.travelMode, created.travelMode)
     assertEquals(draft.travelerCount, created.travelerCount)

@@ -121,8 +121,8 @@ class CreateTripViewModelTest {
         ),
         draft.destinations,
     )
-    assertEquals(start.atStartOfDay(zone).toEpochSecond(), draft.startDate.seconds)
-    assertEquals(end.atStartOfDay(zone).toEpochSecond(), draft.endDate.seconds)
+    assertEquals(start.atStartOfDay(zone).toInstant(), draft.startDate)
+    assertEquals(end.atStartOfDay(zone).toInstant(), draft.endDate)
     assertTrue(draft.flexibleDates)
     assertEquals(TravelMode.GROUP, draft.travelMode)
     assertEquals(4, draft.travelerCount)

@@ -4,7 +4,6 @@ package com.swent.roamigo.ui.trip.creation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.MAX_GROUP_TRAVELER_COUNT
@@ -17,7 +16,6 @@ import com.swent.roamigo.model.trip.TripRepository
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
-import java.util.Date
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -93,8 +91,8 @@ class CreateTripViewModel(
         TripDraft(
             name = state.selectedDestinations.joinToString(" → "),
             destinations = state.selectedDestinations.map { destinationLocations.getValue(it) },
-            startDate = Timestamp(Date.from(state.startDate.atStartOfDay(zoneId).toInstant())),
-            endDate = Timestamp(Date.from(state.endDate.atStartOfDay(zoneId).toInstant())),
+            startDate = state.startDate.atStartOfDay(zoneId).toInstant(),
+            endDate = state.endDate.atStartOfDay(zoneId).toInstant(),
             flexibleDates = state.flexibleDates,
             travelMode = state.travelMode,
             travelerCount = state.travelerCount,
