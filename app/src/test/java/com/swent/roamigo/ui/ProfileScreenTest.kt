@@ -8,7 +8,6 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
-import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -46,10 +45,10 @@ class ProfileScreenTest {
     composeRule.onNodeWithTag(C.Tag.profile_avatar).assertTextEquals(state.user.displayName.take(1))
     composeRule.onNodeWithTag(C.Tag.profile_name).assertTextEquals(state.user.displayName)
     composeRule.onNodeWithTag(C.Tag.profile_email).assertTextContains(state.email, substring = true)
-    // The row only carries the tag; its text lives in child nodes.
+    // The row is clickable, so its text is merged into the tagged node.
     composeRule
         .onNodeWithTag(C.Tag.profile_friends_row)
-        .assert(hasAnyDescendant(hasText(state.friendCount.toString(), substring = true)))
+        .assert(hasText(state.friendCount.toString(), substring = true))
   }
 
   @Test
@@ -67,7 +66,7 @@ class ProfileScreenTest {
 
     composeRule
         .onNodeWithTag(C.Tag.profile_friends_row)
-        .assert(hasAnyDescendant(hasText("$expected \u00b7 heatmaps visible to friends only")))
+        .assert(hasText("$expected \u00b7 heatmaps visible to friends only", substring = true))
   }
 
   @Test
