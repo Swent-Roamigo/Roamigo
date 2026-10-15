@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import com.swent.roamigo.model.trip.MAX_GROUP_TRAVELER_COUNT
 import com.swent.roamigo.model.trip.MIN_GROUP_TRAVELER_COUNT
 import com.swent.roamigo.model.trip.SOLO_TRAVELER_COUNT
+import com.swent.roamigo.model.trip.TravelMode
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,7 +23,7 @@ data class CreateTripUiState(
     val endDate: LocalDate = startDate.plusDays(DEFAULT_TRIP_DURATION_DAYS - 1),
     val isSelectingEndDate: Boolean = false,
     val flexibleDates: Boolean = false,
-    val tripType: TripType = TripType.GROUP,
+    val travelMode: TravelMode = TravelMode.GROUP,
     val travelerCount: Int = DEFAULT_GROUP_SIZE,
 ) {
   val visibleDestinations: List<String>
@@ -42,20 +43,12 @@ data class CreateTripUiState(
             !startDate.isBefore(LocalDate.now()) &&
             !endDate.isBefore(startDate) &&
             selectedDestinations.isNotEmpty() &&
-            when (tripType) {
-              TripType.SOLO -> travelerCount == SOLO_TRAVELER_COUNT
-              TripType.GROUP -> travelerCount in MIN_GROUP_TRAVELER_COUNT..MAX_GROUP_TRAVELER_COUNT
-            }
+            travelerCount in travelMode.allowedTravelerCounts
 }
 
 private val popularDestinations = listOf("Lisbon", "Porto", "Barcelona", "Prague")
 private const val DEFAULT_GROUP_SIZE = 3
 private const val DEFAULT_TRIP_DURATION_DAYS = 3L
-
-enum class TripType {
-  SOLO,
-  GROUP,
-}
 
 /** Holds the draft shared by the steps of the trip-creation flow. */
 class CreateTripViewModel : ViewModel() {
@@ -121,15 +114,15 @@ class CreateTripViewModel : ViewModel() {
     _uiState.update { it.copy(flexibleDates = flexible) }
   }
 
-  fun selectTripType(type: TripType) {
+  fun selectTravelMode(mode: TravelMode) {
     _uiState.update { state ->
-      if (state.tripType == type) {
+      if (state.travelMode == mode) {
         state
       } else {
         state.copy(
-            tripType = type,
+            travelMode = mode,
             travelerCount =
-                if (type == TripType.SOLO) SOLO_TRAVELER_COUNT
+                if (mode == TravelMode.SOLO) SOLO_TRAVELER_COUNT
                 else {
                   // Returning to Group starts a fresh group draft at its default size.
                   DEFAULT_GROUP_SIZE
@@ -140,21 +133,21 @@ class CreateTripViewModel : ViewModel() {
   }
 
   fun decrementTravelers() {
-    if (uiState.value.tripType == TripType.SOLO) return
+    if (uiState.value.travelMode == TravelMode.SOLO) return
     updateTravelerCount { (it - 1).coerceAtLeast(MIN_GROUP_TRAVELER_COUNT) }
   }
 
   fun incrementTravelers() {
-    if (uiState.value.tripType == TripType.SOLO) return
+    if (uiState.value.travelMode == TravelMode.SOLO) return
     updateTravelerCount { (it + 1).coerceAtMost(MAX_GROUP_TRAVELER_COUNT) }
   }
 
   private fun updateTravelerCount(update: (Int) -> Int) {
-    if (uiState.value.tripType == TripType.SOLO) return
+    if (uiState.value.travelMode == TravelMode.SOLO) return
     _uiState.update { state ->
       state.copy(
           travelerCount = update(state.travelerCount),
-          tripType = TripType.GROUP,
+          travelMode = TravelMode.GROUP,
       )
     }
   }

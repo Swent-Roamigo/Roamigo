@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.R
+import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
 import com.swent.roamigo.ui.trip.creation.components.DateSummaryTestTags
@@ -196,7 +197,7 @@ class DatesTravelersScreenTest {
     composeRule.onNodeWithTag(TravelersCounterTestTags.COUNT).assertTextEquals("3")
 
     composeRule.runOnIdle {
-      assertEquals(TripType.GROUP, viewModel.uiState.value.tripType)
+      assertEquals(TravelMode.GROUP, viewModel.uiState.value.travelMode)
       assertEquals(3, viewModel.uiState.value.travelerCount)
     }
   }
@@ -216,7 +217,7 @@ class DatesTravelersScreenTest {
             onNextMonth = {},
             onSelectDate = {},
             onFlexibleDatesChange = {},
-            onTripTypeChange = {},
+            onTravelModeChange = {},
             onDecrementTravelers = {},
             onIncrementTravelers = {},
         )

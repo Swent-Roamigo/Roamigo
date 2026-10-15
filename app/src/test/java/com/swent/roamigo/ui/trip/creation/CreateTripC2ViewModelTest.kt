@@ -2,6 +2,7 @@
 // Co-author : ChatGPT-Codex
 package com.swent.roamigo.ui.trip.creation
 
+import com.swent.roamigo.model.trip.TravelMode
 import java.time.LocalDate
 import java.time.YearMonth
 import org.junit.Assert.assertEquals
@@ -66,25 +67,25 @@ class CreateTripC2ViewModelTest {
   fun travelerModeAndCountStayWithinBounds() {
     val viewModel = CreateTripViewModel()
 
-    assertEquals(TripType.GROUP, viewModel.uiState.value.tripType)
+    assertEquals(TravelMode.GROUP, viewModel.uiState.value.travelMode)
     assertEquals(3, viewModel.uiState.value.travelerCount)
-    viewModel.selectTripType(TripType.SOLO)
-    assertEquals(TripType.SOLO, viewModel.uiState.value.tripType)
+    viewModel.selectTravelMode(TravelMode.SOLO)
+    assertEquals(TravelMode.SOLO, viewModel.uiState.value.travelMode)
     assertEquals(1, viewModel.uiState.value.travelerCount)
     viewModel.decrementTravelers()
     assertEquals(1, viewModel.uiState.value.travelerCount)
 
-    viewModel.selectTripType(TripType.GROUP)
+    viewModel.selectTravelMode(TravelMode.GROUP)
     assertEquals(3, viewModel.uiState.value.travelerCount)
     repeat(12) { viewModel.incrementTravelers() }
     assertEquals(10, viewModel.uiState.value.travelerCount)
     repeat(12) { viewModel.decrementTravelers() }
     assertEquals(2, viewModel.uiState.value.travelerCount)
-    viewModel.selectTripType(TripType.SOLO)
+    viewModel.selectTravelMode(TravelMode.SOLO)
     assertEquals(1, viewModel.uiState.value.travelerCount)
-    viewModel.selectTripType(TripType.GROUP)
+    viewModel.selectTravelMode(TravelMode.GROUP)
     assertEquals(3, viewModel.uiState.value.travelerCount)
-    assertEquals(TripType.GROUP, viewModel.uiState.value.tripType)
+    assertEquals(TravelMode.GROUP, viewModel.uiState.value.travelMode)
   }
 
   @Test
@@ -92,11 +93,11 @@ class CreateTripC2ViewModelTest {
     val groupWithOneTraveler =
         CreateTripUiState(
             selectedDestinations = listOf("Lisbon"),
-            tripType = TripType.GROUP,
+            travelMode = TravelMode.GROUP,
             travelerCount = 1,
         )
     val groupWithTwoTravelers = groupWithOneTraveler.copy(travelerCount = 2)
-    val soloTraveler = groupWithOneTraveler.copy(tripType = TripType.SOLO, travelerCount = 1)
+    val soloTraveler = groupWithOneTraveler.copy(travelMode = TravelMode.SOLO, travelerCount = 1)
 
     assertFalse(groupWithOneTraveler.canCreateTrip)
     assertTrue(groupWithTwoTravelers.canCreateTrip)
