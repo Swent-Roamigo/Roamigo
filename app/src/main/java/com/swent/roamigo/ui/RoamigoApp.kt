@@ -8,13 +8,19 @@ import androidx.compose.runtime.remember
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.google.firebase.Firebase
+import com.google.firebase.firestore.firestore
 import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.authentication.AuthRepositoryFirebase
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TripRepository
+import com.swent.roamigo.model.trip.voting.VoteRepository
+import com.swent.roamigo.model.trip.voting.VoteRepositoryFirestore
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
@@ -28,6 +34,10 @@ import com.swent.roamigo.ui.profile.ProfileScreen
 import com.swent.roamigo.ui.profile.ProfileViewModel
 import com.swent.roamigo.ui.trip.creation.CreateTripViewModel
 import com.swent.roamigo.ui.trip.creation.DestinationScreen
+import com.swent.roamigo.ui.trip.voting.CreateVoteScreen
+import com.swent.roamigo.ui.trip.voting.CreateVoteViewModel
+import com.swent.roamigo.ui.trip.voting.VoteScreen
+import com.swent.roamigo.ui.trip.voting.VoteViewModel
 import com.swent.roamigo.ui.trips.TripsRoute
 
 /**
@@ -43,6 +53,8 @@ fun RoamigoApp(
     navController: NavHostController = rememberNavController(),
     authRepository: AuthRepository = remember { AuthRepositoryFirebase() },
     credentialManager: CredentialManager? = null,
+    // Lazy so that opening the app does not touch Firestore before a vote screen needs it.
+    voteRepository: Lazy<VoteRepository> = lazy { VoteRepositoryFirestore(Firebase.firestore) },
 ) {
   val startDestination =
       remember(authRepository) {
@@ -102,6 +114,39 @@ fun RoamigoApp(
           onClose = { navController.popBackStack() },
           // The next step of the flow does not exist yet.
           onContinue = {},
+      )
+    }
+    composable(
+        Route.CREATE_VOTE,
+        arguments = listOf(navArgument(Route.TRIP_ID_ARG) { type = NavType.StringType }),
+    ) { entry ->
+      val tripId = entry.arguments?.getString(Route.TRIP_ID_ARG).orEmpty()
+      val userId = authRepository.getCurrentUser()?.uid.orEmpty()
+      CreateVoteScreen(
+          viewModel = viewModel { CreateVoteViewModel(voteRepository.value, tripId, userId) },
+          onBack = { navController.popBackStack() },
+          onVoteCreated = { voteId ->
+            // Back from the new vote returns to where creation started, not to the finished form.
+            navController.navigate(Route.vote(tripId, voteId)) {
+              popUpTo(Route.CREATE_VOTE) { inclusive = true }
+            }
+          },
+      )
+    }
+    composable(
+        Route.VOTE,
+        arguments =
+            listOf(
+                navArgument(Route.TRIP_ID_ARG) { type = NavType.StringType },
+                navArgument(Route.VOTE_ID_ARG) { type = NavType.StringType },
+            ),
+    ) { entry ->
+      val tripId = entry.arguments?.getString(Route.TRIP_ID_ARG).orEmpty()
+      val voteId = entry.arguments?.getString(Route.VOTE_ID_ARG).orEmpty()
+      val userId = authRepository.getCurrentUser()?.uid.orEmpty()
+      VoteScreen(
+          viewModel = viewModel { VoteViewModel(voteRepository.value, tripId, voteId, userId) },
+          onBack = { navController.popBackStack() },
       )
     }
   }
