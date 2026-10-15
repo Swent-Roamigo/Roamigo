@@ -134,4 +134,11 @@
     <string name="vote_ballot_submission_error">Unable to submit your vote. Please try again.</string>
     <string name="vote_retry">Retry</string>
     <string name="vote_back">Back</string>
+    <string name="create_trip_sign_in">Sign in</string>
+    <string name="create_trip_retry">Retry</string>
+    <string name="create_trip_auth_error">Your session has ended. Sign in to create your trip.</string>
+    <string name="create_trip_permission_error">Your account cannot save this trip. Please try again later.</string>
+    <string name="create_trip_validation_error">Check your destinations, dates, and travelers.</string>
+    <string name="create_trip_network_error">Could not connect. Check your connection and retry.</string>
+    <string name="create_trip_unknown_error">Could not save your trip. Please retry.</string>
 </resources>

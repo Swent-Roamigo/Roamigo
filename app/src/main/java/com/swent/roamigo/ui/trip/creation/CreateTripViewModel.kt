@@ -3,16 +3,28 @@
 package com.swent.roamigo.ui.trip.creation
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.google.firebase.Timestamp
+import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.MAX_GROUP_TRAVELER_COUNT
 import com.swent.roamigo.model.trip.MIN_GROUP_TRAVELER_COUNT
 import com.swent.roamigo.model.trip.SOLO_TRAVELER_COUNT
 import com.swent.roamigo.model.trip.TravelMode
+import com.swent.roamigo.model.trip.TripCreationException
+import com.swent.roamigo.model.trip.TripDraft
+import com.swent.roamigo.model.trip.TripRepository
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.ZoneId
+import java.util.Date
+import java.util.UUID
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 data class CreateTripUiState(
     val destinationQuery: String = "",
@@ -25,6 +37,9 @@ data class CreateTripUiState(
     val flexibleDates: Boolean = false,
     val travelMode: TravelMode = TravelMode.GROUP,
     val travelerCount: Int = DEFAULT_GROUP_SIZE,
+    val isSubmitting: Boolean = false,
+    val creationError: TripCreationException? = null,
+    val createdTripId: String? = null,
 ) {
   val visibleDestinations: List<String>
     get() =
@@ -39,31 +54,97 @@ data class CreateTripUiState(
 
   val canCreateTrip: Boolean
     get() =
-        !isSelectingEndDate &&
+        !isSubmitting &&
+            createdTripId == null &&
+            !isSelectingEndDate &&
             !startDate.isBefore(LocalDate.now()) &&
             !endDate.isBefore(startDate) &&
             selectedDestinations.isNotEmpty() &&
             travelerCount in travelMode.allowedTravelerCounts
 }
 
-private val popularDestinations = listOf("Lisbon", "Porto", "Barcelona", "Prague")
+private val destinationLocations =
+    listOf(
+            TripLocation(38.7223, -9.1393, "Lisbon"),
+            TripLocation(41.1579, -8.6291, "Porto"),
+            TripLocation(41.3874, 2.1686, "Barcelona"),
+            TripLocation(50.0755, 14.4378, "Prague"),
+        )
+        .associateBy { it.name }
+private val popularDestinations = destinationLocations.keys.toList()
 private const val DEFAULT_GROUP_SIZE = 3
 private const val DEFAULT_TRIP_DURATION_DAYS = 3L
 
 /** Holds the draft shared by the steps of the trip-creation flow. */
-class CreateTripViewModel : ViewModel() {
+class CreateTripViewModel(
+    private val repository: TripRepository = FakeTripRepository(),
+    private val zoneId: ZoneId = ZoneId.systemDefault(),
+) : ViewModel() {
+  private var submittedDraft: TripDraft? = null
+  private var submissionId: String? = null
   private val _uiState = MutableStateFlow(CreateTripUiState())
   val uiState: StateFlow<CreateTripUiState> = _uiState.asStateFlow()
 
+  /** Saves the current draft, retaining its ID for an unchanged retry. */
+  fun createTrip() {
+    val state = uiState.value
+    if (!state.canCreateTrip) return
+    val draft =
+        TripDraft(
+            name = state.selectedDestinations.joinToString(" → "),
+            destinations = state.selectedDestinations.map { destinationLocations.getValue(it) },
+            startDate = Timestamp(Date.from(state.startDate.atStartOfDay(zoneId).toInstant())),
+            endDate = Timestamp(Date.from(state.endDate.atStartOfDay(zoneId).toInstant())),
+            flexibleDates = state.flexibleDates,
+            travelMode = state.travelMode,
+            travelerCount = state.travelerCount,
+        )
+    val errors = draft.validate()
+    if (errors.isNotEmpty()) {
+      _uiState.update { it.copy(creationError = TripCreationException.Validation(errors)) }
+      return
+    }
+    if (draft != submittedDraft) {
+      submittedDraft = draft
+      submissionId = UUID.randomUUID().toString()
+    }
+    val tripId = requireNotNull(submissionId)
+    _uiState.update { it.copy(isSubmitting = true, creationError = null) }
+    viewModelScope.launch {
+      try {
+        repository.createTrip(tripId, draft)
+        _uiState.update { it.copy(isSubmitting = false, createdTripId = tripId) }
+      } catch (error: CancellationException) {
+        _uiState.update { it.copy(isSubmitting = false) }
+        throw error
+      } catch (error: Exception) {
+        _uiState.update {
+          it.copy(
+              isSubmitting = false,
+              creationError =
+                  error as? TripCreationException ?: TripCreationException.Unknown(error),
+          )
+        }
+      }
+    }
+  }
+
+  private fun edit(update: (CreateTripUiState) -> CreateTripUiState) {
+    _uiState.update { state ->
+      if (state.isSubmitting || state.createdTripId != null) state
+      else update(state).copy(creationError = null)
+    }
+  }
+
   fun updateDestinationQuery(query: String) {
-    _uiState.update { it.copy(destinationQuery = query) }
+    edit { it.copy(destinationQuery = query) }
   }
 
   fun toggleDestination(destination: String) {
     val normalizedDestination = destination.trim()
-    if (normalizedDestination.isEmpty()) return
+    if (normalizedDestination !in destinationLocations) return
 
-    _uiState.update { state ->
+    edit { state ->
       val selected = state.selectedDestinations
       state.copy(
           selectedDestinations =
@@ -74,14 +155,12 @@ class CreateTripViewModel : ViewModel() {
   }
 
   fun removeDestination(destination: String) {
-    _uiState.update { state ->
-      state.copy(selectedDestinations = state.selectedDestinations - destination)
-    }
+    edit { state -> state.copy(selectedDestinations = state.selectedDestinations - destination) }
   }
 
   fun showPreviousMonth() {
     val currentMonth = YearMonth.now()
-    _uiState.update { state ->
+    edit { state ->
       if (state.visibleMonth.isAfter(currentMonth)) {
         state.copy(visibleMonth = state.visibleMonth.minusMonths(1))
       } else {
@@ -91,12 +170,12 @@ class CreateTripViewModel : ViewModel() {
   }
 
   fun showNextMonth() {
-    _uiState.update { it.copy(visibleMonth = it.visibleMonth.plusMonths(1)) }
+    edit { it.copy(visibleMonth = it.visibleMonth.plusMonths(1)) }
   }
 
   fun selectDate(date: LocalDate) {
     if (date.isBefore(LocalDate.now())) return
-    _uiState.update { state ->
+    edit { state ->
       when {
         !state.isSelectingEndDate ->
             state.copy(
@@ -111,11 +190,11 @@ class CreateTripViewModel : ViewModel() {
   }
 
   fun setFlexibleDates(flexible: Boolean) {
-    _uiState.update { it.copy(flexibleDates = flexible) }
+    edit { it.copy(flexibleDates = flexible) }
   }
 
   fun selectTravelMode(mode: TravelMode) {
-    _uiState.update { state ->
+    edit { state ->
       if (state.travelMode == mode) {
         state
       } else {
@@ -144,7 +223,7 @@ class CreateTripViewModel : ViewModel() {
 
   private fun updateTravelerCount(update: (Int) -> Int) {
     if (uiState.value.travelMode == TravelMode.SOLO) return
-    _uiState.update { state ->
+    edit { state ->
       state.copy(
           travelerCount = update(state.travelerCount),
           travelMode = TravelMode.GROUP,

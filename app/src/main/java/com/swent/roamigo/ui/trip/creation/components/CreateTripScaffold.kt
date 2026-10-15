@@ -52,6 +52,7 @@ fun CreateTripScaffold(
     primaryActionLabel: String,
     onPrimaryAction: () -> Unit,
     primaryActionEnabled: Boolean = true,
+    navigationEnabled: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
   val colors = MaterialTheme.colorScheme
@@ -73,6 +74,7 @@ fun CreateTripScaffold(
           glyph = "‹",
           tag = CreateTripScaffoldTestTags.BACK,
           onClick = onBack,
+          enabled = navigationEnabled,
       )
       Text(
           stringResource(R.string.create_trip_step, step, CREATE_TRIP_TOTAL_STEPS),
@@ -84,6 +86,7 @@ fun CreateTripScaffold(
           glyph = "×",
           tag = CreateTripScaffoldTestTags.CLOSE,
           onClick = onClose,
+          enabled = navigationEnabled,
       )
     }
     Spacer(Modifier.height(14.dp))
@@ -125,13 +128,19 @@ fun CreateTripScaffold(
 }
 
 @Composable
-private fun HeaderAction(label: String, glyph: String, tag: String, onClick: () -> Unit) {
+private fun HeaderAction(
+    label: String,
+    glyph: String,
+    tag: String,
+    onClick: () -> Unit,
+    enabled: Boolean,
+) {
   Box(
       modifier =
           Modifier.size(36.dp)
               .clip(RoundedCornerShape(18.dp))
               .background(MaterialTheme.colorScheme.surfaceVariant)
-              .clickable(onClick = onClick)
+              .clickable(enabled = enabled, onClick = onClick)
               .semantics {
                 contentDescription = label
                 testTag = tag
