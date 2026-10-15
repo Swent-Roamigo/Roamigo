@@ -1,4 +1,5 @@
 <resources>
+    <string name="feature_not_implemented">Not implemented yet</string>
     <string name="app_name">Roamigo</string>
     <string name="title_activity_main">MainActivity</string>
     <string name="title_activity_second">SecondActivity</string>
