@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.InfoRow
@@ -24,15 +25,23 @@ private val permissionRows =
     listOf(
         Triple(
             R.drawable.ic_pin,
-            "Location sharing",
-            "Off until you turn it on · only trip members see it",
+            R.string.permissions_location_title,
+            R.string.permissions_location_description,
         ),
-        Triple(R.drawable.ic_camera, "Camera", "Asked when you take a trip photo"),
-        Triple(R.drawable.ic_bell, "Notifications", "Asked when you turn on vote alerts"),
+        Triple(
+            R.drawable.ic_camera,
+            R.string.permissions_camera_title,
+            R.string.permissions_camera_description,
+        ),
+        Triple(
+            R.drawable.ic_bell,
+            R.string.permissions_notifications_title,
+            R.string.permissions_notifications_description,
+        ),
         Triple(
             R.drawable.ic_users,
-            "Trip members only",
-            "Only invited friends can see or edit a trip",
+            R.string.permissions_members_title,
+            R.string.permissions_members_description,
         ),
     )
 
@@ -48,23 +57,28 @@ fun PermissionsScreen(onContinue: () -> Unit, modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(Spacing.medium),
     ) {
       Text(
-          "We ask only when needed",
+          stringResource(R.string.permissions_title),
           modifier = Modifier.testTag(C.Tag.permissions_title),
           style = MaterialTheme.typography.headlineMedium,
       )
       Text(
-          "No permissions up front. Roamigo asks in the moment, and you can review them any time in Settings.",
+          stringResource(R.string.permissions_description),
           color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
       permissionRows.forEach { (icon, title, subtitle) ->
-        InfoRow(icon, title, subtitle, Modifier.testTag(C.Tag.permissions_row))
+        InfoRow(
+            icon,
+            stringResource(title),
+            stringResource(subtitle),
+            Modifier.testTag(C.Tag.permissions_row),
+        )
       }
     }
     Button(
         onClick = onContinue,
         modifier = Modifier.fillMaxWidth().testTag(C.Tag.permissions_continue),
     ) {
-      Text("Continue")
+      Text(stringResource(R.string.permissions_continue))
     }
   }
 }

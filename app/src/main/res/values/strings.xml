@@ -134,4 +134,34 @@
     <string name="vote_ballot_submission_error">Unable to submit your vote. Please try again.</string>
     <string name="vote_retry">Retry</string>
     <string name="vote_back">Back</string>
+
+    <!-- Permissions explainer -->
+    <string name="permissions_location_title">Location sharing</string>
+    <string name="permissions_location_description">Off until you turn it on · only trip members see it</string>
+    <string name="permissions_camera_title">Camera</string>
+    <string name="permissions_camera_description">Asked when you take a trip photo</string>
+    <string name="permissions_notifications_title">Notifications</string>
+    <string name="permissions_notifications_description">Asked when you turn on vote alerts</string>
+    <string name="permissions_members_title">Trip members only</string>
+    <string name="permissions_members_description">Only invited friends can see or edit a trip</string>
+    <string name="permissions_title">We ask only when needed</string>
+    <string name="permissions_description">No permissions up front. Roamigo asks in the moment, and you can review them any time in Settings.</string>
+    <string name="permissions_continue">Continue</string>
+
+    <!-- Profile -->
+    <string name="profile_title">Profile</string>
+    <string name="profile_description">The account you signed in with</string>
+    <string name="profile_display_name">Display name</string>
+    <string name="profile_edit">Edit</string>
+    <string name="profile_picture">Profile picture</string>
+    <string name="profile_picture_description">Shown to your trip members</string>
+    <string name="profile_change">Change</string>
+    <string name="profile_friends">Friends</string>
+    <string name="profile_view">View</string>
+    <string name="profile_log_out">Log out</string>
+    <string name="profile_email">%1$s · Signed in with Google</string>
+    <plurals name="profile_friend_count">
+        <item quantity="one">%1$d friend · heatmaps visible to friends only</item>
+        <item quantity="other">%1$d friends · heatmaps visible to friends only</item>
+    </plurals>
 </resources>
