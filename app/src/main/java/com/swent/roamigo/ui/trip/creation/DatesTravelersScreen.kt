@@ -18,6 +18,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.roamigo.R
+import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.components.CalendarCard
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffold
@@ -43,7 +44,7 @@ fun DatesTravelersScreen(
       onNextMonth = createTripViewModel::showNextMonth,
       onSelectDate = createTripViewModel::selectDate,
       onFlexibleDatesChange = createTripViewModel::setFlexibleDates,
-      onTripTypeChange = createTripViewModel::selectTripType,
+      onTravelModeChange = createTripViewModel::selectTravelMode,
       onDecrementTravelers = createTripViewModel::decrementTravelers,
       onIncrementTravelers = createTripViewModel::incrementTravelers,
   )
@@ -59,7 +60,7 @@ fun DatesTravelersScreenContent(
     onNextMonth: () -> Unit,
     onSelectDate: (LocalDate) -> Unit,
     onFlexibleDatesChange: (Boolean) -> Unit,
-    onTripTypeChange: (TripType) -> Unit,
+    onTravelModeChange: (TravelMode) -> Unit,
     onDecrementTravelers: () -> Unit,
     onIncrementTravelers: () -> Unit,
 ) {
@@ -91,8 +92,8 @@ fun DatesTravelersScreenContent(
           style = MaterialTheme.typography.titleMedium,
           color = MaterialTheme.colorScheme.onBackground,
       )
-      TripTypeSelector(uiState.tripType, onTripTypeChange)
-      if (uiState.tripType == TripType.GROUP) {
+      TripTypeSelector(uiState.travelMode, onTravelModeChange)
+      if (uiState.travelMode == TravelMode.GROUP) {
         TravelersCounter(
             count = uiState.travelerCount,
             onDecrement = onDecrementTravelers,
@@ -120,7 +121,7 @@ private fun DatesTravelersScreenPreview() {
         onNextMonth = {},
         onSelectDate = {},
         onFlexibleDatesChange = {},
-        onTripTypeChange = {},
+        onTravelModeChange = {},
         onDecrementTravelers = {},
         onIncrementTravelers = {},
     )

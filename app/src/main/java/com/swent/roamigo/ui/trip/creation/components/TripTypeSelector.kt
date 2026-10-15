@@ -25,7 +25,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
-import com.swent.roamigo.ui.trip.creation.TripType
+import com.swent.roamigo.model.trip.TravelMode
 
 internal object TripTypeSelectorTestTags {
   const val SOLO = "c2_trip_type_solo"
@@ -33,7 +33,7 @@ internal object TripTypeSelectorTestTags {
 }
 
 @Composable
-internal fun TripTypeSelector(type: TripType, onChange: (TripType) -> Unit) {
+internal fun TripTypeSelector(type: TravelMode, onChange: (TravelMode) -> Unit) {
   Row(
       modifier =
           Modifier.fillMaxWidth()
@@ -45,17 +45,17 @@ internal fun TripTypeSelector(type: TripType, onChange: (TripType) -> Unit) {
   ) {
     TripTypeOption(
         label = stringResource(R.string.c2_solo),
-        selected = type == TripType.SOLO,
+        selected = type == TravelMode.SOLO,
         tag = TripTypeSelectorTestTags.SOLO,
         modifier = Modifier.weight(1f),
-        onClick = { onChange(TripType.SOLO) },
+        onClick = { onChange(TravelMode.SOLO) },
     )
     TripTypeOption(
         label = stringResource(R.string.c2_group),
-        selected = type == TripType.GROUP,
+        selected = type == TravelMode.GROUP,
         tag = TripTypeSelectorTestTags.GROUP,
         modifier = Modifier.weight(1f),
-        onClick = { onChange(TripType.GROUP) },
+        onClick = { onChange(TravelMode.GROUP) },
     )
   }
 }
