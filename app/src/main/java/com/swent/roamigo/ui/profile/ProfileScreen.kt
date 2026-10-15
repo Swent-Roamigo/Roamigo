@@ -21,6 +21,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
@@ -60,12 +62,12 @@ fun ProfileScreen(
           verticalArrangement = Arrangement.spacedBy(Spacing.medium),
       ) {
         Text(
-            "Profile",
+            stringResource(R.string.profile_title),
             modifier = Modifier.testTag(C.Tag.profile_title),
             style = MaterialTheme.typography.headlineMedium,
         )
         Text(
-            "The account you signed in with",
+            stringResource(R.string.profile_description),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Column(
@@ -89,24 +91,38 @@ fun ProfileScreen(
               style = MaterialTheme.typography.titleLarge,
           )
           Text(
-              "${state.email} · Signed in with Google",
+              stringResource(R.string.profile_email, state.email),
               modifier = Modifier.testTag(C.Tag.profile_email),
               style = MaterialTheme.typography.bodySmall,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
               textAlign = TextAlign.Center,
           )
         }
-        InfoRow(R.drawable.ic_user, "Display name", state.user.displayName) { EditAction("Edit") }
-        InfoRow(R.drawable.ic_camera, "Profile picture", "Shown to your trip members") {
-          EditAction("Change")
+        InfoRow(
+            R.drawable.ic_user,
+            stringResource(R.string.profile_display_name),
+            state.user.displayName,
+        ) {
+          EditAction(stringResource(R.string.profile_edit))
+        }
+        InfoRow(
+            R.drawable.ic_camera,
+            stringResource(R.string.profile_picture),
+            stringResource(R.string.profile_picture_description),
+        ) {
+          EditAction(stringResource(R.string.profile_change))
         }
         InfoRow(
             R.drawable.ic_users,
-            "Friends",
-            "${state.friendCount} friends · heatmaps visible to friends only",
+            stringResource(R.string.profile_friends),
+            pluralStringResource(
+                R.plurals.profile_friend_count,
+                state.friendCount,
+                state.friendCount,
+            ),
             Modifier.testTag(C.Tag.profile_friends_row),
         ) {
-          EditAction("View")
+          EditAction(stringResource(R.string.profile_view))
         }
       }
       // No backend yet: these actions are intentionally inert.
@@ -114,7 +130,7 @@ fun ProfileScreen(
           onClick = {},
           modifier = Modifier.fillMaxWidth().testTag(C.Tag.profile_log_out),
       ) {
-        Text("Log out")
+        Text(stringResource(R.string.profile_log_out))
       }
     }
   }
