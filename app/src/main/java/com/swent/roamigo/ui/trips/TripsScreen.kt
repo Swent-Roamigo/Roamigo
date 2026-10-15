@@ -56,6 +56,7 @@ import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
+import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import java.time.Clock
 
 /**
@@ -84,12 +85,12 @@ fun TripsRoute(
     userRepository: UserRepository,
     @DrawableRes mainTripImageRes: Int? = null,
     @DrawableRes nextActivityImageRes: Int? = null,
-    onInviteClick: () -> Unit = {},
-    onNewTripClick: () -> Unit = {},
+    onInviteClick: () -> Unit = rememberNotImplementedAction(),
+    onNewTripClick: () -> Unit = rememberNotImplementedAction(),
     onTripsClick: () -> Unit = {},
-    onMapClick: () -> Unit = {},
-    onPhotosClick: () -> Unit = {},
-    onProfileClick: () -> Unit = {},
+    onMapClick: () -> Unit = rememberNotImplementedAction(),
+    onPhotosClick: () -> Unit = rememberNotImplementedAction(),
+    onProfileClick: () -> Unit = rememberNotImplementedAction(),
     clock: Clock = Clock.systemDefaultZone(),
     refreshRequested: Boolean = false,
     onRefreshConsumed: () -> Unit = {},
@@ -146,12 +147,12 @@ fun TripsScreen(
     uiState: TripsUiState,
     @DrawableRes mainTripImageRes: Int? = null,
     @DrawableRes nextActivityImageRes: Int? = null,
-    onInviteClick: () -> Unit = {},
-    onNewTripClick: () -> Unit = {},
+    onInviteClick: () -> Unit = rememberNotImplementedAction(),
+    onNewTripClick: () -> Unit = rememberNotImplementedAction(),
     onTripsClick: () -> Unit = {},
-    onMapClick: () -> Unit = {},
-    onPhotosClick: () -> Unit = {},
-    onProfileClick: () -> Unit = {},
+    onMapClick: () -> Unit = rememberNotImplementedAction(),
+    onPhotosClick: () -> Unit = rememberNotImplementedAction(),
+    onProfileClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   Scaffold(
       modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.trips_screen },

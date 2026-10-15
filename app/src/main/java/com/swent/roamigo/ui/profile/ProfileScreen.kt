@@ -29,6 +29,7 @@ import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.InfoRow
+import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.Ochre
 import com.swent.roamigo.ui.theme.Paper
 import com.swent.roamigo.ui.theme.Spacing
@@ -36,17 +37,18 @@ import com.swent.roamigo.ui.theme.Spacing
 @Composable
 fun ProfileScreen(
     state: ProfileUiState,
-    onTripsClick: () -> Unit = {},
+    onTripsClick: () -> Unit = rememberNotImplementedAction(),
     modifier: Modifier = Modifier,
 ) {
+  val notImplemented = rememberNotImplementedAction()
   Scaffold(
       modifier = modifier,
       bottomBar = {
-        // Map and Photos have no destinations yet; the profile is not one of the three tabs.
+        // The profile is not one of the three tabs.
         AppBottomBar(
             onTripsClick = onTripsClick,
-            onMapClick = {},
-            onPhotosClick = {},
+            onMapClick = notImplemented,
+            onPhotosClick = notImplemented,
             tripsSelected = false,
         )
       },
@@ -125,9 +127,9 @@ fun ProfileScreen(
           EditAction(stringResource(R.string.profile_view))
         }
       }
-      // No backend yet: these actions are intentionally inert.
+      // Sign-out is not connected to authentication yet.
       OutlinedButton(
-          onClick = {},
+          onClick = notImplemented,
           modifier = Modifier.fillMaxWidth().testTag(C.Tag.profile_log_out),
       ) {
         Text(stringResource(R.string.profile_log_out))
@@ -138,4 +140,9 @@ fun ProfileScreen(
 
 @Composable
 private fun EditAction(label: String) =
-    TextButton(onClick = {}, modifier = Modifier.testTag(C.Tag.profile_action)) { Text(label) }
+    TextButton(
+        onClick = rememberNotImplementedAction(),
+        modifier = Modifier.testTag(C.Tag.profile_action),
+    ) {
+      Text(label)
+    }

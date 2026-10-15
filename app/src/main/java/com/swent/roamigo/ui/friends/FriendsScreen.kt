@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
+import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.FriendAvatarBlue
 import com.swent.roamigo.ui.theme.FriendAvatarGreen
 import com.swent.roamigo.ui.theme.FriendAvatarRose
@@ -60,12 +61,13 @@ private val friendAvatarColors = listOf(FriendAvatarBlue, FriendAvatarRose, Frie
 fun FriendsScreen(
     uiState: FriendsUiState,
     modifier: Modifier = Modifier,
-    onAddFriendClick: () -> Unit = {},
-    onViewMapClick: (String) -> Unit = {},
-    onTripsClick: () -> Unit = {},
-    onMapClick: () -> Unit = {},
-    onPhotosClick: () -> Unit = {},
+    onAddFriendClick: () -> Unit = rememberNotImplementedAction(),
+    onViewMapClick: ((String) -> Unit)? = null,
+    onTripsClick: () -> Unit = rememberNotImplementedAction(),
+    onMapClick: () -> Unit = rememberNotImplementedAction(),
+    onPhotosClick: () -> Unit = rememberNotImplementedAction(),
 ) {
+  val notImplemented = rememberNotImplementedAction()
   Scaffold(
       modifier = modifier.fillMaxSize().testTag(C.Tag.friends_screen),
       bottomBar = {
@@ -91,7 +93,7 @@ fun FriendsScreen(
       } else {
         FriendsList(
             uiState = uiState,
-            onViewMapClick = onViewMapClick,
+            onViewMapClick = onViewMapClick ?: { notImplemented() },
             modifier = Modifier.weight(1f),
         )
       }
