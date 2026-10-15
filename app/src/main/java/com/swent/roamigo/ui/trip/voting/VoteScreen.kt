@@ -89,6 +89,7 @@ fun VoteScreenContent(
                       option.name,
                       state.selectedOptionId == option.uid,
                       state.canSelect,
+                      voteCount = state.voteCounts.getValue(option.uid),
                       onClick = { onSelectOption(option.uid) },
                   )
                 }
@@ -140,33 +141,74 @@ private fun VoteLoadingContent() {
 
 @Preview(showBackground = true, widthDp = 390, heightDp = 844)
 @Composable
-private fun VotePreview() = VoteInteractionPreview(false)
+private fun NoVotePreview() =
+    VoteInteractionPreview(
+        persistedOptionId = null,
+        selectedOptionId = null,
+    )
 
 @Preview(showBackground = true, widthDp = 390, heightDp = 844)
 @Composable
-private fun SelectedVotePreview() = VoteInteractionPreview(true)
+private fun ExistingVotePreview() =
+    VoteInteractionPreview(
+        persistedOptionId = "restaurant",
+        selectedOptionId = "restaurant",
+    )
 
 @Composable
-private fun VoteInteractionPreview(selected: Boolean) {
+private fun VoteInteractionPreview(
+    persistedOptionId: String?,
+    selectedOptionId: String?,
+) {
   val vote =
       Vote(
-          "vote",
-          "trip",
-          "Where should we have dinner?",
-          listOf(VoteOption("market", "Local market"), VoteOption("restaurant", "Restaurant")),
-          "member",
-          VoteStatus.OPEN,
-          Timestamp(0, 0),
-          null,
-          null,
+          uid = "vote",
+          tripId = "trip",
+          question = "Where should we have dinner?",
+          options =
+              listOf(
+                  VoteOption(
+                      uid = "market",
+                      name = "Local market",
+                  ),
+                  VoteOption(
+                      uid = "restaurant",
+                      name = "Restaurant",
+                  ),
+                  VoteOption(
+                      uid = "pizza",
+                      name = "Pizza place",
+                  ),
+              ),
+          createdByUserId = "member",
+          status = VoteStatus.OPEN,
+          creationTime =
+              Timestamp(
+                  seconds = 0,
+                  nanoseconds = 0,
+              ),
+          closingTime = null,
+          winningOptionId = null,
       )
+
   RoamigoTheme {
     VoteScreenContent(
-        VoteUiState.Ready(vote, persistedOptionId = if (selected) "market" else null),
-        {},
-        {},
-        {},
-        {},
+        state =
+            VoteUiState.Ready(
+                vote = vote,
+                persistedOptionId = persistedOptionId,
+                selectedOptionId = selectedOptionId,
+                voteCounts =
+                    mapOf(
+                        "market" to 0,
+                        "restaurant" to 1,
+                        "pizza" to 5,
+                    ),
+            ),
+        onSelectOption = {},
+        onSubmit = {},
+        onRetry = {},
+        onBack = {},
     )
   }
 }
