@@ -45,11 +45,21 @@ class ProfileScreenTest {
     composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.profile_avatar).assertTextEquals(state.user.displayName.take(1))
     composeRule.onNodeWithTag(C.Tag.profile_name).assertTextEquals(state.user.displayName)
-    composeRule.onNodeWithTag(C.Tag.profile_email).assertTextContains(state.email, substring = true)
+    composeRule
+        .onNodeWithTag(C.Tag.profile_email)
+        .assertTextContains(requireNotNull(state.email), substring = true)
     // The row only carries the tag; its text lives in child nodes.
     composeRule
         .onNodeWithTag(C.Tag.profile_friends_row)
         .assert(hasAnyDescendant(hasText(state.friendCount.toString(), substring = true)))
+  }
+
+  @Test
+  fun hidesTheEmailWhenTheAccountHasNone() {
+    composeRule.setContent { RoamigoTheme { ProfileScreen(state.copy(email = null)) } }
+
+    composeRule.onNodeWithTag(C.Tag.profile_name).assertIsDisplayed()
+    composeRule.onAllNodesWithTag(C.Tag.profile_email).assertCountEquals(0)
   }
 
   @Test

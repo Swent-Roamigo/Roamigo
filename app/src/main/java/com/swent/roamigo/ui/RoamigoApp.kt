@@ -89,7 +89,7 @@ fun RoamigoApp(
       )
     }
     composable(Route.PROFILE) {
-      val state by viewModel<ProfileViewModel>().uiState.collectAsState()
+      val state by viewModel { ProfileViewModel(authRepository) }.uiState.collectAsState()
       ProfileScreen(
           state,
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },

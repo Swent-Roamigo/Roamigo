@@ -90,13 +90,15 @@ fun ProfileScreen(
               modifier = Modifier.testTag(C.Tag.profile_name),
               style = MaterialTheme.typography.titleLarge,
           )
-          Text(
-              stringResource(R.string.profile_email, state.email),
-              modifier = Modifier.testTag(C.Tag.profile_email),
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-              textAlign = TextAlign.Center,
-          )
+          state.email?.let { email ->
+            Text(
+                stringResource(R.string.profile_email, email),
+                modifier = Modifier.testTag(C.Tag.profile_email),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+          }
         }
         InfoRow(
             R.drawable.ic_user,
