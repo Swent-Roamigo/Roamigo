@@ -160,54 +160,55 @@ private fun VoteInteractionPreview(
     persistedOptionId: String?,
     selectedOptionId: String?,
 ) {
-    val vote =
-        Vote(
-            uid = "vote",
-            tripId = "trip",
-            question = "Where should we have dinner?",
-            options =
-                listOf(
-                    VoteOption(
-                        uid = "market",
-                        name = "Local market",
-                    ),
-                    VoteOption(
-                        uid = "restaurant",
-                        name = "Restaurant",
-                    ),
-                    VoteOption(
-                        uid = "pizza",
-                        name = "Pizza place",
-                    ),
-                ),
-            createdByUserId = "member",
-            status = VoteStatus.OPEN,
-            creationTime = Timestamp(
-                seconds = 0,
-                nanoseconds = 0,
-            ),
-            closingTime = null,
-            winningOptionId = null,
-        )
+  val vote =
+      Vote(
+          uid = "vote",
+          tripId = "trip",
+          question = "Where should we have dinner?",
+          options =
+              listOf(
+                  VoteOption(
+                      uid = "market",
+                      name = "Local market",
+                  ),
+                  VoteOption(
+                      uid = "restaurant",
+                      name = "Restaurant",
+                  ),
+                  VoteOption(
+                      uid = "pizza",
+                      name = "Pizza place",
+                  ),
+              ),
+          createdByUserId = "member",
+          status = VoteStatus.OPEN,
+          creationTime =
+              Timestamp(
+                  seconds = 0,
+                  nanoseconds = 0,
+              ),
+          closingTime = null,
+          winningOptionId = null,
+      )
 
-    RoamigoTheme {
-        VoteScreenContent(
-            state =
-                VoteUiState.Ready(
-                    vote = vote,
-                    persistedOptionId = persistedOptionId,
-                    selectedOptionId = selectedOptionId,
-                    voteCounts =
-                        mapOf(
-                            "market" to 0,
-                            "restaurant" to 1,
-                            "pizza" to 5,
-                        ),
-                ),
-            onSelectOption = {},
-            onSubmit = {},
-            onRetry = {},
-            onBack = {},
-        )
-    }
+  RoamigoTheme {
+    VoteScreenContent(
+        state =
+            VoteUiState.Ready(
+                vote = vote,
+                persistedOptionId = persistedOptionId,
+                selectedOptionId = selectedOptionId,
+                voteCounts =
+                    mapOf(
+                        "market" to 0,
+                        "restaurant" to 1,
+                        "pizza" to 5,
+                    ),
+            ),
+        onSelectOption = {},
+        onSubmit = {},
+        onRetry = {},
+        onBack = {},
+    )
+  }
 }
