@@ -23,6 +23,7 @@ googleId = "1.2.0"
 coroutines = "1.9.0"
 mockito = "5.13.0"
 datastore = "1.1.7"
+mapbox = "11.32.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -63,6 +64,8 @@ mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mo
 kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
+mapbox-maps = { group = "com.mapbox.maps", name = "android-ndk27", version.ref = "mapbox" }
+mapbox-extension-compose = { group = "com.mapbox.extension", name = "maps-compose-ndk27", version.ref = "mapbox" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

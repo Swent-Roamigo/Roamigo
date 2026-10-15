@@ -194,8 +194,8 @@ dependencies {
   globalTestImplementation(libs.androidx.espresso.core)
 
   // ------------- Mapbox ------------------
-  implementation("com.mapbox.maps:android-ndk27:11.32.1")
-  implementation("com.mapbox.extension:maps-compose-ndk27:11.32.1")
+  implementation(libs.mapbox.maps)
+  implementation(libs.mapbox.extension.compose)
 
   // ------------- Jetpack Compose ------------------
   val composeBom = platform(libs.compose.bom)
