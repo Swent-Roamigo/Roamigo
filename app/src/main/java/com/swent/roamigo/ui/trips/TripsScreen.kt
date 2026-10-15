@@ -33,6 +33,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -74,6 +75,8 @@ import java.time.Clock
  * @param onPhotosClick invoked when the Photos navigation destination is selected.
  * @param onProfileClick invoked when the user selects their profile avatar.
  * @param clock the clock used for time-dependent presentation logic.
+ * @param refreshRequested whether a completed creation requires fresh trip data.
+ * @param onRefreshConsumed clears the one-time creation result after starting the refresh.
  */
 @Composable
 fun TripsRoute(
@@ -88,6 +91,8 @@ fun TripsRoute(
     onPhotosClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
     clock: Clock = Clock.systemDefaultZone(),
+    refreshRequested: Boolean = false,
+    onRefreshConsumed: () -> Unit = {},
 ) {
   val viewModel: TripsViewModel =
       viewModel(
@@ -99,6 +104,12 @@ fun TripsRoute(
               )
       )
 
+  LaunchedEffect(refreshRequested) {
+    if (refreshRequested) {
+      viewModel.refresh()
+      onRefreshConsumed()
+    }
+  }
   val uiState by viewModel.uiState.collectAsState()
 
   TripsScreen(

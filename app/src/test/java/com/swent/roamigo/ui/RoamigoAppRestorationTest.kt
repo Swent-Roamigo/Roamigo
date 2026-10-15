@@ -2,6 +2,7 @@
 package com.swent.roamigo.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -12,6 +13,9 @@ import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import com.swent.roamigo.ui.trip.creation.DatesTravelersScreenTestTags
+import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
+import com.swent.roamigo.ui.trip.creation.components.DestinationCardTestTags
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -38,5 +42,25 @@ class RoamigoAppRestorationTest {
     restoration.emulateSavedInstanceStateRestore()
 
     composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
+  }
+
+  @Test
+  fun creationKeepsDatesStepAndSelectionsAfterStateRestoration() {
+    val restoration = StateRestorationTester(composeRule)
+    val authRepository =
+        FakeAuthRepository(AuthenticatedUser("alex", "Alex", null, null), initiallySignedIn = true)
+    restoration.setContent { RoamigoTheme { RoamigoApp(authRepository = authRepository) } }
+    composeRule.waitUntil {
+      composeRule.onAllNodesWithTag(C.Tag.trips_new_trip_button).fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
+    composeRule.onNodeWithTag(DestinationCardTestTags.forDestination("Porto")).performClick()
+    composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
+
+    restoration.emulateSavedInstanceStateRestore()
+
+    composeRule.onNodeWithTag(DatesTravelersScreenTestTags.SCREEN).assertIsDisplayed()
+    composeRule.onNodeWithTag(CreateTripScaffoldTestTags.BACK).performClick()
+    composeRule.onNodeWithTag(DestinationCardTestTags.forDestination("Porto")).assertIsSelected()
   }
 }

@@ -1,8 +1,8 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.model.trip
 
-import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
+import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -14,8 +14,8 @@ class TripDraftTest {
       TripDraft(
           name = "Lisbon weekend",
           destinations = listOf(lisbon),
-          startDate = Timestamp(1000, 0),
-          endDate = Timestamp(2000, 0),
+          startDate = Instant.ofEpochSecond(1000),
+          endDate = Instant.ofEpochSecond(2000),
           flexibleDates = false,
           travelMode = TravelMode.GROUP,
           travelerCount = 3,
@@ -131,7 +131,7 @@ class TripDraftTest {
 
   @Test
   fun draftEndingBeforeItStartsIsInvalid() {
-    val draft = validDraft.copy(endDate = Timestamp(999, 0))
+    val draft = validDraft.copy(endDate = Instant.ofEpochSecond(999))
 
     assertEquals(listOf(TripDraftError.EndBeforeStart), draft.validate())
   }
@@ -177,8 +177,8 @@ class TripDraftTest {
         TripDraft(
             name = "",
             destinations = emptyList(),
-            startDate = Timestamp(2000, 0),
-            endDate = Timestamp(1000, 0),
+            startDate = Instant.ofEpochSecond(2000),
+            endDate = Instant.ofEpochSecond(1000),
             flexibleDates = true,
             travelMode = TravelMode.SOLO,
             travelerCount = 4,
