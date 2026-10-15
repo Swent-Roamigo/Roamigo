@@ -1,0 +1,78 @@
+# AI assistance was used for implementation support.
+name: Build Sprint APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      milestone:
+        description: Sprint or milestone label (for example M1)
+        required: true
+        default: M1
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    name: Build installable APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate milestone label
+        env:
+          MILESTONE: ${{ inputs.milestone }}
+        run: |
+          if [[ ! "$MILESTONE" =~ ^[A-Za-z0-9._-]+$ ]]; then
+            echo "::error::Use only letters, digits, dots, underscores, and hyphens for the milestone."
+            exit 1
+          fi
+
+      - name: Restore Firebase and signing configuration
+        env:
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
+          ANDROID_DEBUG_KEYSTORE: ${{ secrets.ANDROID_DEBUG_KEYSTORE }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES" ] || [ -z "$ANDROID_DEBUG_KEYSTORE" ]; then
+            echo "::error::Set GOOGLE_SERVICES to the Base64-encoded google-services.json and ANDROID_DEBUG_KEYSTORE to the Base64-encoded team debug keystore registered in Firebase."
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$GOOGLE_SERVICES" | base64 --decode > app/google-services.json
+          mkdir -p "$HOME/.android"
+          printf '%s' "$ANDROID_DEBUG_KEYSTORE" | base64 --decode > "$HOME/.android/debug.keystore"
+
+      - name: Setup JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Gradle cache
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Build APK and run checks
+        run: bash ./gradlew ktfmtCheck assembleDebug lintDebug check --build-cache
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Roamigo-${{ inputs.milestone }}-${{ github.run_number }}
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Summarize artifact
+        env:
+          MILESTONE: ${{ inputs.milestone }}
+        run: |
+          {
+            echo "## Roamigo $MILESTONE APK"
+            echo "Download the APK from this run's Artifacts section and extract the ZIP before installing."
+            echo "Minimum Android version: Android 9 (API 28)."
+            echo "Link this successful run from the milestone wiki page:"
+            echo "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          } >> "$GITHUB_STEP_SUMMARY"
