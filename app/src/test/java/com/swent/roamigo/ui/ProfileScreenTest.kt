@@ -53,6 +53,24 @@ class ProfileScreenTest {
   }
 
   @Test
+  fun showsSingularFriendCount() {
+    assertFriendCount(1, "1 friend")
+  }
+
+  @Test
+  fun showsPluralFriendCount() {
+    assertFriendCount(2, "2 friends")
+  }
+
+  private fun assertFriendCount(count: Int, expected: String) {
+    composeRule.setContent { RoamigoTheme { ProfileScreen(state.copy(friendCount = count)) } }
+
+    composeRule
+        .onNodeWithTag(C.Tag.profile_friends_row)
+        .assert(hasAnyDescendant(hasText("$expected \u00b7 heatmaps visible to friends only")))
+  }
+
+  @Test
   fun showsActionsAndFooter() {
     show()
     composeRule.onNodeWithTag(C.Tag.profile_log_out).assertIsDisplayed()
