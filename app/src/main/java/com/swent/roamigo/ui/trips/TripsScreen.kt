@@ -56,6 +56,7 @@ import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
+import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import java.time.Clock
 
@@ -246,7 +247,7 @@ fun TripsScreen(
         Button(
             onClick = onNewTripClick,
             modifier =
-                Modifier.fillMaxWidth().height(58.dp).semantics {
+                Modifier.fillMaxWidth().height(58.dp).markNotImplemented(onNewTripClick).semantics {
                   testTag = C.Tag.trips_new_trip_button
                 },
             shape = MaterialTheme.shapes.medium,
@@ -314,7 +315,7 @@ private fun TripsHeader(
       Surface(
           onClick = onProfileClick,
           modifier =
-              Modifier.size(52.dp).semantics {
+              Modifier.size(52.dp).markNotImplemented(onProfileClick).semantics {
                 testTag = C.Tag.trips_profile_avatar
                 contentDescription = openProfileLabel
               },
@@ -418,7 +419,10 @@ private fun MainTripCard(
 
           Surface(
               onClick = onInviteClick,
-              modifier = Modifier.semantics { testTag = C.Tag.trips_invite_button },
+              modifier =
+                  Modifier.markNotImplemented(onInviteClick).semantics {
+                    testTag = C.Tag.trips_invite_button
+                  },
               shape = CircleShape,
               color = MaterialTheme.colorScheme.surface,
           ) {

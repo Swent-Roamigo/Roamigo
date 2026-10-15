@@ -23,13 +23,11 @@ import com.swent.roamigo.ui.trip.creation.DatesTravelersScreenTestTags
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
 import com.swent.roamigo.ui.trip.creation.components.DestinationCardTestTags
 import com.swent.roamigo.ui.trip.creation.components.TripTypeSelectorTestTags
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.shadows.ShadowToast
 
 /** Checks that the screens are connected as intended and that Back returns to the right one. */
 @RunWith(AndroidJUnit4::class)
@@ -59,24 +57,12 @@ class RoamigoAppTest {
   }
 
   @Test
-  fun unfinishedTabsShowFeedbackFromTripsAndProfile() {
+  fun unfinishedActionsShowFeedbackFromTripsAndProfile() {
     waitForTrips()
-    listOf(C.Tag.trips_navigation_map, C.Tag.trips_navigation_photos).forEach { tag ->
-      ShadowToast.reset()
-      composeRule.onNodeWithTag(tag).performClick()
-      composeRule.runOnIdle {
-        assertEquals("Not implemented yet", ShadowToast.getTextOfLatestToast())
-      }
-    }
+    composeRule.assertNotImplementedActionsShowFeedback()
     waitForTag(C.Tag.trips_profile_avatar)
     composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
-    listOf(C.Tag.trips_navigation_map, C.Tag.trips_navigation_photos).forEach { tag ->
-      ShadowToast.reset()
-      composeRule.onNodeWithTag(tag).performClick()
-      composeRule.runOnIdle {
-        assertEquals("Not implemented yet", ShadowToast.getTextOfLatestToast())
-      }
-    }
+    composeRule.assertNotImplementedActionsShowFeedback()
     composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
   }
 

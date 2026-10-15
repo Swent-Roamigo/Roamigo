@@ -29,6 +29,7 @@ import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.InfoRow
+import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.Ochre
 import com.swent.roamigo.ui.theme.Paper
@@ -130,7 +131,10 @@ fun ProfileScreen(
       // Sign-out is not connected to authentication yet.
       OutlinedButton(
           onClick = notImplemented,
-          modifier = Modifier.fillMaxWidth().testTag(C.Tag.profile_log_out),
+          modifier =
+              Modifier.fillMaxWidth()
+                  .markNotImplemented(notImplemented)
+                  .testTag(C.Tag.profile_log_out),
       ) {
         Text(stringResource(R.string.profile_log_out))
       }
@@ -139,10 +143,12 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun EditAction(label: String) =
-    TextButton(
-        onClick = rememberNotImplementedAction(),
-        modifier = Modifier.testTag(C.Tag.profile_action),
-    ) {
-      Text(label)
-    }
+private fun EditAction(label: String) {
+  val notImplemented = rememberNotImplementedAction()
+  TextButton(
+      onClick = notImplemented,
+      modifier = Modifier.markNotImplemented(notImplemented).testTag(C.Tag.profile_action),
+  ) {
+    Text(label)
+  }
+}

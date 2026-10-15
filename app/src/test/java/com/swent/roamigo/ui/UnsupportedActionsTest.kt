@@ -1,11 +1,10 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.ui
 
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
@@ -30,14 +29,6 @@ import org.robolectric.shadows.ShadowToast
 class UnsupportedActionsTest {
   @get:Rule val composeRule = createComposeRule()
 
-  private fun clickAndCheckToast(tag: String) {
-    ShadowToast.reset()
-    composeRule.onNodeWithTag(tag).performScrollTo().performClick()
-    composeRule.runOnIdle {
-      assertEquals("Not implemented yet", ShadowToast.getTextOfLatestToast())
-    }
-  }
-
   @Test
   fun tripsUnconnectedActionsShowFeedback() {
     composeRule.setContent {
@@ -51,19 +42,7 @@ class UnsupportedActionsTest {
         )
       }
     }
-    listOf(
-            C.Tag.trips_profile_avatar,
-            C.Tag.trips_invite_button,
-            C.Tag.trips_new_trip_button,
-        )
-        .forEach { clickAndCheckToast(it) }
-    listOf(C.Tag.trips_navigation_map, C.Tag.trips_navigation_photos).forEach { tag ->
-      ShadowToast.reset()
-      composeRule.onNodeWithTag(tag).performClick()
-      composeRule.runOnIdle {
-        assertEquals("Not implemented yet", ShadowToast.getTextOfLatestToast())
-      }
-    }
+    composeRule.assertNotImplementedActionsShowFeedback()
   }
 
   @Test
@@ -71,21 +50,7 @@ class UnsupportedActionsTest {
     composeRule.setContent {
       RoamigoTheme { ProfileScreen(ProfileUiState(User("u1", "Sam", null), "sam@epfl.ch", 2)) }
     }
-    repeat(3) { index ->
-      ShadowToast.reset()
-      composeRule.onAllNodesWithTag(C.Tag.profile_action)[index].performScrollTo().performClick()
-      composeRule.runOnIdle {
-        assertEquals("Not implemented yet", ShadowToast.getTextOfLatestToast())
-      }
-    }
-    listOf(C.Tag.profile_log_out, C.Tag.trips_navigation_map, C.Tag.trips_navigation_photos)
-        .forEach { tag ->
-          ShadowToast.reset()
-          composeRule.onNodeWithTag(tag).performClick()
-          composeRule.runOnIdle {
-            assertEquals("Not implemented yet", ShadowToast.getTextOfLatestToast())
-          }
-        }
+    composeRule.assertNotImplementedActionsShowFeedback()
   }
 
   @Test
@@ -95,20 +60,7 @@ class UnsupportedActionsTest {
         FriendsScreen(FriendsUiState(friends = listOf(FriendUiModel("sam", "Sam", 5, 3))))
       }
     }
-    listOf(
-            C.Tag.friends_add_friend,
-            C.Tag.friends_view_map_prefix + "sam",
-            C.Tag.trips_navigation_trips,
-            C.Tag.trips_navigation_map,
-            C.Tag.trips_navigation_photos,
-        )
-        .forEach { tag ->
-          ShadowToast.reset()
-          composeRule.onNodeWithTag(tag).performClick()
-          composeRule.runOnIdle {
-            assertEquals("Not implemented yet", ShadowToast.getTextOfLatestToast())
-          }
-        }
+    composeRule.assertNotImplementedActionsShowFeedback()
   }
 
   @Test
@@ -118,7 +70,10 @@ class UnsupportedActionsTest {
       RoamigoTheme { TripsScreen(TripsUiState(isLoading = false), onMapClick = { clicks++ }) }
     }
     ShadowToast.reset()
-    composeRule.onNodeWithTag(C.Tag.trips_navigation_map).performClick()
+    composeRule
+        .onNodeWithTag(C.Tag.trips_navigation_map)
+        .assert(isNotImplemented.not())
+        .performClick()
     composeRule.runOnIdle {
       assertEquals(1, clicks)
       assertNull(ShadowToast.getTextOfLatestToast())
