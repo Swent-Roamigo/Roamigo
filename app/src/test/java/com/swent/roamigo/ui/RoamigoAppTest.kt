@@ -1,4 +1,5 @@
 // Implemented with assistance from Claude (Anthropic).
+// Sign-out tests implemented with AI assistance.
 package com.swent.roamigo.ui
 
 import androidx.activity.ComponentActivity
@@ -11,6 +12,7 @@ import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -18,11 +20,14 @@ import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.authentication.AuthenticationScreenTestTags
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.DatesTravelersScreenTestTags
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
 import com.swent.roamigo.ui.trip.creation.components.DestinationCardTestTags
 import com.swent.roamigo.ui.trip.creation.components.TripTypeSelectorTestTags
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -34,11 +39,11 @@ import org.junit.runner.RunWith
 class RoamigoAppTest {
   @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
   private val repository = FakeTripRepository(currentUserId = "alex")
+  private val authRepository =
+      FakeAuthRepository(AuthenticatedUser("alex", "Alex", null, null), initiallySignedIn = true)
 
   @Before
   fun setUp() {
-    val authRepository =
-        FakeAuthRepository(AuthenticatedUser("alex", "Alex", null, null), initiallySignedIn = true)
     composeRule.setContent {
       RoamigoTheme { RoamigoApp(authRepository = authRepository, tripRepository = repository) }
     }
@@ -54,6 +59,39 @@ class RoamigoAppTest {
 
   private fun pressBack() {
     composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+  }
+
+  @Test
+  fun signOutOpensAuthenticationAndBackDoesNotRestoreTrips() {
+    waitForTrips()
+    waitForTag(C.Tag.trips_profile_avatar)
+    composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
+    composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    waitForTag(AuthenticationScreenTestTags.heading)
+    composeRule.onNodeWithTag(AuthenticationScreenTestTags.heading).assertIsDisplayed()
+    composeRule.onAllNodesWithTag(C.Tag.profile_title).assertCountEquals(0)
+    composeRule.onAllNodesWithTag(C.Tag.trips_screen).assertCountEquals(0)
+    assertNull(authRepository.getCurrentUser())
+    pressBack()
+    assertTrue(composeRule.activity.isFinishing)
+  }
+
+  @Test
+  fun signOutFailureStaysOnProfileAndAllowsRetry() {
+    authRepository.signOutFailure = IllegalStateException("Technical details")
+    waitForTrips()
+    waitForTag(C.Tag.trips_profile_avatar)
+    composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
+    composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.profile_log_out).assertIsEnabled()
+    composeRule.onNodeWithText("Unable to sign out. Please try again.").assertIsDisplayed()
+    composeRule.onAllNodesWithTag(AuthenticationScreenTestTags.heading).assertCountEquals(0)
+    assertEquals("alex", authRepository.getCurrentUser()?.uid)
+    composeRule.runOnIdle { authRepository.signOutFailure = null }
+    composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    waitForTag(AuthenticationScreenTestTags.heading)
+    assertNull(authRepository.getCurrentUser())
   }
 
   @Test
