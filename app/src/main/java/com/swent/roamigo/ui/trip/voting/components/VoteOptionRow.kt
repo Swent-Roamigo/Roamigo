@@ -15,12 +15,21 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.swent.roamigo.R
 import com.swent.roamigo.ui.theme.Spacing
 
 @Composable
-fun VoteOptionRow(name: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
+fun VoteOptionRow(
+    name: String,
+    selected: Boolean,
+    enabled: Boolean,
+    voteCount: Int,
+    onClick: () -> Unit,
+) {
   Row(
       Modifier.fillMaxWidth()
           .heightIn(min = 56.dp)
@@ -42,7 +51,17 @@ fun VoteOptionRow(name: String, selected: Boolean, enabled: Boolean, onClick: ()
     Spacer(Modifier.width(Spacing.medium))
     Text(
         name,
+        modifier = Modifier.weight(1f),
         style = MaterialTheme.typography.bodyLarge,
+        color =
+            if (selected) MaterialTheme.colorScheme.onSecondaryContainer
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(Modifier.width(Spacing.small))
+    Text(
+        pluralStringResource(R.plurals.vote_count, voteCount, voteCount),
+        style = MaterialTheme.typography.bodySmall,
+        fontWeight = FontWeight.SemiBold,
         color =
             if (selected) MaterialTheme.colorScheme.onSecondaryContainer
             else MaterialTheme.colorScheme.onSurfaceVariant,
