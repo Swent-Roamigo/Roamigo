@@ -2,6 +2,10 @@
 package com.swent.roamigo.model.trip
 
 import com.google.firebase.Timestamp
+import com.swent.roamigo.model.MAX_LATITUDE
+import com.swent.roamigo.model.MAX_LONGITUDE
+import com.swent.roamigo.model.MIN_LATITUDE
+import com.swent.roamigo.model.MIN_LONGITUDE
 import com.swent.roamigo.model.TripLocation
 
 /**
@@ -37,6 +41,12 @@ data class TripDraft(
    */
   fun validate(): List<TripDraftError> = buildList {
     if (destinations.isEmpty()) add(TripDraftError.NoDestinations)
+    if (destinations.size > MAX_DESTINATIONS) add(TripDraftError.TooManyDestinations)
+    // Each problem is reported once, however many destinations share it.
+    if (destinations.any { it.name.isBlank() }) add(TripDraftError.BlankDestinationName)
+    if (destinations.any { !it.hasValidCoordinates() }) {
+      add(TripDraftError.InvalidDestinationCoordinates)
+    }
     if (name.isBlank()) add(TripDraftError.BlankName)
     if (endDate < startDate) add(TripDraftError.EndBeforeStart)
     if (travelerCount !in travelMode.allowedTravelerCounts) {
@@ -45,10 +55,22 @@ data class TripDraft(
   }
 }
 
+private fun TripLocation.hasValidCoordinates(): Boolean =
+    latitude in MIN_LATITUDE..MAX_LATITUDE && longitude in MIN_LONGITUDE..MAX_LONGITUDE
+
 /** A reason why a [TripDraft] cannot be turned into a trip. */
 sealed interface TripDraftError {
   /** The draft has no destination. */
   data object NoDestinations : TripDraftError
+
+  /** The draft has more than [MAX_DESTINATIONS] destinations. */
+  data object TooManyDestinations : TripDraftError
+
+  /** A destination name is empty or contains only whitespace. */
+  data object BlankDestinationName : TripDraftError
+
+  /** A destination latitude or longitude is outside its valid range, or is not a number. */
+  data object InvalidDestinationCoordinates : TripDraftError
 
   /** The trip name is empty or contains only whitespace. */
   data object BlankName : TripDraftError

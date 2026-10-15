@@ -50,3 +50,10 @@ const val MIN_GROUP_TRAVELER_COUNT = 2
 
 /** The largest number of travelers on a [TravelMode.GROUP] trip. */
 const val MAX_GROUP_TRAVELER_COUNT = 10
+
+/**
+ * The largest number of destinations on a trip.
+ *
+ * Security rules have no loops, so they can only validate a bounded number of entries.
+ */
+const val MAX_DESTINATIONS = 10
