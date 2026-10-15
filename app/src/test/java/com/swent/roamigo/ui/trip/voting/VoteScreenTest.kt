@@ -1,8 +1,11 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.trip.voting
 
+import androidx.compose.runtime.InternalComposeApi
+import androidx.compose.runtime.currentComposer
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.reflect.getDeclaredComposableMethod
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.assertIsDisplayed
@@ -270,6 +273,47 @@ class VoteScreenTest {
     composeRule.onNodeWithText("Restaurant").assertIsSelected()
     composeRule.onNodeWithText("Submit vote").assertIsEnabled()
     composeRule.onNodeWithText("Loading vote…").assertDoesNotExist()
+  }
+
+  @Test
+  fun noVotePreviewShowsLiveCountsWithoutSelectingAnOption() {
+    previewContent("NoVotePreview")
+
+    composeRule.onNodeWithText("Where should we have dinner?").assertIsDisplayed()
+    assertCount("Local market", "0 votes")
+    assertCount("Restaurant", "1 vote")
+    assertCount("Pizza place", "5 votes")
+    composeRule.onNodeWithText("Local market").assertIsNotSelected()
+    composeRule.onNodeWithText("Restaurant").assertIsNotSelected()
+    composeRule.onNodeWithText("Pizza place").assertIsNotSelected()
+    composeRule.onNodeWithText("Submit vote").assertIsNotEnabled()
+    composeRule.onNodeWithText("Back").assertIsEnabled()
+  }
+
+  @Test
+  fun existingVotePreviewShowsPersistedChoiceWithLiveCountsAndUpdateAction() {
+    previewContent("ExistingVotePreview")
+
+    composeRule.onNodeWithText("Where should we have dinner?").assertIsDisplayed()
+    assertCount("Local market", "0 votes")
+    assertCount("Restaurant", "1 vote")
+    assertCount("Pizza place", "5 votes")
+    composeRule.onNodeWithText("Local market").assertIsNotSelected()
+    composeRule.onNodeWithText("Restaurant").assertIsSelected()
+    composeRule.onNodeWithText("Pizza place").assertIsNotSelected()
+    composeRule.onNodeWithText("Update vote").assertIsEnabled()
+    composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Back").assertIsEnabled()
+  }
+
+  @OptIn(InternalComposeApi::class)
+  private fun previewContent(name: String) {
+    // Render the actual private @Preview entry points without exposing test-only production APIs.
+    val preview =
+        Class.forName("com.swent.roamigo.ui.trip.voting.VoteScreenKt")
+            .getDeclaredComposableMethod(name)
+    preview.asMethod().isAccessible = true
+    composeRule.setContent { preview(currentComposer, null) }
   }
 
   private fun assertCount(option: String, count: String) {
