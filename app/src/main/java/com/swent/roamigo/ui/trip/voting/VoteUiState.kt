@@ -23,6 +23,7 @@ sealed interface VoteUiState {
       val selectedOptionId: String? = persistedOptionId,
       val submissionState: VoteSubmissionState = VoteSubmissionState.Idle,
       val syncState: VoteSyncState = VoteSyncState.Synced,
+      val voteCounts: Map<String, Int> = vote.options.associate { it.uid to 0 },
   ) : VoteUiState {
     val hasUnsavedSelection: Boolean
       get() = selectedOptionId != persistedOptionId

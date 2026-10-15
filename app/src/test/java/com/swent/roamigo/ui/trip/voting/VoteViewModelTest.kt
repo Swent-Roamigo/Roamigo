@@ -85,6 +85,7 @@ class VoteViewModelTest {
     assertNull(ready().selectedOptionId)
     assertNull(ready().persistedOptionId)
     assertFalse(ready().canSubmit)
+    assertEquals(mapOf("a" to 0, "b" to 0), ready().voteCounts)
   }
 
   @Test
@@ -100,6 +101,7 @@ class VoteViewModelTest {
     repository.observationGate!!.complete(Unit)
     advanceUntilIdle()
     assertTrue(ready().canSelect)
+    assertEquals(mapOf("a" to 0, "b" to 1), ready().voteCounts)
     assertEquals("b", ready().persistedOptionId)
     assertEquals("b", ready().selectedOptionId)
   }
@@ -148,6 +150,7 @@ class VoteViewModelTest {
     val expected = VoteBallot("member", "a", Timestamp(now.epochSecond, now.nano))
     assertEquals(Triple("trip", "vote", expected), repository.calls.single())
     assertEquals("a", ready().persistedOptionId)
+    assertEquals(mapOf("a" to 1, "b" to 0), ready().voteCounts)
     assertFalse(ready().hasUnsavedSelection)
     viewModel.selectOption("b")
     assertEquals("a", ready().persistedOptionId)
@@ -157,6 +160,7 @@ class VoteViewModelTest {
     assertEquals(setOf("member"), repository.calls.map { it.third.userId }.toSet())
     assertEquals(1, repository.persisted.size)
     assertEquals("b", repository.persisted["member"]?.optionId)
+    assertEquals(mapOf("a" to 0, "b" to 1), ready().voteCounts)
     assertEquals("b", ready().persistedOptionId)
     assertEquals(VoteSubmissionState.Idle, ready().submissionState)
     assertTrue(ready().canSubmit)
@@ -312,6 +316,7 @@ class VoteViewModelTest {
     repository.ballots.value = listOf(ballot("a"), VoteBallot("other", "a", Timestamp(1, 0)))
     runCurrent()
     assertEquals(VoteSyncState.Failed, ready().syncState)
+    assertEquals(mapOf("a" to 1, "b" to 0), ready().voteCounts)
     assertEquals(interactionVote(), ready().vote)
     assertEquals("a", ready().persistedOptionId)
     assertEquals("b", ready().selectedOptionId)
@@ -322,6 +327,7 @@ class VoteViewModelTest {
     viewModel.retryLoad()
     viewModel.retryLoad()
     assertEquals(VoteSyncState.Retrying, ready().syncState)
+    assertEquals(mapOf("a" to 1, "b" to 0), ready().voteCounts)
     assertEquals("b", ready().selectedOptionId)
     assertFalse(ready().canSubmit)
     runCurrent()
@@ -329,6 +335,7 @@ class VoteViewModelTest {
     repository.observationGate!!.complete(Unit)
     advanceUntilIdle()
     assertEquals(1, repository.lookupCount)
+    assertEquals(mapOf("a" to 2, "b" to 0), ready().voteCounts)
     assertEquals(VoteSyncState.Synced, ready().syncState)
     assertEquals("a", ready().persistedOptionId)
     assertEquals("b", ready().selectedOptionId)
@@ -349,6 +356,7 @@ class VoteViewModelTest {
     assertEquals("b", ready().selectedOptionId)
     assertEquals("b", ready().persistedOptionId)
     assertTrue(ready().isSubmitting)
+    assertEquals(mapOf("a" to 0, "b" to 1), ready().voteCounts)
     repository.submitGate!!.complete(Unit)
     advanceUntilIdle()
     val reopened = VoteViewModel(repository, "trip", "vote", "member")
@@ -485,6 +493,82 @@ class VoteViewModelTest {
     runCurrent()
     assertNull(ready().selectedOptionId)
     assertNull(ready().persistedOptionId)
+  }
+
+  @Test
+  fun initialCountsIncludeEveryOptionAndCurrentUsersBallot() = runTest {
+    repository.vote =
+        interactionVote().copy(options = interactionVote().options + VoteOption("c", "Cafe"))
+    repository.ballots.value =
+        listOf(
+            ballot("a"),
+            VoteBallot("other", "a", Timestamp(1, 0)),
+            VoteBallot("third", "b", Timestamp(1, 0)),
+        )
+    createViewModel()
+    advanceUntilIdle()
+    assertEquals(mapOf("a" to 2, "b" to 1, "c" to 0), ready().voteCounts)
+    assertEquals("a", ready().persistedOptionId)
+    assertEquals("a", ready().selectedOptionId)
+    assertEquals(1, repository.activeObservers)
+  }
+
+  @Test
+  fun remoteAdditionChangeAndRemovalRecomputeCountsWithoutReloading() = runTest {
+    val first = VoteBallot("other", "a", Timestamp(1, 0))
+    val second = VoteBallot("third", "b", Timestamp(1, 0))
+    repository.ballots.value = listOf(first)
+    createViewModel()
+    advanceUntilIdle()
+    assertEquals(mapOf("a" to 1, "b" to 0), ready().voteCounts)
+    repository.ballots.value = listOf(first, second)
+    runCurrent()
+    assertEquals(mapOf("a" to 1, "b" to 1), ready().voteCounts)
+    repository.ballots.value = listOf(first.copy(optionId = "b"), second)
+    runCurrent()
+    assertEquals(mapOf("a" to 0, "b" to 2), ready().voteCounts)
+    repository.ballots.value = listOf(second)
+    runCurrent()
+    assertEquals(mapOf("a" to 0, "b" to 1), ready().voteCounts)
+    repository.ballots.value = emptyList()
+    runCurrent()
+    assertEquals(mapOf("a" to 0, "b" to 0), ready().voteCounts)
+    assertEquals(1, repository.lookupCount)
+    assertEquals(1, repository.activeObservers)
+  }
+
+  @Test
+  fun repeatedResultSnapshotsPreserveDraftAndFollowPersistedSelection() = runTest {
+    repository.ballots.value = listOf(ballot("a"))
+    createViewModel()
+    advanceUntilIdle()
+    viewModel.selectOption("b")
+    assertEquals(mapOf("a" to 1, "b" to 0), ready().voteCounts)
+    val other = VoteBallot("other", "b", Timestamp(1, 0))
+    repository.ballots.value = listOf(ballot("a"), other)
+    runCurrent()
+    assertEquals(mapOf("a" to 1, "b" to 1), ready().voteCounts)
+    assertEquals("a", ready().persistedOptionId)
+    assertEquals("b", ready().selectedOptionId)
+    // A duplicate backend snapshot must neither accumulate counts nor discard a draft.
+    repository.ballots.value = repository.ballots.value.reversed()
+    runCurrent()
+    assertEquals(mapOf("a" to 1, "b" to 1), ready().voteCounts)
+    assertEquals("b", ready().selectedOptionId)
+    repository.ballots.value = listOf(other)
+    runCurrent()
+    assertEquals(mapOf("a" to 0, "b" to 1), ready().voteCounts)
+    assertNull(ready().persistedOptionId)
+    assertEquals("b", ready().selectedOptionId)
+    assertTrue(ready().hasUnsavedSelection)
+  }
+
+  @Test
+  fun unknownOptionBallotIsIgnoredForDisplayedCounts() = runTest {
+    repository.ballots.value = listOf(ballot("a"), VoteBallot("other", "removed", Timestamp(1, 0)))
+    createViewModel()
+    advanceUntilIdle()
+    assertEquals(mapOf("a" to 1, "b" to 0), ready().voteCounts)
   }
 
   @Test
