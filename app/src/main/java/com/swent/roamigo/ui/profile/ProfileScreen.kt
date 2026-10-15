@@ -1,4 +1,5 @@
 // Implemented with assistance from Claude (Anthropic).
+// Sign-out implemented with AI assistance.
 package com.swent.roamigo.ui.profile
 
 import androidx.compose.foundation.background
@@ -40,6 +41,7 @@ fun ProfileScreen(
     state: ProfileUiState,
     onTripsClick: () -> Unit = rememberNotImplementedAction(),
     modifier: Modifier = Modifier,
+    onSignOutClick: () -> Unit = {},
 ) {
   val notImplemented = rememberNotImplementedAction()
   Scaffold(
@@ -128,13 +130,13 @@ fun ProfileScreen(
           EditAction(stringResource(R.string.profile_view))
         }
       }
-      // Sign-out is not connected to authentication yet.
+      state.errorMessageRes?.let {
+        Text(stringResource(it), color = MaterialTheme.colorScheme.error)
+      }
       OutlinedButton(
-          onClick = notImplemented,
-          modifier =
-              Modifier.fillMaxWidth()
-                  .markNotImplemented(notImplemented)
-                  .testTag(C.Tag.profile_log_out),
+          onClick = onSignOutClick,
+          enabled = !state.signedOut,
+          modifier = Modifier.fillMaxWidth().testTag(C.Tag.profile_log_out),
       ) {
         Text(stringResource(R.string.profile_log_out))
       }
