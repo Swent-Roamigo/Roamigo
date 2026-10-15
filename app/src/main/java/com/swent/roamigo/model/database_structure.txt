@@ -12,10 +12,10 @@ trips/{tripId}
     description: string | null
     destinations: array<{name: string, latitude: number, longitude: number}>  // ordered
     startDate: timestamp
-    endDate: timestamp
+    endDate: timestamp         // >= startDate, stored even when flexibleDates is true
     flexibleDates: bool
     travelMode: "SOLO" | "GROUP"
-    travelerCount: int (>= 1)
+    travelerCount: int         // SOLO: exactly 1, GROUP: 2 to 10
     ownerId: string            // auth uid of the creator, authoritative owner
     memberIds: array<string>   // contains ownerId at creation
     status: "PLANNED" | "ACTIVE" | "COMPLETED"

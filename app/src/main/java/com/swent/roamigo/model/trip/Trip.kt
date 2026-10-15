@@ -29,5 +29,24 @@ enum class TripStatus {
 
 enum class TravelMode {
   SOLO,
-  GROUP,
+  GROUP;
+
+  /** The traveler counts allowed for a trip in this mode. */
+  val allowedTravelerCounts: IntRange
+    get() =
+        when (this) {
+          SOLO -> SOLO_TRAVELER_COUNT..SOLO_TRAVELER_COUNT
+          GROUP -> MIN_GROUP_TRAVELER_COUNT..MAX_GROUP_TRAVELER_COUNT
+        }
 }
+
+// firestore.rules cannot import these values, so its trip creation rule repeats them.
+
+/** The number of travelers on a [TravelMode.SOLO] trip. */
+const val SOLO_TRAVELER_COUNT = 1
+
+/** The smallest number of travelers on a [TravelMode.GROUP] trip. */
+const val MIN_GROUP_TRAVELER_COUNT = 2
+
+/** The largest number of travelers on a [TravelMode.GROUP] trip. */
+const val MAX_GROUP_TRAVELER_COUNT = 10

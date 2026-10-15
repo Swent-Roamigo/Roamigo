@@ -216,6 +216,21 @@ class FakeTripRepositoryTest {
   }
 
   @Test
+  fun createTripWithTravelerCountOutsideItsModeStoresNothing() = runBlocking {
+    val repository = FakeTripRepository(currentUserId = "owner")
+    val invalid = draft.copy(travelMode = TravelMode.GROUP, travelerCount = 1)
+
+    val thrown =
+        assertThrows(TripCreationException.Validation::class.java) {
+          runBlocking { repository.createTrip("new-trip", invalid) }
+        }
+
+    assertEquals(listOf(TripDraftError.InvalidTravelerCount), thrown.errors)
+    assertTrue(repository.getTrips().isEmpty())
+    assertTrue(repository.getMembersForTrip("new-trip").isEmpty())
+  }
+
+  @Test
   fun createTripWithoutUserIsNotAuthenticated() = runBlocking {
     val repository = FakeTripRepository(currentUserId = null)
 

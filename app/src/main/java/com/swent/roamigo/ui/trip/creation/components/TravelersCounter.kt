@@ -25,7 +25,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
-import com.swent.roamigo.ui.trip.creation.MIN_GROUP_TRAVELERS
+import com.swent.roamigo.model.trip.MAX_GROUP_TRAVELER_COUNT
+import com.swent.roamigo.model.trip.MIN_GROUP_TRAVELER_COUNT
 
 internal object TravelersCounterTestTags {
   const val DECREMENT = "c2_travelers_decrement"
@@ -59,7 +60,7 @@ internal fun TravelersCounter(
         description = stringResource(R.string.c2_decrease_travelers),
         tag = TravelersCounterTestTags.DECREMENT,
         icon = R.drawable.ic_c2_minus,
-        enabled = count > MIN_GROUP_TRAVELERS,
+        enabled = count > MIN_GROUP_TRAVELER_COUNT,
         onClick = onDecrement,
     )
     Text(
@@ -75,7 +76,7 @@ internal fun TravelersCounter(
         description = stringResource(R.string.c2_increase_travelers),
         tag = TravelersCounterTestTags.INCREMENT,
         icon = R.drawable.ic_c2_plus,
-        enabled = count < 10,
+        enabled = count < MAX_GROUP_TRAVELER_COUNT,
         onClick = onIncrement,
     )
   }
