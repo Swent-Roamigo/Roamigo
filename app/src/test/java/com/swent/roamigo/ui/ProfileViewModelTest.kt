@@ -1,5 +1,4 @@
-// Implemented with assistance from Claude (Anthropic).
-// Sign-out tests implemented with AI assistance.
+// Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui
 
 import androidx.test.ext.junit.runners.AndroidJUnit4

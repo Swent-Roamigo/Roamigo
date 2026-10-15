@@ -1,5 +1,4 @@
-// Implemented with assistance from Claude (Anthropic).
-// Sign-out implemented with AI assistance.
+// Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui.profile
 
 import androidx.compose.foundation.background
@@ -40,8 +39,8 @@ import com.swent.roamigo.ui.theme.Spacing
 fun ProfileScreen(
     state: ProfileUiState,
     onTripsClick: () -> Unit = rememberNotImplementedAction(),
-    modifier: Modifier = Modifier,
     onSignOutClick: () -> Unit = {},
+    modifier: Modifier = Modifier,
 ) {
   val notImplemented = rememberNotImplementedAction()
   Scaffold(

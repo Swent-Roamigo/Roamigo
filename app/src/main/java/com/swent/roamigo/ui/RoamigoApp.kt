@@ -1,7 +1,7 @@
-// Implemented with assistance from Claude (Anthropic).
-// Sign-out navigation implemented with AI assistance.
+// Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui
 
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -9,9 +9,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
+import androidx.credentials.exceptions.ClearCredentialException
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -34,6 +38,7 @@ import com.swent.roamigo.ui.trip.creation.CreateTripViewModel
 import com.swent.roamigo.ui.trip.creation.DatesTravelersScreen
 import com.swent.roamigo.ui.trip.creation.DestinationScreen
 import com.swent.roamigo.ui.trips.TripsRoute
+import kotlinx.coroutines.launch
 
 /**
  * New sign-ins continue through the permissions explainer to trips; existing sessions open trips.
@@ -49,6 +54,9 @@ fun RoamigoApp(
     authRepository: AuthRepository = remember { AuthRepositoryFirebase() },
     credentialManager: CredentialManager? = null,
 ) {
+  val context = LocalContext.current
+  val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }
+  val scope = rememberCoroutineScope()
   val startDestination =
       remember(authRepository) {
         if (authRepository.getCurrentUser() == null) Route.AUTHENTICATION else Route.TRIPS
@@ -94,9 +102,17 @@ fun RoamigoApp(
       val state by profileViewModel.uiState.collectAsState()
       LaunchedEffect(state.signedOut) {
         if (state.signedOut) {
-          navController.navigate(Route.AUTHENTICATION) {
-            popUpTo(navController.graph.id)
-            launchSingleTop = true
+          scope.launch {
+            try {
+              manager.clearCredentialState(ClearCredentialStateRequest())
+            } catch (e: ClearCredentialException) {
+              // The repository session is already gone, so still return to authentication.
+              Log.w("RoamigoApp", "Could not clear credential state", e)
+            }
+            navController.navigate(Route.AUTHENTICATION) {
+              popUpTo(navController.graph.id)
+              launchSingleTop = true
+            }
           }
         }
       }
