@@ -13,6 +13,7 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
@@ -181,6 +182,38 @@ class AuthenticationFlowTest {
     launchApp()
     assertAuthenticationIsFirstScreen()
     pressBackAndWaitForExit()
+  }
+
+  @Test
+  fun signOutOpensAuthenticationAndBackDoesNotRestoreTrips() {
+    launchApp(signedIn = true)
+    waitForTag(C.Tag.trips_profile_avatar)
+    composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
+    waitForTag(C.Tag.profile_log_out)
+    composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    assertAuthenticationIsFirstScreen()
+    composeRule.onAllNodesWithTag(C.Tag.profile_title).assertCountEquals(0)
+    assertNull(repository.getCurrentUser())
+    pressBackAndWaitForExit()
+  }
+
+  @Test
+  fun signOutFailureStaysOnProfileAndAllowsRetry() {
+    launchApp(signedIn = true)
+    repository.signOutFailure = IllegalStateException("Technical backend details")
+    waitForTag(C.Tag.trips_profile_avatar)
+    composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
+    waitForTag(C.Tag.profile_log_out)
+    composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    composeRule.onNodeWithText("Unable to sign out. Please try again.").assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.profile_log_out).assertIsEnabled()
+    composeRule.onAllNodesWithTag(AuthenticationScreenTestTags.heading).assertCountEquals(0)
+    assertEquals(user, repository.getCurrentUser())
+    composeRule.runOnIdle { repository.signOutFailure = null }
+    composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    assertAuthenticationIsFirstScreen()
+    assertNull(repository.getCurrentUser())
   }
 
   @Test
