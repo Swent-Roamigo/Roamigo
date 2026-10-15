@@ -11,6 +11,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasProgressBarRangeInfo
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -18,6 +19,7 @@ import androidx.lifecycle.ViewModelStore
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.trip.voting.VoteBallot
+import com.swent.roamigo.model.trip.voting.VoteOption
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -84,12 +86,21 @@ class VoteScreenTest {
     try {
       composeRule.setContent { RoamigoTheme { VoteScreen(viewModel, {}) } }
       composeRule.onNodeWithText("Market").assertIsSelected()
+      assertCount("Market", "1 vote")
+      assertCount("Restaurant", "0 votes")
+      composeRule.runOnIdle {
+        repository.ballots.value =
+            repository.ballots.value + VoteBallot("other", "b", Timestamp(1, 0))
+      }
+      assertCount("Restaurant", "1 vote")
       composeRule.onNodeWithText("Restaurant").performClick().assertIsSelected()
       composeRule.onNodeWithText("Update vote").performClick()
       composeRule.runOnIdle {
         assertEquals("member", repository.calls.single().third.userId)
         assertEquals("b", repository.calls.single().third.optionId)
       }
+      assertCount("Market", "0 votes")
+      assertCount("Restaurant", "2 votes")
     } finally {
       composeRule.runOnIdle { store.clear() }
     }
@@ -119,7 +130,16 @@ class VoteScreenTest {
 
   @Test
   fun submissionErrorKeepsChoiceAndEnabledRetrySubmission() {
-    content(loaded().copy(selectedOptionId = "a", submissionState = VoteSubmissionState.Failed))
+    content(
+        loaded()
+            .copy(
+                selectedOptionId = "a",
+                submissionState = VoteSubmissionState.Failed,
+                voteCounts = mapOf("a" to 2, "b" to 1),
+            )
+    )
+    assertCount("Market", "2 votes")
+    assertCount("Restaurant", "1 vote")
     composeRule.onNodeWithText("Unable to submit your vote. Please try again.").assertIsDisplayed()
     composeRule.onNodeWithText("Market").assertIsSelected()
     composeRule.onNodeWithText("Submit vote").assertIsEnabled()
@@ -161,6 +181,7 @@ class VoteScreenTest {
                 persistedOptionId = "a",
                 selectedOptionId = "b",
                 syncState = VoteSyncState.Failed,
+                voteCounts = mapOf("a" to 2, "b" to 1),
             )
     )
     composeRule.onNodeWithText("Dinner?").assertIsDisplayed()
@@ -168,6 +189,8 @@ class VoteScreenTest {
     composeRule.onNodeWithText("Restaurant").assertIsSelected().assertIsNotEnabled()
     composeRule.onNodeWithText("Market").assertIsNotEnabled()
     composeRule.onNodeWithText("Update vote").assertIsNotEnabled()
+    assertCount("Market", "2 votes")
+    assertCount("Restaurant", "1 vote")
     composeRule.onNodeWithText("Retry").assertIsEnabled()
     composeRule
         .onNodeWithText("Unable to load your vote selection. Please try again.")
@@ -210,6 +233,47 @@ class VoteScreenTest {
     composeRule.onNodeWithText("Retry").assertDoesNotExist()
     composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
     composeRule.onNodeWithText("Back").assertIsEnabled()
+  }
+
+  @Test
+  fun everyOptionShowsItsCountWithCorrectPluralsAndKeepsSelection() {
+    content(
+        loaded()
+            .copy(
+                vote =
+                    interactionVote()
+                        .copy(options = interactionVote().options + VoteOption("c", "Cafe")),
+                persistedOptionId = "b",
+                selectedOptionId = "b",
+                voteCounts = mapOf("a" to 0, "b" to 1, "c" to 3),
+            )
+    )
+    assertCount("Market", "0 votes")
+    assertCount("Restaurant", "1 vote")
+    assertCount("Cafe", "3 votes")
+    composeRule.onNodeWithText("Restaurant").assertIsSelected()
+    composeRule.onNodeWithText("Update vote").assertIsEnabled()
+  }
+
+  @Test
+  fun resultStateUpdateChangesCountsWithoutDiscardingLocalSelection() {
+    var state by
+        mutableStateOf(
+            loaded().copy(selectedOptionId = "b", voteCounts = mapOf("a" to 1, "b" to 0))
+        )
+    composeRule.setContent { RoamigoTheme { VoteScreenContent(state, {}, {}, {}, {}) } }
+    assertCount("Market", "1 vote")
+    assertCount("Restaurant", "0 votes")
+    composeRule.runOnIdle { state = state.copy(voteCounts = mapOf("a" to 0, "b" to 2)) }
+    assertCount("Market", "0 votes")
+    assertCount("Restaurant", "2 votes")
+    composeRule.onNodeWithText("Restaurant").assertIsSelected()
+    composeRule.onNodeWithText("Submit vote").assertIsEnabled()
+    composeRule.onNodeWithText("Loading vote…").assertDoesNotExist()
+  }
+
+  private fun assertCount(option: String, count: String) {
+    composeRule.onNode(hasText(option) and hasText(count)).assertIsDisplayed()
   }
 
   private fun content(state: VoteUiState) {
