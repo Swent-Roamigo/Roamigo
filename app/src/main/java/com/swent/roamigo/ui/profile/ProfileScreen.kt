@@ -2,6 +2,7 @@
 package com.swent.roamigo.ui.profile
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +38,7 @@ import com.swent.roamigo.ui.theme.Spacing
 fun ProfileScreen(
     state: ProfileUiState,
     onTripsClick: () -> Unit = {},
+    onFriendsClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
   Scaffold(
@@ -120,7 +122,7 @@ fun ProfileScreen(
                 state.friendCount,
                 state.friendCount,
             ),
-            Modifier.testTag(C.Tag.profile_friends_row),
+            Modifier.testTag(C.Tag.profile_friends_row).clickable(onClick = onFriendsClick),
         ) {
           EditAction(stringResource(R.string.profile_view))
         }

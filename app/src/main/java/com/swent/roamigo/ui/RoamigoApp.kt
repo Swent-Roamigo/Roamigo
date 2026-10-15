@@ -20,6 +20,8 @@ import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.ui.authentication.AuthenticationScreen
 import com.swent.roamigo.ui.authentication.AuthenticationViewModel
+import com.swent.roamigo.ui.friends.FriendsScreen
+import com.swent.roamigo.ui.friends.FriendsUiState
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.permissions.PermissionsScreen
 import com.swent.roamigo.ui.profile.ProfileScreen
@@ -82,6 +84,14 @@ fun RoamigoApp(
       val state by viewModel<ProfileViewModel>().uiState.collectAsState()
       ProfileScreen(
           state,
+          onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
+          onFriendsClick = { navController.navigate(Route.FRIENDS) },
+      )
+    }
+    composable(Route.FRIENDS) {
+      // There is no friends data source yet, so the screen shows its empty state.
+      FriendsScreen(
+          FriendsUiState(),
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
       )
     }

@@ -75,6 +75,40 @@ class RoamigoAppTest {
     composeRule.onAllNodesWithTag(C.Tag.profile_title).assertCountEquals(0)
   }
 
+  private fun openFriends() {
+    waitForTrips()
+    waitForTag(C.Tag.trips_profile_avatar)
+    composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
+    composeRule.onNodeWithTag(C.Tag.profile_friends_row).performClick()
+  }
+
+  @Test
+  fun friendsRowOnTheProfileOpensFriends() {
+    openFriends()
+
+    composeRule.onNodeWithTag(C.Tag.friends_screen).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertIsDisplayed()
+  }
+
+  @Test
+  fun backOnFriendsReturnsToTheProfile() {
+    openFriends()
+
+    pressBack()
+
+    composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
+  }
+
+  @Test
+  fun tripsTabOnFriendsReturnsToTrips() {
+    openFriends()
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+    composeRule.onAllNodesWithTag(C.Tag.friends_screen).assertCountEquals(0)
+  }
+
   @Test
   fun newTripOpensDestinationStepAndBackReturnsToTrips() {
     waitForTrips()
