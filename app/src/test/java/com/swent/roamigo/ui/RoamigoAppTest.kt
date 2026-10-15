@@ -57,6 +57,16 @@ class RoamigoAppTest {
   }
 
   @Test
+  fun unfinishedActionsShowFeedbackFromTripsAndProfile() {
+    waitForTrips()
+    composeRule.assertNotImplementedActionsShowFeedback()
+    waitForTag(C.Tag.trips_profile_avatar)
+    composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
+    composeRule.assertNotImplementedActionsShowFeedback()
+    composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
+  }
+
+  @Test
   fun existingSessionStartsOnTrips() {
     waitForTrips()
 

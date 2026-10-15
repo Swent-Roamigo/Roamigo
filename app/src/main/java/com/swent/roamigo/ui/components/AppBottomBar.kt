@@ -51,7 +51,10 @@ internal fun AppBottomBar(
       NavigationBarItem(
           selected = tripsSelected,
           onClick = onTripsClick,
-          modifier = Modifier.semantics { testTag = C.Tag.trips_navigation_trips },
+          modifier =
+              Modifier.markNotImplemented(onTripsClick).semantics {
+                testTag = C.Tag.trips_navigation_trips
+              },
           icon = {
             Icon(
                 imageVector = Icons.Outlined.CardTravel,
@@ -65,7 +68,10 @@ internal fun AppBottomBar(
       NavigationBarItem(
           selected = false,
           onClick = onMapClick,
-          modifier = Modifier.semantics { testTag = C.Tag.trips_navigation_map },
+          modifier =
+              Modifier.markNotImplemented(onMapClick).semantics {
+                testTag = C.Tag.trips_navigation_map
+              },
           icon = {
             Icon(
                 imageVector = Icons.Outlined.Map,
@@ -79,7 +85,10 @@ internal fun AppBottomBar(
       NavigationBarItem(
           selected = false,
           onClick = onPhotosClick,
-          modifier = Modifier.semantics { testTag = C.Tag.trips_navigation_photos },
+          modifier =
+              Modifier.markNotImplemented(onPhotosClick).semantics {
+                testTag = C.Tag.trips_navigation_photos
+              },
           icon = {
             Icon(
                 imageVector = Icons.Outlined.PhotoCamera,
