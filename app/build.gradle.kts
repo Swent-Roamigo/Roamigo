@@ -1,5 +1,5 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
   alias(libs.plugins.androidApplication)
@@ -9,13 +9,14 @@ plugins {
   alias(libs.plugins.googleServices)
   id("jacoco")
 }
-val localProps = Properties().apply {
-    val f = rootProject.file("local.properties")
-    if (f.exists()) f.inputStream().use { load(it) }
-}
-val mapboxToken: String = localProps.getProperty("MAPBOX_ACCESS_TOKEN")
-    ?: System.getenv("MAPBOX_ACCESS_TOKEN")
-    ?: ""
+
+val localProps =
+    Properties().apply {
+      val f = rootProject.file("local.properties")
+      if (f.exists()) f.inputStream().use { load(it) }
+    }
+val mapboxToken: String =
+    localProps.getProperty("MAPBOX_ACCESS_TOKEN") ?: System.getenv("MAPBOX_ACCESS_TOKEN") ?: ""
 
 android {
   namespace = "com.swent.roamigo"
@@ -52,8 +53,8 @@ android {
   testCoverage { jacocoVersion = "0.8.11" }
 
   buildFeatures {
-      compose = true
-      resValues = true
+    compose = true
+    resValues = true
   }
 
   compileOptions {
