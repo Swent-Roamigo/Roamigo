@@ -26,27 +26,29 @@ fun VoteActions(
     hasPersistedBallot: Boolean,
     onSubmit: () -> Unit,
     onBack: () -> Unit,
+    showSubmit: Boolean = true,
 ) {
   Column(verticalArrangement = Arrangement.spacedBy(Spacing.large)) {
-    Button(
-        onClick = onSubmit,
-        enabled = canSubmit,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
-    ) {
-      if (isSubmitting) {
-        CircularProgressIndicator(Modifier.size(Spacing.extraLarge), strokeWidth = 2.dp)
-        Spacer(Modifier.width(Spacing.small))
-      }
-      Text(
-          stringResource(
-              when {
-                isSubmitting -> R.string.vote_submitting
-                hasPersistedBallot -> R.string.vote_update
-                else -> R.string.vote_submit
-              }
+    if (showSubmit)
+        Button(
+            onClick = onSubmit,
+            enabled = canSubmit,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
+        ) {
+          if (isSubmitting) {
+            CircularProgressIndicator(Modifier.size(Spacing.extraLarge), strokeWidth = 2.dp)
+            Spacer(Modifier.width(Spacing.small))
+          }
+          Text(
+              stringResource(
+                  when {
+                    isSubmitting -> R.string.vote_submitting
+                    hasPersistedBallot -> R.string.vote_update
+                    else -> R.string.vote_submit
+                  }
+              )
           )
-      )
-    }
+        }
     OutlinedButton(
         onClick = onBack,
         enabled = !isSubmitting,

@@ -7,6 +7,7 @@ import com.google.firebase.Timestamp
 import com.swent.roamigo.model.trip.voting.Vote
 import com.swent.roamigo.model.trip.voting.VoteBallot
 import com.swent.roamigo.model.trip.voting.VoteRepository
+import com.swent.roamigo.model.trip.voting.VoteStatus
 import java.time.Clock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -37,14 +38,15 @@ class VoteViewModel(
 
   fun retryLoad() {
     when (val state = _uiState.value) {
-      is VoteUiState.LoadError -> loadVote()
+      is VoteUiState.LoadError -> if (state.canRetry) loadVote()
       is VoteUiState.Ready -> {
-        if (state.observationState != BallotObservationState.Failed || state.isSubmitting) return
+        if (state.syncState != VoteSyncState.Failed || state.isSubmitting) return
         observationJob?.cancel()
-        updateReady { it.copy(observationState = BallotObservationState.Retrying) }
+        updateReady { it.copy(syncState = VoteSyncState.Retrying) }
         observationJob = viewModelScope.launch { observeBallots(state.vote) }
       }
-      VoteUiState.Loading -> Unit
+      VoteUiState.Loading,
+      VoteUiState.Closed -> Unit
     }
   }
 
@@ -63,6 +65,10 @@ class VoteViewModel(
           }
       if (vote == null) {
         _uiState.value = VoteUiState.LoadError(VoteLoadError.NOT_FOUND)
+        return@launch
+      }
+      if (vote.status == VoteStatus.CLOSED) {
+        _uiState.value = VoteUiState.Closed
         return@launch
       }
       observeBallots(vote)
@@ -87,7 +93,7 @@ class VoteViewModel(
     } catch (_: Exception) {
       _uiState.update { state ->
         when (state) {
-          is VoteUiState.Ready -> state.copy(observationState = BallotObservationState.Failed)
+          is VoteUiState.Ready -> state.copy(syncState = VoteSyncState.Failed)
           else -> VoteUiState.LoadError(VoteLoadError.BALLOTS_FAILED)
         }
       }
@@ -133,5 +139,5 @@ private fun VoteUiState.Ready.withPersistedOption(optionId: String?): VoteUiStat
     copy(
         persistedOptionId = optionId,
         selectedOptionId = if (hasUnsavedSelection || isSubmitting) selectedOptionId else optionId,
-        observationState = BallotObservationState.Active,
+        syncState = VoteSyncState.Synced,
     )

@@ -2,12 +2,16 @@
 package com.swent.roamigo.ui.trip.voting
 
 import com.swent.roamigo.model.trip.voting.Vote
-import com.swent.roamigo.model.trip.voting.VoteStatus
 
 sealed interface VoteUiState {
   data object Loading : VoteUiState
 
-  data class LoadError(val reason: VoteLoadError) : VoteUiState
+  data object Closed : VoteUiState
+
+  data class LoadError(val reason: VoteLoadError) : VoteUiState {
+    val canRetry: Boolean
+      get() = reason != VoteLoadError.NOT_FOUND
+  }
 
   /**
    * [persistedOptionId] is the latest choice from the repository stream. [selectedOptionId] is the
@@ -18,7 +22,7 @@ sealed interface VoteUiState {
       val persistedOptionId: String? = null,
       val selectedOptionId: String? = persistedOptionId,
       val submissionState: VoteSubmissionState = VoteSubmissionState.Idle,
-      val observationState: BallotObservationState = BallotObservationState.Active,
+      val syncState: VoteSyncState = VoteSyncState.Synced,
   ) : VoteUiState {
     val hasUnsavedSelection: Boolean
       get() = selectedOptionId != persistedOptionId
@@ -27,10 +31,7 @@ sealed interface VoteUiState {
       get() = submissionState == VoteSubmissionState.Submitting
 
     val canSelect: Boolean
-      get() =
-          observationState == BallotObservationState.Active &&
-              !isSubmitting &&
-              vote.status == VoteStatus.OPEN
+      get() = syncState == VoteSyncState.Synced && !isSubmitting
 
     val canSubmit: Boolean
       get() = canSelect && vote.options.any { it.uid == selectedOptionId }
@@ -56,10 +57,10 @@ sealed interface VoteSubmissionState {
 }
 
 /** A failed listener keeps the last ready state; retry waits for a fresh repository snapshot. */
-sealed interface BallotObservationState {
-  data object Active : BallotObservationState
+sealed interface VoteSyncState {
+  data object Synced : VoteSyncState
 
-  data object Retrying : BallotObservationState
+  data object Retrying : VoteSyncState
 
-  data object Failed : BallotObservationState
+  data object Failed : VoteSyncState
 }

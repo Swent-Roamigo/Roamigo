@@ -18,7 +18,6 @@ import androidx.lifecycle.ViewModelStore
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.trip.voting.VoteBallot
-import com.swent.roamigo.model.trip.voting.VoteStatus
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -112,7 +111,7 @@ class VoteScreenTest {
   fun loadingBlocksSubmissionAndShowsProgress() {
     content(VoteUiState.Loading)
     composeRule.onNodeWithText("Loading vote…").assertIsDisplayed()
-    composeRule.onNodeWithText("Submit vote").assertIsNotEnabled()
+    composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
     composeRule
         .onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate))
         .assertIsDisplayed()
@@ -140,12 +139,18 @@ class VoteScreenTest {
         )
       }
     }
-    composeRule
-        .onNodeWithText("Unable to load your vote selection. Please try again.")
-        .assertIsDisplayed()
-    composeRule.onNodeWithText("Submit vote").assertIsNotEnabled()
+    composeRule.onNodeWithText("Unable to load the vote. Please try again.").assertIsDisplayed()
+    composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
     composeRule.onNodeWithText("Retry").performClick()
     composeRule.runOnIdle { assertEquals(1, retries) }
+  }
+
+  @Test
+  fun voteLookupErrorUsesSameInitialErrorContent() {
+    content(VoteUiState.LoadError(VoteLoadError.VOTE_FAILED))
+    composeRule.onNodeWithText("Unable to load the vote. Please try again.").assertIsDisplayed()
+    composeRule.onNodeWithText("Retry").assertIsEnabled()
+    composeRule.onNodeWithText("Dinner?").assertDoesNotExist()
   }
 
   @Test
@@ -155,10 +160,11 @@ class VoteScreenTest {
             .copy(
                 persistedOptionId = "a",
                 selectedOptionId = "b",
-                observationState = BallotObservationState.Failed,
+                syncState = VoteSyncState.Failed,
             )
     )
     composeRule.onNodeWithText("Dinner?").assertIsDisplayed()
+    composeRule.onNodeWithText("Loading vote…").assertDoesNotExist()
     composeRule.onNodeWithText("Restaurant").assertIsSelected().assertIsNotEnabled()
     composeRule.onNodeWithText("Market").assertIsNotEnabled()
     composeRule.onNodeWithText("Update vote").assertIsNotEnabled()
@@ -169,35 +175,41 @@ class VoteScreenTest {
   }
 
   @Test
-  fun listenerRetryRetainsSelectionAndShowsLoading() {
+  fun listenerRetryRetainsSelectionWithoutInitialLoading() {
     content(
         loaded()
             .copy(
                 persistedOptionId = "a",
                 selectedOptionId = "b",
-                observationState = BallotObservationState.Retrying,
+                syncState = VoteSyncState.Retrying,
             )
     )
     composeRule.onNodeWithText("Dinner?").assertIsDisplayed()
     composeRule.onNodeWithText("Restaurant").assertIsSelected().assertIsNotEnabled()
     composeRule.onNodeWithText("Update vote").assertIsNotEnabled()
-    composeRule.onNodeWithText("Loading vote…").assertIsDisplayed()
+    composeRule.onNodeWithText("Loading vote…").assertDoesNotExist()
+    composeRule.onNodeWithText("Reconnecting…").assertIsDisplayed()
   }
 
   @Test
-  fun closedVoteShowsSavedSelectionAndBlocksVoting() {
-    content(
-        loaded()
-            .copy(
-                vote = interactionVote().copy(status = VoteStatus.CLOSED),
-                persistedOptionId = "a",
-                selectedOptionId = "a",
-            )
-    )
+  fun closedVoteShowsOnlyTerminalContentAndBack() {
+    content(VoteUiState.Closed)
     composeRule.onNodeWithText("This vote is closed.").assertIsDisplayed()
-    composeRule.onNodeWithText("Market").assertIsSelected().assertIsNotEnabled()
-    composeRule.onNodeWithText("Restaurant").assertIsNotEnabled()
-    composeRule.onNodeWithText("Update vote").assertIsNotEnabled()
+    composeRule.onNodeWithText("Dinner?").assertDoesNotExist()
+    composeRule.onNodeWithText("Market").assertDoesNotExist()
+    composeRule.onNodeWithText("Restaurant").assertDoesNotExist()
+    composeRule.onNodeWithText("Update vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Back").assertIsEnabled()
+  }
+
+  @Test
+  fun notFoundHasNoRetryOrVotingControls() {
+    content(VoteUiState.LoadError(VoteLoadError.NOT_FOUND))
+    composeRule.onNodeWithText("This vote could not be found.").assertIsDisplayed()
+    composeRule.onNodeWithText("Retry").assertDoesNotExist()
+    composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Back").assertIsEnabled()
   }
 
   private fun content(state: VoteUiState) {
