@@ -1,4 +1,5 @@
 // Implemented with assistance from Claude (Anthropic).
+// Sign-out navigation implemented with AI assistance.
 package com.swent.roamigo.ui
 
 import androidx.activity.compose.BackHandler
@@ -89,10 +90,20 @@ fun RoamigoApp(
       )
     }
     composable(Route.PROFILE) {
-      val state by viewModel<ProfileViewModel>().uiState.collectAsState()
+      val profileViewModel = viewModel { ProfileViewModel(authRepository) }
+      val state by profileViewModel.uiState.collectAsState()
+      LaunchedEffect(state.signedOut) {
+        if (state.signedOut) {
+          navController.navigate(Route.AUTHENTICATION) {
+            popUpTo(navController.graph.id)
+            launchSingleTop = true
+          }
+        }
+      }
       ProfileScreen(
           state,
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
+          onSignOutClick = profileViewModel::signOut,
       )
     }
     composable(Route.NEW_TRIP) {
