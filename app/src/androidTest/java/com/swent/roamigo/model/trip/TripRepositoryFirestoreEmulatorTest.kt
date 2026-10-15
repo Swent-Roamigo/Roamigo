@@ -82,6 +82,17 @@ class TripRepositoryFirestoreEmulatorTest {
   }
 
   @Test
+  fun createTrip_withMaximumDestinationsStaysWithinRuleLimits() = runBlocking {
+    val destinations =
+        List(10) { index -> TripLocation(-90.0 + index * 20, 180.0 - index * 40, "Stop $index") }
+
+    val created = alice.repository.createTrip(tripId, draft.copy(destinations = destinations))
+
+    assertEquals(destinations, created.destinations)
+    assertEquals(listOf(created), alice.repository.getTrips().filter { it.uid == tripId })
+  }
+
+  @Test
   fun createTrip_withSameIdTwiceKeepsOneTripAndOneMember() = runBlocking {
     val first = alice.repository.createTrip(tripId, draft)
     val second = alice.repository.createTrip(tripId, draft)
@@ -152,6 +163,68 @@ class TripRepositoryFirestoreEmulatorTest {
   }
 
   @Test
+  fun directWriteWithValidDestinationsIsAllowed() = runBlocking {
+    val destinations =
+        listOf(
+            TripLocation(latitude = -90.0, longitude = -180.0, name = "South-west"),
+            TripLocation(latitude = 90.0, longitude = 180.0, name = "North-east"),
+            TripLocation(latitude = 38.7223, longitude = -9.1393, name = "Lisbon"),
+        )
+    val validTrips =
+        listOf(
+            tripOwnedBy(alice).copy(destinations = destinations),
+            tripOwnedBy(alice).copy(destinations = List(10) { draft.destinations.first() }),
+        )
+
+    validTrips.forEachIndexed { index, trip -> writeTripDirectly(alice, trip, "$tripId-$index") }
+  }
+
+  @Test
+  fun directWriteWithMalformedDestinationIsDenied() = runBlocking {
+    val lisbon = mapOf("name" to "Lisbon", "latitude" to 38.7223, "longitude" to -9.1393)
+    val malformedEntries =
+        listOf(
+            "Lisbon",
+            lisbon - "latitude",
+            lisbon + ("country" to "Portugal"),
+            lisbon + ("name" to 42),
+            lisbon + ("name" to " "),
+            lisbon + ("latitude" to "38.7"),
+            lisbon + ("longitude" to true),
+        )
+
+    malformedEntries.forEach { entry ->
+      // The malformed entry comes after a valid one, so indexes beyond the first are checked too.
+      assertPermissionDenied { writeTripDirectly(alice, destinations = listOf(lisbon, entry)) }
+    }
+  }
+
+  @Test
+  fun directWriteWithOutOfRangeCoordinatesIsDenied() = runBlocking {
+    val lisbon = draft.destinations.first()
+    val outOfRange =
+        listOf(
+            lisbon.copy(latitude = -90.1),
+            lisbon.copy(latitude = 90.1),
+            lisbon.copy(longitude = -180.1),
+            lisbon.copy(longitude = 180.1),
+        )
+
+    outOfRange.forEach { destination ->
+      val trip = tripOwnedBy(alice).copy(destinations = listOf(destination))
+      assertPermissionDenied { writeTripDirectly(alice, trip) }
+    }
+  }
+
+  @Test
+  fun directWriteWithoutDestinationsOrWithTooManyIsDenied() = runBlocking {
+    listOf(0, 11).forEach { count ->
+      val trip = tripOwnedBy(alice).copy(destinations = List(count) { draft.destinations.first() })
+      assertPermissionDenied { writeTripDirectly(alice, trip) }
+    }
+  }
+
+  @Test
   fun memberCannotBeWrittenWithoutItsTrip() = runBlocking {
     assertPermissionDenied {
       memberDocument(alice, tripId).set(ownerMemberData(alice.userId)).await()
@@ -211,6 +284,12 @@ class TripRepositoryFirestoreEmulatorTest {
   // Bypasses the repository and its Kotlin validation, so only the rules decide.
   private suspend fun writeTripDirectly(user: User, trip: Trip, id: String = tripId) {
     user.db.collection("trips").document(id).set(trip.toFirestoreData()).await()
+  }
+
+  // Writes raw destination entries that a TripLocation cannot represent.
+  private suspend fun writeTripDirectly(user: User, destinations: List<Any?>) {
+    val data = tripOwnedBy(user).toFirestoreData() + ("destinations" to destinations)
+    user.db.collection("trips").document(tripId).set(data).await()
   }
 
   private fun memberDocument(user: User, tripId: String) =

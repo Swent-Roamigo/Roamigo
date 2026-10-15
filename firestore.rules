@@ -24,6 +24,37 @@ service cloud.firestore {
           || (trip.travelMode == 'GROUP' && trip.travelerCount >= 2 && trip.travelerCount <= 10);
     }
 
+    // Mirrors the coordinate constants in model/TripLocation.kt. Kept compact because every
+    // destination is checked against the 1000-expression limit of a single request.
+    function isValidDestination(destination) {
+      return destination is map
+          && destination.keys().size() == 3
+          && destination.keys().hasAll(['name', 'latitude', 'longitude'])
+          && destination.name is string
+          && destination.name.trim().size() > 0
+          && destination.latitude is number
+          && math.abs(destination.latitude) <= 90
+          && destination.longitude is number
+          && math.abs(destination.longitude) <= 180;
+    }
+
+    // Rules have no loops, so each index up to MAX_DESTINATIONS (model/trip/Trip.kt) is checked.
+    function hasValidDestinations(destinations) {
+      return destinations is list
+          && destinations.size() >= 1
+          && destinations.size() <= 10
+          && isValidDestination(destinations[0])
+          && (destinations.size() <= 1 || isValidDestination(destinations[1]))
+          && (destinations.size() <= 2 || isValidDestination(destinations[2]))
+          && (destinations.size() <= 3 || isValidDestination(destinations[3]))
+          && (destinations.size() <= 4 || isValidDestination(destinations[4]))
+          && (destinations.size() <= 5 || isValidDestination(destinations[5]))
+          && (destinations.size() <= 6 || isValidDestination(destinations[6]))
+          && (destinations.size() <= 7 || isValidDestination(destinations[7]))
+          && (destinations.size() <= 8 || isValidDestination(destinations[8]))
+          && (destinations.size() <= 9 || isValidDestination(destinations[9]));
+    }
+
     function isValidNewTrip(trip) {
       return trip.keys().hasAll([
             'name', 'description', 'destinations', 'startDate', 'endDate', 'flexibleDates',
@@ -35,7 +66,7 @@ service cloud.firestore {
           ])
           && trip.name is string
           && (trip.description == null || trip.description is string)
-          && trip.destinations is list
+          && hasValidDestinations(trip.destinations)
           && trip.startDate is timestamp
           && trip.endDate is timestamp
           // Both dates are stored even when flexibleDates is true, so their order always holds.

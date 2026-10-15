@@ -8,10 +8,12 @@ import org.junit.Test
 
 class TripDraftTest {
 
+  private val lisbon = TripLocation(38.7223, -9.1393, "Lisbon")
+
   private val validDraft =
       TripDraft(
           name = "Lisbon weekend",
-          destinations = listOf(TripLocation(38.7223, -9.1393, "Lisbon")),
+          destinations = listOf(lisbon),
           startDate = Timestamp(1000, 0),
           endDate = Timestamp(2000, 0),
           flexibleDates = false,
@@ -36,6 +38,88 @@ class TripDraftTest {
     val draft = validDraft.copy(destinations = emptyList())
 
     assertEquals(listOf(TripDraftError.NoDestinations), draft.validate())
+  }
+
+  @Test
+  fun draftWithMaximumDestinationsIsValid() {
+    val draft = validDraft.copy(destinations = List(10) { lisbon })
+
+    assertEquals(emptyList<TripDraftError>(), draft.validate())
+  }
+
+  @Test
+  fun draftWithTooManyDestinationsIsInvalid() {
+    val draft = validDraft.copy(destinations = List(11) { lisbon })
+
+    assertEquals(listOf(TripDraftError.TooManyDestinations), draft.validate())
+  }
+
+  @Test
+  fun destinationWithBlankNameIsInvalid() {
+    val draft = validDraft.copy(destinations = listOf(lisbon.copy(name = " ")))
+
+    assertEquals(listOf(TripDraftError.BlankDestinationName), draft.validate())
+  }
+
+  @Test
+  fun destinationsOnCoordinateBoundsAreValid() {
+    val draft =
+        validDraft.copy(
+            destinations =
+                listOf(
+                    TripLocation(latitude = -90.0, longitude = -180.0, name = "South-west"),
+                    TripLocation(latitude = 90.0, longitude = 180.0, name = "North-east"),
+                )
+        )
+
+    assertEquals(emptyList<TripDraftError>(), draft.validate())
+  }
+
+  @Test
+  fun latitudeBelowRangeIsInvalid() {
+    assertCoordinatesAreInvalid(lisbon.copy(latitude = -90.1))
+  }
+
+  @Test
+  fun latitudeAboveRangeIsInvalid() {
+    assertCoordinatesAreInvalid(lisbon.copy(latitude = 90.1))
+  }
+
+  @Test
+  fun longitudeBelowRangeIsInvalid() {
+    assertCoordinatesAreInvalid(lisbon.copy(longitude = -180.1))
+  }
+
+  @Test
+  fun longitudeAboveRangeIsInvalid() {
+    assertCoordinatesAreInvalid(lisbon.copy(longitude = 180.1))
+  }
+
+  @Test
+  fun coordinateThatIsNotANumberIsInvalid() {
+    assertCoordinatesAreInvalid(lisbon.copy(latitude = Double.NaN))
+  }
+
+  @Test
+  fun severalInvalidDestinationsAreReportedOnce() {
+    val draft =
+        validDraft.copy(
+            destinations =
+                listOf(
+                    lisbon.copy(latitude = 91.0),
+                    lisbon.copy(longitude = 181.0),
+                    lisbon.copy(name = ""),
+                    lisbon.copy(name = " "),
+                )
+        )
+
+    assertEquals(
+        listOf(
+            TripDraftError.BlankDestinationName,
+            TripDraftError.InvalidDestinationCoordinates,
+        ),
+        draft.validate(),
+    )
   }
 
   @Test
@@ -109,6 +193,12 @@ class TripDraftTest {
         ),
         draft.validate(),
     )
+  }
+
+  private fun assertCoordinatesAreInvalid(destination: TripLocation) {
+    val draft = validDraft.copy(destinations = listOf(destination))
+
+    assertEquals(listOf(TripDraftError.InvalidDestinationCoordinates), draft.validate())
   }
 
   private fun assertTravelerCountIsValid(travelMode: TravelMode, travelerCount: Int) {
