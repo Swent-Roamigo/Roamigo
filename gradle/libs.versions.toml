@@ -1,3 +1,5 @@
+# Author : Constantin Dunoyer de Segonzac
+# Co-author : ChatGPT-Codex
 [versions]
 agp = "9.3.0"
 kotlin = "2.3.0"

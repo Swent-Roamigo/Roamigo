@@ -1,3 +1,5 @@
+<!-- Author : Constantin Dunoyer de Segonzac -->
+<!-- Co-author : ChatGPT-Codex -->
 <resources>
     <string name="profile_sign_out_failed">Unable to sign out. Please try again.</string>
     <string name="feature_not_implemented">Not implemented yet</string>

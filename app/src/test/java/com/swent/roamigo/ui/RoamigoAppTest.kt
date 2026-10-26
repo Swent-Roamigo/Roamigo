@@ -1,3 +1,5 @@
+// Author : Constantin Dunoyer de Segonzac
+// Co-author : ChatGPT-Codex
 // Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui
 

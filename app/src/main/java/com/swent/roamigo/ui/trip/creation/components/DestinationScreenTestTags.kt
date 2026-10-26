@@ -1,3 +1,5 @@
+// Author : Constantin Dunoyer de Segonzac
+// Co-author : ChatGPT-Codex
 package com.swent.roamigo.ui.trip.creation.components
 
 internal object DestinationScreenTestTags {

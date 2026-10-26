@@ -1,3 +1,5 @@
+// Author : Constantin Dunoyer de Segonzac
+// Co-author : ChatGPT-Codex
 package com.swent.roamigo.model.destination
 
 const val MIN_DESTINATION_QUERY_LENGTH = 2

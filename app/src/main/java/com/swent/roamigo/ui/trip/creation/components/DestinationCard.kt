@@ -1,3 +1,5 @@
+// Author : Constantin Dunoyer de Segonzac
+// Co-author : ChatGPT-Codex
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.trip.creation.components
 

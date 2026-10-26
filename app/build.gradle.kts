@@ -1,3 +1,5 @@
+// Author : Constantin Dunoyer de Segonzac
+// Co-author : ChatGPT-Codex
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {

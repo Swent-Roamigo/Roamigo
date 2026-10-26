@@ -1,3 +1,5 @@
+<!-- Author : Constantin Dunoyer de Segonzac -->
+<!-- Co-author : ChatGPT-Codex -->
 # Destination search testing procedure
 
 Destination search tests use `FakeDestinationRepository`; they must not call GeoNames, Wikidata, Commons, Openverse, or download image bytes. Keep search responses, failures, and photo metadata in memory. Use an invalid or local image URL if a UI test needs to exercise image failure.

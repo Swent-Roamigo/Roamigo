@@ -1,3 +1,5 @@
+<!-- Author : Constantin Dunoyer de Segonzac -->
+<!-- Co-author : ChatGPT-Codex -->
 # Online destination search
 
 The destination picker queries GeoNames when the user enters at least two characters. It makes one city search, waits 300 ms after typing stops, and displays up to 20 results. Search and photo metadata remain in memory; the app does not bundle a destination catalog or persist provider data.

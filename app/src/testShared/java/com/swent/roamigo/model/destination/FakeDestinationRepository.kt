@@ -1,3 +1,5 @@
+// Author : Constantin Dunoyer de Segonzac
+// Co-author : ChatGPT-Codex
 package com.swent.roamigo.model.destination
 
 /** In-memory destination source for tests; it never performs network or image-byte requests. */

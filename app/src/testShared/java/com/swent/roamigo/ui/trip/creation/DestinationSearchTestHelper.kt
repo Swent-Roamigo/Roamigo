@@ -1,3 +1,5 @@
+// Author : Constantin Dunoyer de Segonzac
+// Co-author : ChatGPT-Codex
 package com.swent.roamigo.ui.trip.creation
 
 import androidx.compose.ui.test.junit4.ComposeTestRule
