@@ -13,12 +13,21 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.firestore.MemoryCacheSettings
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.trip.voting.Vote
+import com.swent.roamigo.model.trip.voting.VoteBallot
+import com.swent.roamigo.model.trip.voting.VoteOption
+import com.swent.roamigo.model.trip.voting.VoteRepositoryFirestore
+import com.swent.roamigo.model.trip.voting.VoteStatus
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.Instant
 import java.util.UUID
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeout
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -234,11 +243,193 @@ class TripRepositoryFirestoreEmulatorTest {
     assertTrue(alice.repository.getTrips().none { it.uid == tripId })
   }
 
+  @Test
+  fun tripMembersCanCreateReadListAndObserveVotes() = runBlocking {
+    alice.repository.createTrip(tripId, draft)
+    addBobToTrip()
+    val vote = voteCreatedBy(bob)
+    bob.voteRepository.createVote(vote)
+    // Retrying creation reads the existing vote without needing update permission.
+    bob.voteRepository.createVote(vote)
+
+    assertEquals(vote, alice.voteRepository.getVote(tripId, vote.uid))
+    assertEquals(listOf(vote), bob.voteRepository.getVotes(tripId))
+    assertEquals(
+        listOf(vote),
+        withTimeout(10_000) {
+          alice.voteRepository.observeVotes(tripId).first { it == listOf(vote) }
+        },
+    )
+  }
+
+  @Test
+  fun nonMemberCannotReadListObserveOrCreateVotes() = runBlocking {
+    alice.repository.createTrip(tripId, draft)
+    val vote = voteCreatedBy(alice)
+    alice.voteRepository.createVote(vote)
+
+    assertPermissionDenied { bob.voteRepository.getVote(tripId, vote.uid) }
+    assertPermissionDenied { bob.voteRepository.getVotes(tripId) }
+    assertPermissionDenied {
+      withTimeout(10_000) { bob.voteRepository.observeVotes(tripId).first() }
+    }
+    assertPermissionDenied { bob.voteRepository.createVote(voteCreatedBy(bob).copy(uid = "other")) }
+  }
+
+  @Test
+  fun voteCreationRejectsMismatchedIdentityAndMalformedData() = runBlocking {
+    alice.repository.createTrip(tripId, draft)
+    val vote = voteCreatedBy(alice)
+    val data = voteData(vote)
+    val invalid =
+        listOf(
+            data + ("uid" to "wrong"),
+            data + ("tripId" to "another-trip"),
+            data + ("createdByUserId" to bob.userId),
+            data + ("question" to " "),
+            data + ("options" to emptyList<Any>()),
+            data + ("creationTime" to "invalid"),
+            data + ("status" to "CLOSED"),
+            data + ("closingTime" to Timestamp.now()),
+            data + ("winningOptionId" to "a"),
+            data + ("extra" to true),
+            data - "question",
+        )
+    invalid.forEach { fields -> assertPermissionDenied { voteDocument(alice).set(fields).await() } }
+  }
+
+  @Test
+  fun clientsCannotUpdateOrDeleteVotes() = runBlocking {
+    alice.repository.createTrip(tripId, draft)
+    alice.voteRepository.createVote(voteCreatedBy(alice))
+
+    assertPermissionDenied { voteDocument(alice).update("question", "Changed?").await() }
+    assertPermissionDenied { voteDocument(alice).update("status", "CLOSED").await() }
+    assertPermissionDenied { voteDocument(alice).update("winningOptionId", "a").await() }
+    assertPermissionDenied { voteDocument(alice).delete().await() }
+  }
+
+  @Test
+  fun membersCanReadBallotsAndUpdateTheirOwnChoice() = runBlocking {
+    alice.repository.createTrip(tripId, draft)
+    addBobToTrip()
+    alice.voteRepository.createVote(voteCreatedBy(alice))
+    val ballot = VoteBallot(bob.userId, "a", Timestamp.now())
+    bob.voteRepository.submitBallot(tripId, "vote", ballot)
+    assertEquals(
+        listOf(ballot),
+        withTimeout(10_000) {
+          alice.voteRepository.observeBallots(tripId, "vote").first { it == listOf(ballot) }
+        },
+    )
+
+    val updated = ballot.copy(optionId = "b", updatedAt = Timestamp.now())
+    bob.voteRepository.submitBallot(tripId, "vote", updated)
+    assertEquals(
+        listOf(updated),
+        withTimeout(10_000) {
+          alice.voteRepository.observeBallots(tripId, "vote").first { it == listOf(updated) }
+        },
+    )
+  }
+
+  @Test
+  fun membersCannotCreateOrUpdateAnotherUsersBallot() = runBlocking {
+    alice.repository.createTrip(tripId, draft)
+    addBobToTrip()
+    alice.voteRepository.createVote(voteCreatedBy(alice))
+    val ballot = VoteBallot(alice.userId, "a", Timestamp.now())
+
+    assertPermissionDenied { bob.voteRepository.submitBallot(tripId, "vote", ballot) }
+    alice.voteRepository.submitBallot(tripId, "vote", ballot)
+    assertPermissionDenied {
+      bob.voteRepository.submitBallot(tripId, "vote", ballot.copy(optionId = "b"))
+    }
+    assertPermissionDenied {
+      voteDocument(bob)
+          .collection("ballots")
+          .document(alice.userId)
+          .set(ballotData(ballot.copy(userId = bob.userId)))
+          .await()
+    }
+    assertPermissionDenied {
+      voteDocument(alice).collection("ballots").document(alice.userId).delete().await()
+    }
+  }
+
+  @Test
+  fun nonMembersAndSignedOutUsersCannotAccessVotingData() = runBlocking {
+    alice.repository.createTrip(tripId, draft)
+    alice.voteRepository.createVote(voteCreatedBy(alice))
+    val ballot = VoteBallot(bob.userId, "a", Timestamp.now())
+    assertPermissionDenied { voteDocument(bob).collection("ballots").get().await() }
+    assertPermissionDenied { bob.voteRepository.submitBallot(tripId, "vote", ballot) }
+
+    alice.auth.signOut()
+    assertPermissionDenied { alice.voteRepository.getVotes(tripId) }
+    assertPermissionDenied {
+      alice.voteRepository.createVote(voteCreatedBy(alice).copy(uid = "new"))
+    }
+    assertPermissionDenied { voteDocument(alice).collection("ballots").get().await() }
+    assertPermissionDenied {
+      alice.voteRepository.submitBallot(tripId, "vote", ballot.copy(userId = alice.userId))
+    }
+  }
+
+  @Test
+  fun ballotsRequireAnExistingVoteAndValidFields() = runBlocking {
+    alice.repository.createTrip(tripId, draft)
+    val ballot = VoteBallot(alice.userId, "a", Timestamp.now())
+    assertPermissionDenied { alice.voteRepository.submitBallot(tripId, "missing", ballot) }
+    alice.voteRepository.createVote(voteCreatedBy(alice))
+    val data = ballotData(ballot)
+    val invalid =
+        listOf(
+            data + ("userId" to bob.userId),
+            data + ("optionId" to " "),
+            data + ("updatedAt" to "invalid"),
+            data + ("extra" to true),
+            data - "optionId",
+        )
+    invalid.forEach { fields ->
+      assertPermissionDenied {
+        voteDocument(alice).collection("ballots").document(alice.userId).set(fields).await()
+      }
+    }
+  }
+
+  @Test
+  fun ballotRulesDoNotIntroduceFutureClosedVoteRestrictions() = runBlocking {
+    alice.repository.createTrip(tripId, draft)
+    alice.voteRepository.createVote(voteCreatedBy(alice))
+    // Seed CLOSED as trusted backend data; client vote updates remain forbidden.
+    updateAsAdmin(
+        "trips/$tripId/votes/vote",
+        JSONObject().put("status", JSONObject().put("stringValue", "CLOSED")),
+    )
+    val ballot = VoteBallot(alice.userId, "a", Timestamp.now())
+    alice.voteRepository.submitBallot(tripId, "vote", ballot)
+    alice.voteRepository.submitBallot(tripId, "vote", ballot.copy(optionId = "b"))
+    assertEquals(
+        "b",
+        withTimeout(10_000) {
+              alice.voteRepository.observeBallots(tripId, "vote").first {
+                it.singleOrNull()?.optionId == "b"
+              }
+            }
+            .single()
+            .optionId,
+    )
+  }
+
   private class User(
       val userId: String,
       val db: FirebaseFirestore,
       val repository: TripRepositoryFirestore,
-  )
+      val auth: FirebaseAuth,
+  ) {
+    val voteRepository = VoteRepositoryFirestore(db)
+  }
 
   private suspend fun signInUser(): User {
     val appName = "trip-test-${UUID.randomUUID()}"
@@ -263,7 +454,86 @@ class TripRepositoryFirestoreEmulatorTest {
                   .build()
         }
     val userId = auth.signInAnonymously().await().user!!.uid
-    return User(userId, db, TripRepositoryFirestore(db) { auth.currentUser?.uid })
+    return User(userId, db, TripRepositoryFirestore(db) { auth.currentUser?.uid }, auth)
+  }
+
+  private fun voteCreatedBy(user: User) =
+      Vote(
+          uid = "vote",
+          tripId = tripId,
+          question = "Where next?",
+          options = listOf(VoteOption("a", "Museum"), VoteOption("b", "Park")),
+          createdByUserId = user.userId,
+          status = VoteStatus.OPEN,
+          creationTime = Timestamp.now(),
+          closingTime = null,
+          winningOptionId = null,
+      )
+
+  private fun voteDocument(user: User) =
+      user.db.collection("trips").document(tripId).collection("votes").document("vote")
+
+  private fun voteData(vote: Vote): Map<String, Any?> =
+      mapOf(
+          "uid" to vote.uid,
+          "tripId" to vote.tripId,
+          "question" to vote.question,
+          "options" to vote.options.map { mapOf("uid" to it.uid, "name" to it.name) },
+          "createdByUserId" to vote.createdByUserId,
+          "status" to vote.status.name,
+          "creationTime" to vote.creationTime,
+          "closingTime" to vote.closingTime,
+          "winningOptionId" to vote.winningOptionId,
+      )
+
+  private fun ballotData(ballot: VoteBallot): Map<String, Any?> =
+      mapOf(
+          "userId" to ballot.userId,
+          "optionId" to ballot.optionId,
+          "updatedAt" to ballot.updatedAt,
+      )
+
+  private fun addBobToTrip() {
+    val members =
+        JSONArray(listOf(alice.userId, bob.userId).map { JSONObject().put("stringValue", it) })
+    updateAsAdmin(
+        "trips/$tripId",
+        JSONObject()
+            .put("memberIds", JSONObject().put("arrayValue", JSONObject().put("values", members))),
+    )
+  }
+
+  /** Emulator-only fixtures; client rules still forbid membership changes and vote closing. */
+  private fun updateAsAdmin(documentPath: String, fields: JSONObject) {
+    val update =
+        JSONObject()
+            .put("name", "projects/$PROJECT_ID/databases/(default)/documents/$documentPath")
+            .put("fields", fields)
+    val write =
+        JSONObject()
+            .put("update", update)
+            .put(
+                "updateMask",
+                JSONObject().put("fieldPaths", JSONArray(fields.keys().asSequence().toList())),
+            )
+    val body = JSONObject().put("writes", JSONArray().put(write)).toString()
+    val connection =
+        URL(
+                "http://$EMULATOR_HOST:$FIRESTORE_PORT/v1/projects/$PROJECT_ID/databases/(default)/documents:commit"
+            )
+            .openConnection() as HttpURLConnection
+    try {
+      connection.requestMethod = "POST"
+      connection.setRequestProperty("Authorization", "Bearer owner")
+      connection.setRequestProperty("Content-Type", "application/json")
+      connection.doOutput = true
+      connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+      check(connection.responseCode == HttpURLConnection.HTTP_OK) {
+        "Seeding Firestore failed with HTTP ${connection.responseCode}"
+      }
+    } finally {
+      connection.disconnect()
+    }
   }
 
   private fun tripOwnedBy(owner: User) =

@@ -80,6 +80,38 @@ service cloud.firestore {
           && trip.createdAt is timestamp;
     }
 
+    function isValidNewVote(vote, tripId, voteId) {
+      return vote.keys().hasAll([
+            'uid', 'tripId', 'question', 'options', 'createdByUserId', 'status',
+            'creationTime', 'closingTime', 'winningOptionId'
+          ])
+          && vote.keys().hasOnly([
+            'uid', 'tripId', 'question', 'options', 'createdByUserId', 'status',
+            'creationTime', 'closingTime', 'winningOptionId'
+          ])
+          && vote.uid == voteId
+          && vote.tripId == tripId
+          && vote.createdByUserId == request.auth.uid
+          && vote.question is string
+          && vote.question.trim().size() > 0
+          && vote.options is list
+          && vote.options.size() >= 2
+          && vote.status == 'OPEN'
+          && vote.creationTime is timestamp
+          // Current creation has no closing schedule or persisted result.
+          && vote.closingTime == null
+          && vote.winningOptionId == null;
+    }
+
+    function isValidBallot(ballot) {
+      return ballot.keys().hasAll(['userId', 'optionId', 'updatedAt'])
+          && ballot.keys().hasOnly(['userId', 'optionId', 'updatedAt'])
+          && ballot.userId == request.auth.uid
+          && ballot.optionId is string
+          && ballot.optionId.trim().size() > 0
+          && ballot.updatedAt is timestamp;
+    }
+
     match /trips/{tripId} {
       allow create: if signedIn() && isValidNewTrip(request.resource.data);
       // A missing trip is readable so that creation can first check whether it already exists.
@@ -106,9 +138,26 @@ service cloud.firestore {
         allow read: if isMember(tripId);
         allow write: if false;
       }
+
+      match /votes/{voteId} {
+        // Includes missing-document reads used by the vote creation transaction.
+        allow read: if isMember(tripId);
+        allow create: if isMember(tripId)
+            && isValidNewVote(request.resource.data, tripId, voteId);
+        allow update, delete: if false;
+
+        match /ballots/{userId} {
+          allow read: if isMember(tripId);
+          allow create, update: if isMember(tripId)
+              && userId == request.auth.uid
+              && exists(/databases/$(database)/documents/trips/$(tripId)/votes/$(voteId))
+              && isValidBallot(request.resource.data);
+          allow delete: if false;
+        }
+      }
     }
 
-    // Everything else, including votes and ballots, stays closed.
+    // Everything else stays closed.
     match /{document=**} {
       allow read, write: if false;
     }
