@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -76,6 +78,7 @@ import java.time.Clock
  * @param onMapClick invoked when the Map navigation destination is selected.
  * @param onPhotosClick invoked when the Photos navigation destination is selected.
  * @param onProfileClick invoked when the user selects their profile avatar.
+ * @param onHistoryClick invoked when the user opens Trip History.
  * @param clock the clock used for time-dependent presentation logic.
  * @param refreshRequested whether a completed creation requires fresh trip data.
  * @param onRefreshConsumed clears the one-time creation result after starting the refresh.
@@ -95,6 +98,7 @@ fun TripsRoute(
     clock: Clock = Clock.systemDefaultZone(),
     refreshRequested: Boolean = false,
     onRefreshConsumed: () -> Unit = {},
+    onHistoryClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   val viewModel: TripsViewModel =
       viewModel(
@@ -124,6 +128,7 @@ fun TripsRoute(
       onMapClick = onMapClick,
       onPhotosClick = onPhotosClick,
       onProfileClick = onProfileClick,
+      onHistoryClick = onHistoryClick,
   )
 }
 
@@ -142,6 +147,7 @@ fun TripsRoute(
  * @param onMapClick invoked when the Map navigation destination is selected.
  * @param onPhotosClick invoked when the Photos navigation destination is selected.
  * @param onProfileClick invoked when the user selects their profile avatar.
+ * @param onHistoryClick invoked when the user opens Trip History.
  */
 @Composable
 fun TripsScreen(
@@ -154,6 +160,7 @@ fun TripsScreen(
     onMapClick: () -> Unit = rememberNotImplementedAction(),
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
     onProfileClick: () -> Unit = rememberNotImplementedAction(),
+    onHistoryClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   Scaffold(
       modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.trips_screen },
@@ -230,15 +237,36 @@ fun TripsScreen(
             }
           }
 
-          if (uiState.otherTrips.isNotEmpty()) {
-            item { SectionTitle(stringResource(R.string.trips_other_trips)) }
+          item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+              SectionTitle(stringResource(R.string.trips_other_trips))
 
-            items(
-                items = uiState.otherTrips,
-                key = { trip -> trip.id },
-            ) { trip ->
-              OtherTripCard(trip)
+              TextButton(
+                  onClick = onHistoryClick,
+                  modifier =
+                      Modifier.markNotImplemented(onHistoryClick).semantics {
+                        testTag = C.Tag.trips_history_button
+                      },
+              ) {
+                Icon(
+                    imageVector = Icons.Outlined.History,
+                    contentDescription = null,
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(stringResource(R.string.trips_history))
+              }
             }
+          }
+
+          items(
+              items = uiState.otherTrips,
+              key = { trip -> trip.id },
+          ) { trip ->
+            OtherTripCard(trip)
           }
         }
       }

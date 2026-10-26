@@ -1,0 +1,141 @@
+package com.swent.roamigo.ui.triphistory
+
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.theme.RoamigoTheme
+import org.junit.Assert.assertEquals
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
+
+@RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "w800dp-h1600dp")
+class TripHistoryScreenTest {
+
+  @get:Rule val composeRule = createComposeRule()
+
+  private val rome =
+      TripHistoryItemUiModel(
+          id = "rome",
+          name = "Summer in Italy",
+          destinations = listOf("Rome", "Florence"),
+          dateRange = "5 Jun 2016 – 12 Jun 2016",
+          travelerCount = 3,
+      )
+
+  private fun show(
+      state: TripHistoryUiState,
+      onBackClick: () -> Unit = {},
+      onOpenWorldMapClick: () -> Unit = {},
+      onTripsClick: () -> Unit = {},
+      onMapClick: () -> Unit = {},
+      onPhotosClick: () -> Unit = {},
+  ) {
+    composeRule.setContent {
+      RoamigoTheme {
+        TripHistoryScreen(
+            uiState = state,
+            onBackClick = onBackClick,
+            onOpenWorldMapClick = onOpenWorldMapClick,
+            onTripsClick = onTripsClick,
+            onMapClick = onMapClick,
+            onPhotosClick = onPhotosClick,
+        )
+      }
+    }
+  }
+
+  @Test
+  fun displaysCompletedTripsAndTheirDetails() {
+    val paris =
+        rome.copy(
+            id = "paris",
+            name = "Paris 2010",
+            destinations = listOf("Paris"),
+            travelerCount = 2,
+        )
+    show(
+        TripHistoryUiState(
+            isLoading = false,
+            trips = listOf(rome, paris),
+        )
+    )
+
+    composeRule.onNodeWithText("2 completed trips").assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_history_card_prefix + "rome").assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_history_card_prefix + "paris").assertIsDisplayed()
+    composeRule.onNodeWithText("Summer in Italy").assertIsDisplayed()
+    composeRule.onNodeWithText("Rome · Florence").assertIsDisplayed()
+    composeRule.onNodeWithText("5 Jun 2016 – 12 Jun 2016 · 3 travelers").assertIsDisplayed()
+    composeRule.onAllNodesWithText("Completed").assertCountEquals(2)
+  }
+
+  @Test
+  fun displaysEmptyState() {
+    show(TripHistoryUiState(isLoading = false))
+
+    composeRule.onNodeWithText("0 completed trips").assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_history_empty).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_history_world_map).assertDoesNotExist()
+  }
+
+  @Test
+  fun loadingDoesNotDisplayEmptyState() {
+    show(TripHistoryUiState())
+
+    composeRule.onNodeWithTag(C.Tag.trip_history_loading).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_history_empty).assertDoesNotExist()
+  }
+
+  @Test
+  fun errorDoesNotDisplayEmptyState() {
+    show(
+        TripHistoryUiState(
+            isLoading = false,
+            errorMessage = "Unable to load trip history.",
+        )
+    )
+
+    composeRule.onNodeWithTag(C.Tag.trip_history_error).assertIsDisplayed()
+    composeRule.onNodeWithText("Unable to load trip history.").assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_history_empty).assertDoesNotExist()
+  }
+
+  @Test
+  fun forwardsNavigationActionsToCaller() {
+    var backClicks = 0
+    var worldMapClicks = 0
+    var tripsClicks = 0
+    var mapClicks = 0
+    var photosClicks = 0
+
+    show(
+        state = TripHistoryUiState(isLoading = false, trips = listOf(rome)),
+        onBackClick = { backClicks++ },
+        onOpenWorldMapClick = { worldMapClicks++ },
+        onTripsClick = { tripsClicks++ },
+        onMapClick = { mapClicks++ },
+        onPhotosClick = { photosClicks++ },
+    )
+
+    composeRule.onNodeWithTag(C.Tag.trip_history_back).performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_history_world_map).performClick()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_map).performClick()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).performClick()
+
+    assertEquals(1, backClicks)
+    assertEquals(1, worldMapClicks)
+    assertEquals(1, tripsClicks)
+    assertEquals(1, mapClicks)
+    assertEquals(1, photosClicks)
+  }
+}

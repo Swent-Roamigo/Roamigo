@@ -301,6 +301,26 @@ class TripsScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.trips_next_activity_card).assertDoesNotExist()
   }
 
+  @Test
+  fun historyButtonIsAvailableEvenWithoutOtherTrips() {
+    var historyClicks = 0
+
+    composeTestRule.setContent {
+      MaterialTheme {
+        TripsScreen(
+            uiState = TripsUiState(isLoading = false),
+            onHistoryClick = { historyClicks++ },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithText("Other trips").assertIsDisplayed()
+
+    composeTestRule.onNodeWithTag(C.Tag.trips_history_button).assertIsDisplayed().performClick()
+
+    assertEquals(1, historyClicks)
+  }
+
   private fun trip(
       uid: String,
       name: String,

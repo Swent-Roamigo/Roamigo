@@ -8,4 +8,5 @@ object Route {
   const val TRIPS = "trips"
   const val PROFILE = "profile"
   const val NEW_TRIP = "new_trip"
+  const val TRIP_HISTORY = "trip_history"
 }
