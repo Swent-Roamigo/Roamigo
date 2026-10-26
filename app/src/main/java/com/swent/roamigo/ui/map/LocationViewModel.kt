@@ -90,7 +90,7 @@ class LocationViewModel(
     }
     viewModelScope.launch {
       // Sharing is left to the repository, which keeps retrying its updates while offline.
-      connectivityRepository.isOnline.distinctUntilChanged().collectLatest { online ->
+      connectivityRepository.isOnline.collectLatest { online ->
         _uiState.update { state -> state.copy(isOffline = !online) }
         if (online) {
           // Observed again on each reconnection, so that the locations resume even if the
@@ -205,7 +205,7 @@ class LocationViewModel(
     }
     val staleMemberIds =
         visibleLocations
-            .filter { location -> now - location.updatedAt > STALE_AFTER.inWholeMilliseconds }
+            .filter { location -> location.isStaleAt(now) }
             .mapTo(mutableSetOf()) { location -> location.userId }
     _uiState.update { state ->
       state.copy(memberLocations = visibleLocations, staleMemberIds = staleMemberIds)
@@ -217,9 +217,15 @@ class LocationViewModel(
     if (refreshJob?.isActive == true) return
     refreshJob = viewModelScope.launch {
       while (isActive) {
-        // Without a GPS signal there is no position, so the last known one is kept.
-        locationRepository.getCurrentLocation()?.let { location ->
-          _uiState.update { state -> state.copy(myLocation = location.toMemberLocation()) }
+        val location = locationRepository.getCurrentLocation()?.toMemberLocation()
+        val now = clock()
+        _uiState.update { state ->
+          // Without a GPS signal there is no position, so the last known one is kept and ages.
+          val myLocation = location ?: state.myLocation
+          state.copy(
+              myLocation = myLocation,
+              isMyLocationStale = myLocation?.isStaleAt(now) == true,
+          )
         }
         delay(MY_LOCATION_REFRESH_INTERVAL)
       }
@@ -230,6 +236,9 @@ class LocationViewModel(
     refreshJob?.cancel()
     refreshJob = null
   }
+
+  private fun MemberLocation.isStaleAt(now: Long): Boolean =
+      now - updatedAt > STALE_AFTER.inWholeMilliseconds
 
   private fun DeviceLocation.toMemberLocation(): MemberLocation =
       MemberLocation(
@@ -245,8 +254,8 @@ class LocationViewModel(
     val MY_LOCATION_REFRESH_INTERVAL: Duration = 5.seconds
 
     /**
-     * Age after which a member location is marked stale. Members update every 20 seconds while
-     * sharing, so this means several updates were missed.
+     * Age after which a location is marked stale. Members update every 20 seconds while sharing, so
+     * this means several updates were missed.
      */
     val STALE_AFTER: Duration = 1.minutes
 

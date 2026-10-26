@@ -120,6 +120,7 @@ class LocationViewModelTest {
     assertEquals(NotRequested, state.permissionState)
     assertFalse(state.isSharing)
     assertNull(state.myLocation)
+    assertFalse(state.isMyLocationStale)
     assertTrue(state.memberLocations.isEmpty())
     assertTrue(state.staleMemberIds.isEmpty())
     assertFalse(state.isOffline)
@@ -289,6 +290,33 @@ class LocationViewModelTest {
     assertEquals(3, repository.getCurrentLocationCalls)
     assertEquals(lastKnown, viewModel.uiState.value.myLocation)
     assertTrue(viewModel.uiState.value.isSharing)
+  }
+
+  @Test
+  fun myLocation_withoutGpsLongerThanStaleAfter_isMarkedStaleThenRecovers() = runLocationTest {
+    repository.currentLocation = GENEVA
+    val viewModel = createViewModel(hasPermission = true)
+    viewModel.startSharing()
+    runCurrent()
+    assertFalse(viewModel.uiState.value.isMyLocationStale)
+
+    repository.currentLocation = null
+    now += (LocationViewModel.STALE_AFTER + 1.milliseconds).inWholeMilliseconds
+    advanceTimeBy(interval)
+    runCurrent()
+
+    assertEquals(
+        MemberLocation(USER_ID, 46.2, 6.14, NOW_MILLIS),
+        viewModel.uiState.value.myLocation,
+    )
+    assertTrue(viewModel.uiState.value.isMyLocationStale)
+
+    repository.currentLocation = GENEVA
+    advanceTimeBy(interval)
+    runCurrent()
+
+    assertEquals(now, viewModel.uiState.value.myLocation?.updatedAt)
+    assertFalse(viewModel.uiState.value.isMyLocationStale)
   }
 
   @Test
