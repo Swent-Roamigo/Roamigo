@@ -19,6 +19,8 @@ import androidx.credentials.CredentialManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
+import com.swent.roamigo.model.destination.sampleDestination
+import com.swent.roamigo.model.destination.sampleDestinationRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.authentication.AuthenticationScreenTestTags
@@ -27,6 +29,7 @@ import com.swent.roamigo.ui.trip.creation.DatesTravelersScreenTestTags
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
 import com.swent.roamigo.ui.trip.creation.components.DestinationCardTestTags
 import com.swent.roamigo.ui.trip.creation.components.TripTypeSelectorTestTags
+import com.swent.roamigo.ui.trip.creation.searchSampleDestinations
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -52,6 +55,7 @@ class RoamigoAppTest {
     composeRule.setContent {
       RoamigoTheme {
         RoamigoApp(
+            destinationRepository = sampleDestinationRepository(),
             authRepository = authRepository,
             tripRepository = repository,
             credentialManager = credentialManager,
@@ -155,6 +159,7 @@ class RoamigoAppTest {
     waitForTrips()
 
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
+    composeRule.searchSampleDestinations()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsDisplayed()
 
     pressBack()
@@ -165,6 +170,7 @@ class RoamigoAppTest {
   fun backButtonOnTheDestinationStepReturnsToTrips() {
     waitForTrips()
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
+    composeRule.searchSampleDestinations()
 
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.BACK).performClick()
 
@@ -176,6 +182,7 @@ class RoamigoAppTest {
   fun closeButtonOnTheDestinationStepReturnsToTrips() {
     waitForTrips()
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
+    composeRule.searchSampleDestinations()
 
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.CLOSE).performClick()
 
@@ -187,20 +194,26 @@ class RoamigoAppTest {
   fun datesBackPreservesDestinationsAndOptionsAndCloseDiscardsDraft() {
     waitForTrips()
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
+    composeRule.searchSampleDestinations()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsNotEnabled()
-    composeRule.onNodeWithTag(DestinationCardTestTags.forDestination("Lisbon")).performClick()
+    composeRule
+        .onNodeWithTag(DestinationCardTestTags.forDestination(sampleDestination("Lisbon").stableId))
+        .performClick()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
     composeRule.onNodeWithTag(DatesTravelersScreenTestTags.SCREEN).assertIsDisplayed()
     composeRule.onNodeWithTag(TripTypeSelectorTestTags.SOLO).performScrollTo().performClick()
 
     pressBack()
-    composeRule.onNodeWithTag(DestinationCardTestTags.forDestination("Lisbon")).assertIsSelected()
+    composeRule
+        .onNodeWithTag(DestinationCardTestTags.forDestination(sampleDestination("Lisbon").stableId))
+        .assertIsSelected()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
     composeRule.onNodeWithTag(TripTypeSelectorTestTags.SOLO).performScrollTo().assertIsSelected()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.CLOSE).performClick()
     waitForTrips()
 
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
+    composeRule.searchSampleDestinations()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsNotEnabled()
   }
 
@@ -208,7 +221,10 @@ class RoamigoAppTest {
   fun creationReturnsToRefreshedTripsAndNextDraftStartsEmpty() {
     waitForTrips()
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
-    composeRule.onNodeWithTag(DestinationCardTestTags.forDestination("Lisbon")).performClick()
+    composeRule.searchSampleDestinations()
+    composeRule
+        .onNodeWithTag(DestinationCardTestTags.forDestination(sampleDestination("Lisbon").stableId))
+        .performClick()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
     composeRule
         .onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION)
@@ -224,6 +240,7 @@ class RoamigoAppTest {
     composeRule.waitUntil { composeRule.onNodeWithTag(C.Tag.trips_main_trip_card).isDisplayed() }
     composeRule.onNodeWithTag(C.Tag.trips_main_trip_card).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
+    composeRule.searchSampleDestinations()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsNotEnabled()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.CLOSE).performClick()
     composeRule.waitUntil {

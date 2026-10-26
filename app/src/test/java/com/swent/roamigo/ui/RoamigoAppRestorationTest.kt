@@ -11,11 +11,14 @@ import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
+import com.swent.roamigo.model.destination.sampleDestination
+import com.swent.roamigo.model.destination.sampleDestinationRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.DatesTravelersScreenTestTags
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
 import com.swent.roamigo.ui.trip.creation.components.DestinationCardTestTags
+import com.swent.roamigo.ui.trip.creation.searchSampleDestinations
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,7 +33,14 @@ class RoamigoAppRestorationTest {
     val restoration = StateRestorationTester(composeRule)
     val authRepository =
         FakeAuthRepository(AuthenticatedUser("alex", "Alex", null, null), initiallySignedIn = true)
-    restoration.setContent { RoamigoTheme { RoamigoApp(authRepository = authRepository) } }
+    restoration.setContent {
+      RoamigoTheme {
+        RoamigoApp(
+            destinationRepository = sampleDestinationRepository(),
+            authRepository = authRepository,
+        )
+      }
+    }
     composeRule.waitUntil {
       composeRule.onAllNodesWithTag(C.Tag.trips_profile_avatar).fetchSemanticsNodes().isNotEmpty()
     }
@@ -49,18 +59,30 @@ class RoamigoAppRestorationTest {
     val restoration = StateRestorationTester(composeRule)
     val authRepository =
         FakeAuthRepository(AuthenticatedUser("alex", "Alex", null, null), initiallySignedIn = true)
-    restoration.setContent { RoamigoTheme { RoamigoApp(authRepository = authRepository) } }
+    restoration.setContent {
+      RoamigoTheme {
+        RoamigoApp(
+            destinationRepository = sampleDestinationRepository(),
+            authRepository = authRepository,
+        )
+      }
+    }
     composeRule.waitUntil {
       composeRule.onAllNodesWithTag(C.Tag.trips_new_trip_button).fetchSemanticsNodes().isNotEmpty()
     }
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
-    composeRule.onNodeWithTag(DestinationCardTestTags.forDestination("Porto")).performClick()
+    composeRule.searchSampleDestinations()
+    composeRule
+        .onNodeWithTag(DestinationCardTestTags.forDestination(sampleDestination("Porto").stableId))
+        .performClick()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
 
     restoration.emulateSavedInstanceStateRestore()
 
     composeRule.onNodeWithTag(DatesTravelersScreenTestTags.SCREEN).assertIsDisplayed()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.BACK).performClick()
-    composeRule.onNodeWithTag(DestinationCardTestTags.forDestination("Porto")).assertIsSelected()
+    composeRule
+        .onNodeWithTag(DestinationCardTestTags.forDestination(sampleDestination("Porto").stableId))
+        .assertIsSelected()
   }
 }

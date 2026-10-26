@@ -19,6 +19,8 @@ import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
+import com.swent.roamigo.model.destination.sampleDestination
+import com.swent.roamigo.model.destination.sampleDestinationRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
@@ -33,6 +35,7 @@ import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
 import com.swent.roamigo.ui.trip.creation.components.DestinationCardTestTags
+import com.swent.roamigo.ui.trip.creation.searchSampleDestinations
 import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
@@ -71,6 +74,7 @@ class RoamigoAppInjectionTest {
       navController = rememberNavController()
       RoamigoTheme {
         RoamigoApp(
+            destinationRepository = sampleDestinationRepository(),
             tripRepository = FakeTripRepository(trips = listOf(trip)),
             userRepository = FakeUserRepository(User("sam", "Sam", null)),
             navController = navController,
@@ -107,6 +111,7 @@ class RoamigoAppInjectionTest {
     composeRule.setContent {
       RoamigoTheme {
         RoamigoApp(
+            destinationRepository = sampleDestinationRepository(),
             tripRepository = repository,
             authRepository =
                 FakeAuthRepository(
@@ -120,7 +125,10 @@ class RoamigoAppInjectionTest {
       composeRule.onAllNodesWithTag(C.Tag.trips_new_trip_button).fetchSemanticsNodes().isNotEmpty()
     }
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
-    composeRule.onNodeWithTag(DestinationCardTestTags.forDestination("Lisbon")).performClick()
+    composeRule.searchSampleDestinations()
+    composeRule
+        .onNodeWithTag(DestinationCardTestTags.forDestination(sampleDestination("Lisbon").stableId))
+        .performClick()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsNotEnabled()
@@ -169,6 +177,7 @@ class RoamigoAppInjectionTest {
       navController = rememberNavController()
       RoamigoTheme {
         RoamigoApp(
+            destinationRepository = sampleDestinationRepository(),
             tripRepository = FakeTripRepository(currentUserId = null),
             authRepository = auth,
             navController = navController,
@@ -192,6 +201,7 @@ class RoamigoAppInjectionTest {
     composeRule.setContent {
       RoamigoTheme {
         RoamigoApp(
+            destinationRepository = sampleDestinationRepository(),
             tripRepository = repository,
             authRepository =
                 FakeAuthRepository(
@@ -209,7 +219,10 @@ class RoamigoAppInjectionTest {
       composeRule.onAllNodesWithTag(C.Tag.trips_new_trip_button).fetchSemanticsNodes().isNotEmpty()
     }
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
-    composeRule.onNodeWithTag(DestinationCardTestTags.forDestination("Lisbon")).performClick()
+    composeRule.searchSampleDestinations()
+    composeRule
+        .onNodeWithTag(DestinationCardTestTags.forDestination(sampleDestination("Lisbon").stableId))
+        .performClick()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
   }
 }

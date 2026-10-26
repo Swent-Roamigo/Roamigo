@@ -23,6 +23,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.authentication.AuthRepositoryFirebase
+import com.swent.roamigo.model.destination.DestinationRepository
+import com.swent.roamigo.model.destination.OnlineDestinationRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.users.FakeUserRepository
@@ -53,6 +55,7 @@ fun RoamigoApp(
     navController: NavHostController = rememberNavController(),
     authRepository: AuthRepository = remember { AuthRepositoryFirebase() },
     credentialManager: CredentialManager? = null,
+    destinationRepository: DestinationRepository = remember { OnlineDestinationRepository() },
 ) {
   val context = LocalContext.current
   val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }
@@ -123,7 +126,12 @@ fun RoamigoApp(
       )
     }
     composable(Route.NEW_TRIP) {
-      val creationViewModel = viewModel { CreateTripViewModel(tripRepository) }
+      val creationViewModel = viewModel {
+        CreateTripViewModel(
+            repository = tripRepository,
+            destinationRepository = destinationRepository,
+        )
+      }
       val state by creationViewModel.uiState.collectAsState()
       var datesStep by rememberSaveable { mutableStateOf(false) }
       val back: () -> Unit = {

@@ -2,9 +2,18 @@
 // Co-author : ChatGPT-Codex
 package com.swent.roamigo.ui.trip.creation
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.destination.Destination
+import com.swent.roamigo.model.destination.DestinationConfigurationException
+import com.swent.roamigo.model.destination.DestinationPhoto
+import com.swent.roamigo.model.destination.DestinationRepository
+import com.swent.roamigo.model.destination.MAX_DESTINATION_RESULTS
+import com.swent.roamigo.model.destination.MIN_DESTINATION_QUERY_LENGTH
+import com.swent.roamigo.model.destination.OnlineDestinationRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.MAX_GROUP_TRAVELER_COUNT
 import com.swent.roamigo.model.trip.MIN_GROUP_TRAVELER_COUNT
@@ -17,7 +26,12 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 import java.util.UUID
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,8 +40,11 @@ import kotlinx.coroutines.launch
 
 data class CreateTripUiState(
     val destinationQuery: String = "",
-    val destinations: List<String> = popularDestinations,
-    val selectedDestinations: List<String> = emptyList(),
+    val destinations: List<Destination> = emptyList(),
+    val selectedDestinations: List<Destination> = emptyList(),
+    val destinationSearchStatus: DestinationSearchStatus = DestinationSearchStatus.INITIAL,
+    @field:StringRes val destinationSearchErrorRes: Int? = null,
+    val photosByDestinationId: Map<String, DestinationPhoto> = emptyMap(),
     val visibleMonth: YearMonth = YearMonth.now(),
     val startDate: LocalDate = LocalDate.now(),
     val endDate: LocalDate = startDate.plusDays(DEFAULT_TRIP_DURATION_DAYS - 1),
@@ -39,10 +56,8 @@ data class CreateTripUiState(
     val creationError: TripCreationException? = null,
     val createdTripId: String? = null,
 ) {
-  val visibleDestinations: List<String>
-    get() =
-        if (destinationQuery.isBlank()) destinations
-        else destinations.filter { it.contains(destinationQuery.trim(), ignoreCase = true) }
+  val visibleDestinations: List<Destination>
+    get() = destinations
 
   val tripDays: Long
     get() = endDate.toEpochDay() - startDate.toEpochDay() + 1
@@ -61,25 +76,28 @@ data class CreateTripUiState(
             travelerCount in travelMode.allowedTravelerCounts
 }
 
-private val destinationLocations =
-    listOf(
-            TripLocation(38.7223, -9.1393, "Lisbon"),
-            TripLocation(41.1579, -8.6291, "Porto"),
-            TripLocation(41.3874, 2.1686, "Barcelona"),
-            TripLocation(50.0755, 14.4378, "Prague"),
-        )
-        .associateBy { it.name }
-private val popularDestinations = destinationLocations.keys.toList()
 private const val DEFAULT_GROUP_SIZE = 3
 private const val DEFAULT_TRIP_DURATION_DAYS = 3L
+
+enum class DestinationSearchStatus {
+  INITIAL,
+  LOADING,
+  RESULTS,
+  EMPTY,
+  ERROR,
+}
 
 /** Holds the draft shared by the steps of the trip-creation flow. */
 class CreateTripViewModel(
     private val repository: TripRepository = FakeTripRepository(),
     private val zoneId: ZoneId = ZoneId.systemDefault(),
+    private val destinationRepository: DestinationRepository = OnlineDestinationRepository(),
+    private val requestDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
   private var submittedDraft: TripDraft? = null
   private var submissionId: String? = null
+  private var searchJob: Job? = null
+  private val requestedPhotoIds = mutableSetOf<String>()
   private val _uiState = MutableStateFlow(CreateTripUiState())
   val uiState: StateFlow<CreateTripUiState> = _uiState.asStateFlow()
 
@@ -89,8 +107,9 @@ class CreateTripViewModel(
     if (!state.canCreateTrip) return
     val draft =
         TripDraft(
-            name = state.selectedDestinations.joinToString(" → "),
-            destinations = state.selectedDestinations.map { destinationLocations.getValue(it) },
+            name = state.selectedDestinations.joinToString(" → ") { it.name },
+            destinations =
+                state.selectedDestinations.map { TripLocation(it.latitude, it.longitude, it.name) },
             startDate = state.startDate.atStartOfDay(zoneId).toInstant(),
             endDate = state.endDate.atStartOfDay(zoneId).toInstant(),
             flexibleDates = state.flexibleDates,
@@ -135,25 +154,110 @@ class CreateTripViewModel(
   }
 
   fun updateDestinationQuery(query: String) {
-    edit { it.copy(destinationQuery = query) }
+    if (uiState.value.isSubmitting || uiState.value.createdTripId != null) return
+    edit {
+      it.copy(
+          destinationQuery = query,
+          destinations = emptyList(),
+          destinationSearchErrorRes = null,
+          destinationSearchStatus =
+              if (query.trim().length < MIN_DESTINATION_QUERY_LENGTH)
+                  DestinationSearchStatus.INITIAL
+              else DestinationSearchStatus.LOADING,
+      )
+    }
+    searchJob?.cancel()
+    if (query.trim().length < MIN_DESTINATION_QUERY_LENGTH) return
+    searchJob =
+        viewModelScope.launch(requestDispatcher) {
+          delay(DESTINATION_SEARCH_DEBOUNCE_MS.milliseconds)
+          searchDestinations(query.trim())
+        }
   }
 
-  fun toggleDestination(destination: String) {
-    val normalizedDestination = destination.trim()
-    if (normalizedDestination !in destinationLocations) return
-
+  fun toggleDestination(destination: Destination) {
+    if (
+        destination.name.isBlank() ||
+            !destination.latitude.isFinite() ||
+            !destination.longitude.isFinite()
+    )
+        return
     edit { state ->
       val selected = state.selectedDestinations
       state.copy(
           selectedDestinations =
-              if (normalizedDestination in selected) selected - normalizedDestination
-              else selected + normalizedDestination
+              if (selected.any { it.stableId == destination.stableId }) {
+                selected.filterNot { it.stableId == destination.stableId }
+              } else selected + destination
       )
     }
   }
 
-  fun removeDestination(destination: String) {
-    edit { state -> state.copy(selectedDestinations = state.selectedDestinations - destination) }
+  fun removeDestination(destination: Destination) {
+    edit { state ->
+      state.copy(
+          selectedDestinations =
+              state.selectedDestinations.filterNot { it.stableId == destination.stableId }
+      )
+    }
+  }
+
+  fun retryDestinationSearch() {
+    if (uiState.value.isSubmitting || uiState.value.createdTripId != null) return
+    val query = uiState.value.destinationQuery.trim()
+    if (query.length < MIN_DESTINATION_QUERY_LENGTH) return
+    searchJob?.cancel()
+    searchJob = viewModelScope.launch(requestDispatcher) { searchDestinations(query) }
+  }
+
+  fun requestDestinationPhoto(destination: Destination) {
+    if (!requestedPhotoIds.add(destination.stableId)) return
+    viewModelScope.launch(requestDispatcher) {
+      try {
+        destinationRepository.findPhoto(destination)?.let { photo ->
+          _uiState.update { state ->
+            state.copy(
+                photosByDestinationId =
+                    state.photosByDestinationId + (destination.stableId to photo)
+            )
+          }
+        }
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (_: Exception) {
+        // A missing photo only affects the placeholder; search remains usable.
+      }
+    }
+  }
+
+  private suspend fun searchDestinations(query: String) {
+    try {
+      val results = destinationRepository.searchDestinations(query).take(MAX_DESTINATION_RESULTS)
+      if (uiState.value.destinationQuery.trim() != query) return
+      _uiState.update {
+        it.copy(
+            destinations = results,
+            destinationSearchStatus =
+                if (results.isEmpty()) DestinationSearchStatus.EMPTY
+                else DestinationSearchStatus.RESULTS,
+            destinationSearchErrorRes = null,
+        )
+      }
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (exception: Exception) {
+      if (uiState.value.destinationQuery.trim() != query) return
+      _uiState.update {
+        it.copy(
+            destinations = emptyList(),
+            destinationSearchStatus = DestinationSearchStatus.ERROR,
+            destinationSearchErrorRes =
+                if (exception is DestinationConfigurationException)
+                    R.string.destination_search_not_configured
+                else R.string.destination_search_error,
+        )
+      }
+    }
   }
 
   fun showPreviousMonth() {
@@ -229,3 +333,5 @@ class CreateTripViewModel(
     }
   }
 }
+
+private const val DESTINATION_SEARCH_DEBOUNCE_MS = 300L

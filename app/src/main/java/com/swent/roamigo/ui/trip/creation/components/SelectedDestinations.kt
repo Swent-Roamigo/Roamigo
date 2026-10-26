@@ -22,18 +22,19 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
+import com.swent.roamigo.model.destination.Destination
 import com.swent.roamigo.ui.theme.RoamigoTheme
 
 internal object SelectedDestinationsTestTags {
   const val REMOVE_PREFIX = "selected_destination_remove_"
 
-  fun removeFor(destination: String): String = "$REMOVE_PREFIX${destination.lowercase()}"
+  fun removeFor(destinationId: String): String = "$REMOVE_PREFIX${destinationId.lowercase()}"
 }
 
 @Composable
 fun SelectedDestinations(
-    destinations: List<String>,
-    onRemove: (String) -> Unit,
+    destinations: List<Destination>,
+    onRemove: (Destination) -> Unit,
 ) {
   Row(
       modifier = Modifier.horizontalScroll(rememberScrollState()),
@@ -48,8 +49,13 @@ fun SelectedDestinations(
 }
 
 @Composable
-private fun DestinationChip(destination: String, onRemove: () -> Unit) {
-  val removeDescription = stringResource(R.string.destination_remove_description, destination)
+private fun DestinationChip(destination: Destination, onRemove: () -> Unit) {
+  val removeDescription =
+      stringResource(
+          R.string.destination_remove_description,
+          destination.name,
+          destination.countryName,
+      )
   Row(
       modifier =
           Modifier.clip(CircleShape)
@@ -59,7 +65,7 @@ private fun DestinationChip(destination: String, onRemove: () -> Unit) {
       horizontalArrangement = Arrangement.spacedBy(6.dp),
   ) {
     Text(
-        destination,
+        destination.name,
         color = MaterialTheme.colorScheme.onPrimary,
         style = MaterialTheme.typography.labelMedium,
     )
@@ -71,7 +77,7 @@ private fun DestinationChip(destination: String, onRemove: () -> Unit) {
                 .padding(horizontal = 2.dp)
                 .semantics {
                   contentDescription = removeDescription
-                  testTag = SelectedDestinationsTestTags.removeFor(destination)
+                  testTag = SelectedDestinationsTestTags.removeFor(destination.stableId)
                 },
         color = MaterialTheme.colorScheme.onPrimary,
         style = MaterialTheme.typography.labelMedium,
@@ -84,7 +90,31 @@ private fun DestinationChip(destination: String, onRemove: () -> Unit) {
 private fun SelectedDestinationsPreview() {
   RoamigoTheme {
     SelectedDestinations(
-        destinations = listOf("Lisbon", "Porto"),
+        destinations =
+            listOf(
+                Destination(
+                    "geonames:1",
+                    com.swent.roamigo.model.destination.DestinationKind.CITY,
+                    "Lisbon",
+                    "Portugal",
+                    "PT",
+                    0.0,
+                    0.0,
+                    1,
+                    null,
+                ),
+                Destination(
+                    "geonames:2",
+                    com.swent.roamigo.model.destination.DestinationKind.CITY,
+                    "Porto",
+                    "Portugal",
+                    "PT",
+                    0.0,
+                    0.0,
+                    2,
+                    null,
+                ),
+            ),
         onRemove = {},
     )
   }

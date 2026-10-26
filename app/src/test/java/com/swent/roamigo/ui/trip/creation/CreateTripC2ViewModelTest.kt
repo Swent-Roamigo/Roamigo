@@ -2,6 +2,7 @@
 // Co-author : ChatGPT-Codex
 package com.swent.roamigo.ui.trip.creation
 
+import com.swent.roamigo.model.destination.sampleDestination
 import com.swent.roamigo.model.trip.TravelMode
 import java.time.LocalDate
 import java.time.YearMonth
@@ -92,7 +93,7 @@ class CreateTripC2ViewModelTest {
   fun groupRequiresAtLeastTwoTravelersWhileSoloAllowsOne() {
     val groupWithOneTraveler =
         CreateTripUiState(
-            selectedDestinations = listOf("Lisbon"),
+            selectedDestinations = listOf(sampleDestination("Lisbon")),
             travelMode = TravelMode.GROUP,
             travelerCount = 1,
         )
@@ -107,7 +108,7 @@ class CreateTripC2ViewModelTest {
   @Test
   fun draftRemainsInvalidUntilBothDatesAreSelected() {
     val viewModel = CreateTripViewModel()
-    viewModel.toggleDestination("Lisbon")
+    viewModel.toggleDestination(sampleDestination("Lisbon"))
     viewModel.selectDate(LocalDate.now())
 
     assertTrue(viewModel.uiState.value.isSelectingEndDate)
@@ -127,20 +128,20 @@ class CreateTripC2ViewModelTest {
         originalState.copy(
             startDate = pastDate,
             endDate = LocalDate.now().plusDays(1),
-            selectedDestinations = listOf("Lisbon"),
+            selectedDestinations = listOf(sampleDestination("Lisbon")),
         )
     assertFalse(stateWithPastStart.canCreateTrip)
   }
 
   @Test
-  fun destinationToggleIgnoresBlankInputAndTrimsValidInput() {
+  fun destinationToggleRejectsBlankNamesAndAcceptsStructuredDestinations() {
     val viewModel = CreateTripViewModel()
 
-    viewModel.toggleDestination("   ")
+    viewModel.toggleDestination(sampleDestination("Lisbon").copy(name = "   "))
     assertTrue(viewModel.uiState.value.selectedDestinations.isEmpty())
     assertFalse(viewModel.uiState.value.canCreateTrip)
 
-    viewModel.toggleDestination(" Lisbon ")
-    assertEquals(listOf("Lisbon"), viewModel.uiState.value.selectedDestinations)
+    viewModel.toggleDestination(sampleDestination("Lisbon"))
+    assertEquals(listOf(sampleDestination("Lisbon")), viewModel.uiState.value.selectedDestinations)
   }
 }

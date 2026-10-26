@@ -20,6 +20,8 @@ import com.google.firebase.firestore.MemoryCacheSettings
 import com.google.firebase.firestore.Source
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthRepositoryFirebase
+import com.swent.roamigo.model.destination.sampleDestination
+import com.swent.roamigo.model.destination.sampleDestinationRepository
 import com.swent.roamigo.model.trip.TripMemberRole
 import com.swent.roamigo.model.trip.TripRepositoryFirestore
 import com.swent.roamigo.resources.C
@@ -27,9 +29,11 @@ import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
 import com.swent.roamigo.ui.trip.creation.components.DestinationCardTestTags
 import com.swent.roamigo.ui.trip.creation.components.TripCalendarTestTags
+import com.swent.roamigo.ui.trip.creation.searchSampleDestinations
 import java.time.YearMonth
 import java.time.ZoneId
 import java.util.UUID
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
@@ -53,7 +57,7 @@ class TripCreationEndToEndTest {
 
   @Before
   fun setUp() = runBlocking {
-    withTimeout(30_000) {
+    withTimeout(30_000.milliseconds) {
       val name = "trip-e2e-${UUID.randomUUID()}"
       val options =
           FirebaseOptions.Builder()
@@ -82,7 +86,7 @@ class TripCreationEndToEndTest {
   @After
   fun tearDown() = runBlocking {
     try {
-      if (::db.isInitialized) withTimeout(10_000) { db.terminate().await() }
+      if (::db.isInitialized) withTimeout(10_000.milliseconds) { db.terminate().await() }
     } finally {
       if (::app.isInitialized) app.delete()
     }
@@ -94,12 +98,21 @@ class TripCreationEndToEndTest {
     val end = start.plusDays(2)
     val zone = ZoneId.systemDefault()
     composeRule.setContent {
-      RoamigoTheme { RoamigoApp(tripRepository = repository, authRepository = authRepository) }
+      RoamigoTheme {
+        RoamigoApp(
+            destinationRepository = sampleDestinationRepository(),
+            tripRepository = repository,
+            authRepository = authRepository,
+        )
+      }
     }
     waitFor(C.Tag.trips_new_trip_button)
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
+    composeRule.searchSampleDestinations()
     listOf("Lisbon", "Porto").forEach {
-      composeRule.onNodeWithTag(DestinationCardTestTags.forDestination(it)).performClick()
+      composeRule
+          .onNodeWithTag(DestinationCardTestTags.forDestination(sampleDestination(it).stableId))
+          .performClick()
     }
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
     composeRule.onNodeWithTag(TripCalendarTestTags.NEXT_MONTH).performScrollTo().performClick()
@@ -113,7 +126,7 @@ class TripCreationEndToEndTest {
         .assert(hasAnyDescendant(hasText("Lisbon → Porto", substring = true)))
 
     runBlocking {
-      withTimeout(30_000) {
+      withTimeout(30_000.milliseconds) {
         val saved =
             db.collection("trips")
                 .whereArrayContains("memberIds", ownerId)

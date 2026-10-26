@@ -20,6 +20,14 @@ android {
     versionCode = 1
     versionName = "1.0"
 
+    val geonamesUsername =
+        providers
+            .gradleProperty("GEONAMES_USERNAME")
+            .orElse(providers.environmentVariable("GEONAMES_USERNAME"))
+            .orElse("")
+            .get()
+    buildConfigField("String", "GEONAMES_USERNAME", "\"$geonamesUsername\"")
+
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     vectorDrawables { useSupportLibrary = true }
   }
@@ -41,7 +49,10 @@ android {
 
   testCoverage { jacocoVersion = "0.8.11" }
 
-  buildFeatures { compose = true }
+  buildFeatures {
+    compose = true
+    buildConfig = true
+  }
 
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -166,6 +177,9 @@ dependencies {
   testImplementation(libs.mockito.core)
   implementation(libs.kotlinx.coroutines.play.services)
   implementation(libs.androidx.datastore.preferences)
+  implementation(libs.okhttp)
+  implementation(libs.coil)
+  implementation(libs.coil.compose)
 
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.appcompat)
