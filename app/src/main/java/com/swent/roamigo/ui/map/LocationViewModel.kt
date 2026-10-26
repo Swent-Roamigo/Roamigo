@@ -9,8 +9,8 @@ import com.swent.roamigo.model.location.DeviceLocation
 import com.swent.roamigo.model.location.LocationRepository
 import com.swent.roamigo.model.location.LocationSharingException
 import com.swent.roamigo.model.location.MemberLocation
-import java.time.Clock
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,6 +20,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -29,12 +31,14 @@ import kotlinx.coroutines.launch
  * Provides the location sharing state of a trip to the trip map.
  *
  * Sharing itself is handled by [LocationRepository]: this ViewModel only asks it to start or stop,
- * mirrors whether sharing is on, and refreshes the user's own position while it is.
+ * mirrors whether sharing is on, and refreshes the user's own position while it is. Other members'
+ * locations are shown whatever the permission state, and age into stale, then hidden.
  *
  * @property tripId identifier of the trip whose locations are managed.
  * @property currentUserId identifier of the signed-in user, used for their own position.
  * @property locationRepository the repository providing device and member locations.
- * @property clock the clock used to date a position the device did not timestamp.
+ * @property clock returns the current time, in milliseconds since the epoch. Used to age member
+ *   locations and to date a position the device did not timestamp.
  * @property cleanupScope outlives the ViewModel, so that sharing can still be stopped once it is
  *   cleared.
  */
@@ -42,7 +46,7 @@ class LocationViewModel(
     private val tripId: String,
     private val currentUserId: String,
     private val locationRepository: LocationRepository,
-    private val clock: Clock = Clock.systemDefaultZone(),
+    private val clock: () -> Long = System::currentTimeMillis,
     private val cleanupScope: CoroutineScope =
         CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) : ViewModel() {
@@ -78,6 +82,23 @@ class LocationViewModel(
         _uiState.update { state -> state.copy(isSharing = sharing) }
         if (sharing) startRefreshingMyLocation() else stopRefreshingMyLocation()
       }
+    }
+    viewModelScope.launch {
+      locationRepository
+          .observeMemberLocations(tripId)
+          .catch { exception ->
+            if (exception !is LocationSharingException) throw exception
+            _uiState.update { state -> state.copy(errorMessage = exception.message) }
+          }
+          .collectLatest { locations ->
+            // Locations age without new emissions, so they are re-evaluated until none is visible.
+            // A new emission cancels this loop and starts over with the fresh list.
+            while (true) {
+              val visibleLocations = showMemberLocations(locations)
+              if (visibleLocations.isEmpty()) break
+              delay(STALENESS_CHECK_INTERVAL)
+            }
+          }
     }
   }
 
@@ -149,6 +170,26 @@ class LocationViewModel(
     }
   }
 
+  /**
+   * Shows the member locations that are not too old, marking the outdated ones as stale.
+   *
+   * @return the locations shown.
+   */
+  private fun showMemberLocations(locations: List<MemberLocation>): List<MemberLocation> {
+    val now = clock()
+    val visibleLocations = locations.filter { location ->
+      now - location.updatedAt <= HIDE_AFTER.inWholeMilliseconds
+    }
+    val staleMemberIds =
+        visibleLocations
+            .filter { location -> now - location.updatedAt > STALE_AFTER.inWholeMilliseconds }
+            .mapTo(mutableSetOf()) { location -> location.userId }
+    _uiState.update { state ->
+      state.copy(memberLocations = visibleLocations, staleMemberIds = staleMemberIds)
+    }
+    return visibleLocations
+  }
+
   private fun startRefreshingMyLocation() {
     if (refreshJob?.isActive == true) return
     refreshJob = viewModelScope.launch {
@@ -172,13 +213,25 @@ class LocationViewModel(
           userId = currentUserId,
           latitude = latitude,
           longitude = longitude,
-          updatedAt = timestampMillis ?: clock.millis(),
+          updatedAt = timestampMillis ?: clock(),
       )
 
   companion object {
 
     /** Time between two refreshes of the user's own position while sharing. */
     val MY_LOCATION_REFRESH_INTERVAL: Duration = 5.seconds
+
+    /**
+     * Age after which a member location is marked stale. Members update every 20 seconds while
+     * sharing, so this means several updates were missed.
+     */
+    val STALE_AFTER: Duration = 1.minutes
+
+    /** Age after which a member location is no longer shown. */
+    val HIDE_AFTER: Duration = 10.minutes
+
+    /** Time between two re-evaluations of the member locations' age. */
+    val STALENESS_CHECK_INTERVAL: Duration = 10.seconds
 
     internal const val PERMISSION_REQUIRED_MESSAGE = "Allow location access to share your location."
 
@@ -192,14 +245,14 @@ class LocationViewModel(
      * @param tripId identifier of the trip whose locations are managed.
      * @param currentUserId identifier of the signed-in user.
      * @param locationRepository the repository providing device and member locations.
-     * @param clock the clock used to date a position the device did not timestamp.
+     * @param clock returns the current time, in milliseconds since the epoch.
      * @return a factory capable of creating [LocationViewModel] instances.
      */
     fun factory(
         tripId: String,
         currentUserId: String,
         locationRepository: LocationRepository,
-        clock: Clock = Clock.systemDefaultZone(),
+        clock: () -> Long = System::currentTimeMillis,
     ): ViewModelProvider.Factory =
         object : ViewModelProvider.Factory {
 

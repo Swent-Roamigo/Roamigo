@@ -3,6 +3,8 @@ package com.swent.roamigo.model.location
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 
 /**
@@ -27,6 +29,9 @@ class FakeLocationRepository(
 
   /** Thrown by [startSharing] instead of starting, when set. */
   var startSharingError: Exception? = null
+
+  /** Thrown by the [observeMemberLocations] flow instead of emitting, when set. */
+  var observeMemberLocationsError: Exception? = null
 
   /** Thrown by [stopSharing] after stopping, when set, like a failed removal from the database. */
   var stopSharingError: Exception? = null
@@ -57,7 +62,10 @@ class FakeLocationRepository(
 
   override suspend fun restoreSharing() = Unit
 
-  override fun observeMemberLocations(tripId: String): Flow<List<MemberLocation>> = memberLocations
+  override fun observeMemberLocations(tripId: String): Flow<List<MemberLocation>> = flow {
+    observeMemberLocationsError?.let { throw it }
+    emitAll(memberLocations)
+  }
 
   override fun isSharing(tripId: String): Flow<Boolean> = sharingTripIds.map { tripIds ->
     tripId in tripIds
