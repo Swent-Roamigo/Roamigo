@@ -126,7 +126,7 @@ class TripCreationEndToEndTest {
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
     waitFor(C.Tag.trips_main_trip_card)
     composeRule
-        .onNodeWithTag(C.Tag.trips_main_trip_card)
+        .onNodeWithTag(C.Tag.trips_main_trip_card, useUnmergedTree = true)
         .assert(hasAnyDescendant(hasText("Lisbon → Porto", substring = true)))
 
     runBlocking {
