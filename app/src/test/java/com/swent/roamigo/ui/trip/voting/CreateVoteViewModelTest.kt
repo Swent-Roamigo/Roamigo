@@ -278,6 +278,8 @@ internal class FakeVoteRepository : VoteRepository {
 
   override suspend fun getVotes(tripId: String): List<Vote> = error("Not used")
 
+  override fun observeVotes(tripId: String): Flow<List<Vote>> = error("Not used")
+
   override suspend fun submitBallot(tripId: String, voteId: String, ballot: VoteBallot) =
       error("Not used")
 

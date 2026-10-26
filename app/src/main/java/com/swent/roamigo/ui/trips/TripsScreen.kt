@@ -6,6 +6,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -79,6 +80,7 @@ import java.time.Clock
  * @param clock the clock used for time-dependent presentation logic.
  * @param refreshRequested whether a completed creation requires fresh trip data.
  * @param onRefreshConsumed clears the one-time creation result after starting the refresh.
+ * @param onOpenTrip opens the selected trip's Votes tab.
  */
 @Composable
 fun TripsRoute(
@@ -95,6 +97,7 @@ fun TripsRoute(
     clock: Clock = Clock.systemDefaultZone(),
     refreshRequested: Boolean = false,
     onRefreshConsumed: () -> Unit = {},
+    onOpenTrip: (String, String) -> Unit = { _, _ -> },
 ) {
   val viewModel: TripsViewModel =
       viewModel(
@@ -124,6 +127,7 @@ fun TripsRoute(
       onMapClick = onMapClick,
       onPhotosClick = onPhotosClick,
       onProfileClick = onProfileClick,
+      onOpenTrip = onOpenTrip,
   )
 }
 
@@ -142,6 +146,7 @@ fun TripsRoute(
  * @param onMapClick invoked when the Map navigation destination is selected.
  * @param onPhotosClick invoked when the Photos navigation destination is selected.
  * @param onProfileClick invoked when the user selects their profile avatar.
+ * @param onOpenTrip opens the selected trip's Votes tab.
  */
 @Composable
 fun TripsScreen(
@@ -154,6 +159,7 @@ fun TripsScreen(
     onMapClick: () -> Unit = rememberNotImplementedAction(),
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
     onProfileClick: () -> Unit = rememberNotImplementedAction(),
+    onOpenTrip: (String, String) -> Unit = { _, _ -> },
 ) {
   Scaffold(
       modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.trips_screen },
@@ -213,6 +219,7 @@ fun TripsScreen(
                   trip = trip,
                   imageRes = mainTripImageRes,
                   onInviteClick = onInviteClick,
+                  onOpenTrip = { onOpenTrip(trip.id, trip.name) },
               )
             }
           }
@@ -237,7 +244,7 @@ fun TripsScreen(
                 items = uiState.otherTrips,
                 key = { trip -> trip.id },
             ) { trip ->
-              OtherTripCard(trip)
+              OtherTripCard(trip, onClick = { onOpenTrip(trip.id, trip.name) })
             }
           }
         }
@@ -339,12 +346,15 @@ private fun MainTripCard(
     trip: MainTripUiModel,
     @DrawableRes imageRes: Int?,
     onInviteClick: () -> Unit,
+    onOpenTrip: () -> Unit,
 ) {
   Box(
       modifier =
-          Modifier.fillMaxWidth().height(190.dp).clip(MaterialTheme.shapes.large).semantics {
-            testTag = C.Tag.trips_main_trip_card
-          },
+          Modifier.fillMaxWidth()
+              .height(190.dp)
+              .clip(MaterialTheme.shapes.large)
+              .clickable(onClick = onOpenTrip)
+              .semantics { testTag = C.Tag.trips_main_trip_card },
   ) {
     TripImage(
         imageRes = imageRes,
@@ -547,8 +557,9 @@ private fun NextActivityCard(
 }
 
 @Composable
-private fun OtherTripCard(trip: OtherTripUiModel) {
+private fun OtherTripCard(trip: OtherTripUiModel, onClick: () -> Unit) {
   Surface(
+      onClick = onClick,
       modifier = Modifier.fillMaxWidth(),
       shape = MaterialTheme.shapes.medium,
       color = MaterialTheme.colorScheme.surface,

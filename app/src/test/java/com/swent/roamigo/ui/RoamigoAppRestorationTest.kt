@@ -13,6 +13,7 @@ import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
+import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.model.destination.sampleDestination
 import com.swent.roamigo.model.destination.sampleDestinationRepository
 import com.swent.roamigo.resources.C
@@ -36,12 +37,13 @@ class RoamigoAppRestorationTest {
     val authRepository =
         FakeAuthRepository(AuthenticatedUser("alex", "Alex", null, null), initiallySignedIn = true)
     restoration.setContent {
-      RoamigoTheme {
-        RoamigoApp(
-            destinationRepository = sampleDestinationRepository(),
-            authRepository = authRepository,
-        )
-      }
+        RoamigoTheme {
+            RoamigoApp(
+                destinationRepository = sampleDestinationRepository(),
+                authRepository = authRepository,
+                voteRepository = InMemoryVoteRepository()
+            )
+        }
     }
     composeRule.waitUntil {
       composeRule.onAllNodesWithTag(C.Tag.trips_profile_avatar).fetchSemanticsNodes().isNotEmpty()
@@ -66,6 +68,7 @@ class RoamigoAppRestorationTest {
         RoamigoApp(
             destinationRepository = sampleDestinationRepository(),
             authRepository = authRepository,
+            voteRepository = InMemoryVoteRepository()
         )
       }
     }

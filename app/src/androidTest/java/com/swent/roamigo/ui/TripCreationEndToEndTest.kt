@@ -26,6 +26,7 @@ import com.swent.roamigo.model.destination.sampleDestination
 import com.swent.roamigo.model.destination.sampleDestinationRepository
 import com.swent.roamigo.model.trip.TripMemberRole
 import com.swent.roamigo.model.trip.TripRepositoryFirestore
+import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
@@ -102,6 +103,7 @@ class TripCreationEndToEndTest {
     composeRule.setContent {
       RoamigoTheme {
         RoamigoApp(
+            voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
             tripRepository = repository,
             authRepository = authRepository,

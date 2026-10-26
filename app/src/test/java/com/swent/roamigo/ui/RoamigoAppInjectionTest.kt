@@ -7,7 +7,6 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
-import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -30,6 +29,7 @@ import com.swent.roamigo.model.trip.TripCreationException
 import com.swent.roamigo.model.trip.TripDraft
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
+import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
@@ -76,6 +76,7 @@ class RoamigoAppInjectionTest {
       navController = rememberNavController()
       RoamigoTheme {
         RoamigoApp(
+            voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
             tripRepository = FakeTripRepository(trips = listOf(trip)),
             userRepository = FakeUserRepository(User("sam", "Sam", null)),
@@ -95,7 +96,7 @@ class RoamigoAppInjectionTest {
 
     composeRule
         .onNodeWithTag(C.Tag.trips_main_trip_card)
-        .assert(hasAnyDescendant(hasText(trip.name, substring = true)))
+        .assert(hasText(trip.name, substring = true))
     assertEquals(Route.TRIPS, navController.currentBackStackEntry?.destination?.route)
   }
 
@@ -113,6 +114,7 @@ class RoamigoAppInjectionTest {
     composeRule.setContent {
       RoamigoTheme {
         RoamigoApp(
+            voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
             tripRepository = repository,
             authRepository =
@@ -179,6 +181,7 @@ class RoamigoAppInjectionTest {
       navController = rememberNavController()
       RoamigoTheme {
         RoamigoApp(
+            voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
             tripRepository = FakeTripRepository(currentUserId = null),
             authRepository = auth,
@@ -203,6 +206,7 @@ class RoamigoAppInjectionTest {
     composeRule.setContent {
       RoamigoTheme {
         RoamigoApp(
+            voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
             tripRepository = repository,
             authRepository =
