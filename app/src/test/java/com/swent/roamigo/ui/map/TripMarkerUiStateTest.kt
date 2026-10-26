@@ -3,10 +3,10 @@ package com.swent.roamigo.ui.map
 
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripStatus
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 class TripMarkerUiStateTest {
@@ -44,8 +44,13 @@ class TripMarkerUiStateTest {
             destinations = listOf(location),
             startDate = Timestamp.now(),
             endDate = Timestamp.now(),
+            flexibleDates = false,
+            travelMode = TravelMode.SOLO,
+            travelerCount = 1,
             ownerId = "user_1",
+            memberIds = listOf("user_1"),
             status = TripStatus.PLANNED,
+            createdAt = Timestamp.now(),
         )
 
     val marker = location.toTripMarkerUiState(trip)
@@ -71,8 +76,13 @@ class TripMarkerUiStateTest {
             destinations = listOf(loc1, loc2),
             startDate = Timestamp.now(),
             endDate = Timestamp.now(),
+            flexibleDates = false,
+            travelMode = TravelMode.GROUP,
+            travelerCount = 2,
             ownerId = "user_1",
+            memberIds = listOf("user_1"),
             status = TripStatus.ACTIVE,
+            createdAt = Timestamp.now(),
         )
 
     val markers: List<TripMarkerUiState> = trip.toTripMarkerUiStates()
