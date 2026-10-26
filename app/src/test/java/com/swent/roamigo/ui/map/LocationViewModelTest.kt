@@ -4,6 +4,7 @@ package com.swent.roamigo.ui.map
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
+import com.swent.roamigo.model.connectivity.FakeConnectivityRepository
 import com.swent.roamigo.model.location.DeviceLocation
 import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.location.LocationSharingException
@@ -48,6 +49,8 @@ class LocationViewModelTest {
 
   private lateinit var repository: FakeLocationRepository
 
+  private lateinit var connectivity: FakeConnectivityRepository
+
   private val viewModelStore = ViewModelStore()
 
   private var createdViewModels = 0
@@ -56,6 +59,7 @@ class LocationViewModelTest {
   fun setUp() {
     Dispatchers.setMain(testDispatcher)
     repository = FakeLocationRepository()
+    connectivity = FakeConnectivityRepository()
   }
 
   @After
@@ -87,6 +91,7 @@ class LocationViewModelTest {
                   tripId = TRIP_ID,
                   currentUserId = USER_ID,
                   locationRepository = repository,
+                  connectivityRepository = connectivity,
                   clock = { now },
                   cleanupScope = CoroutineScope(testDispatcher),
               )
@@ -204,7 +209,7 @@ class LocationViewModelTest {
   @Test
   fun factory_createsLocationViewModel() {
     val viewModel =
-        LocationViewModel.factory(TRIP_ID, USER_ID, repository)
+        LocationViewModel.factory(TRIP_ID, USER_ID, repository, connectivity)
             .create(LocationViewModel::class.java)
 
     assertEquals(NotRequested, viewModel.uiState.value.permissionState)
@@ -212,7 +217,7 @@ class LocationViewModelTest {
 
   @Test
   fun factory_rejectsOtherViewModelClasses() {
-    val factory = LocationViewModel.factory(TRIP_ID, USER_ID, repository)
+    val factory = LocationViewModel.factory(TRIP_ID, USER_ID, repository, connectivity)
 
     assertThrows(IllegalArgumentException::class.java) {
       factory.create(OtherViewModel::class.java)
@@ -563,6 +568,110 @@ class LocationViewModelTest {
 
     assertEquals("Could not read the member locations", viewModel.uiState.value.errorMessage)
     assertTrue(viewModel.uiState.value.memberLocations.isEmpty())
+  }
+
+  @Test
+  fun goingOffline_keepsMemberLocationsAndMarksThemStale() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = true)
+    repository.memberLocations.value = listOf(ALICE, BOB)
+    runCurrent()
+
+    connectivity.online.value = false
+    runCurrent()
+
+    val state = viewModel.uiState.value
+    assertTrue(state.isOffline)
+    assertEquals(listOf(ALICE, BOB), state.memberLocations)
+    assertEquals(setOf("alice", "bob"), state.staleMemberIds)
+  }
+
+  @Test
+  fun whileOffline_memberLocationsAreNotHidden() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = true)
+    repository.memberLocations.value = listOf(ALICE)
+    runCurrent()
+    connectivity.online.value = false
+    runCurrent()
+
+    now += (LocationViewModel.HIDE_AFTER + 1.milliseconds).inWholeMilliseconds
+    advanceTimeBy(staleCheckInterval * 3)
+    runCurrent()
+
+    assertEquals(listOf(ALICE), viewModel.uiState.value.memberLocations)
+    assertEquals(setOf("alice"), viewModel.uiState.value.staleMemberIds)
+  }
+
+  @Test
+  fun reconnecting_resumesMemberLocationsWithoutRefresh() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = true)
+    repository.memberLocations.value = listOf(ALICE, BOB)
+    runCurrent()
+    connectivity.online.value = false
+    runCurrent()
+
+    now += (LocationViewModel.HIDE_AFTER + 1.milliseconds).inWholeMilliseconds
+    val movedAlice = ALICE.copy(latitude = 46.53, updatedAt = now)
+    repository.memberLocations.value = listOf(movedAlice, BOB)
+    connectivity.online.value = true
+    runCurrent()
+
+    val state = viewModel.uiState.value
+    assertFalse(state.isOffline)
+    // Bob's location expired while offline.
+    assertEquals(listOf(movedAlice), state.memberLocations)
+    assertTrue(state.staleMemberIds.isEmpty())
+  }
+
+  @Test
+  fun reconnecting_afterAFailedObservation_resumesMemberLocations() = runLocationTest {
+    repository.observeMemberLocationsError = LocationSharingException("Network error")
+    val viewModel = createViewModel(hasPermission = true)
+    runCurrent()
+    connectivity.online.value = false
+    runCurrent()
+
+    repository.observeMemberLocationsError = null
+    repository.memberLocations.value = listOf(ALICE)
+    connectivity.online.value = true
+    runCurrent()
+
+    assertEquals(listOf(ALICE), viewModel.uiState.value.memberLocations)
+  }
+
+  @Test
+  fun startingOffline_isOfflineWithoutMemberLocations() = runLocationTest {
+    connectivity.online.value = false
+    repository.memberLocations.value = listOf(ALICE)
+
+    val viewModel = createViewModel(hasPermission = true)
+    runCurrent()
+
+    assertTrue(viewModel.uiState.value.isOffline)
+    assertTrue(viewModel.uiState.value.memberLocations.isEmpty())
+  }
+
+  @Test
+  fun sharing_continuesWhileOfflineAndAfterReconnecting() = runLocationTest {
+    repository.currentLocation = LAUSANNE
+    val viewModel = createViewModel(hasPermission = true)
+    viewModel.startSharing()
+    runCurrent()
+
+    connectivity.online.value = false
+    advanceTimeBy(interval)
+    runCurrent()
+
+    assertTrue(viewModel.uiState.value.isSharing)
+    // The position still comes from GPS, which needs no network.
+    assertEquals(2, repository.getCurrentLocationCalls)
+
+    connectivity.online.value = true
+    runCurrent()
+
+    assertTrue(viewModel.uiState.value.isSharing)
+    assertFalse(viewModel.uiState.value.isOffline)
+    assertEquals(listOf(TRIP_ID), repository.startSharingCalls)
+    assertTrue(repository.stopSharingCalls.isEmpty())
   }
 
   private class OtherViewModel : ViewModel()
