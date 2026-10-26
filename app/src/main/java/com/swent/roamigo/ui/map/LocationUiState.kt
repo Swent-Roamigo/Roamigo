@@ -19,6 +19,8 @@ enum class LocationPermissionState {
  * @property permissionState current location permission state of the user.
  * @property isSharing whether the user shares their location with the trip. Off by default.
  * @property myLocation last known position of the current user, or null if unknown.
+ * @property isMyLocationStale whether [myLocation] is outdated, e.g. because the GPS signal was
+ *   lost.
  * @property memberLocations locations of the other trip members currently sharing.
  * @property staleMemberIds identifiers of the members whose location is outdated.
  * @property isOffline whether member locations cannot be refreshed because the device is offline.
@@ -28,6 +30,7 @@ data class LocationUiState(
     val permissionState: LocationPermissionState = LocationPermissionState.NotRequested,
     val isSharing: Boolean = false,
     val myLocation: MemberLocation? = null,
+    val isMyLocationStale: Boolean = false,
     val memberLocations: List<MemberLocation> = emptyList(),
     val staleMemberIds: Set<String> = emptySet(),
     val isOffline: Boolean = false,
