@@ -89,7 +89,7 @@ fun VoteScreenContent(
                       option.name,
                       state.selectedOptionId == option.uid,
                       state.canSelect,
-                      voteCount = state.voteCounts.getValue(option.uid),
+                      voteCount = state.voteCounts[option.uid] ?: 0,
                       onClick = { onSelectOption(option.uid) },
                   )
                 }
