@@ -154,6 +154,10 @@
     <string name="vote_ballot_submission_error">Unable to submit your vote. Please try again.</string>
     <string name="vote_retry">Retry</string>
     <string name="vote_back">Back</string>
+    <plurals name="vote_count">
+        <item quantity="one">%d vote</item>
+        <item quantity="other">%d votes</item>
+    </plurals>
     <string name="create_trip_sign_in">Sign in</string>
     <string name="create_trip_retry">Retry</string>
     <string name="create_trip_auth_error">Your session has ended. Sign in to create your trip.</string>
