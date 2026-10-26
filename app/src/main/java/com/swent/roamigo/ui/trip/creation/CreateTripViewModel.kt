@@ -207,7 +207,7 @@ class CreateTripViewModel(
     val query = uiState.value.destinationQuery.trim()
     if (query.length < MIN_DESTINATION_QUERY_LENGTH) return
     searchJob?.cancel()
-    searchJob = viewModelScope.launch(requestDispatcher) { searchDestinations(query) }
+    searchJob = viewModelScope.launch { searchDestinations(query) }
   }
 
   fun requestDestinationPhoto(destination: Destination) {
