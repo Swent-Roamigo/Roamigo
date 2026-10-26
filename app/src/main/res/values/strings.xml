@@ -195,4 +195,21 @@
         <item quantity="one">%1$d friend · heatmaps visible to friends only</item>
         <item quantity="other">%1$d friends · heatmaps visible to friends only</item>
     </plurals>
+    <!-- Trip Votes tab -->
+    <string name="votes_title">Votes</string>
+    <string name="trip_tab_overview">Overview</string>
+    <string name="trip_tab_itinerary">Itinerary</string>
+    <string name="votes_trip_summary">%1$s · %2$s</string>
+    <plurals name="votes_open_count">
+        <item quantity="one">%d open</item>
+        <item quantity="other">%d open</item>
+    </plurals>
+    <string name="votes_decided">Decided</string>
+    <string name="votes_live_vote">Live vote</string>
+    <string name="votes_closed_vote">Closed vote</string>
+    <string name="votes_loading">Loading votes…</string>
+    <string name="votes_empty_title">No votes yet</string>
+    <string name="votes_empty_description">Start a vote to decide together with your trip members.</string>
+    <string name="votes_load_error">Unable to load votes. Please try again.</string>
+    <string name="votes_sync_error">Unable to update votes. Showing the last available votes.</string>
 </resources>
