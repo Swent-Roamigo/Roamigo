@@ -461,6 +461,101 @@ class OnlineDestinationRepositoryTest {
     assertNull(photo)
   }
 
+  @Test
+  fun commonsMissingMetadataFallsBackToEligibleOpenverseImage() = runTest {
+    val commonsResponses =
+        listOf(
+            "{}",
+            """{"query":{"pages":{}}}""",
+            """{"query":{"pages":{"1":{}}}}""",
+            """{"query":{"pages":{"1":{"imageinfo":[{}]}}}}""",
+            """{"query":{"pages":{"1":{"imageinfo":[{"extmetadata":{}}]}}}}""",
+        )
+
+    commonsResponses.forEach { commonsResponse ->
+      val client = jsonClient { request ->
+        when (request.url.host) {
+          "query.wikidata.org" ->
+              """{"results":{"bindings":[{"image":{"value":"https://commons.wikimedia.org/wiki/Special:FilePath/City.jpg"}}]}}"""
+          "commons.wikimedia.org" -> commonsResponse
+          else ->
+              """{"results":[{"url":"https://img.test/fallback.jpg","foreign_landing_url":"https://openverse.test/photo","creator":"Photographer","license":"by","license_url":"https://creativecommons.org/licenses/by/4.0/"}]}"""
+        }
+      }
+
+      val photo =
+          OnlineDestinationRepository("test-user", client)
+              .findPhoto(destinationFixture("geonames:1", "City", "Country", "CC", 1))
+
+      assertEquals("https://img.test/fallback.jpg", photo?.imageUrl)
+    }
+  }
+
+  @Test
+  fun commonsRejectsMissingImageLinksAndUsesAttributionBeforeCredit() = runTest {
+    val incompleteResponses =
+        listOf(
+            """{"query":{"pages":{"1":{"imageinfo":[{"extmetadata":{"LicenseShortName":{"value":"CC0"}}}]}}}}""",
+            """{"query":{"pages":{"1":{"imageinfo":[{"url":"https://img.test/city.jpg","extmetadata":{"LicenseShortName":{"value":"CC0"}}}]}}}}""",
+        )
+    incompleteResponses.forEach { commonsResponse ->
+      val client = jsonClient { request ->
+        if (request.url.host == "query.wikidata.org") wikidataImageResponse()
+        else if (request.url.host == "commons.wikimedia.org") commonsResponse
+        else """{"results":[]}"""
+      }
+      assertNull(
+          OnlineDestinationRepository("test-user", client)
+              .findPhoto(destinationFixture("geonames:1", "City", "Country", "CC", 1))
+      )
+    }
+
+    val client = jsonClient { request ->
+      when (request.url.host) {
+        "query.wikidata.org" -> wikidataImageResponse()
+        "commons.wikimedia.org" ->
+            """{"query":{"pages":{"1":{"imageinfo":[{"thumburl":"https://img.test/city.jpg","descriptionurl":"https://commons.test/file","extmetadata":{"LicenseShortName":{"value":"CC0"},"Attribution":{"value":"Preferred"},"Credit":{"value":"Fallback"}}}]}}}}"""
+        else -> error("Unexpected API request")
+      }
+    }
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "City", "Country", "CC", 1))
+    assertEquals("Preferred", photo?.credit)
+  }
+
+  @Test
+  fun openverseSkipsMalformedAndUnlicensedRowsThenUsesImageAndSourceFallbacks() = runTest {
+    val client = jsonClient { request ->
+      if (request.url.host == "query.wikidata.org") {
+        """{"results":{"bindings":[]}}"""
+      } else {
+        """{"results":[null,{"url":"https://img.test/rejected.jpg","license":"copyright"},{"thumbnail":"https://img.test/thumb.jpg","foreign_landing_url":"https://openverse.test/photo","license":"cc0","license_url":"https://creativecommons.org/publicdomain/zero/1.0/"},{"url":"https://img.test/usable.jpg","license":"pdm","license_url":"https://creativecommons.org/publicdomain/mark/1.0/"}]}"""
+      }
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "City", "Country", "CC", 1))
+
+    assertEquals("https://img.test/thumb.jpg", photo?.imageUrl)
+    assertEquals("https://openverse.test/photo", photo?.sourceUrl)
+    assertEquals("CC0", photo?.license)
+
+    val sourceFallbackClient = jsonClient { request ->
+      if (request.url.host == "query.wikidata.org") """{"results":{"bindings":[]}}"""
+      else
+          """{"results":[{"url":"https://img.test/direct.jpg","license":"pdm","license_url":"https://creativecommons.org/publicdomain/mark/1.0/"}]}"""
+    }
+    val sourceFallback =
+        OnlineDestinationRepository("test-user", sourceFallbackClient)
+            .findPhoto(destinationFixture("geonames:1", "City", "Country", "CC", 1))
+    assertEquals("https://img.test/direct.jpg", sourceFallback?.sourceUrl)
+  }
+
+  private fun wikidataImageResponse() =
+      """{"results":{"bindings":[{"image":{"value":"https://commons.wikimedia.org/wiki/Special:FilePath/City.jpg"}}]}}"""
+
   private fun jsonClient(
       responseCode: (String) -> Int = { 200 },
       body: (okhttp3.Request) -> String,

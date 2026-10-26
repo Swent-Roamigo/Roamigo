@@ -200,6 +200,33 @@ class DestinationSearchViewModelTest {
   }
 
   @Test
+  fun invalidDestinationsAreIgnoredAndShortQueryRetryDoesNotSearch() = runTest {
+    Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+    try {
+      val repository = FakeDestinationRepository()
+      val viewModel =
+          CreateTripViewModel(
+              destinationRepository = repository,
+              requestDispatcher = StandardTestDispatcher(testScheduler),
+          )
+      val valid = destination("valid")
+
+      viewModel.toggleDestination(valid.copy(name = "  "))
+      viewModel.toggleDestination(valid.copy(latitude = Double.NaN))
+      viewModel.toggleDestination(valid.copy(longitude = Double.POSITIVE_INFINITY))
+      viewModel.updateDestinationQuery(" x ")
+      viewModel.retryDestinationSearch()
+      advanceUntilIdle()
+
+      assertTrue(viewModel.uiState.value.selectedDestinations.isEmpty())
+      assertTrue(repository.searchQueries.isEmpty())
+      assertEquals(DestinationSearchStatus.INITIAL, viewModel.uiState.value.destinationSearchStatus)
+    } finally {
+      Dispatchers.resetMain()
+    }
+  }
+
+  @Test
   fun searchResultsPreserveCityMetadata() = runTest {
     Dispatchers.setMain(StandardTestDispatcher(testScheduler))
     try {

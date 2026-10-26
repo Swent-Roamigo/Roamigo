@@ -168,6 +168,35 @@ class DestinationScreenTest {
   }
 
   @Test
+  fun publicDomainPhotoCreditsUseFallbackCreatorAndHideDuplicateCredit() {
+    val city = destination("lisbon-pt", "Lisbon", "Portugal", "PT", 2267057)
+    val photo =
+        DestinationPhoto(
+            imageUrl =
+                "android.resource://com.swent.roamigo/${com.swent.roamigo.R.drawable.destination_placeholder}",
+            creator = null,
+            sourceUrl = "https://commons.wikimedia.org/wiki/File:Lisbon.jpg",
+            license = "Public domain",
+            licenseUrl = "https://creativecommons.org/publicdomain/mark/1.0/",
+            credit = "Public domain",
+        )
+    val repository = FakeDestinationRepository(search = { listOf(city) }, photo = { photo })
+    val viewModel =
+        CreateTripViewModel(destinationRepository = repository, requestDispatcher = Dispatchers.IO)
+    show(viewModel)
+
+    viewModel.updateDestinationQuery("Lisbon")
+    composeRule.waitUntil(5_000) {
+      viewModel.uiState.value.photosByDestinationId.containsKey(city.stableId)
+    }
+    composeRule.onNodeWithTag(DestinationCardTestTags.photoCreditsFor(city.stableId)).performClick()
+
+    composeRule.onNodeWithText("Public domain").assertIsDisplayed()
+    composeRule.onNodeWithText("Photo: Public domain").assertIsDisplayed()
+    composeRule.onNodeWithText("Photo: ").assertDoesNotExist()
+  }
+
+  @Test
   fun noResultsAndRemovalKeepOtherSelectedDestinationInOrder() {
     val paris = destination("paris-fr", "Paris", "France", "FR", 2988507)
     val lisbon = destination("lisbon-pt", "Lisbon", "Portugal", "PT", 2267057)
