@@ -30,6 +30,10 @@ fun VoteOptionRow(
     voteCount: Int,
     onClick: () -> Unit,
 ) {
+  val contentColor =
+      if (selected) MaterialTheme.colorScheme.onSecondaryContainer
+      else MaterialTheme.colorScheme.onSurfaceVariant
+
   Row(
       Modifier.fillMaxWidth()
           .heightIn(min = 56.dp)
@@ -53,18 +57,14 @@ fun VoteOptionRow(
         name,
         modifier = Modifier.weight(1f),
         style = MaterialTheme.typography.bodyLarge,
-        color =
-            if (selected) MaterialTheme.colorScheme.onSecondaryContainer
-            else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = contentColor,
     )
     Spacer(Modifier.width(Spacing.small))
     Text(
         pluralStringResource(R.plurals.vote_count, voteCount, voteCount),
         style = MaterialTheme.typography.bodySmall,
         fontWeight = FontWeight.SemiBold,
-        color =
-            if (selected) MaterialTheme.colorScheme.onSecondaryContainer
-            else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = contentColor,
     )
   }
 }

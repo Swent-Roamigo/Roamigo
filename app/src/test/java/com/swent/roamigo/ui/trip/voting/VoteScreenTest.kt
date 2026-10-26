@@ -259,6 +259,14 @@ class VoteScreenTest {
   }
 
   @Test
+  fun optionWithMissingCountDisplaysZeroVotes() {
+    content(loaded().copy(voteCounts = mapOf("a" to 2)))
+
+    assertCount("Market", "2 votes")
+    assertCount("Restaurant", "0 votes")
+  }
+
+  @Test
   fun resultStateUpdateChangesCountsWithoutDiscardingLocalSelection() {
     var state by
         mutableStateOf(

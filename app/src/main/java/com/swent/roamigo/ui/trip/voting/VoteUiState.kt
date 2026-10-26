@@ -14,8 +14,17 @@ sealed interface VoteUiState {
   }
 
   /**
-   * [persistedOptionId] is the latest choice from the repository stream. [selectedOptionId] is the
-   * local choice displayed by the screen and may differ while editing or awaiting a write's echo.
+   * A loaded vote with the current ballot selection, submission, and live results.
+   *
+   * @property vote The vote currently displayed and interacted with.
+   * @property persistedOptionId The latest choice from the repository stream, or null if no ballot
+   *   has been persisted.
+   * @property selectedOptionId The local choice displayed by the screen, or null if none is
+   *   selected. May differ from [persistedOptionId] while editing or awaiting a write's echo.
+   * @property submissionState The current ballot submission state.
+   * @property syncState The state of realtime ballot synchronization after initial readiness.
+   * @property voteCounts Map from option ID to the current count derived from ballots. Options
+   *   normally have an entry initialized to 0.
    */
   data class Ready(
       val vote: Vote,
