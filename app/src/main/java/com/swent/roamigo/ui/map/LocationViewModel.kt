@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.swent.roamigo.model.connectivity.ConnectivityRepository
 import com.swent.roamigo.model.location.DeviceLocation
 import com.swent.roamigo.model.location.LocationRepository
 import com.swent.roamigo.model.location.LocationSharingException
@@ -32,11 +33,14 @@ import kotlinx.coroutines.launch
  *
  * Sharing itself is handled by [LocationRepository]: this ViewModel only asks it to start or stop,
  * mirrors whether sharing is on, and refreshes the user's own position while it is. Other members'
- * locations are shown whatever the permission state, and age into stale, then hidden.
+ * locations are shown whatever the permission state, and age into stale, then hidden. While the
+ * device is offline, the last shown locations stay on the map, marked stale, and everything resumes
+ * on reconnection.
  *
  * @property tripId identifier of the trip whose locations are managed.
  * @property currentUserId identifier of the signed-in user, used for their own position.
  * @property locationRepository the repository providing device and member locations.
+ * @property connectivityRepository tells whether the device is online.
  * @property clock returns the current time, in milliseconds since the epoch. Used to age member
  *   locations and to date a position the device did not timestamp.
  * @property cleanupScope outlives the ViewModel, so that sharing can still be stopped once it is
@@ -46,6 +50,7 @@ class LocationViewModel(
     private val tripId: String,
     private val currentUserId: String,
     private val locationRepository: LocationRepository,
+    private val connectivityRepository: ConnectivityRepository,
     private val clock: () -> Long = System::currentTimeMillis,
     private val cleanupScope: CoroutineScope =
         CoroutineScope(SupervisorJob() + Dispatchers.Default),
@@ -84,21 +89,21 @@ class LocationViewModel(
       }
     }
     viewModelScope.launch {
-      locationRepository
-          .observeMemberLocations(tripId)
-          .catch { exception ->
-            if (exception !is LocationSharingException) throw exception
-            _uiState.update { state -> state.copy(errorMessage = exception.message) }
+      // Sharing is left to the repository, which keeps retrying its updates while offline.
+      connectivityRepository.isOnline.distinctUntilChanged().collectLatest { online ->
+        _uiState.update { state -> state.copy(isOffline = !online) }
+        if (online) {
+          // Observed again on each reconnection, so that the locations resume even if the
+          // previous observation failed.
+          observeMemberLocations()
+        } else {
+          // Nothing tells whether the members moved or stopped sharing, so the shown locations are
+          // kept as they are, but marked stale.
+          _uiState.update { state ->
+            state.copy(staleMemberIds = state.memberLocations.mapTo(mutableSetOf()) { it.userId })
           }
-          .collectLatest { locations ->
-            // Locations age without new emissions, so they are re-evaluated until none is visible.
-            // A new emission cancels this loop and starts over with the fresh list.
-            while (true) {
-              val visibleLocations = showMemberLocations(locations)
-              if (visibleLocations.isEmpty()) break
-              delay(STALENESS_CHECK_INTERVAL)
-            }
-          }
+        }
+      }
     }
   }
 
@@ -168,6 +173,24 @@ class LocationViewModel(
         }
       }
     }
+  }
+
+  private suspend fun observeMemberLocations() {
+    locationRepository
+        .observeMemberLocations(tripId)
+        .catch { exception ->
+          if (exception !is LocationSharingException) throw exception
+          _uiState.update { state -> state.copy(errorMessage = exception.message) }
+        }
+        .collectLatest { locations ->
+          // Locations age without new emissions, so they are re-evaluated until none is visible.
+          // A new emission cancels this loop and starts over with the fresh list.
+          while (true) {
+            val visibleLocations = showMemberLocations(locations)
+            if (visibleLocations.isEmpty()) break
+            delay(STALENESS_CHECK_INTERVAL)
+          }
+        }
   }
 
   /**
@@ -245,6 +268,7 @@ class LocationViewModel(
      * @param tripId identifier of the trip whose locations are managed.
      * @param currentUserId identifier of the signed-in user.
      * @param locationRepository the repository providing device and member locations.
+     * @param connectivityRepository tells whether the device is online.
      * @param clock returns the current time, in milliseconds since the epoch.
      * @return a factory capable of creating [LocationViewModel] instances.
      */
@@ -252,6 +276,7 @@ class LocationViewModel(
         tripId: String,
         currentUserId: String,
         locationRepository: LocationRepository,
+        connectivityRepository: ConnectivityRepository,
         clock: () -> Long = System::currentTimeMillis,
     ): ViewModelProvider.Factory =
         object : ViewModelProvider.Factory {
@@ -263,6 +288,7 @@ class LocationViewModel(
                   tripId = tripId,
                   currentUserId = currentUserId,
                   locationRepository = locationRepository,
+                  connectivityRepository = connectivityRepository,
                   clock = clock,
               )
                   as T
