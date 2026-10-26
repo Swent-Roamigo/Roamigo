@@ -41,14 +41,12 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.swent.roamigo.R
 import com.swent.roamigo.model.destination.Destination
 import com.swent.roamigo.model.destination.DestinationPhoto
-import com.swent.roamigo.ui.theme.RoamigoTheme
 
 internal object DestinationCardTestTags {
   const val PREFIX = "destination_card_"
@@ -193,28 +191,3 @@ fun DestinationCard(
 
 private const val CARD_ASPECT_RATIO = 169f / 128f
 private const val PHOTO_OVERLAY_ALPHA = 0.28f
-
-@Preview(showBackground = true, widthDp = 169)
-@Composable
-private fun DestinationCardPreview() {
-  RoamigoTheme {
-    DestinationCard(
-        destination =
-            Destination(
-                "geonames:1",
-                com.swent.roamigo.model.destination.DestinationKind.CITY,
-                "Lisbon",
-                "Portugal",
-                "PT",
-                0.0,
-                0.0,
-                1,
-                null,
-            ),
-        selected = true,
-        photo = null,
-        onRequestPhoto = {},
-        onClick = {},
-    )
-  }
-}

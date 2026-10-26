@@ -13,28 +13,22 @@ import okhttp3.OkHttpClient
 class RoamigoApplication : Application(), ImageLoaderFactory {
   override fun newImageLoader(): ImageLoader =
       ImageLoader.Builder(this)
-          .okHttpClient {
-            OkHttpClient.Builder()
-                .addInterceptor { chain ->
-                  chain.proceed(
-                      chain
-                          .request()
-                          .newBuilder()
-                          .header(
-                              "User-Agent",
-                              DESTINATION_USER_AGENT,
-                          )
-                          .build()
-                  )
-                }
-                .build()
-          }
+          .okHttpClient(::destinationImageHttpClient)
           .logger(if (BuildConfig.DEBUG) DebugLogger() else null)
           .diskCache {
             DiskCache.Builder()
                 .directory(cacheDir.resolve(DESTINATION_IMAGE_CACHE_DIRECTORY))
                 .maxSizeBytes(MAX_IMAGE_CACHE_BYTES)
                 .build()
+          }
+          .build()
+
+  internal fun destinationImageHttpClient(): OkHttpClient =
+      OkHttpClient.Builder()
+          .addInterceptor { chain ->
+            chain.proceed(
+                chain.request().newBuilder().header("User-Agent", DESTINATION_USER_AGENT).build()
+            )
           }
           .build()
 

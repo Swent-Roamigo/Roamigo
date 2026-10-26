@@ -3,6 +3,11 @@
 package com.swent.roamigo.model.destination
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import java.io.IOException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 import okhttp3.HttpUrl
 import okhttp3.MediaType.Companion.toMediaType
@@ -13,6 +18,7 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -243,6 +249,30 @@ class OnlineDestinationRepositoryTest {
   }
 
   @Test
+  fun citySearchReturnsEmptyForResponseWithoutResults() = runTest {
+    val result =
+        OnlineDestinationRepository("test-user", jsonClient { "{}" }).searchDestinations("Paris")
+
+    assertTrue(result.isEmpty())
+  }
+
+  @Test
+  fun citySearchReportsGeoNamesProviderErrors() = runTest {
+    val client = jsonClient { """{"status":{"message":"daily limit exceeded"}}""" }
+
+    val error =
+        try {
+          OnlineDestinationRepository("test-user", client).searchDestinations("Paris")
+          fail("Expected GeoNames provider error")
+          return@runTest
+        } catch (expected: IOException) {
+          expected
+        }
+
+    assertEquals("daily limit exceeded", error.message)
+  }
+
+  @Test
   fun photoLookupFallsBackToOpenverseWhenCommonsLicenseIsUnsupported() = runTest {
     val client = jsonClient { request ->
       when (request.url.host) {
@@ -262,6 +292,124 @@ class OnlineDestinationRepositoryTest {
 
     assertEquals("https://img.test/openverse.jpg", photo?.imageUrl)
     assertEquals("CC0", photo?.license)
+  }
+
+  @Test
+  fun commonsRequiresAttributionForCreativeCommonsByPhotos() = runTest {
+    val client = jsonClient { request ->
+      when (request.url.host) {
+        "query.wikidata.org" ->
+            """{"results":{"bindings":[{"image":{"value":"https://commons.wikimedia.org/wiki/Special:FilePath/City.jpg"}}]}}"""
+        "commons.wikimedia.org" ->
+            """{"query":{"pages":{"1":{"imageinfo":[{"url":"https://img.test/uncredited.jpg","descriptionurl":"https://commons.wikimedia.org/wiki/File:City.jpg","extmetadata":{"LicenseShortName":{"value":"CC BY 4.0"}}}]}}}}"""
+        "api.openverse.org" ->
+            """{"results":[{"url":"https://img.test/credited.jpg","foreign_landing_url":"https://openverse.test/photo","creator":"Photographer","license":"by","license_url":"https://creativecommons.org/licenses/by/4.0/"}]}"""
+        else -> error("Unexpected API request")
+      }
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "City", "Country", "CC", 1))
+
+    assertEquals("https://img.test/credited.jpg", photo?.imageUrl)
+    assertEquals("Photographer", photo?.creator)
+  }
+
+  @Test
+  fun openverseSkipsUncreditedByImagesAndUsesEligiblePublicDomainPhoto() = runTest {
+    val client = jsonClient { request ->
+      if (request.url.host == "query.wikidata.org") {
+        """{"results":{"bindings":[]}}"""
+      } else {
+        """{"results":[
+          {"url":"https://img.test/uncredited.jpg","foreign_landing_url":"https://openverse.test/uncredited","license":"by","license_url":"https://creativecommons.org/licenses/by/4.0/"},
+          {"url":"https://img.test/public.jpg","foreign_landing_url":"https://openverse.test/public","license":"pdm","license_url":"https://creativecommons.org/publicdomain/mark/1.0/"}
+        ]}"""
+      }
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "City", "Country", "CC", 1))
+
+    assertEquals("https://img.test/public.jpg", photo?.imageUrl)
+    assertEquals("Public domain", photo?.license)
+    assertNull(photo?.creator)
+  }
+
+  @Test
+  fun commonsHttpFailureFallsBackToOpenverse() = runTest {
+    val client =
+        jsonClient(
+            responseCode = { host -> if (host == "query.wikidata.org") 503 else 200 },
+            body = { request ->
+              if (request.url.host == "query.wikidata.org") "{}"
+              else
+                  """{"results":[{"url":"https://img.test/fallback.jpg","foreign_landing_url":"https://openverse.test/photo","license":"cc0","license_url":"https://creativecommons.org/publicdomain/zero/1.0/"}]}"""
+            },
+        )
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "City", "Country", "CC", 1))
+
+    assertEquals("https://img.test/fallback.jpg", photo?.imageUrl)
+  }
+
+  @Test
+  fun photoLookupReturnsNullWhenNetworkConnectionsFail() = runTest {
+    val hosts = mutableListOf<String>()
+    val client =
+        OkHttpClient.Builder()
+            .addInterceptor { chain ->
+              hosts += chain.request().url.host
+              throw IOException("offline")
+            }
+            .build()
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "City", "Country", "CC", 1))
+
+    assertNull(photo)
+    assertEquals(listOf("query.wikidata.org", "api.openverse.org"), hosts)
+  }
+
+  @Test
+  fun cancellingPhotoLookupCancelsThePendingRequest() = runTest {
+    val requestStarted = CountDownLatch(1)
+    val releaseResponse = CountDownLatch(1)
+    val client =
+        OkHttpClient.Builder()
+            .addInterceptor { chain ->
+              requestStarted.countDown()
+              check(releaseResponse.await(5, TimeUnit.SECONDS))
+              Response.Builder()
+                  .request(chain.request())
+                  .protocol(Protocol.HTTP_1_1)
+                  .code(200)
+                  .message("OK")
+                  .body("{}".toResponseBody("application/json".toMediaType()))
+                  .build()
+            }
+            .build()
+    val lookup =
+        async(start = CoroutineStart.UNDISPATCHED) {
+          OnlineDestinationRepository("test-user", client)
+              .findPhoto(destinationFixture("geonames:1", "City", "Country", "CC", 1))
+        }
+
+    try {
+      assertTrue(requestStarted.await(5, TimeUnit.SECONDS))
+    } finally {
+      lookup.cancel()
+      releaseResponse.countDown()
+      client.dispatcher.executorService.shutdown()
+    }
+    lookup.join()
+
+    assertTrue(lookup.isCancelled)
   }
 
   @Test
@@ -313,14 +461,18 @@ class OnlineDestinationRepositoryTest {
     assertNull(photo)
   }
 
-  private fun jsonClient(body: (okhttp3.Request) -> String): OkHttpClient =
+  private fun jsonClient(
+      responseCode: (String) -> Int = { 200 },
+      body: (okhttp3.Request) -> String,
+  ): OkHttpClient =
       OkHttpClient.Builder()
           .addInterceptor { chain ->
-            val json = body(chain.request())
+            val request = chain.request()
+            val json = body(request)
             Response.Builder()
-                .request(chain.request())
+                .request(request)
                 .protocol(Protocol.HTTP_1_1)
-                .code(200)
+                .code(responseCode(request.url.host))
                 .message("OK")
                 .body(json.toResponseBody("application/json".toMediaType()))
                 .build()

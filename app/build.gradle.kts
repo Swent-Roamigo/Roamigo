@@ -133,7 +133,7 @@ sonar {
         "${project.layout.buildDirectory.get()}/reports/jacoco/jacocoTestReport/jacocoTestReport.xml",
     )
 
-    // TEMP FIX for code coverage
+    // Previews are design-time samples, not production behavior covered by app tests.
     property(
         "sonar.coverage.exclusions",
         listOf(
@@ -147,6 +147,8 @@ sonar {
                 "**/com/swent/roamigo/model/trip/voting/VoteOption.kt",
                 "**/com/swent/roamigo/model/users/User.kt",
                 "**/com/swent/roamigo/ui/theme/Theme.kt",
+                "**/com/swent/roamigo/ui/trip/creation/DestinationScreenPreview.kt",
+                "**/com/swent/roamigo/ui/trip/creation/components/DestinationComponentPreviews.kt",
             )
             .joinToString(","),
     )

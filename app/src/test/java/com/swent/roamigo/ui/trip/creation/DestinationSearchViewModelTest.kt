@@ -2,6 +2,7 @@
 // Co-author : ChatGPT-Codex
 package com.swent.roamigo.ui.trip.creation
 
+import androidx.lifecycle.ViewModelStore
 import com.swent.roamigo.R
 import com.swent.roamigo.model.destination.Destination
 import com.swent.roamigo.model.destination.DestinationConfigurationException
@@ -11,6 +12,7 @@ import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -220,6 +222,77 @@ class DestinationSearchViewModelTest {
       assertEquals(2657896, viewModel.uiState.value.destinations[0].geonameId)
       assertEquals("Q72", viewModel.uiState.value.destinations[0].wikidataId)
     } finally {
+      Dispatchers.resetMain()
+    }
+  }
+
+  @Test
+  fun photoProviderFailureLeavesSearchResultsUsable() = runTest {
+    Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+    try {
+      val city = destination("geonames:2988507", "Paris", "France", "FR", 2988507)
+      val repository =
+          FakeDestinationRepository(
+              search = { listOf(city) },
+              photo = { throw IOException("offline") },
+          )
+      val viewModel =
+          CreateTripViewModel(
+              destinationRepository = repository,
+              requestDispatcher = StandardTestDispatcher(testScheduler),
+          )
+
+      viewModel.updateDestinationQuery("Paris")
+      advanceUntilIdle()
+      viewModel.requestDestinationPhoto(city)
+      advanceUntilIdle()
+
+      assertEquals(DestinationSearchStatus.RESULTS, viewModel.uiState.value.destinationSearchStatus)
+      assertEquals(listOf(city), viewModel.uiState.value.destinations)
+      assertTrue(viewModel.uiState.value.photosByDestinationId.isEmpty())
+      assertEquals(listOf(city), repository.photoRequests)
+    } finally {
+      Dispatchers.resetMain()
+    }
+  }
+
+  @Test
+  fun clearingViewModelCancelsAnInFlightPhotoLookup() = runTest {
+    Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+    val photoLookupStarted = CompletableDeferred<Unit>()
+    val photoLookupCancelled = CompletableDeferred<Unit>()
+    val repository =
+        FakeDestinationRepository(
+            photo = {
+              photoLookupStarted.complete(Unit)
+              try {
+                awaitCancellation()
+              } finally {
+                photoLookupCancelled.complete(Unit)
+              }
+            },
+        )
+    val viewModel =
+        CreateTripViewModel(
+            destinationRepository = repository,
+            requestDispatcher = StandardTestDispatcher(testScheduler),
+        )
+    val store = ViewModelStore()
+
+    try {
+      val city = destination("geonames:2988507", "Paris", "France", "FR", 2988507)
+      viewModel.requestDestinationPhoto(city)
+      runCurrent()
+      assertTrue(photoLookupStarted.isCompleted)
+
+      store.put("create-trip", viewModel)
+      store.clear()
+      runCurrent()
+
+      assertTrue(photoLookupCancelled.isCompleted)
+      assertTrue(viewModel.uiState.value.photosByDestinationId.isEmpty())
+    } finally {
+      store.clear()
       Dispatchers.resetMain()
     }
   }

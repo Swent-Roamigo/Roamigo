@@ -21,11 +21,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.destination.Destination
-import com.swent.roamigo.ui.theme.RoamigoTheme
 
 internal object SelectedDestinationsTestTags {
   const val REMOVE_PREFIX = "selected_destination_remove_"
@@ -83,41 +81,6 @@ private fun DestinationChip(destination: Destination, onRemove: () -> Unit) {
                 },
         color = MaterialTheme.colorScheme.onPrimary,
         style = MaterialTheme.typography.labelMedium,
-    )
-  }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun SelectedDestinationsPreview() {
-  RoamigoTheme {
-    SelectedDestinations(
-        destinations =
-            listOf(
-                Destination(
-                    "geonames:1",
-                    com.swent.roamigo.model.destination.DestinationKind.CITY,
-                    "Lisbon",
-                    "Portugal",
-                    "PT",
-                    0.0,
-                    0.0,
-                    1,
-                    null,
-                ),
-                Destination(
-                    "geonames:2",
-                    com.swent.roamigo.model.destination.DestinationKind.CITY,
-                    "Porto",
-                    "Portugal",
-                    "PT",
-                    0.0,
-                    0.0,
-                    2,
-                    null,
-                ),
-            ),
-        onRemove = {},
     )
   }
 }
