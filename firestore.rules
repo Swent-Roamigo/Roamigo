@@ -80,6 +80,65 @@ service cloud.firestore {
           && trip.createdAt is timestamp;
     }
 
+    function isValidVoteOption(option) {
+      return option is map
+          && option.keys().hasAll(['uid', 'name'])
+          && option.keys().hasOnly(['uid', 'name'])
+          && option.uid is string
+          && option.uid.trim().size() > 0
+          && option.name is string
+          && option.name.trim().size() > 0;
+    }
+
+    // Mirrors MIN_VOTE_OPTIONS / MAX_VOTE_OPTIONS in model/trip/voting/VoteOption.kt.
+    // Rules have no loops; short-circuit guards keep optional indices in bounds.
+    function hasValidVoteOptions(options) {
+      return options is list
+          && options.size() >= 2
+          && options.size() <= 10
+          && isValidVoteOption(options[0])
+          && isValidVoteOption(options[1])
+          && (options.size() <= 2 || isValidVoteOption(options[2]))
+          && (options.size() <= 3 || isValidVoteOption(options[3]))
+          && (options.size() <= 4 || isValidVoteOption(options[4]))
+          && (options.size() <= 5 || isValidVoteOption(options[5]))
+          && (options.size() <= 6 || isValidVoteOption(options[6]))
+          && (options.size() <= 7 || isValidVoteOption(options[7]))
+          && (options.size() <= 8 || isValidVoteOption(options[8]))
+          && (options.size() <= 9 || isValidVoteOption(options[9]));
+    }
+
+    function isValidNewVote(vote, tripId, voteId) {
+      return vote.keys().hasAll([
+            'uid', 'tripId', 'question', 'options', 'createdByUserId', 'status',
+            'creationTime', 'closingTime', 'winningOptionId'
+          ])
+          && vote.keys().hasOnly([
+            'uid', 'tripId', 'question', 'options', 'createdByUserId', 'status',
+            'creationTime', 'closingTime', 'winningOptionId'
+          ])
+          && vote.uid == voteId
+          && vote.tripId == tripId
+          && vote.createdByUserId == request.auth.uid
+          && vote.question is string
+          && vote.question.trim().size() > 0
+          && hasValidVoteOptions(vote.options)
+          && vote.status == 'OPEN'
+          && vote.creationTime is timestamp
+          // Current creation has no closing schedule or persisted result.
+          && vote.closingTime == null
+          && vote.winningOptionId == null;
+    }
+
+    function isValidBallot(ballot) {
+      return ballot.keys().hasAll(['userId', 'optionId', 'updatedAt'])
+          && ballot.keys().hasOnly(['userId', 'optionId', 'updatedAt'])
+          && ballot.userId == request.auth.uid
+          && ballot.optionId is string
+          && ballot.optionId.trim().size() > 0
+          && ballot.updatedAt is timestamp;
+    }
+
     match /trips/{tripId} {
       allow create: if signedIn() && isValidNewTrip(request.resource.data);
       // A missing trip is readable so that creation can first check whether it already exists.
@@ -106,9 +165,26 @@ service cloud.firestore {
         allow read: if isMember(tripId);
         allow write: if false;
       }
+
+      match /votes/{voteId} {
+        // Includes missing-document reads used by the vote creation transaction.
+        allow read: if isMember(tripId);
+        allow create: if isMember(tripId)
+            && isValidNewVote(request.resource.data, tripId, voteId);
+        allow update, delete: if false;
+
+        match /ballots/{userId} {
+          allow read: if isMember(tripId);
+          allow create, update: if isMember(tripId)
+              && userId == request.auth.uid
+              && exists(/databases/$(database)/documents/trips/$(tripId)/votes/$(voteId))
+              && isValidBallot(request.resource.data);
+          allow delete: if false;
+        }
+      }
     }
 
-    // Everything else, including votes and ballots, stays closed.
+    // Everything else stays closed.
     match /{document=**} {
       allow read, write: if false;
     }

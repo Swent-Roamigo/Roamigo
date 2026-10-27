@@ -636,4 +636,6 @@ internal class InteractionVoteRepository : VoteRepository {
   override suspend fun createVote(vote: Vote) = error("Not used")
 
   override suspend fun getVotes(tripId: String): List<Vote> = error("Not used")
+
+  override fun observeVotes(tripId: String): Flow<List<Vote>> = error("Not used")
 }

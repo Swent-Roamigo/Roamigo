@@ -112,11 +112,11 @@
     <string name="vote_option">Option %1$d</string>
     <string name="vote_remove_option">Remove option %1$d</string>
     <string name="vote_add_option">+ Add option</string>
-    <string name="vote_options_hint">Add at least two options. Fill in or remove any empty options.</string>
+    <string name="vote_options_hint">Add 2–10 options. Fill in or remove any empty options.</string>
     <string name="vote_start">Start vote</string>
     <string name="vote_creating">Creating vote…</string>
     <string name="vote_cancel">Cancel</string>
-    <string name="vote_invalid">Enter a question and at least two non-empty options.</string>
+    <string name="vote_invalid">Enter a question and 2–10 non-empty options.</string>
     <string name="vote_submission_error">Unable to create the vote. Please try again.</string>
 
     <!-- Trip History -->
@@ -213,4 +213,21 @@
         <item quantity="one">%1$d friend · heatmaps visible to friends only</item>
         <item quantity="other">%1$d friends · heatmaps visible to friends only</item>
     </plurals>
+    <!-- Trip Votes tab -->
+    <string name="votes_title">Votes</string>
+    <string name="trip_tab_overview">Overview</string>
+    <string name="trip_tab_itinerary">Itinerary</string>
+    <string name="votes_trip_summary">%1$s · %2$s</string>
+    <plurals name="votes_open_count">
+        <item quantity="one">%d open</item>
+        <item quantity="other">%d open</item>
+    </plurals>
+    <string name="votes_decided">Decided</string>
+    <string name="votes_live_vote">Live vote</string>
+    <string name="votes_closed_vote">Closed vote</string>
+    <string name="votes_loading">Loading votes…</string>
+    <string name="votes_empty_title">No votes yet</string>
+    <string name="votes_empty_description">Start a vote to decide together with your trip members.</string>
+    <string name="votes_load_error">Unable to load votes. Please try again.</string>
+    <string name="votes_sync_error">Unable to update votes. Showing the last available votes.</string>
 </resources>
