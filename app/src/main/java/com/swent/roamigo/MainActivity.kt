@@ -41,9 +41,8 @@ class MainActivity : ComponentActivity() {
               tripRepository = tripRepository,
               authRepository = authRepository,
               voteRepository = voteRepository,
-              destinationRepository = remember { OnlineDestinationRepository() }
+              destinationRepository = remember { OnlineDestinationRepository() },
           )
-
         }
       }
     }
