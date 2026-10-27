@@ -103,7 +103,11 @@ fun VotesScreenContent(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
-      TripTabs(selectedTab = TripTab.VOTES)
+      TripTabs(
+          selectedTab = TripTab.VOTES,
+          onOverviewClick = rememberNotImplementedAction(),
+          onItineraryClick = rememberNotImplementedAction(),
+      )
       Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
         when (state) {
           VotesUiState.Loading ->
