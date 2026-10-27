@@ -1,6 +1,8 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.model.location
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emitAll
@@ -43,10 +45,30 @@ class FakeLocationRepository(
     return currentLocation
   }
 
+  /**
+   * Awaited by [startSharing] before publishing, when set, like a start waiting for its first
+   * update.
+   */
+  var startSharingGate: CompletableDeferred<Unit>? = null
+
+  /** Number of [startSharing] calls cancelled while awaiting [startSharingGate]. */
+  var cancelledStartSharingCalls = 0
+    private set
+
+  /** Trips whose location is currently published. */
+  val sharedTripIds: Set<String>
+    get() = sharingTripIds.value
+
   override suspend fun startSharing(tripId: String) {
     startSharingCalls += tripId
     startSharingError?.let { throw it }
     check(hasPermission) { "Location permission is missing." }
+    try {
+      startSharingGate?.await()
+    } catch (exception: CancellationException) {
+      cancelledStartSharingCalls++
+      throw exception
+    }
     sharingTripIds.value += tripId
   }
 

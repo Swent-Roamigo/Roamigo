@@ -14,6 +14,7 @@ import com.swent.roamigo.ui.map.LocationPermissionState.Granted
 import com.swent.roamigo.ui.map.LocationPermissionState.NotRequested
 import com.swent.roamigo.ui.map.LocationPermissionState.Revoked
 import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -255,6 +256,26 @@ class LocationViewModelTest {
     assertFalse(viewModel.uiState.value.isSharing)
     assertEquals(listOf(TRIP_ID), repository.stopSharingCalls)
     assertEquals(callsWhenStopped, repository.getCurrentLocationCalls)
+  }
+
+  @Test
+  fun stopSharing_beforeFirstPublish_cancelsPendingStartWithoutWaiting() = runLocationTest {
+    repository.currentLocation = LAUSANNE
+    // Never completed, like a start still waiting for its first GPS fix or database update.
+    repository.startSharingGate = CompletableDeferred()
+    val viewModel = createViewModel(hasPermission = true)
+    viewModel.startSharing()
+    runCurrent()
+    assertEquals(listOf(TRIP_ID), repository.startSharingCalls)
+
+    viewModel.stopSharing()
+    runCurrent()
+
+    assertEquals(listOf(TRIP_ID), repository.stopSharingCalls)
+    assertEquals(1, repository.cancelledStartSharingCalls)
+    assertTrue(repository.sharedTripIds.isEmpty())
+    assertFalse(viewModel.uiState.value.isSharing)
+    assertEquals(0, repository.getCurrentLocationCalls)
   }
 
   @Test
