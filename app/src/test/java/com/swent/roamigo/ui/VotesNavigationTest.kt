@@ -18,6 +18,7 @@ import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
+import com.swent.roamigo.model.destination.sampleDestinationRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
@@ -87,6 +88,7 @@ class VotesNavigationTest {
       RoamigoTheme {
         RoamigoApp(
             voteRepository = repository,
+            destinationRepository = sampleDestinationRepository(),
             tripRepository =
                 FakeTripRepository(
                     trips =
