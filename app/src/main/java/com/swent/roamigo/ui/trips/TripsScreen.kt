@@ -276,7 +276,10 @@ fun TripsScreen(
               items = uiState.otherTrips,
               key = { trip -> trip.id },
           ) { trip ->
-            OtherTripCard(trip)
+            OtherTripCard(
+                trip,
+                onClick = { onOpenTrip(trip.id, trip.name) },
+            )
           }
         }
       }
