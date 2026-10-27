@@ -138,4 +138,24 @@ class TripHistoryScreenTest {
     assertEquals(1, mapClicks)
     assertEquals(1, photosClicks)
   }
+
+  @Test
+  fun worldMapButtonRemainsVisibleWithLongHistory() {
+    val manyTrips =
+        (1..30).map { index ->
+          rome.copy(
+              id = "trip-$index",
+              name = "Trip $index",
+          )
+        }
+
+    show(
+        TripHistoryUiState(
+            isLoading = false,
+            trips = manyTrips,
+        )
+    )
+
+    composeRule.onNodeWithTag(C.Tag.trip_history_world_map).assertIsDisplayed()
+  }
 }

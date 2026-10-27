@@ -5,17 +5,20 @@ import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
+import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -140,6 +143,44 @@ class TripHistoryViewModelTest {
         viewModel.uiState.value.errorMessage,
     )
     assertTrue(viewModel.uiState.value.trips.isEmpty())
+  }
+
+  @Test
+  fun newRefreshCancelsPreviousRequest() = runTest {
+    val firstRequestGate = CompletableDeferred<Unit>()
+    var requestCount = 0
+
+    val repository =
+        object : TripRepository by FakeTripRepository() {
+          override suspend fun getTrips(): List<Trip> {
+            requestCount++
+
+            return if (requestCount == 1) {
+              firstRequestGate.await()
+              listOf(trip("old", "2026-10-20T12:00:00Z"))
+            } else {
+              listOf(trip("new", "2026-10-25T12:00:00Z"))
+            }
+          }
+        }
+
+    val viewModel = TripHistoryViewModel(repository, clock)
+
+    // Start the first request, which remains suspended.
+    runCurrent()
+    assertEquals(1, requestCount)
+
+    // A second refresh must cancel the previous one.
+    viewModel.refresh()
+    advanceUntilIdle()
+
+    assertEquals(2, requestCount)
+    assertEquals(
+        listOf("new"),
+        viewModel.uiState.value.trips.map { it.name },
+    )
+    assertEquals(false, viewModel.uiState.value.isLoading)
+    assertNull(viewModel.uiState.value.errorMessage)
   }
 
   private fun trip(

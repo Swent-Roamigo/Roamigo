@@ -40,12 +40,35 @@ fun TripHistoryScreen(
       modifier = Modifier.testTag(C.Tag.trip_history_screen),
       containerColor = MaterialTheme.colorScheme.background,
       bottomBar = {
-        AppBottomBar(
-            onTripsClick = onTripsClick,
-            onMapClick = onMapClick,
-            onPhotosClick = onPhotosClick,
-            tripsSelected = false,
-        )
+        Column {
+          if (!uiState.isLoading && uiState.errorMessage == null && uiState.trips.isNotEmpty()) {
+            OutlinedButton(
+                onClick = onOpenWorldMapClick,
+                modifier =
+                    Modifier.fillMaxWidth()
+                        .padding(
+                            horizontal = Spacing.screenPadding,
+                            vertical = Spacing.large,
+                        )
+                        .testTag(C.Tag.trip_history_world_map)
+                        .markNotImplemented(onOpenWorldMapClick),
+            ) {
+              Icon(
+                  Icons.Outlined.Map,
+                  contentDescription = null,
+              )
+              Spacer(Modifier.width(Spacing.small))
+              Text(stringResource(R.string.trip_history_world_map))
+            }
+          }
+
+          AppBottomBar(
+              onTripsClick = onTripsClick,
+              onMapClick = onMapClick,
+              onPhotosClick = onPhotosClick,
+              tripsSelected = false,
+          )
+        }
       },
   ) { innerPadding ->
     LazyColumn(
@@ -126,19 +149,6 @@ fun TripHistoryScreen(
 
         else -> {
           items(uiState.trips, key = { it.id }) { trip -> TripHistoryCard(trip) }
-          item {
-            OutlinedButton(
-                onClick = onOpenWorldMapClick,
-                modifier =
-                    Modifier.fillMaxWidth()
-                        .testTag(C.Tag.trip_history_world_map)
-                        .markNotImplemented(onOpenWorldMapClick),
-            ) {
-              Icon(Icons.Outlined.Map, contentDescription = null)
-              Spacer(Modifier.width(Spacing.small))
-              Text(stringResource(R.string.trip_history_world_map))
-            }
-          }
         }
       }
     }
