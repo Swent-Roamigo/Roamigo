@@ -19,10 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.google.firebase.Timestamp
 import com.mapbox.geojson.Point
 import com.mapbox.maps.ViewAnnotationAnchor
 import com.mapbox.maps.extension.compose.MapboxMap
@@ -31,14 +29,8 @@ import com.mapbox.maps.viewannotation.annotationAnchor
 import com.mapbox.maps.viewannotation.geometry
 import com.mapbox.maps.viewannotation.viewAnnotationOptions
 import com.swent.roamigo.R
-import com.swent.roamigo.model.TripLocation
-import com.swent.roamigo.model.trip.FakeTripRepository
-import com.swent.roamigo.model.trip.TravelMode
-import com.swent.roamigo.model.trip.Trip
-import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
-import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.theme.Spacing
 
 /** Renders destinations from [viewModel] and forwards marker clicks with their trip IDs. */
@@ -103,37 +95,5 @@ fun TripOverviewMapScreen(
         }
       }
     }
-  }
-}
-
-@Preview(showBackground = true, widthDp = 390, heightDp = 844)
-@Composable
-private fun TripOverviewMapScreenPreview() {
-  val sampleTrip =
-      Trip(
-          uid = "trip_1",
-          name = "Euro trip",
-          description = "Exploring Europe",
-          destinations =
-              listOf(
-                  TripLocation(latitude = 48.8566, longitude = 2.3522, name = "Paris"),
-                  TripLocation(latitude = 41.3851, longitude = 2.1734, name = "Barcelona"),
-                  TripLocation(latitude = 51.5074, longitude = -0.1278, name = "London"),
-              ),
-          startDate = Timestamp.now(),
-          endDate = Timestamp.now(),
-          flexibleDates = false,
-          travelMode = TravelMode.GROUP,
-          travelerCount = 3,
-          ownerId = "user_1",
-          memberIds = listOf("user_1"),
-          status = TripStatus.PLANNED,
-          createdAt = Timestamp.now(),
-      )
-  RoamigoTheme {
-    TripOverviewMapScreen(
-        viewModel =
-            viewModel { TripOverviewMapViewModel(FakeTripRepository(trips = listOf(sampleTrip))) }
-    )
   }
 }

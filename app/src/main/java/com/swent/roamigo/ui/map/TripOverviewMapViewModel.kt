@@ -4,6 +4,8 @@ package com.swent.roamigo.ui.map
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.swent.roamigo.model.trip.TripRepository
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,13 +18,16 @@ class TripOverviewMapViewModel(
   private val _uiState = MutableStateFlow(TripOverviewMapUiState(isLoading = true))
   val uiState: StateFlow<TripOverviewMapUiState> = _uiState.asStateFlow()
 
+  private var loadTripsJob: Job? = null
+
   init {
     loadTrips()
   }
 
-  /** Loads all trips from the repository and converts their destinations into marker UI states. */
+  /** Loads trip markers, cancelling any previous load so only the latest request updates the UI. */
   fun loadTrips() {
-    viewModelScope.launch {
+    loadTripsJob?.cancel()
+    loadTripsJob = viewModelScope.launch {
       _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
       val result = runCatching { tripRepository.getTrips() }
       result.fold(
@@ -31,11 +36,12 @@ class TripOverviewMapViewModel(
             _uiState.value = TripOverviewMapUiState(markers = markers, isLoading = false)
           },
           onFailure = { error ->
+            if (error is CancellationException) throw error
             _uiState.value =
                 TripOverviewMapUiState(
                     markers = emptyList(),
                     isLoading = false,
-                    errorMessage = error.localizedMessage ?: "Failed to load trips",
+                    errorMessage = error.localizedMessage,
                 )
           },
       )
