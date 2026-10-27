@@ -47,6 +47,7 @@ class VotesScreenTest {
   @Test
   fun loadingShowsProgressAndCurrentTrip() {
     content(VotesUiState.Loading)
+    composeRule.onNodeWithText("New vote").assertDoesNotExist()
     composeRule.onNodeWithText("Loading votes…").assertIsDisplayed()
     composeRule.onNodeWithText("Lisbon & Porto").assertIsDisplayed()
     composeRule
@@ -73,6 +74,7 @@ class VotesScreenTest {
   fun errorShowsRetryAndInvokesCallback() {
     var retries = 0
     content(VotesUiState.Error, onRetry = { retries++ })
+    composeRule.onNodeWithText("New vote").assertDoesNotExist()
     composeRule.onNodeWithText("Unable to load votes. Please try again.").assertIsDisplayed()
     composeRule.onNodeWithText("Retry").performClick()
     composeRule.runOnIdle { assertEquals(1, retries) }
@@ -82,6 +84,7 @@ class VotesScreenTest {
   @Test
   fun multipleVotesRenderWithLiveLabelsAndCompactDecidedRows() {
     content(VotesUiState.Ready(listOf(live, other), listOf(closed)))
+    composeRule.onNodeWithText("New vote").assertIsDisplayed()
     composeRule.onNodeWithText("Lisbon & Porto · 2 open").assertIsDisplayed()
     composeRule.onNodeWithText("Live").assertDoesNotExist()
     composeRule.onAllNodesWithText("Live vote").assertCountEquals(2)
@@ -125,10 +128,14 @@ class VotesScreenTest {
   @Test
   fun synchronizationFailureKeepsCardsVisibleAndOffersRetry() {
     var retries = 0
+    var creations = 0
     content(
         VotesUiState.Ready(listOf(live), emptyList(), VotesSyncState.FAILED),
         onRetry = { retries++ },
+        onCreateVote = { creations++ },
     )
+    composeRule.onNodeWithText("New vote").performClick()
+    composeRule.runOnIdle { assertEquals(1, creations) }
     composeRule
         .onNodeWithText("Unable to update votes. Showing the last available votes.")
         .assertIsDisplayed()

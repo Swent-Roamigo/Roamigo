@@ -299,6 +299,65 @@ class TripRepositoryFirestoreEmulatorTest {
   }
 
   @Test
+  fun voteCreationValidatesEveryOptionObject() = runBlocking {
+    alice.repository.createTrip(tripId, draft)
+    val data = voteData(voteCreatedBy(alice))
+    val malformed =
+        listOf(
+            1,
+            null,
+            "option",
+            mapOf("name" to "Museum"),
+            mapOf("uid" to "a"),
+            mapOf("uid" to 1, "name" to "Museum"),
+            mapOf("uid" to "a", "name" to 1),
+            mapOf("uid" to "", "name" to "Museum"),
+            mapOf("uid" to "a", "name" to ""),
+            mapOf("uid" to " ", "name" to "Museum"),
+            mapOf("uid" to "a", "name" to " "),
+            mapOf("uid" to "a", "name" to "Museum", "extra" to true),
+        )
+    // Exercise every guarded index, including the last permitted option.
+    for (index in 0..9) {
+      for (invalidOption in malformed) {
+        val options =
+            List<Any?>(10) { mapOf("uid" to "option-$it", "name" to "Option $it") }.toMutableList()
+        options[index] = invalidOption
+        assertPermissionDenied { voteDocument(alice).set(data + ("options" to options)).await() }
+      }
+    }
+  }
+
+  @Test
+  fun voteCreationRejectsInvalidOptionCountsAndNonListOptions() = runBlocking {
+    alice.repository.createTrip(tripId, draft)
+    val data = voteData(voteCreatedBy(alice))
+    for (count in listOf(0, 1, 11)) {
+      val options = List(count) { mapOf("uid" to "option-$it", "name" to "Option $it") }
+      assertPermissionDenied { voteDocument(alice).set(data + ("options" to options)).await() }
+    }
+    assertPermissionDenied {
+      voteDocument(alice).set(data + ("options" to mapOf("uid" to "a"))).await()
+    }
+    assertPermissionDenied { voteDocument(alice).set(data - "options").await() }
+  }
+
+  @Test
+  fun voteCreationAcceptsTwoMultipleAndTenOptions() = runBlocking {
+    alice.repository.createTrip(tripId, draft)
+    for (count in listOf(2, 5, 10)) {
+      val vote =
+          voteCreatedBy(alice)
+              .copy(
+                  uid = "vote-$count",
+                  options = List(count) { VoteOption("option-$it", "Option $it") },
+              )
+      alice.voteRepository.createVote(vote)
+      assertEquals(vote, alice.voteRepository.getVote(tripId, vote.uid))
+    }
+  }
+
+  @Test
   fun clientsCannotUpdateOrDeleteVotes() = runBlocking {
     alice.repository.createTrip(tripId, draft)
     alice.voteRepository.createVote(voteCreatedBy(alice))
