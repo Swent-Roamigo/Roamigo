@@ -1,7 +1,12 @@
+// Author : Constantin Dunoyer de Segonzac
+// Co-author : ChatGPT-Codex
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.trip.creation
 
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.destination.FakeDestinationRepository
+import com.swent.roamigo.model.destination.destinationFixture
+import com.swent.roamigo.model.destination.sampleDestination
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
@@ -45,63 +50,40 @@ class CreateTripViewModelTest {
   }
 
   @Test
-  fun initialStateHasNoSelectedDestinationsAndPopularDestinations() {
-    val viewModel = CreateTripViewModel()
+  fun initialStateHasNoSelectedDestinations() {
+    val viewModel = CreateTripViewModel(destinationRepository = FakeDestinationRepository())
 
-    assertEquals(
-        emptyList<String>(),
-        viewModel.uiState.value.selectedDestinations,
-    )
-    assertEquals(
-        listOf("Lisbon", "Porto", "Barcelona", "Prague"),
-        viewModel.uiState.value.visibleDestinations,
-    )
+    assertTrue(viewModel.uiState.value.selectedDestinations.isEmpty())
+    assertEquals(DestinationSearchStatus.INITIAL, viewModel.uiState.value.destinationSearchStatus)
   }
 
   @Test
-  fun queryFiltersDestinationsIgnoringCase() {
-    val viewModel = CreateTripViewModel()
-    viewModel.updateDestinationQuery("bar")
+  fun addingAndRemovingStructuredDestinationsKeepsIdentityAndRouteOrder() {
+    val viewModel = CreateTripViewModel(destinationRepository = FakeDestinationRepository())
+    val lisbon = destinationFixture("geonames:2267057", "Lisbon", "Portugal", "PT", 2267057)
+    val porto = destinationFixture("geonames:2735943", "Porto", "Portugal", "PT", 2735943)
+    val paris = destinationFixture("geonames:2988507", "Paris", "France", "FR", 2988507)
 
-    assertEquals(listOf("Barcelona"), viewModel.uiState.value.visibleDestinations)
-  }
+    viewModel.toggleDestination(lisbon)
+    viewModel.toggleDestination(porto)
+    viewModel.toggleDestination(paris)
+    viewModel.removeDestination(porto)
 
-  @Test
-  fun togglingAddsAndRemovesDestinationAndKeepsRouteOrder() {
-    val viewModel = CreateTripViewModel()
-    val barcelona = "Barcelona"
-
-    viewModel.toggleDestination(barcelona)
-    assertEquals(
-        listOf("Barcelona"),
-        viewModel.uiState.value.selectedDestinations,
-    )
-
-    viewModel.toggleDestination(barcelona)
-    assertEquals(
-        emptyList<String>(),
-        viewModel.uiState.value.selectedDestinations,
-    )
-  }
-
-  @Test
-  fun removingDestinationKeepsRemainingRouteOrder() {
-    val viewModel = CreateTripViewModel()
-    viewModel.toggleDestination("Lisbon")
-    viewModel.toggleDestination("Porto")
-    viewModel.removeDestination("Lisbon")
-
-    assertEquals(listOf("Porto"), viewModel.uiState.value.selectedDestinations)
+    assertEquals(listOf(lisbon, paris), viewModel.uiState.value.selectedDestinations)
+    viewModel.toggleDestination(lisbon)
+    assertEquals(listOf(paris), viewModel.uiState.value.selectedDestinations)
   }
 
   @Test
   fun creationMapsOrderedSuggestionsDatesAndOptionsAndPersistsAuthenticatedOwner() = runTest {
     val repository = RecordingRepository()
     val zone = ZoneId.of("Europe/Zurich")
-    val viewModel = CreateTripViewModel(repository, zone)
+    val viewModel = CreateTripViewModel(repository, zone, FakeDestinationRepository())
     val start = LocalDate.of(LocalDate.now().year + 1, 3, 27)
     val end = start.plusDays(4)
-    listOf("Prague", "Lisbon", "Barcelona", "Porto").forEach(viewModel::toggleDestination)
+    listOf("Prague", "Lisbon", "Barcelona", "Porto")
+        .map(::sampleDestination)
+        .forEach(viewModel::toggleDestination)
     viewModel.selectDate(start)
     viewModel.selectDate(end)
     viewModel.setFlexibleDates(true)
@@ -139,16 +121,17 @@ class CreateTripViewModelTest {
   }
 
   @Test
-  fun soloDraftAndUnknownSuggestionsAreHandledBeforeSaving() = runTest {
+  fun soloDraftAndInvalidDestinationsAreHandledBeforeSaving() = runTest {
     val repository = RecordingRepository()
-    val viewModel = CreateTripViewModel(repository)
-    viewModel.toggleDestination("Unknown city")
+    val viewModel =
+        CreateTripViewModel(repository, destinationRepository = FakeDestinationRepository())
+    viewModel.toggleDestination(sampleDestination("Lisbon").copy(name = ""))
     viewModel.createTrip()
     advanceUntilIdle()
     assertTrue(repository.requests.isEmpty())
     assertTrue(viewModel.uiState.value.selectedDestinations.isEmpty())
 
-    viewModel.toggleDestination("Porto")
+    viewModel.toggleDestination(sampleDestination("Porto"))
     viewModel.selectTravelMode(TravelMode.SOLO)
     viewModel.createTrip()
     advanceUntilIdle()
@@ -160,16 +143,17 @@ class CreateTripViewModelTest {
   @Test
   fun pendingSubmissionIgnoresRepeatedTapsAndFreezesDraft() = runTest {
     val repository = RecordingRepository().apply { gate = CompletableDeferred() }
-    val viewModel = CreateTripViewModel(repository)
-    viewModel.toggleDestination("Lisbon")
+    val viewModel =
+        CreateTripViewModel(repository, destinationRepository = FakeDestinationRepository())
+    viewModel.toggleDestination(sampleDestination("Lisbon"))
     viewModel.createTrip()
     viewModel.createTrip()
     runCurrent()
     assertTrue(viewModel.uiState.value.isSubmitting)
     assertFalse(viewModel.uiState.value.canCreateTrip)
     val pendingState = viewModel.uiState.value
-    viewModel.toggleDestination("Porto")
-    viewModel.removeDestination("Lisbon")
+    viewModel.toggleDestination(sampleDestination("Porto"))
+    viewModel.removeDestination(sampleDestination("Lisbon"))
     viewModel.updateDestinationQuery("Porto")
     viewModel.selectDate(LocalDate.now().plusDays(10))
     viewModel.setFlexibleDates(true)
@@ -189,12 +173,13 @@ class CreateTripViewModelTest {
   @Test
   fun typedFailurePreservesDraftAndRetryReusesIdAndPayload() = runTest {
     val repository = RecordingRepository().apply { failure = TripCreationException.Network() }
-    val viewModel = CreateTripViewModel(repository)
-    viewModel.toggleDestination("Lisbon")
+    val viewModel =
+        CreateTripViewModel(repository, destinationRepository = FakeDestinationRepository())
+    viewModel.toggleDestination(sampleDestination("Lisbon"))
     viewModel.createTrip()
     advanceUntilIdle()
     assertSame(repository.failure, viewModel.uiState.value.creationError)
-    assertEquals(listOf("Lisbon"), viewModel.uiState.value.selectedDestinations)
+    assertEquals(listOf(sampleDestination("Lisbon")), viewModel.uiState.value.selectedDestinations)
     assertFalse(viewModel.uiState.value.isSubmitting)
     assertTrue(viewModel.uiState.value.canCreateTrip)
     repository.failure = null
@@ -207,11 +192,12 @@ class CreateTripViewModelTest {
   @Test
   fun editingAfterFailureCreatesANewSubmission() = runTest {
     val repository = RecordingRepository().apply { failure = TripCreationException.Network() }
-    val viewModel = CreateTripViewModel(repository)
-    viewModel.toggleDestination("Lisbon")
+    val viewModel =
+        CreateTripViewModel(repository, destinationRepository = FakeDestinationRepository())
+    viewModel.toggleDestination(sampleDestination("Lisbon"))
     viewModel.createTrip()
     advanceUntilIdle()
-    viewModel.toggleDestination("Porto")
+    viewModel.toggleDestination(sampleDestination("Porto"))
     repository.failure = null
     viewModel.createTrip()
     advanceUntilIdle()
@@ -224,8 +210,9 @@ class CreateTripViewModelTest {
     listOf(TripCreationException.NotAuthenticated(), TripCreationException.PermissionDenied())
         .forEach { failure ->
           val repository = RecordingRepository().apply { this.failure = failure }
-          val viewModel = CreateTripViewModel(repository)
-          viewModel.toggleDestination("Lisbon")
+          val viewModel =
+              CreateTripViewModel(repository, destinationRepository = FakeDestinationRepository())
+          viewModel.toggleDestination(sampleDestination("Lisbon"))
           viewModel.createTrip()
           advanceUntilIdle()
           assertSame(failure, viewModel.uiState.value.creationError)
@@ -238,8 +225,9 @@ class CreateTripViewModelTest {
   @Test
   fun unexpectedFailureIsWrappedButCancellationIsNotShownAsAnError() = runTest {
     val repository = RecordingRepository().apply { failure = IllegalStateException("unexpected") }
-    val viewModel = CreateTripViewModel(repository)
-    viewModel.toggleDestination("Lisbon")
+    val viewModel =
+        CreateTripViewModel(repository, destinationRepository = FakeDestinationRepository())
+    viewModel.toggleDestination(sampleDestination("Lisbon"))
     viewModel.createTrip()
     advanceUntilIdle()
     assertTrue(viewModel.uiState.value.creationError is TripCreationException.Unknown)
