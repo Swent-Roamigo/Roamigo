@@ -10,6 +10,7 @@ object Route {
   const val TRIPS = "trips"
   const val PROFILE = "profile"
   const val NEW_TRIP = "new_trip"
+  const val TRIP_HISTORY = "trip_history"
   const val VOTES = "trip/{tripId}/votes?tripName={tripName}"
   const val VOTE = "trip/{tripId}/vote/{voteId}"
   const val NEW_VOTE = "trip/{tripId}/new_vote"

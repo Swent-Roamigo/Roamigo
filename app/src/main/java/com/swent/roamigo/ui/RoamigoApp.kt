@@ -41,6 +41,7 @@ import com.swent.roamigo.ui.profile.ProfileViewModel
 import com.swent.roamigo.ui.trip.creation.CreateTripViewModel
 import com.swent.roamigo.ui.trip.creation.DatesTravelersScreen
 import com.swent.roamigo.ui.trip.creation.DestinationScreen
+import com.swent.roamigo.ui.trip.history.TripHistoryRoute
 import com.swent.roamigo.ui.trip.voting.CreateVoteScreen
 import com.swent.roamigo.ui.trip.voting.CreateVoteViewModel
 import com.swent.roamigo.ui.trip.voting.VoteScreen
@@ -109,6 +110,9 @@ fun RoamigoApp(
           userRepository = userRepository,
           onNewTripClick = { navController.navigate(Route.NEW_TRIP) },
           onProfileClick = { navController.navigate(Route.PROFILE) },
+          onHistoryClick = {
+            navController.navigate(Route.TRIP_HISTORY) { launchSingleTop = true }
+          },
           onOpenTrip = { tripId, tripName ->
             navController.navigate(Route.votes(tripId, tripName))
           },
@@ -183,6 +187,20 @@ fun RoamigoApp(
           onSignOutClick = profileViewModel::signOut,
       )
     }
+
+    composable(Route.TRIP_HISTORY) {
+      TripHistoryRoute(
+          tripRepository = tripRepository,
+          onBackClick = { navController.popBackStack() },
+          onTripsClick = {
+            navController.popBackStack(
+                Route.TRIPS,
+                inclusive = false,
+            )
+          },
+      )
+    }
+
     composable(Route.NEW_TRIP) {
       val creationViewModel = viewModel {
         CreateTripViewModel(

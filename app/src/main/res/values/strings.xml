@@ -119,6 +119,24 @@
     <string name="vote_invalid">Enter a question and 2–10 non-empty options.</string>
     <string name="vote_submission_error">Unable to create the vote. Please try again.</string>
 
+    <!-- Trip History -->
+    <string name="trip_history_title">Trip history</string>
+    <string name="trip_history_completed">Completed</string>
+    <string name="trip_history_empty">No completed trips yet</string>
+    <string name="trip_history_unknown_destination">Destination unavailable</string>
+    <string name="trip_history_world_map">Open explored world map</string>
+    <string name="trip_history_back">Back</string>
+
+    <plurals name="trip_history_count">
+        <item quantity="one">%1$d completed trip</item>
+        <item quantity="other">%1$d completed trips</item>
+    </plurals>
+
+    <string name="trips_history">History</string>
+    <string name="trip_history_load_error">Unable to load trip history.</string>
+    <string name="trip_history_retry">Retry</string>
+
+
     <!-- Friends -->
     <string name="friends_title">Friends</string>
     <string name="friends_privacy_subtitle">Maps are visible to friends only</string>
