@@ -175,8 +175,10 @@ fun DestinationCard(
             TextButton(onClick = { uriHandler.openUri(photo.sourceUrl) }) {
               Text(stringResource(R.string.destination_photo_view_original))
             }
-            TextButton(onClick = { uriHandler.openUri(photo.licenseUrl) }) {
-              Text(stringResource(R.string.destination_photo_view_license))
+            photo.licenseUrl?.let { licenseUrl ->
+              TextButton(onClick = { uriHandler.openUri(licenseUrl) }) {
+                Text(stringResource(R.string.destination_photo_view_license))
+              }
             }
           }
         },

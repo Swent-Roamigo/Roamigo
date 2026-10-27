@@ -37,15 +37,14 @@ fun destinationFixture(
         latitude = 10.0,
         longitude = 20.0,
         geonameId = geonameId,
-        wikidataId = null,
     )
 
 /** Deterministic online-search results used by creation and navigation tests. */
 val sampleDestinations = listOf(
-    Destination("geonames:2267057", DestinationKind.CITY, "Lisbon", "Portugal", "PT", 38.7223, -9.1393, 2267057, null),
-    Destination("geonames:2735941", DestinationKind.CITY, "Porto", "Portugal", "PT", 41.1579, -8.6291, 2735941, null),
-    Destination("geonames:3128760", DestinationKind.CITY, "Barcelona", "Spain", "ES", 41.3874, 2.1686, 3128760, null),
-    Destination("geonames:3067696", DestinationKind.CITY, "Prague", "Czechia", "CZ", 50.0755, 14.4378, 3067696, null),
+    Destination("geonames:2267057", DestinationKind.CITY, "Lisbon", "Portugal", "PT", 38.7223, -9.1393, 2267057),
+    Destination("geonames:2735941", DestinationKind.CITY, "Porto", "Portugal", "PT", 41.1579, -8.6291, 2735941),
+    Destination("geonames:3128760", DestinationKind.CITY, "Barcelona", "Spain", "ES", 41.3874, 2.1686, 3128760),
+    Destination("geonames:3067696", DestinationKind.CITY, "Prague", "Czechia", "CZ", 50.0755, 14.4378, 3067696),
 )
 
 fun sampleDestination(name: String): Destination = sampleDestinations.first { it.name == name }

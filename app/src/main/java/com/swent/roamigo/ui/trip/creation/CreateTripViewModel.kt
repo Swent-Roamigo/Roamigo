@@ -13,7 +13,6 @@ import com.swent.roamigo.model.destination.DestinationPhoto
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.destination.MAX_DESTINATION_RESULTS
 import com.swent.roamigo.model.destination.MIN_DESTINATION_QUERY_LENGTH
-import com.swent.roamigo.model.destination.OnlineDestinationRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.MAX_GROUP_TRAVELER_COUNT
 import com.swent.roamigo.model.trip.MIN_GROUP_TRAVELER_COUNT
@@ -91,7 +90,7 @@ enum class DestinationSearchStatus {
 class CreateTripViewModel(
     private val repository: TripRepository = FakeTripRepository(),
     private val zoneId: ZoneId = ZoneId.systemDefault(),
-    private val destinationRepository: DestinationRepository = OnlineDestinationRepository(),
+    private val destinationRepository: DestinationRepository,
     private val requestDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
   private var submittedDraft: TripDraft? = null
@@ -207,14 +206,17 @@ class CreateTripViewModel(
     val query = uiState.value.destinationQuery.trim()
     if (query.length < MIN_DESTINATION_QUERY_LENGTH) return
     searchJob?.cancel()
-    searchJob = viewModelScope.launch { searchDestinations(query) }
+    searchJob = viewModelScope.launch(requestDispatcher) { searchDestinations(query) }
   }
 
   fun requestDestinationPhoto(destination: Destination) {
-    if (!requestedPhotoIds.add(destination.stableId)) return
+    if (!synchronized(requestedPhotoIds) { requestedPhotoIds.add(destination.stableId) }) return
     viewModelScope.launch(requestDispatcher) {
       try {
-        destinationRepository.findPhoto(destination)?.let { photo ->
+        val photo = destinationRepository.findPhoto(destination)
+        if (photo == null) {
+          synchronized(requestedPhotoIds) { requestedPhotoIds.remove(destination.stableId) }
+        } else {
           _uiState.update { state ->
             state.copy(
                 photosByDestinationId =
@@ -223,9 +225,10 @@ class CreateTripViewModel(
           }
         }
       } catch (cancelled: CancellationException) {
+        synchronized(requestedPhotoIds) { requestedPhotoIds.remove(destination.stableId) }
         throw cancelled
       } catch (_: Exception) {
-        // A missing photo only affects the placeholder; search remains usable.
+        synchronized(requestedPhotoIds) { requestedPhotoIds.remove(destination.stableId) }
       }
     }
   }

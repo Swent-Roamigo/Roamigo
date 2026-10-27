@@ -34,7 +34,7 @@
     <string name="destination_search_initial">Search for a city</string>
     <string name="destination_search_empty">No destinations found. Try another search.</string>
     <string name="destination_search_error">Couldn’t load destinations. Check your connection and try again.</string>
-    <string name="destination_search_not_configured">City search is not configured (GEONAMES_USERNAME).</string>
+    <string name="destination_search_not_configured">City search is temporarily unavailable. Please try again later.</string>
     <string name="destination_search_retry">Try again</string>
     <string name="destination_search_results">Search results</string>
     <string name="destination_geonames_credit">Place data © GeoNames</string>

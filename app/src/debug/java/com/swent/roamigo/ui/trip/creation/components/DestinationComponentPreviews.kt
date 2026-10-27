@@ -23,7 +23,6 @@ private fun DestinationCardPreview() {
                 latitude = 0.0,
                 longitude = 0.0,
                 geonameId = 1,
-                wikidataId = null,
             ),
         selected = true,
         photo = null,
@@ -58,5 +57,4 @@ private fun previewDestination(stableId: String, name: String, geonameId: Int) =
         latitude = 0.0,
         longitude = 0.0,
         geonameId = geonameId,
-        wikidataId = null,
     )

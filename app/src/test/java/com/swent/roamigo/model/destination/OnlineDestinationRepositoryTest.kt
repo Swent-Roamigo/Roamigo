@@ -44,7 +44,7 @@ class OnlineDestinationRepositoryTest {
                           "extmetadata":{
                             "LicenseShortName":{"value":"CC BY-SA 2.0"},
                             "LicenseUrl":{"value":"https://creativecommons.org/licenses/by-sa/2.0/"},
-                            "Artist":{"value":"<a href='https://example.org'>Photographer</a>"},
+                            "Artist":{"value":"<a href='https://example.org'>Photographer &amp; Co</a>"},
                             "ObjectName":{"value":"Paris skyline"},
                             "Credit":{"value":"© Photographer"}
                           }
@@ -71,7 +71,7 @@ class OnlineDestinationRepositoryTest {
 
     assertEquals(listOf("query.wikidata.org", "commons.wikimedia.org"), hosts)
     assertEquals("CC BY-SA 2.0", photo?.license)
-    assertEquals("Photographer", photo?.creator)
+    assertEquals("Photographer & Co", photo?.creator)
     assertEquals("Paris skyline", photo?.title)
     assertEquals("© Photographer", photo?.credit)
   }
@@ -204,7 +204,6 @@ class OnlineDestinationRepositoryTest {
     assertEquals(48.85, destinations.single().latitude, 0.0)
     assertEquals(2.35, destinations.single().longitude, 0.0)
     assertEquals(2988507, destinations.single().geonameId)
-    assertNull(destinations.single().wikidataId)
   }
 
   @Test
@@ -238,7 +237,9 @@ class OnlineDestinationRepositoryTest {
       """
       {"geonames":[null,{"geonameId":0,"name":"Nowhere"},
       {"geonameId":1,"name":" "},
-      {"geonameId":2,"name":"Valid"},{"geonameId":2,"name":"Duplicate"}]}
+      {"geonameId":3,"name":"Missing"}, {"geonameId":4,"name":"Broken","lat":"bad","lng":"3"},
+      {"geonameId":5,"name":"Out of range","lat":"91","lng":"3"},
+      {"geonameId":2,"name":"Valid","lat":"48","lng":"2"},{"geonameId":2,"name":"Duplicate","lat":"48","lng":"2"}]}
       """
           .trimIndent()
     }
@@ -432,7 +433,7 @@ class OnlineDestinationRepositoryTest {
     assertEquals("https://img.test/original.jpg", photo?.imageUrl)
     assertEquals("City view", photo?.title)
     assertEquals("Archive", photo?.credit)
-    assertEquals("https://creativecommons.org/", photo?.licenseUrl)
+    assertNull(photo?.licenseUrl)
   }
 
   @Test

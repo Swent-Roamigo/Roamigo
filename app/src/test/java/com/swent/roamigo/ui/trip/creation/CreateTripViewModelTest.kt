@@ -78,7 +78,7 @@ class CreateTripViewModelTest {
   fun creationMapsOrderedSuggestionsDatesAndOptionsAndPersistsAuthenticatedOwner() = runTest {
     val repository = RecordingRepository()
     val zone = ZoneId.of("Europe/Zurich")
-    val viewModel = CreateTripViewModel(repository, zone)
+    val viewModel = CreateTripViewModel(repository, zone, FakeDestinationRepository())
     val start = LocalDate.of(LocalDate.now().year + 1, 3, 27)
     val end = start.plusDays(4)
     listOf("Prague", "Lisbon", "Barcelona", "Porto")
@@ -123,7 +123,8 @@ class CreateTripViewModelTest {
   @Test
   fun soloDraftAndInvalidDestinationsAreHandledBeforeSaving() = runTest {
     val repository = RecordingRepository()
-    val viewModel = CreateTripViewModel(repository)
+    val viewModel =
+        CreateTripViewModel(repository, destinationRepository = FakeDestinationRepository())
     viewModel.toggleDestination(sampleDestination("Lisbon").copy(name = ""))
     viewModel.createTrip()
     advanceUntilIdle()
@@ -142,7 +143,8 @@ class CreateTripViewModelTest {
   @Test
   fun pendingSubmissionIgnoresRepeatedTapsAndFreezesDraft() = runTest {
     val repository = RecordingRepository().apply { gate = CompletableDeferred() }
-    val viewModel = CreateTripViewModel(repository)
+    val viewModel =
+        CreateTripViewModel(repository, destinationRepository = FakeDestinationRepository())
     viewModel.toggleDestination(sampleDestination("Lisbon"))
     viewModel.createTrip()
     viewModel.createTrip()
@@ -171,7 +173,8 @@ class CreateTripViewModelTest {
   @Test
   fun typedFailurePreservesDraftAndRetryReusesIdAndPayload() = runTest {
     val repository = RecordingRepository().apply { failure = TripCreationException.Network() }
-    val viewModel = CreateTripViewModel(repository)
+    val viewModel =
+        CreateTripViewModel(repository, destinationRepository = FakeDestinationRepository())
     viewModel.toggleDestination(sampleDestination("Lisbon"))
     viewModel.createTrip()
     advanceUntilIdle()
@@ -189,7 +192,8 @@ class CreateTripViewModelTest {
   @Test
   fun editingAfterFailureCreatesANewSubmission() = runTest {
     val repository = RecordingRepository().apply { failure = TripCreationException.Network() }
-    val viewModel = CreateTripViewModel(repository)
+    val viewModel =
+        CreateTripViewModel(repository, destinationRepository = FakeDestinationRepository())
     viewModel.toggleDestination(sampleDestination("Lisbon"))
     viewModel.createTrip()
     advanceUntilIdle()
@@ -206,7 +210,8 @@ class CreateTripViewModelTest {
     listOf(TripCreationException.NotAuthenticated(), TripCreationException.PermissionDenied())
         .forEach { failure ->
           val repository = RecordingRepository().apply { this.failure = failure }
-          val viewModel = CreateTripViewModel(repository)
+          val viewModel =
+              CreateTripViewModel(repository, destinationRepository = FakeDestinationRepository())
           viewModel.toggleDestination(sampleDestination("Lisbon"))
           viewModel.createTrip()
           advanceUntilIdle()
@@ -220,7 +225,8 @@ class CreateTripViewModelTest {
   @Test
   fun unexpectedFailureIsWrappedButCancellationIsNotShownAsAnError() = runTest {
     val repository = RecordingRepository().apply { failure = IllegalStateException("unexpected") }
-    val viewModel = CreateTripViewModel(repository)
+    val viewModel =
+        CreateTripViewModel(repository, destinationRepository = FakeDestinationRepository())
     viewModel.toggleDestination(sampleDestination("Lisbon"))
     viewModel.createTrip()
     advanceUntilIdle()

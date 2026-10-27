@@ -230,9 +230,8 @@ class DestinationSearchViewModelTest {
   fun searchResultsPreserveCityMetadata() = runTest {
     Dispatchers.setMain(StandardTestDispatcher(testScheduler))
     try {
-      val zurich =
-          destination("geonames:2657896", "Zurich", "Switzerland", "CH", 2657896)
-              .copy(wikidataId = "Q72")
+      val zurich = destination("geonames:2657896", "Zurich", "Switzerland", "CH", 2657896)
+
       val repository = FakeDestinationRepository(search = { listOf(zurich) })
       val viewModel =
           CreateTripViewModel(
@@ -247,7 +246,6 @@ class DestinationSearchViewModelTest {
       assertEquals(DestinationKind.CITY, viewModel.uiState.value.destinations[0].kind)
       assertEquals("CH", viewModel.uiState.value.destinations[0].countryCode)
       assertEquals(2657896, viewModel.uiState.value.destinations[0].geonameId)
-      assertEquals("Q72", viewModel.uiState.value.destinations[0].wikidataId)
     } finally {
       Dispatchers.resetMain()
     }
@@ -277,7 +275,30 @@ class DestinationSearchViewModelTest {
       assertEquals(DestinationSearchStatus.RESULTS, viewModel.uiState.value.destinationSearchStatus)
       assertEquals(listOf(city), viewModel.uiState.value.destinations)
       assertTrue(viewModel.uiState.value.photosByDestinationId.isEmpty())
-      assertEquals(listOf(city), repository.photoRequests)
+      viewModel.requestDestinationPhoto(city)
+      advanceUntilIdle()
+      assertEquals(listOf(city, city), repository.photoRequests)
+    } finally {
+      Dispatchers.resetMain()
+    }
+  }
+
+  @Test
+  fun missingPhotoCanBeRequestedAgain() = runTest {
+    Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+    try {
+      val city = destination("geonames:1", "City")
+      val repository = FakeDestinationRepository(photo = { null })
+      val viewModel =
+          CreateTripViewModel(
+              destinationRepository = repository,
+              requestDispatcher = StandardTestDispatcher(testScheduler),
+          )
+      viewModel.requestDestinationPhoto(city)
+      advanceUntilIdle()
+      viewModel.requestDestinationPhoto(city)
+      advanceUntilIdle()
+      assertEquals(listOf(city, city), repository.photoRequests)
     } finally {
       Dispatchers.resetMain()
     }
@@ -340,6 +361,5 @@ class DestinationSearchViewModelTest {
           latitude = 10.0,
           longitude = 20.0,
           geonameId = geonameId,
-          wikidataId = null,
       )
 }

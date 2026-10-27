@@ -140,6 +140,35 @@ class DestinationScreenTest {
   }
 
   @Test
+  fun creditsHideLicenseLinkWhenUrlIsMissing() {
+    val city = destination("paris-fr", "Paris", "France", "FR", 2988507)
+    val photo =
+        DestinationPhoto(
+            imageUrl =
+                "android.resource://com.swent.roamigo/${com.swent.roamigo.R.drawable.destination_placeholder}",
+            creator = "Photographer",
+            sourceUrl = "https://example.org/photo",
+            license = "CC BY 4.0",
+            licenseUrl = null,
+        )
+    val repository = FakeDestinationRepository(search = { listOf(city) }, photo = { photo })
+    val viewModel =
+        CreateTripViewModel(destinationRepository = repository, requestDispatcher = Dispatchers.IO)
+    show(viewModel)
+    viewModel.updateDestinationQuery("Paris")
+    composeRule.waitUntil(5_000) {
+      composeRule
+          .onAllNodesWithTag(DestinationCardTestTags.photoCreditsFor(city.stableId))
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    composeRule.onNodeWithTag(DestinationCardTestTags.photoCreditsFor(city.stableId)).performClick()
+    composeRule.onNodeWithText("View original").assertHasClickAction()
+    composeRule.onNodeWithText("View license").assertDoesNotExist()
+    composeRule.onNodeWithText("CC BY 4.0 · Cropped for display").assertIsDisplayed()
+  }
+
+  @Test
   fun failedPhotoDoesNotDisplayAttributionOverPlaceholder() {
     val city = destination("paris-fr", "Paris", "France", "FR", 2988507)
     val photo =
@@ -248,6 +277,5 @@ class DestinationScreenTest {
           latitude = 10.0,
           longitude = 20.0,
           geonameId = geonameId,
-          wikidataId = null,
       )
 }

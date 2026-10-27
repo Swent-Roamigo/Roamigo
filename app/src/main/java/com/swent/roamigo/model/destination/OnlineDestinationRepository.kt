@@ -3,13 +3,16 @@
 package com.swent.roamigo.model.destination
 
 import android.net.Uri
+import androidx.core.text.HtmlCompat
 import com.swent.roamigo.BuildConfig
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.HttpUrl
@@ -52,16 +55,24 @@ class OnlineDestinationRepository(
         if (id <= 0) return@mapNotNull null
         val name = item.optString("name").takeIf(String::isNotBlank) ?: return@mapNotNull null
         val countryCode = item.optString("countryCode")
+        val latitude = item.optDouble("lat")
+        val longitude = item.optDouble("lng")
+        if (
+            !latitude.isFinite() ||
+                latitude !in -90.0..90.0 ||
+                !longitude.isFinite() ||
+                longitude !in -180.0..180.0
+        )
+            return@mapNotNull null
         Destination(
             stableId = "geonames:$id",
             kind = DestinationKind.CITY,
             name = name,
             countryName = item.optString("countryName"),
             countryCode = countryCode,
-            latitude = item.optDouble("lat"),
-            longitude = item.optDouble("lng"),
+            latitude = latitude,
+            longitude = longitude,
             geonameId = id,
-            wikidataId = null,
         )
       }
     } ?: emptyList()
@@ -146,7 +157,7 @@ class OnlineDestinationRepository(
             creator = creator,
             sourceUrl = info.optString("descriptionurl"),
             license = license,
-            licenseUrl = metadata.plain("LicenseUrl") ?: "https://creativecommons.org/",
+            licenseUrl = metadata.plain("LicenseUrl"),
             title =
                 metadata.plain("ObjectName") ?: filename.substringBeforeLast('.').replace('_', ' '),
             credit = metadata.plain("Attribution") ?: metadata.plain("Credit"),
@@ -197,13 +208,15 @@ class OnlineDestinationRepository(
     return null
   }
 
-  private suspend fun getJson(url: HttpUrl): JSONObject {
-    val request = Request.Builder().url(url).header("User-Agent", DESTINATION_USER_AGENT).build()
-    client.newCall(request).await().use { response ->
-      if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
-      return JSONObject(response.body?.string() ?: throw IOException("Empty response"))
-    }
-  }
+  private suspend fun getJson(url: HttpUrl): JSONObject =
+      withContext(Dispatchers.IO) {
+        val request =
+            Request.Builder().url(url).header("User-Agent", DESTINATION_USER_AGENT).build()
+        client.newCall(request).await().use { response ->
+          if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
+          JSONObject(response.body?.string() ?: throw IOException("Empty response"))
+        }
+      }
 
   private suspend fun Call.await(): Response = suspendCancellableCoroutine { continuation ->
     continuation.invokeOnCancellation { cancel() }
@@ -223,7 +236,7 @@ class OnlineDestinationRepository(
   private fun JSONObject.plain(key: String): String? =
       optJSONObject(key)
           ?.optString("value")
-          ?.replace(Regex("<[^>]*>"), "")
+          ?.let { HtmlCompat.fromHtml(it, HtmlCompat.FROM_HTML_MODE_LEGACY).toString() }
           ?.trim()
           ?.takeIf(String::isNotBlank)
 

@@ -26,7 +26,6 @@ import androidx.navigation.compose.rememberNavController
 import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.authentication.AuthRepositoryFirebase
 import com.swent.roamigo.model.destination.DestinationRepository
-import com.swent.roamigo.model.destination.OnlineDestinationRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.users.FakeUserRepository
@@ -57,7 +56,7 @@ fun RoamigoApp(
     navController: NavHostController = rememberNavController(),
     authRepository: AuthRepository = remember { AuthRepositoryFirebase() },
     credentialManager: CredentialManager? = null,
-    destinationRepository: DestinationRepository = remember { OnlineDestinationRepository() },
+    destinationRepository: DestinationRepository,
 ) {
   val context = LocalContext.current
   val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }

@@ -133,7 +133,8 @@ sonar {
         "${project.layout.buildDirectory.get()}/reports/jacoco/jacocoTestReport/jacocoTestReport.xml",
     )
 
-    // Previews are design-time samples, not production behavior covered by app tests.
+    // Data holders and theme setup contain little behavior to exercise in unit tests.
+    // Previews are design-time examples, not production behavior.
     property(
         "sonar.coverage.exclusions",
         listOf(
@@ -147,7 +148,7 @@ sonar {
                 "**/com/swent/roamigo/model/trip/voting/VoteOption.kt",
                 "**/com/swent/roamigo/model/users/User.kt",
                 "**/com/swent/roamigo/ui/theme/Theme.kt",
-                "**/com/swent/roamigo/ui/trip/creation/components/DestinationComponentPreviews.kt",
+                "**/*Previews.kt",
             )
             .joinToString(","),
     )
