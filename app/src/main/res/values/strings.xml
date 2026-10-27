@@ -115,6 +115,9 @@
     </plurals>
 
     <string name="trips_history">History</string>
+    <string name="trip_history_load_error">Unable to load trip history.</string>
+    <string name="trip_history_retry">Retry</string>
+
 
     <!-- Friends -->
     <string name="friends_title">Friends</string>

@@ -1,4 +1,4 @@
-package com.swent.roamigo.ui.triphistory
+package com.swent.roamigo.ui.trip.history
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -35,6 +36,7 @@ fun TripHistoryScreen(
     onTripsClick: () -> Unit = rememberNotImplementedAction(),
     onMapClick: () -> Unit = rememberNotImplementedAction(),
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
+    onRetryClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   Scaffold(
       modifier = Modifier.testTag(C.Tag.trip_history_screen),
@@ -126,11 +128,29 @@ fun TripHistoryScreen(
 
         uiState.errorMessage != null ->
             item {
-              Text(
-                  text = uiState.errorMessage,
-                  modifier = Modifier.testTag(C.Tag.trip_history_error),
-                  color = MaterialTheme.colorScheme.error,
-              )
+              Column(
+                  modifier =
+                      Modifier.fillMaxWidth()
+                          .padding(vertical = Spacing.large)
+                          .testTag(C.Tag.trip_history_error),
+                  horizontalAlignment = Alignment.CenterHorizontally,
+                  verticalArrangement = Arrangement.spacedBy(Spacing.medium),
+              ) {
+                Text(
+                    text =
+                        uiState.errorMessage?.takeIf { it.isNotBlank() }
+                            ?: stringResource(R.string.trip_history_load_error),
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center,
+                )
+
+                Button(
+                    onClick = onRetryClick,
+                    modifier = Modifier.testTag(C.Tag.trip_history_retry),
+                ) {
+                  Text(stringResource(R.string.trip_history_retry))
+                }
+              }
             }
 
         uiState.trips.isEmpty() ->

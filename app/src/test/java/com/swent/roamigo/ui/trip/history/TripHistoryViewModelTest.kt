@@ -1,4 +1,4 @@
-package com.swent.roamigo.ui.triphistory
+package com.swent.roamigo.ui.trip.history
 
 import androidx.lifecycle.ViewModel
 import com.google.firebase.Timestamp
@@ -23,9 +23,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
+import org.junit.Assert
 import org.junit.Before
 import org.junit.Test
 
@@ -60,7 +58,7 @@ class TripHistoryViewModelTest {
             ZoneOffset.UTC,
         )
 
-    assertEquals(listOf(planned, active), result)
+    Assert.assertEquals(listOf(planned, active), result)
   }
 
   @Test
@@ -76,18 +74,18 @@ class TripHistoryViewModelTest {
             ZoneOffset.UTC,
         )
 
-    assertEquals(listOf(newest, middle, oldest), result)
+    Assert.assertEquals(listOf(newest, middle, oldest), result)
   }
 
   @Test
   fun usesLocalDateRatherThanUtcDate() {
     val trip = trip("boundary", "2026-10-25T23:30:00Z")
 
-    assertEquals(
+    Assert.assertEquals(
         listOf(trip),
         selectCompletedTrips(listOf(trip), today, ZoneOffset.UTC),
     )
-    assertTrue(
+    Assert.assertTrue(
         selectCompletedTrips(
                 listOf(trip),
                 today,
@@ -109,15 +107,15 @@ class TripHistoryViewModelTest {
     advanceUntilIdle()
 
     val state = viewModel.uiState.value
-    assertEquals(false, state.isLoading)
-    assertNull(state.errorMessage)
-    assertEquals(1, state.trips.size)
+    Assert.assertEquals(false, state.isLoading)
+    Assert.assertNull(state.errorMessage)
+    Assert.assertEquals(1, state.trips.size)
 
     val item = state.trips.single()
-    assertEquals("Lisbon", item.name)
-    assertEquals(listOf("Lisbon"), item.destinations)
-    assertEquals("24 Oct 2026 – 25 Oct 2026", item.dateRange)
-    assertEquals(2, item.travelerCount)
+    Assert.assertEquals("Lisbon", item.name)
+    Assert.assertEquals(listOf("Lisbon"), item.destinations)
+    Assert.assertEquals("24 Oct 2026 – 25 Oct 2026", item.dateRange)
+    Assert.assertEquals(2, item.travelerCount)
   }
 
   @Test
@@ -126,9 +124,9 @@ class TripHistoryViewModelTest {
 
     advanceUntilIdle()
 
-    assertEquals(false, viewModel.uiState.value.isLoading)
-    assertNull(viewModel.uiState.value.errorMessage)
-    assertTrue(viewModel.uiState.value.trips.isEmpty())
+    Assert.assertEquals(false, viewModel.uiState.value.isLoading)
+    Assert.assertNull(viewModel.uiState.value.errorMessage)
+    Assert.assertTrue(viewModel.uiState.value.trips.isEmpty())
   }
 
   @Test
@@ -138,12 +136,12 @@ class TripHistoryViewModelTest {
 
     advanceUntilIdle()
 
-    assertEquals(false, viewModel.uiState.value.isLoading)
-    assertEquals(
+    Assert.assertEquals(false, viewModel.uiState.value.isLoading)
+    Assert.assertEquals(
         "Unable to load trip history.",
         viewModel.uiState.value.errorMessage,
     )
-    assertTrue(viewModel.uiState.value.trips.isEmpty())
+    Assert.assertTrue(viewModel.uiState.value.trips.isEmpty())
   }
 
   @Test
@@ -169,19 +167,19 @@ class TripHistoryViewModelTest {
 
     // Start the first request, which remains suspended.
     runCurrent()
-    assertEquals(1, requestCount)
+    Assert.assertEquals(1, requestCount)
 
     // A second refresh must cancel the previous one.
     viewModel.refresh()
     advanceUntilIdle()
 
-    assertEquals(2, requestCount)
-    assertEquals(
+    Assert.assertEquals(2, requestCount)
+    Assert.assertEquals(
         listOf("new"),
         viewModel.uiState.value.trips.map { it.name },
     )
-    assertEquals(false, viewModel.uiState.value.isLoading)
-    assertNull(viewModel.uiState.value.errorMessage)
+    Assert.assertEquals(false, viewModel.uiState.value.isLoading)
+    Assert.assertNull(viewModel.uiState.value.errorMessage)
   }
 
   @Test
@@ -204,7 +202,7 @@ class TripHistoryViewModelTest {
             ZoneOffset.UTC,
         )
 
-    assertEquals(listOf(later, earlier), result)
+    Assert.assertEquals(listOf(later, earlier), result)
   }
 
   @Test
@@ -224,7 +222,7 @@ class TripHistoryViewModelTest {
     val viewModel = factory.create(TripHistoryViewModel::class.java)
     advanceUntilIdle()
 
-    assertEquals(
+    Assert.assertEquals(
         listOf("factory-trip"),
         viewModel.uiState.value.trips.map { it.name },
     )
@@ -239,6 +237,39 @@ class TripHistoryViewModelTest {
             clock,
         )
         .create(OtherViewModel::class.java)
+  }
+
+  @Test
+  fun retryAfterFailureLoadsTrips() = runTest {
+    var attempts = 0
+
+    val repository =
+        object : TripRepository by FakeTripRepository() {
+          override suspend fun getTrips(): List<Trip> {
+            attempts++
+            if (attempts == 1) {
+              throw IllegalStateException("Temporary failure")
+            }
+            return listOf(trip("recovered", "2026-10-25T12:00:00Z"))
+          }
+        }
+
+    val viewModel = TripHistoryViewModel(repository, clock)
+    advanceUntilIdle()
+
+    Assert.assertEquals(
+        "Unable to load trip history.",
+        viewModel.uiState.value.errorMessage,
+    )
+
+    viewModel.refresh()
+    advanceUntilIdle()
+
+    Assert.assertNull(viewModel.uiState.value.errorMessage)
+    Assert.assertEquals(
+        listOf("recovered"),
+        viewModel.uiState.value.trips.map { it.name },
+    )
   }
 
   private fun trip(

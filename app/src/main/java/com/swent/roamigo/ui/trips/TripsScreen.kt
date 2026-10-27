@@ -236,32 +236,35 @@ fun TripsScreen(
               )
             }
           }
+        }
 
-          item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+        item {
+          Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically,
+          ) {
+            if (uiState.errorMessage == null) {
               SectionTitle(stringResource(R.string.trips_other_trips))
+            }
 
-              TextButton(
-                  onClick = onHistoryClick,
-                  modifier =
-                      Modifier.markNotImplemented(onHistoryClick).semantics {
-                        testTag = C.Tag.trips_history_button
-                      },
-              ) {
-                Icon(
-                    imageVector = Icons.Outlined.History,
-                    contentDescription = null,
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(stringResource(R.string.trips_history))
-              }
+            TextButton(
+                onClick = onHistoryClick,
+                modifier =
+                    Modifier.markNotImplemented(onHistoryClick).semantics {
+                      testTag = C.Tag.trips_history_button
+                    },
+            ) {
+              Icon(
+                  imageVector = Icons.Outlined.History,
+                  contentDescription = null,
+              )
+              Spacer(modifier = Modifier.width(4.dp))
+              Text(stringResource(R.string.trips_history))
             }
           }
-
+        }
+        if (uiState.errorMessage == null) {
           items(
               items = uiState.otherTrips,
               key = { trip -> trip.id },

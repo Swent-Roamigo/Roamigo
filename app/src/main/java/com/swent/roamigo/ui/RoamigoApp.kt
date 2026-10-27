@@ -37,8 +37,7 @@ import com.swent.roamigo.ui.profile.ProfileViewModel
 import com.swent.roamigo.ui.trip.creation.CreateTripViewModel
 import com.swent.roamigo.ui.trip.creation.DatesTravelersScreen
 import com.swent.roamigo.ui.trip.creation.DestinationScreen
-import com.swent.roamigo.ui.triphistory.TripHistoryScreen
-import com.swent.roamigo.ui.triphistory.TripHistoryViewModel
+import com.swent.roamigo.ui.trip.history.TripHistoryRoute
 import com.swent.roamigo.ui.trips.TripsRoute
 import kotlinx.coroutines.launch
 
@@ -127,14 +126,10 @@ fun RoamigoApp(
           onSignOutClick = profileViewModel::signOut,
       )
     }
+
     composable(Route.TRIP_HISTORY) {
-      val historyViewModel: TripHistoryViewModel =
-          viewModel(factory = TripHistoryViewModel.factory(tripRepository))
-
-      val historyState by historyViewModel.uiState.collectAsState()
-
-      TripHistoryScreen(
-          uiState = historyState,
+      TripHistoryRoute(
+          tripRepository = tripRepository,
           onBackClick = { navController.popBackStack() },
           onTripsClick = {
             navController.popBackStack(

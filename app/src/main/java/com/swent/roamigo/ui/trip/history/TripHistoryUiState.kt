@@ -1,6 +1,5 @@
 // AI assistance was used for implementation support and code review.
-package com.swent.roamigo.ui.triphistory
-
+package com.swent.roamigo.ui.trip.history
 data class TripHistoryItemUiModel(
     val id: String,
     val name: String,

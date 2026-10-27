@@ -1,4 +1,4 @@
-package com.swent.roamigo.ui.triphistory
+package com.swent.roamigo.ui.trip.history
 
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -11,7 +11,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
-import org.junit.Assert.assertEquals
+import org.junit.Assert
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -41,6 +41,7 @@ class TripHistoryScreenTest {
       onTripsClick: () -> Unit = {},
       onMapClick: () -> Unit = {},
       onPhotosClick: () -> Unit = {},
+      onRetryClick: () -> Unit = {},
   ) {
     composeRule.setContent {
       RoamigoTheme {
@@ -51,6 +52,7 @@ class TripHistoryScreenTest {
             onTripsClick = onTripsClick,
             onMapClick = onMapClick,
             onPhotosClick = onPhotosClick,
+            onRetryClick = onRetryClick,
         )
       }
     }
@@ -135,11 +137,11 @@ class TripHistoryScreenTest {
     composeRule.onNodeWithTag(C.Tag.trips_navigation_map).performClick()
     composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).performClick()
 
-    assertEquals(1, backClicks)
-    assertEquals(1, worldMapClicks)
-    assertEquals(1, tripsClicks)
-    assertEquals(1, mapClicks)
-    assertEquals(1, photosClicks)
+    Assert.assertEquals(1, backClicks)
+    Assert.assertEquals(1, worldMapClicks)
+    Assert.assertEquals(1, tripsClicks)
+    Assert.assertEquals(1, mapClicks)
+    Assert.assertEquals(1, photosClicks)
   }
 
   @Test
@@ -196,10 +198,42 @@ class TripHistoryScreenTest {
         RuntimeEnvironment.getApplication().getString(R.string.feature_not_implemented)
 
     composeRule.runOnIdle {
-      assertEquals(
+      Assert.assertEquals(
           expectedMessage,
           ShadowToast.getTextOfLatestToast(),
       )
     }
+  }
+
+  @Test
+  fun blankErrorDisplaysFallbackMessage() {
+    show(
+        TripHistoryUiState(
+            isLoading = false,
+            errorMessage = "   ",
+        )
+    )
+
+    composeRule.onNodeWithTag(C.Tag.trip_history_error).assertIsDisplayed()
+
+    composeRule.onNodeWithText("Unable to load trip history.").assertIsDisplayed()
+  }
+
+  @Test
+  fun retryButtonInvokesCallback() {
+    var retryClicks = 0
+
+    show(
+        state =
+            TripHistoryUiState(
+                isLoading = false,
+                errorMessage = "Unable to load trip history.",
+            ),
+        onRetryClick = { retryClicks++ },
+    )
+
+    composeRule.onNodeWithTag(C.Tag.trip_history_retry).assertIsDisplayed().performClick()
+
+    Assert.assertEquals(1, retryClicks)
   }
 }

@@ -45,5 +45,6 @@ object C {
     const val trip_history_back = "trip_history_back"
     const val trip_history_world_map = "trip_history_world_map"
     const val trips_history_button = "trips_history_button"
+    const val trip_history_retry = "trip_history_retry"
   }
 }

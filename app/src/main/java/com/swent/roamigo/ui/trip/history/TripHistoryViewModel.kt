@@ -1,11 +1,12 @@
 // AI assistance was used for implementation support and code review.
-package com.swent.roamigo.ui.triphistory
+package com.swent.roamigo.ui.trip.history
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripRepository
+import com.swent.roamigo.model.trip.isCompletedOn
 import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneId
@@ -91,9 +92,7 @@ internal fun selectCompletedTrips(
     zone: ZoneId,
 ): List<Trip> =
     trips
-        .filter { trip ->
-          trip.endDate.toDate().toInstant().atZone(zone).toLocalDate().isBefore(today)
-        }
+        .filter { trip -> trip.isCompletedOn(today, zone) }
         .sortedWith(
             compareByDescending<Trip> { it.endDate.seconds }
                 .thenByDescending { it.endDate.nanoseconds }
