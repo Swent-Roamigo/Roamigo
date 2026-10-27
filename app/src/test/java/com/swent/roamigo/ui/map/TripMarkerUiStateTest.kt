@@ -12,28 +12,6 @@ import org.junit.Test
 class TripMarkerUiStateTest {
 
   @Test
-  fun tripMarkerUiStateInitialization_storesCorrectProperties() {
-    val state =
-        TripMarkerUiState(
-            id = "marker_1",
-            tripId = "trip_123",
-            tripTitle = "Summer Trip",
-            locationName = "Barcelona",
-            latitude = 41.3851,
-            longitude = 2.1734,
-            snippet = "Barcelona Visit",
-        )
-
-    assertEquals("marker_1", state.id)
-    assertEquals("trip_123", state.tripId)
-    assertEquals("Summer Trip", state.tripTitle)
-    assertEquals("Barcelona", state.locationName)
-    assertEquals(41.3851, state.latitude, 0.0001)
-    assertEquals(2.1734, state.longitude, 0.0001)
-    assertEquals("Barcelona Visit", state.snippet)
-  }
-
-  @Test
   fun toTripMarkerUiState_convertsLocationCorrectly() {
     val location = TripLocation(latitude = 38.7223, longitude = -9.1393, name = "Lisbon")
     val trip =

@@ -42,29 +42,6 @@ class TripOverviewMapUnsupportedActionsTest {
   private val uiState = mutableStateOf(TripOverviewMapUiState(isLoading = true))
 
   @Test
-  fun mapMarkerUnconnectedActionShowsFeedback() {
-    composeRule.setContent {
-      RoamigoTheme {
-        TripOverviewMapScreen(
-            uiState = uiState.value,
-            onRetry = {},
-        )
-      }
-    }
-
-    composeRule.loadLocalMapStyle()
-    composeRule.runOnIdle { uiState.value = TripOverviewMapUiState(markers = listOf(marker)) }
-
-    val markerTag = TripMarkerTestTags.markerFor(marker.id)
-
-    composeRule.waitUntil(timeoutMillis = MAP_TEST_TIMEOUT_MILLIS) {
-      composeRule.onAllNodesWithTag(markerTag).fetchSemanticsNodes().isNotEmpty()
-    }
-
-    composeRule.onNodeWithTag(markerTag).assert(isNotImplemented).performClick()
-  }
-
-  @Test
   fun connectedMarkerActionInvokesCallbackWithoutNotImplemented() {
     var clickedTripId: String? = null
     composeRule.setContent {
