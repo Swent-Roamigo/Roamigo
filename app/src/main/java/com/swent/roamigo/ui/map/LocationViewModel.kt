@@ -10,6 +10,8 @@ import com.swent.roamigo.model.location.DeviceLocation
 import com.swent.roamigo.model.location.LocationRepository
 import com.swent.roamigo.model.location.LocationSharingException
 import com.swent.roamigo.model.location.MemberLocation
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -17,6 +19,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +29,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 
 /**
@@ -71,9 +75,12 @@ class LocationViewModel(
   /** State currently rendered by the trip map. */
   val uiState: StateFlow<LocationUiState> = _uiState.asStateFlow()
 
-  // Last start or stop request. Each request waits for the previous one, so they reach the
-  // repository in the order the user made them.
-  private var sharingJob: Job? = null
+  // Last start or stop request. A start waits for it, so that a start reaches the repository after
+  // the requests the user made before it.
+  private var lastSharingRequest: Job? = null
+
+  // Parent of the pending start requests, so that a stop can cancel all of them at once.
+  private val startRequests = SupervisorJob(viewModelScope.coroutineContext.job)
 
   private var refreshJob: Job? = null
 
@@ -129,14 +136,20 @@ class LocationViewModel(
       return
     }
     wantsSharing = true
-    runSharingRequest { locationRepository.startSharing(tripId) }
+    lastSharingRequest =
+        launchSharingRequest(after = lastSharingRequest, context = startRequests) {
+          locationRepository.startSharing(tripId)
+        }
   }
 
   /** Stops sharing the user's location with the trip. The own position stops refreshing at once. */
   fun stopSharing() {
     wantsSharing = false
     stopRefreshingMyLocation()
-    runSharingRequest { locationRepository.stopSharing(tripId) }
+    // Cancelled instead of awaited: a start may wait long for its first update, and the repository
+    // lets a stop interrupt it, so that nothing is published once the user stopped.
+    startRequests.cancelChildren()
+    lastSharingRequest = launchSharingRequest { locationRepository.stopSharing(tripId) }
   }
 
   /** Stops sharing when the user leaves the trip, since they must no longer see its members. */
@@ -157,23 +170,25 @@ class LocationViewModel(
     }
   }
 
-  private fun runSharingRequest(request: suspend () -> Unit) {
-    val previousRequest = sharingJob
-    sharingJob = viewModelScope.launch {
-      previousRequest?.join()
-      _uiState.update { state -> state.copy(errorMessage = null) }
-      try {
-        request()
-      } catch (exception: LocationSharingException) {
-        _uiState.update { state -> state.copy(errorMessage = exception.message) }
-      } catch (exception: IllegalStateException) {
-        // Thrown when the permission was withdrawn outside the app or the user signed out.
-        _uiState.update { state ->
-          state.copy(errorMessage = exception.message ?: SHARING_FAILED_MESSAGE)
+  private fun launchSharingRequest(
+      after: Job? = null,
+      context: CoroutineContext = EmptyCoroutineContext,
+      request: suspend () -> Unit,
+  ): Job =
+      viewModelScope.launch(context) {
+        after?.join()
+        _uiState.update { state -> state.copy(errorMessage = null) }
+        try {
+          request()
+        } catch (exception: LocationSharingException) {
+          _uiState.update { state -> state.copy(errorMessage = exception.message) }
+        } catch (exception: IllegalStateException) {
+          // Thrown when the permission was withdrawn outside the app or the user signed out.
+          _uiState.update { state ->
+            state.copy(errorMessage = exception.message ?: SHARING_FAILED_MESSAGE)
+          }
         }
       }
-    }
-  }
 
   private suspend fun observeMemberLocations() {
     locationRepository
