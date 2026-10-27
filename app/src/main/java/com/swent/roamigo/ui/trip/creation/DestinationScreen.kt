@@ -23,10 +23,12 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.roamigo.R
 import com.swent.roamigo.model.destination.Destination
+import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffold
 import com.swent.roamigo.ui.trip.creation.components.DestinationCard
 import com.swent.roamigo.ui.trip.creation.components.DestinationScreenTestTags
@@ -167,3 +169,21 @@ fun DestinationScreenContent(
 }
 
 private const val DESTINATION_GRID_COLUMNS = 2
+
+@Preview(showBackground = true, widthDp = 390, heightDp = 844)
+@Composable
+private fun DestinationScreenPreview() {
+  RoamigoTheme {
+    DestinationScreenContent(
+        uiState = CreateTripUiState(),
+        onBack = {},
+        onClose = {},
+        onQueryChange = {},
+        onToggleDestination = {},
+        onRemoveDestination = {},
+        onRetry = {},
+        onRequestPhoto = {},
+        onContinue = {},
+    )
+  }
+}

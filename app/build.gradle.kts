@@ -147,7 +147,6 @@ sonar {
                 "**/com/swent/roamigo/model/trip/voting/VoteOption.kt",
                 "**/com/swent/roamigo/model/users/User.kt",
                 "**/com/swent/roamigo/ui/theme/Theme.kt",
-                "**/com/swent/roamigo/ui/trip/creation/DestinationScreenPreview.kt",
                 "**/com/swent/roamigo/ui/trip/creation/components/DestinationComponentPreviews.kt",
             )
             .joinToString(","),
