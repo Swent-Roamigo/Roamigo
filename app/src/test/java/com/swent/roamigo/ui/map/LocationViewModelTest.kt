@@ -460,6 +460,106 @@ class LocationViewModelTest {
   }
 
   @Test
+  fun onLeaveTrip_clearsShownLocationsAtOnce() = runLocationTest {
+    repository.currentLocation = LAUSANNE
+    val staleAlice =
+        ALICE.copy(
+            updatedAt =
+                NOW_MILLIS - (LocationViewModel.STALE_AFTER + 1.milliseconds).inWholeMilliseconds
+        )
+    repository.memberLocations.value = listOf(staleAlice, BOB)
+    val viewModel = createViewModel(hasPermission = true)
+    viewModel.startSharing()
+    runCurrent()
+    assertEquals(listOf(staleAlice, BOB), viewModel.uiState.value.memberLocations)
+    assertEquals(setOf("alice"), viewModel.uiState.value.staleMemberIds)
+    assertEquals(LAUSANNE_MILLIS, viewModel.uiState.value.myLocation?.updatedAt)
+
+    viewModel.onLeaveTrip()
+
+    val state = viewModel.uiState.value
+    assertTrue(state.memberLocations.isEmpty())
+    assertTrue(state.staleMemberIds.isEmpty())
+    assertNull(state.myLocation)
+  }
+
+  @Test
+  fun afterLeavingTrip_locationsAreNotShownAgain() = runLocationTest {
+    repository.currentLocation = LAUSANNE
+    repository.memberLocations.value = listOf(ALICE)
+    val viewModel = createViewModel(hasPermission = true)
+    viewModel.startSharing()
+    runCurrent()
+    viewModel.onLeaveTrip()
+    runCurrent()
+    val observationsWhenLeft = repository.observeMemberLocationsCalls
+
+    repository.memberLocations.value = listOf(ALICE.copy(latitude = 46.53), BOB)
+    runCurrent()
+    connectivity.online.value = false
+    runCurrent()
+    connectivity.online.value = true
+    viewModel.onPermissionResult(granted = true)
+    advanceTimeBy(interval * 3)
+    runCurrent()
+
+    val state = viewModel.uiState.value
+    assertTrue(state.memberLocations.isEmpty())
+    assertTrue(state.staleMemberIds.isEmpty())
+    assertNull(state.myLocation)
+    assertEquals(observationsWhenLeft, repository.observeMemberLocationsCalls)
+  }
+
+  @Test
+  fun startSharing_afterLeavingTrip_doesNotCallTheRepository() = runLocationTest {
+    repository.currentLocation = LAUSANNE
+    val viewModel = createViewModel(hasPermission = true)
+    viewModel.onLeaveTrip()
+    runCurrent()
+
+    viewModel.startSharing()
+    runCurrent()
+
+    assertTrue(repository.startSharingCalls.isEmpty())
+    assertFalse(viewModel.uiState.value.isSharing)
+    assertEquals(0, repository.getCurrentLocationCalls)
+  }
+
+  @Test
+  fun onLeaveTrip_calledTwice_stopsSharingOnce() = runLocationTest {
+    repository.currentLocation = LAUSANNE
+    val viewModel = createViewModel(hasPermission = true)
+    viewModel.startSharing()
+    runCurrent()
+
+    viewModel.onLeaveTrip()
+    viewModel.onLeaveTrip()
+    runCurrent()
+    viewModelStore.clear()
+    runCurrent()
+
+    assertFalse(viewModel.uiState.value.isSharing)
+    assertEquals(listOf(TRIP_ID), repository.stopSharingCalls)
+  }
+
+  @Test
+  fun onCleared_whileStopAfterLeavingTripIsPending_stopsSharing() = runLocationTest {
+    repository.currentLocation = LAUSANNE
+    // Never completed, like a start still waiting for its first update when the user leaves.
+    repository.startSharingGate = CompletableDeferred()
+    val viewModel = createViewModel(hasPermission = true)
+    viewModel.startSharing()
+    runCurrent()
+
+    viewModel.onLeaveTrip()
+    viewModelStore.clear()
+    runCurrent()
+
+    assertEquals(TRIP_ID, repository.stopSharingCalls.lastOrNull())
+    assertTrue(repository.sharedTripIds.isEmpty())
+  }
+
+  @Test
   fun onCleared_whileSharing_stopsSharingAndCollection() = runLocationTest {
     repository.currentLocation = LAUSANNE
     val viewModel = createViewModel(hasPermission = true)
