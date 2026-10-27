@@ -5,9 +5,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.hasText
@@ -17,11 +18,13 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.trip.voting.VoteStatus
+import com.swent.roamigo.ui.isNotImplemented
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.shadows.ShadowToast
 
 @RunWith(AndroidJUnit4::class)
 class VotesScreenTest {
@@ -173,8 +176,17 @@ class VotesScreenTest {
     composeRule
         .onNode(hasText("Votes") and androidx.compose.ui.test.isSelectable())
         .assertIsSelected()
-    composeRule.onNodeWithText("Overview").assertIsNotEnabled()
-    composeRule.onNodeWithText("Itinerary").assertIsNotEnabled()
+    for (label in listOf("Overview", "Itinerary")) {
+      ShadowToast.reset()
+      composeRule.onNodeWithText(label).assertIsEnabled().assert(isNotImplemented).performClick()
+      composeRule.runOnIdle {
+        assertEquals("Not implemented yet", ShadowToast.getTextOfLatestToast())
+      }
+      composeRule
+          .onNode(hasText("Votes") and androidx.compose.ui.test.isSelectable())
+          .assertIsSelected()
+          .assert(isNotImplemented.not())
+    }
     composeRule.onNodeWithText("Trips").performClick()
     composeRule.runOnIdle { assertEquals(1, backs) }
   }

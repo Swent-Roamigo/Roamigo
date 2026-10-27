@@ -6,9 +6,12 @@ import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import com.swent.roamigo.R
+import com.swent.roamigo.ui.components.markNotImplemented
+import com.swent.roamigo.ui.components.rememberNotImplementedAction
 
 enum class TripTab {
   OVERVIEW,
@@ -16,13 +19,13 @@ enum class TripTab {
   VOTES,
 }
 
-/** A null navigation callback marks a destination that is not available yet. */
+/** Shared trip navigation; unfinished destinations give the standard placeholder feedback. */
 @Composable
 fun TripTabs(
     selectedTab: TripTab,
-    onOverviewClick: (() -> Unit)? = null,
-    onItineraryClick: (() -> Unit)? = null,
-    onVotesClick: (() -> Unit)? = null,
+    onOverviewClick: () -> Unit = rememberNotImplementedAction(),
+    onItineraryClick: () -> Unit = rememberNotImplementedAction(),
+    onVotesClick: () -> Unit = {},
 ) {
   val callbacks = listOf(onOverviewClick, onItineraryClick, onVotesClick)
   val labels = listOf(R.string.trip_tab_overview, R.string.trip_tab_itinerary, R.string.votes_title)
@@ -35,8 +38,8 @@ fun TripTabs(
       val onClick = callbacks[tab.ordinal]
       Tab(
           selected = selected,
-          enabled = selected || onClick != null,
-          onClick = { onClick?.invoke() },
+          onClick = onClick,
+          modifier = Modifier.markNotImplemented(onClick),
           text = {
             Text(
                 stringResource(labels[tab.ordinal]),
