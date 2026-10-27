@@ -158,4 +158,16 @@ class TripHistoryScreenTest {
 
     composeRule.onNodeWithTag(C.Tag.trip_history_world_map).assertIsDisplayed()
   }
+
+  @Test
+  fun displaysFallbackWhenDestinationIsMissing() {
+    show(
+        TripHistoryUiState(
+            isLoading = false,
+            trips = listOf(rome.copy(destinations = emptyList())),
+        )
+    )
+
+    composeRule.onNodeWithText("Destination unavailable").assertIsDisplayed()
+  }
 }

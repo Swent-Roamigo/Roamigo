@@ -1,5 +1,6 @@
 package com.swent.roamigo.ui.triphistory
 
+import androidx.lifecycle.ViewModel
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.trip.FakeTripRepository
@@ -181,6 +182,63 @@ class TripHistoryViewModelTest {
     )
     assertEquals(false, viewModel.uiState.value.isLoading)
     assertNull(viewModel.uiState.value.errorMessage)
+  }
+
+  @Test
+  fun ordersTripsWithSameEndSecondByNanoseconds() {
+    val earlier =
+        trip(
+            "earlier",
+            "2026-10-20T12:00:00.100Z",
+        )
+    val later =
+        trip(
+            "later",
+            "2026-10-20T12:00:00.900Z",
+        )
+
+    val result =
+        selectCompletedTrips(
+            listOf(earlier, later),
+            today,
+            ZoneOffset.UTC,
+        )
+
+    assertEquals(listOf(later, earlier), result)
+  }
+
+  @Test
+  fun factoryCreatesViewModelAndLoadsTrips() = runTest {
+    val completedTrip =
+        trip(
+            "factory-trip",
+            "2026-10-25T12:00:00Z",
+        )
+
+    val factory =
+        TripHistoryViewModel.factory(
+            FakeTripRepository(trips = listOf(completedTrip)),
+            clock,
+        )
+
+    val viewModel = factory.create(TripHistoryViewModel::class.java)
+    advanceUntilIdle()
+
+    assertEquals(
+        listOf("factory-trip"),
+        viewModel.uiState.value.trips.map { it.name },
+    )
+  }
+
+  @Test(expected = IllegalArgumentException::class)
+  fun factoryRejectsUnexpectedViewModelClass() {
+    class OtherViewModel : ViewModel()
+
+    TripHistoryViewModel.factory(
+            FakeTripRepository(),
+            clock,
+        )
+        .create(OtherViewModel::class.java)
   }
 
   private fun trip(
