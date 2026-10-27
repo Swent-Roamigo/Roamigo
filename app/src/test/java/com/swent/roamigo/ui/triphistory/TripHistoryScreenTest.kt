@@ -8,13 +8,16 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowToast
 
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w800dp-h1600dp")
@@ -169,5 +172,34 @@ class TripHistoryScreenTest {
     )
 
     composeRule.onNodeWithText("Destination unavailable").assertIsDisplayed()
+  }
+
+  @Test
+  fun worldMapPlaceholderShowsNotImplementedFeedback() {
+    composeRule.setContent {
+      RoamigoTheme {
+        TripHistoryScreen(
+            uiState =
+                TripHistoryUiState(
+                    isLoading = false,
+                    trips = listOf(rome),
+                )
+        )
+      }
+    }
+
+    ShadowToast.reset()
+
+    composeRule.onNodeWithTag(C.Tag.trip_history_world_map).assertIsDisplayed().performClick()
+
+    val expectedMessage =
+        RuntimeEnvironment.getApplication().getString(R.string.feature_not_implemented)
+
+    composeRule.runOnIdle {
+      assertEquals(
+          expectedMessage,
+          ShadowToast.getTextOfLatestToast(),
+      )
+    }
   }
 }
