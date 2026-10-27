@@ -112,11 +112,11 @@
     <string name="vote_option">Option %1$d</string>
     <string name="vote_remove_option">Remove option %1$d</string>
     <string name="vote_add_option">+ Add option</string>
-    <string name="vote_options_hint">Add at least two options. Fill in or remove any empty options.</string>
+    <string name="vote_options_hint">Add 2–10 options. Fill in or remove any empty options.</string>
     <string name="vote_start">Start vote</string>
     <string name="vote_creating">Creating vote…</string>
     <string name="vote_cancel">Cancel</string>
-    <string name="vote_invalid">Enter a question and at least two non-empty options.</string>
+    <string name="vote_invalid">Enter a question and 2–10 non-empty options.</string>
     <string name="vote_submission_error">Unable to create the vote. Please try again.</string>
 
     <!-- Friends -->
