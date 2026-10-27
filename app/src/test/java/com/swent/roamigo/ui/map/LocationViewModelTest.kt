@@ -620,6 +620,31 @@ class LocationViewModelTest {
   }
 
   @Test
+  fun memberLocations_afterObservationFails_keepAgingUntilHidden() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = true)
+    repository.memberLocations.value = listOf(ALICE)
+    runCurrent()
+
+    repository.failMemberLocations(LocationSharingException("Could not read the trip locations"))
+    runCurrent()
+    assertEquals("Could not read the trip locations", viewModel.uiState.value.errorMessage)
+    assertEquals(listOf(ALICE), viewModel.uiState.value.memberLocations)
+    assertTrue(viewModel.uiState.value.staleMemberIds.isEmpty())
+
+    now += (LocationViewModel.STALE_AFTER + 1.milliseconds).inWholeMilliseconds
+    advanceTimeBy(staleCheckInterval)
+    runCurrent()
+    assertEquals(listOf(ALICE), viewModel.uiState.value.memberLocations)
+    assertEquals(setOf("alice"), viewModel.uiState.value.staleMemberIds)
+
+    now = NOW_MILLIS + (LocationViewModel.HIDE_AFTER + 1.milliseconds).inWholeMilliseconds
+    advanceTimeBy(staleCheckInterval)
+    runCurrent()
+    assertTrue(viewModel.uiState.value.memberLocations.isEmpty())
+    assertTrue(viewModel.uiState.value.staleMemberIds.isEmpty())
+  }
+
+  @Test
   fun goingOffline_keepsMemberLocationsAndMarksThemStale() = runLocationTest {
     val viewModel = createViewModel(hasPermission = true)
     repository.memberLocations.value = listOf(ALICE, BOB)

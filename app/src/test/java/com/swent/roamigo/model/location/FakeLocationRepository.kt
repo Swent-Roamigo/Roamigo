@@ -4,10 +4,12 @@ package com.swent.roamigo.model.location
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 
 /**
  * In-memory [LocationRepository] for unit tests. It records the calls it receives and can be made
@@ -19,6 +21,8 @@ class FakeLocationRepository(
 ) : LocationRepository {
 
   val memberLocations = MutableStateFlow<List<MemberLocation>>(emptyList())
+
+  private val observationFailures = MutableSharedFlow<Exception>(extraBufferCapacity = 1)
 
   private val sharingTripIds = MutableStateFlow<Set<String>>(emptySet())
 
@@ -37,6 +41,14 @@ class FakeLocationRepository(
 
   /** Thrown by [stopSharing] after stopping, when set, like a failed removal from the database. */
   var stopSharingError: Exception? = null
+
+  /**
+   * Makes the running [observeMemberLocations] flows throw [exception], like a database listener
+   * cancelled after it already emitted. Later observations are not affected.
+   */
+  fun failMemberLocations(exception: Exception) {
+    observationFailures.tryEmit(exception)
+  }
 
   override fun hasLocationPermission(): Boolean = hasPermission
 
@@ -86,7 +98,7 @@ class FakeLocationRepository(
 
   override fun observeMemberLocations(tripId: String): Flow<List<MemberLocation>> = flow {
     observeMemberLocationsError?.let { throw it }
-    emitAll(memberLocations)
+    emitAll(merge(memberLocations, observationFailures.map { throw it }))
   }
 
   override fun isSharing(tripId: String): Flow<Boolean> = sharingTripIds.map { tripIds ->
