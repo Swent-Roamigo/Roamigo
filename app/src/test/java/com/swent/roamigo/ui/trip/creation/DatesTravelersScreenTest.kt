@@ -19,6 +19,8 @@ import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.R
+import com.swent.roamigo.model.destination.FakeDestinationRepository
+import com.swent.roamigo.model.destination.sampleDestination
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
@@ -42,8 +44,8 @@ class DatesTravelersScreenTest {
 
   @Test
   fun initialScreenShowsC2ControlsAndEnablesCreationForValidDefaultDraft() {
-    val viewModel = CreateTripViewModel()
-    viewModel.toggleDestination("Lisbon")
+    val viewModel = CreateTripViewModel(destinationRepository = FakeDestinationRepository())
+    viewModel.toggleDestination(sampleDestination("Lisbon"))
     showScreen(viewModel)
 
     composeRule.onNodeWithTag(DatesTravelersScreenTestTags.SCREEN).assertExists()
@@ -58,8 +60,8 @@ class DatesTravelersScreenTest {
 
   @Test
   fun shortScreenCanScrollToTravelerControlsWhileKeepingCreateActionVisible() {
-    val viewModel = CreateTripViewModel()
-    viewModel.toggleDestination("Lisbon")
+    val viewModel = CreateTripViewModel(destinationRepository = FakeDestinationRepository())
+    viewModel.toggleDestination(sampleDestination("Lisbon"))
     composeRule.setContent {
       Box(Modifier.size(width = 390.dp, height = 480.dp)) {
         RoamigoTheme {
@@ -86,7 +88,7 @@ class DatesTravelersScreenTest {
 
   @Test
   fun monthNavigationMovesAcrossYearBoundaryAndRestoresTheOriginalMonth() {
-    val viewModel = CreateTripViewModel()
+    val viewModel = CreateTripViewModel(destinationRepository = FakeDestinationRepository())
     showScreen(viewModel)
     val currentMonth = YearMonth.now()
 
@@ -114,12 +116,12 @@ class DatesTravelersScreenTest {
 
   @Test
   fun selectedDatesCanSpanMonthsAndProduceInclusiveDuration() {
-    val viewModel = CreateTripViewModel()
+    val viewModel = CreateTripViewModel(destinationRepository = FakeDestinationRepository())
     showScreen(viewModel)
     val start = YearMonth.now().atEndOfMonth()
     val end = YearMonth.from(start).plusMonths(1).atDay(2)
 
-    viewModel.toggleDestination("Lisbon")
+    viewModel.toggleDestination(sampleDestination("Lisbon"))
     composeRule.onNodeWithTag(TripCalendarTestTags.dayFor(start)).performClick()
     composeRule.onNodeWithTag(TripCalendarTestTags.NEXT_MONTH).performClick()
     composeRule.onNodeWithTag(TripCalendarTestTags.dayFor(end)).performClick()
@@ -154,8 +156,8 @@ class DatesTravelersScreenTest {
 
   @Test
   fun selectingEarlierDateRestartsRangeAndFlexiblePreferenceIsRetained() {
-    val viewModel = CreateTripViewModel()
-    viewModel.toggleDestination("Lisbon")
+    val viewModel = CreateTripViewModel(destinationRepository = FakeDestinationRepository())
+    viewModel.toggleDestination(sampleDestination("Lisbon"))
     viewModel.showNextMonth()
     showScreen(viewModel)
     val month = YearMonth.now().plusMonths(1)
@@ -175,7 +177,7 @@ class DatesTravelersScreenTest {
 
   @Test
   fun soloAndGroupSelectionRespectTravelerBounds() {
-    val viewModel = CreateTripViewModel()
+    val viewModel = CreateTripViewModel(destinationRepository = FakeDestinationRepository())
     showScreen(viewModel)
 
     composeRule.onNodeWithTag(TripTypeSelectorTestTags.SOLO).performClick()
@@ -232,7 +234,7 @@ class DatesTravelersScreenTest {
 
   @Test
   fun clickingCreateTripInvokesCallbackWithoutMutatingDraft() {
-    val viewModel = CreateTripViewModel()
+    val viewModel = CreateTripViewModel(destinationRepository = FakeDestinationRepository())
     var createTripCalled = false
     showScreen(viewModel) { createTripCalled = true }
     selectTwoDatesInVisibleMonth(viewModel)
@@ -270,7 +272,7 @@ class DatesTravelersScreenTest {
     viewModel.showNextMonth()
     val start = month.atDay(5)
     val end = month.atDay(8)
-    viewModel.toggleDestination("Lisbon")
+    viewModel.toggleDestination(sampleDestination("Lisbon"))
     composeRule.onNodeWithTag(TripCalendarTestTags.dayFor(start)).performClick()
     composeRule.onNodeWithTag(TripCalendarTestTags.dayFor(end)).performClick()
   }
