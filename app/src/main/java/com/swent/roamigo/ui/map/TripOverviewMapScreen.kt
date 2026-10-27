@@ -20,7 +20,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mapbox.geojson.Point
 import com.mapbox.maps.ViewAnnotationAnchor
 import com.mapbox.maps.extension.compose.MapboxMap
@@ -33,15 +32,31 @@ import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.Spacing
 
-/** Renders destinations from [viewModel] and forwards marker clicks with their trip IDs. */
+/** Connects [viewModel] state and retry actions to [TripOverviewMapScreen]. */
 @Composable
-fun TripOverviewMapScreen(
+fun TripOverviewMapRoute(
     viewModel: TripOverviewMapViewModel,
     modifier: Modifier = Modifier,
     onMarkerClick: (String) -> Unit = rememberNotImplementedAction(),
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+  TripOverviewMapScreen(
+      uiState = uiState,
+      modifier = modifier,
+      onMarkerClick = onMarkerClick,
+      onRetry = viewModel::loadTrips,
+  )
+}
+
+/** Renders [uiState] and forwards marker clicks and retry actions to the caller. */
+@Composable
+fun TripOverviewMapScreen(
+    uiState: TripOverviewMapUiState,
+    modifier: Modifier = Modifier,
+    onMarkerClick: (String) -> Unit = rememberNotImplementedAction(),
+    onRetry: () -> Unit,
+) {
   Box(modifier = modifier.fillMaxSize()) {
     MapboxMap(
         modifier = Modifier.fillMaxSize(),
@@ -82,13 +97,11 @@ fun TripOverviewMapScreen(
             }
             uiState.errorMessage != null -> {
               Text(
-                  text = uiState.errorMessage.orEmpty(),
+                  text = stringResource(R.string.trip_map_load_error),
                   color = MaterialTheme.colorScheme.error,
                   textAlign = TextAlign.Center,
               )
-              Button(onClick = viewModel::loadTrips) {
-                Text(stringResource(R.string.trip_map_retry))
-              }
+              Button(onClick = onRetry) { Text(stringResource(R.string.trip_map_retry)) }
             }
             else -> Text(stringResource(R.string.trip_map_empty), textAlign = TextAlign.Center)
           }

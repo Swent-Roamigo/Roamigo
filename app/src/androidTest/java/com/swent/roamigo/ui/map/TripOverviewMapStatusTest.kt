@@ -2,6 +2,7 @@
 package com.swent.roamigo.ui.map
 
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -9,19 +10,10 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.google.firebase.Timestamp
 import com.swent.roamigo.R
-import com.swent.roamigo.model.TripLocation
-import com.swent.roamigo.model.trip.FakeTripRepository
-import com.swent.roamigo.model.trip.TravelMode
-import com.swent.roamigo.model.trip.Trip
-import com.swent.roamigo.model.trip.TripRepository
-import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.ui.theme.RoamigoTheme
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.Assert.assertEquals
@@ -40,43 +32,31 @@ class TripOverviewMapStatusTest {
   private val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
   private val loadingMessage = targetContext.getString(R.string.trip_map_loading)
   private val emptyMessage = targetContext.getString(R.string.trip_map_empty)
+  private val errorMessage = targetContext.getString(R.string.trip_map_load_error)
   private val retryLabel = targetContext.getString(R.string.trip_map_retry)
 
-  private val sampleTrip =
-      Trip(
-          uid = "trip_1",
-          name = "Paris trip",
-          description = null,
-          destinations =
-              listOf(TripLocation(latitude = 48.8566, longitude = 2.3522, name = "Paris")),
-          startDate = Timestamp(0, 0),
-          endDate = Timestamp(0, 0),
-          flexibleDates = false,
-          travelMode = TravelMode.SOLO,
-          travelerCount = 1,
-          ownerId = "user_1",
-          memberIds = listOf("user_1"),
-          status = TripStatus.PLANNED,
-          createdAt = Timestamp(0, 0),
+  private val marker =
+      TripMarkerUiState(
+          id = "paris_marker",
+          tripId = "trip_1",
+          tripTitle = "Paris trip",
+          locationName = "Paris",
+          latitude = 48.8566,
+          longitude = 2.3522,
       )
-
-  private val markerTag = TripMarkerTestTags.markerFor("trip_1_Paris_48.8566_2.3522")
+  private val loadedState = TripOverviewMapUiState(markers = listOf(marker))
+  private val uiState = mutableStateOf(TripOverviewMapUiState())
+  private val markerTag = TripMarkerTestTags.markerFor(marker.id)
 
   @Test
-  fun loadingShowsProgressUntilDestinationsAreLoaded() {
-    val pendingTrips = CompletableDeferred<List<Trip>>()
-    val repository =
-        object : TripRepository by FakeTripRepository() {
-          override suspend fun getTrips(): List<Trip> = pendingTrips.await()
-        }
-
-    setMapContent(repository)
+  fun loadingStateShowsProgressUntilMarkersAreProvided() {
+    setMapContent(TripOverviewMapUiState(isLoading = true))
 
     waitForText(loadingMessage)
     composeRule.onNodeWithText(emptyMessage).assertDoesNotExist()
     composeRule.onNodeWithText(retryLabel).assertDoesNotExist()
 
-    composeRule.runOnIdle { pendingTrips.complete(listOf(sampleTrip)) }
+    composeRule.runOnIdle { uiState.value = loadedState }
 
     waitForMarker()
     composeRule.onNodeWithText(loadingMessage).assertDoesNotExist()
@@ -84,8 +64,8 @@ class TripOverviewMapStatusTest {
   }
 
   @Test
-  fun successfulEmptyResultShowsEmptyMessage() {
-    setMapContent(FakeTripRepository())
+  fun emptyStateShowsEmptyMessage() {
+    setMapContent(TripOverviewMapUiState())
 
     waitForText(emptyMessage)
     composeRule.onNodeWithText(loadingMessage).assertDoesNotExist()
@@ -93,22 +73,19 @@ class TripOverviewMapStatusTest {
   }
 
   @Test
-  fun failedLoadShowsErrorAndRetryLoadsDestinations() {
-    val errorMessage = "Unable to load destinations"
-    val pendingRetry = CompletableDeferred<List<Trip>>()
-    var requests = 0
-    val repository =
-        object : TripRepository by FakeTripRepository() {
-          override suspend fun getTrips(): List<Trip> {
-            requests++
-            if (requests == 1) throw IllegalStateException(errorMessage)
-            return pendingRetry.await()
-          }
-        }
-
-    setMapContent(repository)
+  fun errorStateShowsGenericMessageAndRetryInvokesCallback() {
+    val repositoryErrorMessage = "Missing or invalid destinations"
+    var retryRequests = 0
+    setMapContent(
+        initialState = TripOverviewMapUiState(errorMessage = repositoryErrorMessage),
+        onRetry = {
+          retryRequests++
+          uiState.value = TripOverviewMapUiState(isLoading = true)
+        },
+    )
 
     waitForText(errorMessage)
+    composeRule.onNodeWithText(repositoryErrorMessage).assertDoesNotExist()
     composeRule.onNodeWithText(retryLabel).assertIsDisplayed()
     composeRule.onNodeWithText(loadingMessage).assertDoesNotExist()
     composeRule.onNodeWithText(emptyMessage).assertDoesNotExist()
@@ -121,8 +98,8 @@ class TripOverviewMapStatusTest {
     composeRule.onNodeWithText(emptyMessage).assertDoesNotExist()
 
     composeRule.runOnIdle {
-      assertEquals(2, requests)
-      pendingRetry.complete(listOf(sampleTrip))
+      assertEquals(1, retryRequests)
+      uiState.value = loadedState
     }
 
     waitForMarker()
@@ -132,11 +109,10 @@ class TripOverviewMapStatusTest {
     composeRule.onNodeWithText(retryLabel).assertDoesNotExist()
   }
 
-  private fun setMapContent(repository: TripRepository) {
+  private fun setMapContent(initialState: TripOverviewMapUiState, onRetry: () -> Unit = {}) {
+    uiState.value = initialState
     composeRule.setContent {
-      RoamigoTheme {
-        TripOverviewMapScreen(viewModel = viewModel { TripOverviewMapViewModel(repository) })
-      }
+      RoamigoTheme { TripOverviewMapScreen(uiState = uiState.value, onRetry = onRetry) }
     }
     composeRule.loadLocalMapStyle()
   }

@@ -2,10 +2,8 @@ package com.swent.roamigo.ui.map
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
-import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripStatus
@@ -58,12 +56,11 @@ class TripOverviewMapScreenPreviews {
         )
     RoamigoTheme {
       TripOverviewMapScreen(
-          viewModel =
-              viewModel {
-                TripOverviewMapViewModel(
-                    FakeTripRepository(trips = listOf(sampleTrip, sampleTrip2))
-                )
-              }
+          uiState =
+              TripOverviewMapUiState(
+                  markers = listOf(sampleTrip, sampleTrip2).flatMap { it.toTripMarkerUiStates() }
+              ),
+          onRetry = {},
       )
     }
   }
