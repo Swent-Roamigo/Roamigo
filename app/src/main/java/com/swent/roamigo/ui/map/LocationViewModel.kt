@@ -88,6 +88,13 @@ class LocationViewModel(
   // repository has not reported yet.
   private var wantsSharing = false
 
+  // Observes the connectivity, and the member locations while online. Kept so that leaving the trip
+  // can stop it on its own.
+  private val memberLocationsJob: Job
+
+  // Set once the user left the trip, after which no location is shown again.
+  private var hasLeftTrip = false
+
   init {
     viewModelScope.launch {
       locationRepository.isSharing(tripId).distinctUntilChanged().collect { sharing ->
@@ -95,7 +102,7 @@ class LocationViewModel(
         if (sharing) startRefreshingMyLocation() else stopRefreshingMyLocation()
       }
     }
-    viewModelScope.launch {
+    memberLocationsJob = viewModelScope.launch {
       // Sharing is left to the repository, which keeps retrying its updates while offline.
       connectivityRepository.isOnline.collectLatest { online ->
         _uiState.update { state -> state.copy(isOffline = !online) }
@@ -131,6 +138,7 @@ class LocationViewModel(
    * nothing is shared and [LocationUiState.errorMessage] explains why.
    */
   fun startSharing() {
+    if (hasLeftTrip) return
     if (_uiState.value.permissionState != LocationPermissionState.Granted) {
       _uiState.update { state -> state.copy(errorMessage = PERMISSION_REQUIRED_MESSAGE) }
       return
@@ -152,14 +160,31 @@ class LocationViewModel(
     lastSharingRequest = launchSharingRequest { locationRepository.stopSharing(tripId) }
   }
 
-  /** Stops sharing when the user leaves the trip, since they must no longer see its members. */
+  /**
+   * Stops sharing when the user leaves the trip, and clears every location shown at once, since the
+   * user must no longer see its members. Member locations stop being observed and the own position
+   * stops refreshing for good: later connectivity changes do not bring them back, and
+   * [startSharing] does nothing. Calling it again has no effect.
+   */
   fun onLeaveTrip() {
+    if (hasLeftTrip) return
+    hasLeftTrip = true
     stopSharing()
+    memberLocationsJob.cancel()
+    _uiState.update { state ->
+      state.copy(
+          memberLocations = emptyList(),
+          staleMemberIds = emptySet(),
+          myLocation = null,
+          isMyLocationStale = false,
+      )
+    }
   }
 
   override fun onCleared() {
-    // viewModelScope is already cancelled here, which cancels every collection and request.
-    if (wantsSharing || _uiState.value.isSharing) {
+    // viewModelScope is already cancelled here, which cancels every collection and request. A
+    // request that did not complete, like a stop made just before, may never reach the repository.
+    if (wantsSharing || _uiState.value.isSharing || lastSharingRequest?.isCompleted == false) {
       cleanupScope.launch {
         try {
           locationRepository.stopSharing(tripId)
@@ -229,7 +254,8 @@ class LocationViewModel(
   }
 
   private fun startRefreshingMyLocation() {
-    if (refreshJob?.isActive == true) return
+    // The repository may still report a sharing after the trip was left, e.g. until its stop ends.
+    if (hasLeftTrip || refreshJob?.isActive == true) return
     refreshJob = viewModelScope.launch {
       while (isActive) {
         val location = locationRepository.getCurrentLocation()?.toMemberLocation()
