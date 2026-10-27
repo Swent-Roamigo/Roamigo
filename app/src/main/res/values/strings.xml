@@ -1,3 +1,5 @@
+<!-- Author : Constantin Dunoyer de Segonzac -->
+<!-- Co-author : ChatGPT-Codex -->
 <resources>
     <string name="profile_sign_out_failed">Unable to sign out. Please try again.</string>
     <string name="feature_not_implemented">Not implemented yet</string>
@@ -27,9 +29,25 @@
         <item quantity="other">Continue · %1$d stops</item>
     </plurals>
     <string name="create_trip_popular_destinations">Popular with students</string>
-    <string name="destination_search_hint">Search cities or countries</string>
-    <string name="destination_search_description">Search destinations</string>
-    <string name="destination_remove_description">Remove %1$s</string>
+    <string name="destination_search_hint">Search cities</string>
+    <string name="destination_search_description">Search cities</string>
+    <string name="destination_search_initial">Search for a city</string>
+    <string name="destination_search_empty">No destinations found. Try another search.</string>
+    <string name="destination_search_error">Couldn’t load destinations. Check your connection and try again.</string>
+    <string name="destination_search_not_configured">City search is temporarily unavailable. Please try again later.</string>
+    <string name="destination_search_retry">Try again</string>
+    <string name="destination_search_results">Search results</string>
+    <string name="destination_geonames_credit">Place data © GeoNames</string>
+    <string name="destination_remove_description">Remove %1$s, %2$s</string>
+    <string name="destination_card_description">%1$s, %2$s</string>
+    <string name="destination_card_description_selected">%1$s, %2$s, selected</string>
+    <string name="destination_photo_info_description">Photo credits for %1$s</string>
+    <string name="destination_photo_credits_title">Photo credits</string>
+    <string name="destination_photo_creator">Photo: %1$s</string>
+    <string name="destination_photo_public_domain_creator">Public domain</string>
+    <string name="destination_photo_license_cropped">%1$s · Cropped for display</string>
+    <string name="destination_photo_view_original">View original</string>
+    <string name="destination_photo_view_license">View license</string>
     <string name="preview_step_content">Step content</string>
 
     <!-- C2 dates and travelers -->
@@ -141,6 +159,10 @@
     <string name="vote_ballot_submission_error">Unable to submit your vote. Please try again.</string>
     <string name="vote_retry">Retry</string>
     <string name="vote_back">Back</string>
+    <plurals name="vote_count">
+        <item quantity="one">%d vote</item>
+        <item quantity="other">%d votes</item>
+    </plurals>
     <string name="create_trip_sign_in">Sign in</string>
     <string name="create_trip_retry">Retry</string>
     <string name="create_trip_auth_error">Your session has ended. Sign in to create your trip.</string>

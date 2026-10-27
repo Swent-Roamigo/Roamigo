@@ -1,3 +1,5 @@
+// Author : Constantin Dunoyer de Segonzac
+// Co-author : ChatGPT-Codex
 import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -29,6 +31,14 @@ android {
     versionCode = 1
     versionName = "1.0"
 
+    val geonamesUsername =
+        providers
+            .gradleProperty("GEONAMES_USERNAME")
+            .orElse(providers.environmentVariable("GEONAMES_USERNAME"))
+            .orElse("")
+            .get()
+    buildConfigField("String", "GEONAMES_USERNAME", "\"$geonamesUsername\"")
+
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     vectorDrawables { useSupportLibrary = true }
 
@@ -55,6 +65,7 @@ android {
   buildFeatures {
     compose = true
     resValues = true
+    buildConfig = true
   }
 
   compileOptions {
@@ -134,7 +145,8 @@ sonar {
         "${project.layout.buildDirectory.get()}/reports/jacoco/jacocoTestReport/jacocoTestReport.xml",
     )
 
-    // TEMP FIX for code coverage
+    // Data holders and theme setup contain little behavior to exercise in unit tests.
+    // Previews are design-time examples, not production behavior.
     property(
         "sonar.coverage.exclusions",
         listOf(
@@ -148,6 +160,7 @@ sonar {
                 "**/com/swent/roamigo/model/trip/voting/VoteOption.kt",
                 "**/com/swent/roamigo/model/users/User.kt",
                 "**/com/swent/roamigo/ui/theme/Theme.kt",
+                "**/*Previews.kt",
             )
             .joinToString(","),
     )
@@ -180,6 +193,9 @@ dependencies {
   testImplementation(libs.mockito.core)
   implementation(libs.kotlinx.coroutines.play.services)
   implementation(libs.androidx.datastore.preferences)
+  implementation(libs.okhttp)
+  implementation(libs.coil)
+  implementation(libs.coil.compose)
 
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.appcompat)
