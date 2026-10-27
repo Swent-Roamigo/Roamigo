@@ -77,14 +77,16 @@ class VoteViewModel(
 
   private suspend fun observeBallots(vote: Vote) {
     try {
-      // Keep collecting complete lists: this is the source of persisted ballot state, and the
-      // same emissions can later supply live results without a second listener.
+      // One continuous snapshot stream supplies both persisted selection and live counts.
       voteRepository.observeBallots(tripId, voteId).collect { ballots ->
         val persistedOptionId = ballots.firstOrNull { it.userId == userId }?.optionId
+        val countsByOption = ballots.groupingBy { it.optionId }.eachCount()
+        // Include zero-count options and ignore ballots for options absent from this vote.
+        val voteCounts = vote.options.associate { it.uid to (countsByOption[it.uid] ?: 0) }
         _uiState.update { state ->
           when (state) {
-            is VoteUiState.Ready -> state.withPersistedOption(persistedOptionId)
-            else -> VoteUiState.Ready(vote, persistedOptionId)
+            is VoteUiState.Ready -> state.withBallotSnapshot(persistedOptionId, voteCounts)
+            else -> VoteUiState.Ready(vote, persistedOptionId, voteCounts = voteCounts)
           }
         }
       }
@@ -135,9 +137,13 @@ class VoteViewModel(
 }
 
 /** Remote changes follow a clean selection, but cannot replace a draft or an in-flight choice. */
-private fun VoteUiState.Ready.withPersistedOption(optionId: String?): VoteUiState.Ready =
+private fun VoteUiState.Ready.withBallotSnapshot(
+    optionId: String?,
+    voteCounts: Map<String, Int>,
+): VoteUiState.Ready =
     copy(
         persistedOptionId = optionId,
+        voteCounts = voteCounts,
         selectedOptionId = if (hasUnsavedSelection || isSubmitting) selectedOptionId else optionId,
         syncState = VoteSyncState.Synced,
     )
