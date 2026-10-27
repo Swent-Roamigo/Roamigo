@@ -135,12 +135,12 @@ class LocationViewModel(
 
   /**
    * Starts sharing the user's location with the trip. Without a granted location permission,
-   * nothing is shared and [LocationUiState.errorMessage] explains why.
+   * nothing is shared and [LocationUiState.sharingErrorMessage] explains why.
    */
   fun startSharing() {
     if (hasLeftTrip) return
     if (_uiState.value.permissionState != LocationPermissionState.Granted) {
-      _uiState.update { state -> state.copy(errorMessage = PERMISSION_REQUIRED_MESSAGE) }
+      _uiState.update { state -> state.copy(sharingErrorMessage = PERMISSION_REQUIRED_MESSAGE) }
       return
     }
     wantsSharing = true
@@ -202,15 +202,15 @@ class LocationViewModel(
   ): Job =
       viewModelScope.launch(context) {
         after?.join()
-        _uiState.update { state -> state.copy(errorMessage = null) }
+        _uiState.update { state -> state.copy(sharingErrorMessage = null) }
         try {
           request()
         } catch (exception: LocationSharingException) {
-          _uiState.update { state -> state.copy(errorMessage = exception.message) }
+          _uiState.update { state -> state.copy(sharingErrorMessage = exception.message) }
         } catch (exception: IllegalStateException) {
           // Thrown when the permission was withdrawn outside the app or the user signed out.
           _uiState.update { state ->
-            state.copy(errorMessage = exception.message ?: SHARING_FAILED_MESSAGE)
+            state.copy(sharingErrorMessage = exception.message ?: SHARING_FAILED_MESSAGE)
           }
         }
       }
@@ -220,9 +220,12 @@ class LocationViewModel(
         .observeMemberLocations(tripId)
         .catch { exception ->
           if (exception !is LocationSharingException) throw exception
-          _uiState.update { state -> state.copy(errorMessage = exception.message) }
+          _uiState.update { state -> state.copy(observationErrorMessage = exception.message) }
         }
         .collectLatest { locations ->
+          // A successful read shows the error of an earlier observation is over. A sharing error
+          // is left as is, since only a new sharing request answers it.
+          _uiState.update { state -> state.copy(observationErrorMessage = null) }
           // Locations age without new emissions, so they are re-evaluated until none is visible.
           // A new emission cancels this loop and starts over with the fresh list.
           while (true) {

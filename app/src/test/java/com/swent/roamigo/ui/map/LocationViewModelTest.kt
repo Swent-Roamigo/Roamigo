@@ -745,6 +745,40 @@ class LocationViewModelTest {
   }
 
   @Test
+  fun reconnecting_afterAFailedObservation_clearsTheObservationError() = runLocationTest {
+    repository.observeMemberLocationsError = LocationSharingException("Network error")
+    val viewModel = createViewModel(hasPermission = true)
+    runCurrent()
+    assertEquals("Network error", viewModel.uiState.value.observationErrorMessage)
+    connectivity.online.value = false
+    runCurrent()
+
+    repository.observeMemberLocationsError = null
+    repository.memberLocations.value = listOf(ALICE)
+    connectivity.online.value = true
+    runCurrent()
+
+    assertEquals(listOf(ALICE), viewModel.uiState.value.memberLocations)
+    assertNull(viewModel.uiState.value.observationErrorMessage)
+    assertNull(viewModel.uiState.value.errorMessage)
+  }
+
+  @Test
+  fun memberLocations_whenReadAfterASharingError_keepTheSharingError() = runLocationTest {
+    repository.startSharingError = LocationSharingException("Could not publish the location")
+    val viewModel = createViewModel(hasPermission = true)
+    viewModel.startSharing()
+    runCurrent()
+
+    repository.memberLocations.value = listOf(ALICE)
+    runCurrent()
+
+    assertEquals(listOf(ALICE), viewModel.uiState.value.memberLocations)
+    assertEquals("Could not publish the location", viewModel.uiState.value.sharingErrorMessage)
+    assertEquals("Could not publish the location", viewModel.uiState.value.errorMessage)
+  }
+
+  @Test
   fun goingOffline_keepsMemberLocationsAndMarksThemStale() = runLocationTest {
     val viewModel = createViewModel(hasPermission = true)
     repository.memberLocations.value = listOf(ALICE, BOB)
