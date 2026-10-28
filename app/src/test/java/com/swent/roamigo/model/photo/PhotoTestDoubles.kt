@@ -1,6 +1,7 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.model.photo
 
+import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -49,5 +50,23 @@ class InMemoryPhotoQueue : PhotoQueue {
 
   override suspend fun remove(id: String) {
     photos.value = photos.value.filterNot { it.id == id }
+  }
+}
+
+/** [PhotoUploader] that records what it uploaded, and fails or waits when a test asks it to. */
+class FakePhotoUploader : PhotoUploader {
+  /** Ids of the photos uploaded, in order. */
+  val uploaded = mutableListOf<String>()
+
+  /** The exception to throw for a photo, or null to let it upload. */
+  var failure: (PendingPhoto) -> Throwable? = { null }
+
+  /** Runs when an upload starts, before it fails or succeeds. */
+  var onUpload: suspend (PendingPhoto) -> Unit = {}
+
+  override suspend fun upload(photo: PendingPhoto, file: File) {
+    onUpload(photo)
+    failure(photo)?.let { throw it }
+    uploaded += photo.id
   }
 }
