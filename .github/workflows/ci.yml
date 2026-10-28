@@ -1,3 +1,4 @@
+# AI assistance was used for implementation support.
 name: CI - Test Runner
 
 # Run the workflow when commits are pushed on main or when a PR is modified
@@ -15,6 +16,9 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
+env:
+  MAPBOX_ACCESS_TOKEN: ${{ secrets.MAPBOX_ACCESS_TOKEN }}
 
 jobs:
   # Fast checks that need neither Node, Firebase, KVM, nor an Android emulator.
@@ -78,6 +82,13 @@ jobs:
     name: Connected tests
     runs-on: ubuntu-latest
     steps:
+      - name: Validate Mapbox access token
+        run: |
+          if [ -z "$MAPBOX_ACCESS_TOKEN" ]; then
+            echo "::error::Set the MAPBOX_ACCESS_TOKEN repository secret to a Mapbox public access token."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v7
         with:
