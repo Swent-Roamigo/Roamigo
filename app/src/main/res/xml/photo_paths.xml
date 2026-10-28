@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Must match PhotoModule.PHOTO_DIRECTORY. -->
+    <files-path name="pending_photos" path="pending-photos/" />
+</paths>
