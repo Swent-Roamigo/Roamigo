@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -47,10 +48,12 @@ fun PhotoViewer(
     )
     IconButton(
         onClick = onClose,
+        // A dark disc keeps the cross visible when the photo is bright up to its corner.
         modifier =
             Modifier.align(Alignment.TopEnd)
                 .safeDrawingPadding()
                 .padding(Spacing.small)
+                .background(Color.Black.copy(alpha = 0.6f), CircleShape)
                 .testTag(C.Tag.photo_viewer_close),
     ) {
       Icon(
