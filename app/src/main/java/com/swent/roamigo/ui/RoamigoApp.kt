@@ -149,7 +149,15 @@ fun RoamigoApp(
       val connectivity =
           connectivityRepository ?: remember(context) { DefaultConnectivityRepository(context) }
       PhotosRoute(
-          viewModel = viewModel { PhotosViewModel(photoRepository, connectivity, tripId) },
+          viewModel =
+              viewModel {
+                PhotosViewModel(
+                    photoRepository,
+                    connectivity,
+                    tripId,
+                    authRepository.getCurrentUser()?.uid,
+                )
+              },
           tripName = tripName,
           fileOf = photoRepository::fileOf,
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },

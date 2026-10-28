@@ -1,17 +1,21 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui.photos
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.PhotoCamera
@@ -37,6 +41,7 @@ import coil.compose.AsyncImage
 import com.swent.roamigo.R
 import com.swent.roamigo.model.photo.PendingPhoto
 import com.swent.roamigo.model.photo.PhotoUploadStatus
+import com.swent.roamigo.model.photo.TripPhoto
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
@@ -48,10 +53,12 @@ import java.text.DateFormat
 import java.util.Date
 
 /**
- * The photos of a trip that are saved on this device and not uploaded yet, and the way to take a
- * new one. Photos the server already has are not listed yet.
+ * The photos of a trip: the ones saved on this device and not uploaded yet, then the ones the trip
+ * already has, and the way to take a new one.
  *
- * @param fileOf the file holding a photo, to show its thumbnail.
+ * @param fileOf the file holding a waiting photo, to show its thumbnail.
+ * @param onPhotoClick invoked with the id of an uploaded photo the user wants to see full screen.
+ * @param onGalleryRetryClick invoked when the user asks to read the uploaded photos again.
  * @param onTripsClick invoked when the Trips tab of the bottom bar is selected.
  */
 @Composable
@@ -61,6 +68,8 @@ fun PhotosScreen(
     fileOf: (PendingPhoto) -> File,
     onTakePhotoClick: () -> Unit,
     onRetryClick: (String) -> Unit,
+    onPhotoClick: (String) -> Unit,
+    onGalleryRetryClick: () -> Unit,
     onTripsClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -96,13 +105,14 @@ fun PhotosScreen(
         )
       }
       PhotosBanner(state)
-      Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-        if (state.photos.isEmpty()) {
-          EmptyPhotos()
-        } else {
-          PendingPhotoList(state.photos, fileOf, onRetryClick)
-        }
-      }
+      PhotosContent(
+          state,
+          fileOf,
+          onRetryClick,
+          onPhotoClick,
+          onGalleryRetryClick,
+          Modifier.weight(1f).fillMaxWidth(),
+      )
       Button(
           onClick = onTakePhotoClick,
           modifier = Modifier.fillMaxWidth().height(58.dp).testTag(C.Tag.photos_take_photo),
@@ -166,16 +176,84 @@ private fun EmptyPhotos() {
 }
 
 @Composable
-private fun PendingPhotoList(
-    photos: List<PendingPhoto>,
+private fun PhotosContent(
+    state: PhotosUiState,
     fileOf: (PendingPhoto) -> File,
     onRetryClick: (String) -> Unit,
+    onPhotoClick: (String) -> Unit,
+    onGalleryRetryClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-  LazyColumn(
-      Modifier.fillMaxSize(),
+  if (state.photos.isEmpty() && state.uploaded.isEmpty() && !state.galleryFailed) {
+    Box(modifier, contentAlignment = Alignment.Center) { EmptyPhotos() }
+    return
+  }
+  LazyVerticalGrid(
+      columns = GridCells.Fixed(2),
+      modifier = modifier,
       verticalArrangement = Arrangement.spacedBy(Spacing.medium),
+      horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
   ) {
-    items(photos, key = { it.id }) { photo -> PendingPhotoRow(photo, fileOf(photo), onRetryClick) }
+    items(state.photos, key = { "pending-${it.id}" }, span = { GridItemSpan(maxLineSpan) }) { photo
+      ->
+      PendingPhotoRow(photo, fileOf(photo), onRetryClick)
+    }
+    if (state.galleryFailed) {
+      item(key = "gallery-error", span = { GridItemSpan(maxLineSpan) }) {
+        GalleryError(onGalleryRetryClick)
+      }
+    }
+    if (state.uploaded.isNotEmpty()) {
+      item(key = "uploaded-title", span = { GridItemSpan(maxLineSpan) }) {
+        Text(
+            stringResource(R.string.photos_uploaded_title),
+            modifier = Modifier.testTag(C.Tag.photos_uploaded_title),
+            style = MaterialTheme.typography.titleMedium,
+        )
+      }
+      items(state.uploaded, key = { "uploaded-${it.id}" }) { photo ->
+        UploadedTile(photo, state.currentUserId, onPhotoClick)
+      }
+    }
+  }
+}
+
+@Composable
+private fun GalleryError(onRetryClick: () -> Unit) {
+  Row(
+      Modifier.fillMaxWidth(),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.SpaceBetween,
+  ) {
+    Text(
+        stringResource(R.string.photos_gallery_error),
+        modifier = Modifier.weight(1f).testTag(C.Tag.photos_gallery_error),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.error,
+    )
+    TextButton(onClick = onRetryClick, modifier = Modifier.testTag(C.Tag.photos_gallery_retry)) {
+      Text(stringResource(R.string.photos_retry))
+    }
+  }
+}
+
+@Composable
+private fun UploadedTile(photo: TripPhoto, currentUserId: String?, onClick: (String) -> Unit) {
+  Column(
+      Modifier.clickable { onClick(photo.id) }.testTag(C.Tag.photos_uploaded_prefix + photo.id),
+      verticalArrangement = Arrangement.spacedBy(Spacing.small),
+  ) {
+    TripPhotoImage(
+        photo = photo,
+        contentDescription =
+            stringResource(R.string.photos_uploaded_description, photo.takenAtText()),
+        modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp)),
+    )
+    Text(
+        uploadedByText(photo, currentUserId),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
   }
 }
 

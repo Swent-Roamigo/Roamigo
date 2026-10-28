@@ -56,6 +56,15 @@ object C {
     const val photos_item_prefix = "photos_item_"
     const val photos_status_prefix = "photos_status_"
     const val photos_retry_prefix = "photos_retry_"
+    const val photos_uploaded_title = "photos_uploaded_title"
+    const val photos_uploaded_prefix = "photos_uploaded_"
+    const val photos_gallery_error = "photos_gallery_error"
+    const val photos_gallery_retry = "photos_gallery_retry"
+
+    const val photo_viewer = "photo_viewer"
+    const val photo_viewer_image = "photo_viewer_image"
+    const val photo_viewer_close = "photo_viewer_close"
+    const val photo_viewer_caption = "photo_viewer_caption"
 
     const val camera_rationale_sheet = "camera_rationale_sheet"
     const val camera_rationale_continue = "camera_rationale_continue"

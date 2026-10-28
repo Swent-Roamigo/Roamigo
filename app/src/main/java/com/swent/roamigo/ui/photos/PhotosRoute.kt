@@ -83,8 +83,12 @@ fun PhotosRoute(
   }
 
   BackHandler(enabled = state.preview != null) { viewModel.onPreviewClosed() }
+  BackHandler(enabled = state.preview == null && state.viewing != null) {
+    viewModel.onViewerClosed()
+  }
 
   val preview = state.preview
+  val viewing = state.viewing
   if (preview != null) {
     PhotoPreview(
         file = preview,
@@ -94,6 +98,13 @@ fun PhotosRoute(
         onSave = viewModel::onSave,
         onRetake = viewModel::onRetake,
         onClose = viewModel::onPreviewClosed,
+        modifier = modifier,
+    )
+  } else if (viewing != null) {
+    PhotoViewer(
+        photo = viewing,
+        currentUserId = state.currentUserId,
+        onClose = viewModel::onViewerClosed,
         modifier = modifier,
     )
   } else {
@@ -108,6 +119,8 @@ fun PhotosRoute(
           )
         },
         onRetryClick = viewModel::onRetry,
+        onPhotoClick = viewModel::onPhotoClick,
+        onGalleryRetryClick = viewModel::onGalleryRetry,
         onTripsClick = onTripsClick,
         modifier = modifier,
     )

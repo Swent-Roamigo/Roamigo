@@ -246,13 +246,19 @@
         <item quantity="one">Back online · uploading %d photo…</item>
         <item quantity="other">Back online · uploading %d photos…</item>
     </plurals>
-    <string name="photos_empty_title">No photos waiting to upload</string>
-    <string name="photos_empty_description">Photos you take are uploaded by themselves once you are online.</string>
+    <string name="photos_empty_title">No photos yet</string>
+    <string name="photos_empty_description">Photos you take are shared with the trip, and uploaded by themselves once you are online.</string>
     <string name="photos_item_description">Photo taken at %1$s</string>
     <string name="photos_status_waiting">%1$s · Waiting to upload</string>
     <string name="photos_status_uploading">%1$s · Uploading…</string>
     <string name="photos_status_failed">%1$s · Upload failed</string>
     <string name="photos_retry">Retry</string>
+    <string name="photos_uploaded_title">Shared with the trip</string>
+    <string name="photos_uploaded_by_you">You · %1$s</string>
+    <string name="photos_uploaded_by_member">A member · %1$s</string>
+    <string name="photos_uploaded_description">Photo taken at %1$s</string>
+    <string name="photos_gallery_error">Could not load the trip’s photos.</string>
+    <string name="photo_viewer_close">Close</string>
     <string name="camera_rationale_title">Take photos for the trip?</string>
     <string name="camera_rationale_description">Roamigo uses the camera only while you take a photo. Photos are shared with trip members only.</string>
     <string name="camera_rationale_continue">Continue</string>

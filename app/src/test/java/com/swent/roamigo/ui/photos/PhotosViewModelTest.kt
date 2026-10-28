@@ -3,6 +3,7 @@ package com.swent.roamigo.ui.photos
 
 import com.swent.roamigo.model.connectivity.FakeConnectivityRepository
 import com.swent.roamigo.model.photo.pendingPhoto
+import com.swent.roamigo.model.photo.tripPhoto
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -329,6 +330,100 @@ class PhotosViewModelTest {
     clear()
 
     assertEquals(emptyList<java.io.File>(), repository.discarded)
+  }
+
+  @Test
+  fun showsThePhotosTheTripAlreadyHas() {
+    repository.uploaded.value = listOf(tripPhoto("a"), tripPhoto("b"))
+
+    assertEquals(listOf("a", "b"), state.uploaded.map { it.id })
+    assertFalse(state.galleryFailed)
+  }
+
+  @Test
+  fun followsNewUploadedPhotos() {
+    repository.uploaded.value = listOf(tripPhoto("a"))
+    repository.uploaded.value = listOf(tripPhoto("b"), tripPhoto("a"))
+
+    assertEquals(listOf("b", "a"), state.uploaded.map { it.id })
+  }
+
+  @Test
+  fun knowsTheSignedInUser() {
+    viewModel = PhotosViewModel(repository, connectivity, "trip", currentUserId = "me")
+
+    assertEquals("me", state.currentUserId)
+  }
+
+  @Test
+  fun reportsThatThePhotosCouldNotBeRead() {
+    repository.galleryError = IllegalStateException("denied")
+    viewModel = PhotosViewModel(repository, connectivity, "trip")
+
+    assertTrue(state.galleryFailed)
+    assertEquals(emptyList<Any>(), state.uploaded)
+  }
+
+  @Test
+  fun readsThePhotosAgainOnRetry() {
+    repository.galleryError = IllegalStateException("denied")
+    viewModel = PhotosViewModel(repository, connectivity, "trip")
+    repository.galleryError = null
+    repository.uploaded.value = listOf(tripPhoto("a"))
+    val before = repository.galleryObservations
+
+    viewModel.onGalleryRetry()
+
+    assertFalse(state.galleryFailed)
+    assertEquals(listOf("a"), state.uploaded.map { it.id })
+    assertEquals(before + 1, repository.galleryObservations)
+  }
+
+  @Test
+  fun doesNotReadThePhotosAgainWhenNothingFailed() {
+    val before = repository.galleryObservations
+
+    viewModel.onGalleryRetry()
+
+    assertEquals(before, repository.galleryObservations)
+  }
+
+  @Test
+  fun opensAnUploadedPhotoFullScreen() {
+    repository.uploaded.value = listOf(tripPhoto("a"), tripPhoto("b"))
+
+    viewModel.onPhotoClick("b")
+
+    assertEquals("b", state.viewing?.id)
+  }
+
+  @Test
+  fun closesTheViewer() {
+    repository.uploaded.value = listOf(tripPhoto("a"))
+    viewModel.onPhotoClick("a")
+
+    viewModel.onViewerClosed()
+
+    assertNull(state.viewing)
+  }
+
+  @Test
+  fun showsNothingForAPhotoThatIsNotInTheGallery() {
+    repository.uploaded.value = listOf(tripPhoto("a"))
+
+    viewModel.onPhotoClick("unknown")
+
+    assertNull(state.viewing)
+  }
+
+  @Test
+  fun theViewerClosesByItselfWhenItsPhotoDisappears() {
+    repository.uploaded.value = listOf(tripPhoto("a"), tripPhoto("b"))
+    viewModel.onPhotoClick("a")
+
+    repository.uploaded.value = listOf(tripPhoto("b"))
+
+    assertNull(state.viewing)
   }
 
   private fun clear() {
