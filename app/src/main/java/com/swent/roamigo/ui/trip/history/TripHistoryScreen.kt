@@ -41,6 +41,7 @@ fun TripHistoryScreen(
     onTripsClick: () -> Unit = rememberNotImplementedAction(),
     onMapClick: () -> Unit = rememberNotImplementedAction(),
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
+    onFriendsClick: () -> Unit = rememberNotImplementedAction(),
     onRetryClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   Scaffold(
@@ -57,6 +58,7 @@ fun TripHistoryScreen(
               onMapClick = onMapClick,
               onPhotosClick = onPhotosClick,
               tripsSelected = false,
+              onFriendsClick = onFriendsClick,
           )
         }
       },

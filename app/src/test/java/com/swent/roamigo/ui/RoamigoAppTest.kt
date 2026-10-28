@@ -294,4 +294,92 @@ class RoamigoAppTest {
 
     composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
   }
+
+  @Test
+  fun friendsTabOnTripsOpensFriendsAndBackReturnsToTrips() {
+    waitForTrips()
+
+    // Open Friends using the bottom navigation bar.
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
+
+    // Verify that Friends is displayed and selected.
+    waitForTag(C.Tag.friends_screen)
+    composeRule.onNodeWithTag(C.Tag.friends_screen).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).assertIsSelected()
+
+    // Verify that Android Back returns to Trips.
+    pressBack()
+    waitForTrips()
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+  }
+
+  @Test
+  fun profileViewFriendsOpensFriendsAndBackReturnsToProfile() {
+    waitForTrips()
+
+    composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
+    waitForTag(C.Tag.profile_title)
+
+    composeRule.onNodeWithText("View").performClick()
+
+    waitForTag(C.Tag.friends_screen)
+    composeRule.onNodeWithTag(C.Tag.friends_screen).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).assertIsSelected()
+
+    pressBack()
+
+    waitForTag(C.Tag.profile_title)
+    composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
+  }
+
+  @Test
+  fun friendsTabOnProfileOpensFriendsAndBackReturnsToProfile() {
+    waitForTrips()
+
+    composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
+    waitForTag(C.Tag.profile_title)
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
+
+    waitForTag(C.Tag.friends_screen)
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).assertIsSelected()
+
+    pressBack()
+
+    waitForTag(C.Tag.profile_title)
+    composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
+  }
+
+  @Test
+  fun friendsTabOnTripHistoryOpensFriendsAndBackReturnsToHistory() {
+    waitForTrips()
+
+    composeRule.onNodeWithTag(C.Tag.trips_history_button).performClick()
+    waitForTag(C.Tag.trip_history_screen)
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
+
+    waitForTag(C.Tag.friends_screen)
+    composeRule.onNodeWithTag(C.Tag.friends_screen).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).assertIsSelected()
+
+    pressBack()
+
+    waitForTag(C.Tag.trip_history_screen)
+    composeRule.onNodeWithTag(C.Tag.trip_history_screen).assertIsDisplayed()
+  }
+
+  @Test
+  fun tripsTabOnFriendsReturnsToTrips() {
+    waitForTrips()
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
+    waitForTag(C.Tag.friends_screen)
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
+
+    waitForTrips()
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+    composeRule.onAllNodesWithTag(C.Tag.friends_screen).assertCountEquals(0)
+  }
 }

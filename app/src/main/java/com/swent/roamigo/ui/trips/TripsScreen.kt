@@ -64,6 +64,7 @@ import java.time.Clock
  * @param onTripsClick invoked when the Trips navigation destination is selected.
  * @param onMapClick invoked when the Map navigation destination is selected.
  * @param onPhotosClick invoked when the Photos navigation destination is selected.
+ * @param onFriendsClick invoked when the Friends navigation destination is selected.
  * @param onProfileClick invoked when the user selects their profile avatar.
  * @param onHistoryClick invoked when the user opens Trip History.
  * @param clock the clock used for time-dependent presentation logic.
@@ -82,6 +83,7 @@ fun TripsRoute(
     onTripsClick: () -> Unit = {},
     onMapClick: () -> Unit = rememberNotImplementedAction(),
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
+    onFriendsClick: () -> Unit = rememberNotImplementedAction(),
     onProfileClick: () -> Unit = rememberNotImplementedAction(),
     clock: Clock = Clock.systemDefaultZone(),
     refreshRequested: Boolean = false,
@@ -116,6 +118,7 @@ fun TripsRoute(
       onTripsClick = onTripsClick,
       onMapClick = onMapClick,
       onPhotosClick = onPhotosClick,
+      onFriendsClick = onFriendsClick,
       onProfileClick = onProfileClick,
       onHistoryClick = onHistoryClick,
       onOpenTrip = onOpenTrip,
@@ -136,6 +139,7 @@ fun TripsRoute(
  * @param onTripsClick invoked when the Trips navigation destination is selected.
  * @param onMapClick invoked when the Map navigation destination is selected.
  * @param onPhotosClick invoked when the Photos navigation destination is selected.
+ * @param onFriendsClick invoked when the Friends navigation destination is selected.
  * @param onProfileClick invoked when the user selects their profile avatar.
  * @param onHistoryClick invoked when the user opens Trip History.
  * @param onOpenTrip opens the selected trip's Votes tab.
@@ -150,6 +154,7 @@ fun TripsScreen(
     onTripsClick: () -> Unit = {},
     onMapClick: () -> Unit = rememberNotImplementedAction(),
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
+    onFriendsClick: () -> Unit = rememberNotImplementedAction(),
     onProfileClick: () -> Unit = rememberNotImplementedAction(),
     onHistoryClick: () -> Unit = rememberNotImplementedAction(),
     onOpenTrip: (String, String) -> Unit = { _, _ -> },
@@ -162,6 +167,7 @@ fun TripsScreen(
             onTripsClick = onTripsClick,
             onMapClick = onMapClick,
             onPhotosClick = onPhotosClick,
+            onFriendsClick = onFriendsClick,
         )
       },
   ) { innerPadding ->
