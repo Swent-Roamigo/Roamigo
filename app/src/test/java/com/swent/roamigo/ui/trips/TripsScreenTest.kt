@@ -345,6 +345,39 @@ class TripsScreenTest {
     assertEquals(1, historyClicks)
   }
 
+  @Test
+  fun historyButtonWorksWhenOtherTripsAreDisplayed() {
+    var historyClicks = 0
+
+    composeTestRule.setContent {
+      MaterialTheme {
+        TripsScreen(
+            uiState =
+                TripsUiState(
+                    isLoading = false,
+                    otherTrips =
+                        listOf(
+                            OtherTripUiModel(
+                                id = "trip-paris",
+                                name = "Paris trip",
+                                dateRange = "10 – 15 Nov",
+                                memberCount = 2,
+                            ),
+                        ),
+                ),
+            onHistoryClick = { historyClicks++ },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithText("Other trips").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Paris trip").assertIsDisplayed()
+
+    composeTestRule.onNodeWithTag(C.Tag.trips_history_button).assertIsDisplayed().performClick()
+
+    assertEquals(1, historyClicks)
+  }
+
   private fun trip(
       uid: String,
       name: String,

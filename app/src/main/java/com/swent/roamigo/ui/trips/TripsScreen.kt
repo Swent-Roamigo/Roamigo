@@ -2,56 +2,36 @@
 package com.swent.roamigo.ui.trips
 
 import androidx.annotation.DrawableRes
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
@@ -61,6 +41,12 @@ import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
+import com.swent.roamigo.ui.trips.components.HistoryButton
+import com.swent.roamigo.ui.trips.components.MainTripCard
+import com.swent.roamigo.ui.trips.components.NextActivityCard
+import com.swent.roamigo.ui.trips.components.OtherTripCard
+import com.swent.roamigo.ui.trips.components.SectionTitle
+import com.swent.roamigo.ui.trips.components.TripsHeader
 import java.time.Clock
 
 /**
@@ -255,20 +241,7 @@ fun TripsScreen(
               SectionTitle(stringResource(R.string.trips_other_trips))
             }
 
-            TextButton(
-                onClick = onHistoryClick,
-                modifier =
-                    Modifier.markNotImplemented(onHistoryClick).semantics {
-                      testTag = C.Tag.trips_history_button
-                    },
-            ) {
-              Icon(
-                  imageVector = Icons.Outlined.History,
-                  contentDescription = null,
-              )
-              Spacer(modifier = Modifier.width(4.dp))
-              Text(stringResource(R.string.trips_history))
-            }
+            HistoryButton(onClick = onHistoryClick)
           }
         }
         if (uiState.errorMessage == null) {
@@ -312,393 +285,5 @@ fun TripsScreen(
         }
       }
     }
-  }
-}
-
-@Composable
-private fun TripsHeader(
-    greeting: String,
-    userName: String,
-    userInitial: String,
-    onProfileClick: () -> Unit,
-) {
-  Row(
-      modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.SpaceBetween,
-      verticalAlignment = Alignment.CenterVertically,
-  ) {
-    Column {
-      if (greeting.isNotBlank() && userName.isNotBlank()) {
-        Text(
-            text =
-                stringResource(
-                    R.string.trips_greeting,
-                    greeting,
-                    userName,
-                ),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        Spacer(modifier = Modifier.height(4.dp))
-      }
-
-      Text(
-          text = stringResource(R.string.trips_title),
-          style = MaterialTheme.typography.headlineLarge,
-          fontWeight = FontWeight.Bold,
-          color = MaterialTheme.colorScheme.onBackground,
-      )
-    }
-
-    if (userInitial.isNotBlank()) {
-      val openProfileLabel = stringResource(R.string.trips_open_profile)
-      Surface(
-          onClick = onProfileClick,
-          modifier =
-              Modifier.size(52.dp).markNotImplemented(onProfileClick).semantics {
-                testTag = C.Tag.trips_profile_avatar
-                contentDescription = openProfileLabel
-              },
-          shape = CircleShape,
-          color = MaterialTheme.colorScheme.secondary,
-      ) {
-        Box(contentAlignment = Alignment.Center) {
-          Text(
-              text = userInitial,
-              style = MaterialTheme.typography.titleLarge,
-              color = MaterialTheme.colorScheme.onSecondary,
-          )
-        }
-      }
-    }
-  }
-}
-
-@Composable
-private fun MainTripCard(
-    trip: MainTripUiModel,
-    @DrawableRes imageRes: Int?,
-    onInviteClick: () -> Unit,
-    onOpenTrip: () -> Unit,
-) {
-  Box(
-      modifier =
-          Modifier.fillMaxWidth()
-              .height(190.dp)
-              .clip(MaterialTheme.shapes.large)
-              .clickable(onClick = onOpenTrip)
-              .semantics { testTag = C.Tag.trips_main_trip_card },
-  ) {
-    TripImage(
-        imageRes = imageRes,
-        modifier = Modifier.fillMaxSize(),
-    )
-
-    Box(
-        modifier =
-            Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.28f))
-    )
-
-    Column(
-        modifier = Modifier.fillMaxSize().padding(18.dp),
-        verticalArrangement = Arrangement.SpaceBetween,
-    ) {
-      trip.badge?.let { badge ->
-        Surface(
-            shape = MaterialTheme.shapes.small,
-            color = MaterialTheme.colorScheme.secondaryContainer,
-        ) {
-          Text(
-              text = badge,
-              modifier =
-                  Modifier.padding(
-                      horizontal = 10.dp,
-                      vertical = 6.dp,
-                  ),
-              style = MaterialTheme.typography.bodyMedium,
-              color = MaterialTheme.colorScheme.onSecondaryContainer,
-          )
-        }
-      }
-
-      Column {
-        Text(
-            text = trip.name,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onPrimary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        val durationText =
-            pluralStringResource(
-                R.plurals.trips_duration_days,
-                trip.durationDays,
-                trip.durationDays,
-            )
-
-        val stopsText =
-            pluralStringResource(
-                R.plurals.trips_stop_count,
-                trip.stopCount,
-                trip.stopCount,
-            )
-
-        Text(
-            text = "${trip.dateRange} · $durationText · $stopsText",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onPrimary,
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          MemberAvatars(trip.memberInitials)
-
-          Spacer(modifier = Modifier.width(14.dp))
-
-          Surface(
-              onClick = onInviteClick,
-              modifier =
-                  Modifier.markNotImplemented(onInviteClick).semantics {
-                    testTag = C.Tag.trips_invite_button
-                  },
-              shape = CircleShape,
-              color = MaterialTheme.colorScheme.surface,
-          ) {
-            Row(
-                modifier =
-                    Modifier.padding(
-                        horizontal = 14.dp,
-                        vertical = 8.dp,
-                    ),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-              Icon(
-                  imageVector = Icons.Default.Add,
-                  contentDescription = null,
-                  modifier = Modifier.size(20.dp),
-                  tint = MaterialTheme.colorScheme.primary,
-              )
-
-              Spacer(modifier = Modifier.width(4.dp))
-
-              Text(
-                  text = stringResource(R.string.trips_invite),
-                  style = MaterialTheme.typography.bodyLarge,
-                  color = MaterialTheme.colorScheme.onSurface,
-              )
-            }
-          }
-        }
-      }
-    }
-  }
-}
-
-@Composable
-private fun MemberAvatars(initials: List<String>) {
-  if (initials.isEmpty()) {
-    return
-  }
-
-  val avatarSize = 40.dp
-  val avatarSpacing = 30.dp
-
-  Box(
-      modifier = Modifier.width(avatarSize + avatarSpacing * (initials.size - 1)).height(avatarSize)
-  ) {
-    initials.forEachIndexed { index, initial ->
-      val avatarColors =
-          when (index % 3) {
-            0 -> MaterialTheme.colorScheme.secondary to MaterialTheme.colorScheme.onSecondary
-            1 -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
-            else -> MaterialTheme.colorScheme.tertiary to MaterialTheme.colorScheme.onTertiary
-          }
-
-      Box(
-          modifier =
-              Modifier.offset(x = avatarSpacing * index)
-                  .size(avatarSize)
-                  .clip(CircleShape)
-                  .background(avatarColors.first)
-                  .border(
-                      width = 2.dp,
-                      color = MaterialTheme.colorScheme.surface,
-                      shape = CircleShape,
-                  ),
-          contentAlignment = Alignment.Center,
-      ) {
-        Text(
-            text = initial,
-            style = MaterialTheme.typography.bodyMedium,
-            color = avatarColors.second,
-        )
-      }
-    }
-  }
-}
-
-@Composable
-private fun NextActivityCard(
-    activity: ActivityCardUiModel,
-    @DrawableRes imageRes: Int?,
-) {
-  Surface(
-      modifier = Modifier.fillMaxWidth().semantics { testTag = C.Tag.trips_next_activity_card },
-      shape = MaterialTheme.shapes.medium,
-      color = MaterialTheme.colorScheme.surfaceVariant,
-  ) {
-    Row(
-        modifier = Modifier.padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-      Box(modifier = Modifier.size(72.dp).clip(MaterialTheme.shapes.small)) {
-        TripImage(
-            imageRes = imageRes,
-            modifier = Modifier.fillMaxSize(),
-        )
-      }
-
-      Spacer(modifier = Modifier.width(14.dp))
-
-      Column(modifier = Modifier.weight(1f)) {
-        Text(
-            text = activity.name,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-
-        Spacer(modifier = Modifier.height(3.dp))
-
-        Text(
-            text = activity.subtitle,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
-
-      Spacer(modifier = Modifier.width(8.dp))
-
-      StatusPill(stringResource(R.string.trips_confirmed))
-    }
-  }
-}
-
-@Composable
-private fun OtherTripCard(trip: OtherTripUiModel, onClick: () -> Unit) {
-  Surface(
-      onClick = onClick,
-      modifier = Modifier.fillMaxWidth(),
-      shape = MaterialTheme.shapes.medium,
-      color = MaterialTheme.colorScheme.surface,
-      border =
-          BorderStroke(
-              width = 1.dp,
-              color = MaterialTheme.colorScheme.outlineVariant,
-          ),
-  ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-      Column(modifier = Modifier.weight(1f)) {
-        Text(
-            text = trip.name,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-
-        Spacer(modifier = Modifier.height(3.dp))
-
-        val travelersText =
-            pluralStringResource(
-                R.plurals.trips_traveler_count,
-                trip.memberCount,
-                trip.memberCount,
-            )
-
-        Text(
-            text = "${trip.dateRange} · $travelersText",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
-
-      if (trip.memberCount > 1) {
-        Spacer(modifier = Modifier.width(8.dp))
-        StatusPill(stringResource(R.string.trips_shared))
-      }
-    }
-  }
-}
-
-@Composable
-private fun StatusPill(text: String) {
-  Surface(
-      shape = MaterialTheme.shapes.small,
-      color = MaterialTheme.colorScheme.surfaceVariant,
-  ) {
-    Text(
-        text = text,
-        modifier =
-            Modifier.padding(
-                horizontal = 10.dp,
-                vertical = 6.dp,
-            ),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-  }
-}
-
-@Composable
-private fun SectionTitle(text: String) {
-  Text(
-      text = text,
-      style = MaterialTheme.typography.headlineSmall,
-      fontWeight = FontWeight.SemiBold,
-      color = MaterialTheme.colorScheme.onBackground,
-  )
-}
-
-/**
- * Displays a trip image or a theme-based placeholder when no image resource is available.
- *
- * @param imageRes the optional drawable resource to display.
- * @param modifier the modifier applied to the image or placeholder.
- */
-@Composable
-private fun TripImage(
-    @DrawableRes imageRes: Int?,
-    modifier: Modifier = Modifier,
-) {
-  if (imageRes != null) {
-    Image(
-        painter = painterResource(imageRes),
-        contentDescription = null,
-        modifier = modifier,
-        contentScale = ContentScale.Crop,
-    )
-  } else {
-    Box(
-        modifier =
-            modifier.background(
-                Brush.linearGradient(
-                    colors =
-                        listOf(
-                            MaterialTheme.colorScheme.primary,
-                            MaterialTheme.colorScheme.primaryContainer,
-                        )
-                )
-            )
-    )
   }
 }
