@@ -20,6 +20,26 @@ sealed interface TripMapUiState {
    *
    * @property trip the trip shown on the map.
    * @property viewport camera target showing the trip's destinations.
+   * @property members display information of every trip member, keyed by user ID.
    */
-  data class Loaded(val trip: Trip, val viewport: TripMapViewport) : TripMapUiState
+  data class Loaded(
+      val trip: Trip,
+      val viewport: TripMapViewport,
+      val members: Map<String, MemberDisplayInfo>,
+  ) : TripMapUiState
 }
+
+/**
+ * How a trip member is shown on the map.
+ *
+ * @property displayName name of the member, or the first character of their user ID, uppercased,
+ *   when their profile is missing or has no name.
+ * @property initial uppercased first character of [displayName].
+ * @property avatarUrl URL of the member's profile picture, or null when they have none, in which
+ *   case the UI shows the default avatar.
+ */
+data class MemberDisplayInfo(
+    val displayName: String,
+    val initial: String,
+    val avatarUrl: String?,
+)
