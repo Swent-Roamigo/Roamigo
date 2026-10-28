@@ -9,6 +9,7 @@ import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
+import com.swent.roamigo.model.trip.isCompletedOn
 import com.swent.roamigo.model.users.UserRepository
 import java.time.Clock
 import java.time.LocalDate
@@ -228,7 +229,9 @@ internal fun selectMainTrip(
 ): Trip? {
   val activeTrip =
       trips
-          .filter { trip -> trip.status == TripStatus.ACTIVE }
+          .filter { trip ->
+            trip.status == TripStatus.ACTIVE && !trip.isCompletedOn(now.toLocalDate(), now.zone)
+          }
           .maxByOrNull { trip -> trip.startDate.seconds }
 
   if (activeTrip != null) {

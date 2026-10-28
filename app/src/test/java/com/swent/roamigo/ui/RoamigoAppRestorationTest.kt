@@ -15,6 +15,7 @@ import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.sampleDestination
 import com.swent.roamigo.model.destination.sampleDestinationRepository
+import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.DatesTravelersScreenTestTags
@@ -40,6 +41,7 @@ class RoamigoAppRestorationTest {
         RoamigoApp(
             destinationRepository = sampleDestinationRepository(),
             authRepository = authRepository,
+            voteRepository = InMemoryVoteRepository(),
         )
       }
     }
@@ -66,6 +68,7 @@ class RoamigoAppRestorationTest {
         RoamigoApp(
             destinationRepository = sampleDestinationRepository(),
             authRepository = authRepository,
+            voteRepository = InMemoryVoteRepository(),
         )
       }
     }

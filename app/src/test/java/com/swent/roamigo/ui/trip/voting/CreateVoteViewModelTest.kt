@@ -244,6 +244,42 @@ class CreateVoteViewModelTest {
     }
   }
 
+  @Test
+  fun addingStopsAtTenAndRemovingReenablesAdding() {
+    repeat(8) { viewModel.addOption() }
+    assertEquals(10, viewModel.uiState.value.options.size)
+    assertFalse(viewModel.uiState.value.canAddOption)
+    viewModel.addOption()
+    assertEquals(10, viewModel.uiState.value.options.size)
+    viewModel.removeOption(9)
+    assertTrue(viewModel.uiState.value.canAddOption)
+    viewModel.addOption()
+    assertEquals(10, viewModel.uiState.value.options.size)
+  }
+
+  @Test
+  fun everySupportedOptionCountCanBeSubmitted() = runTest {
+    for (count in 2..10) {
+      viewModel = CreateVoteViewModel(repository, "trip", "member")
+      viewModel.updateQuestion("Where next?")
+      repeat(count - 2) { viewModel.addOption() }
+      repeat(count) { viewModel.updateOption(it, "Option $it") }
+      assertTrue(viewModel.uiState.value.canSubmit)
+      viewModel.submitVote()
+      advanceUntilIdle()
+      assertEquals(count, repository.created.last().options.size)
+    }
+    assertEquals(9, repository.created.size)
+  }
+
+  @Test
+  fun oversizedDraftIsInvalid() {
+    val state = CreateVoteUiState(question = "Where next?", options = List(11) { "Option $it" })
+    assertFalse(state.isValid)
+    assertFalse(state.canSubmit)
+    assertFalse(state.canAddOption)
+  }
+
   private fun validDraft() {
     viewModel.updateQuestion("  Dinner?  ")
     viewModel.updateOption(0, " Market ")
@@ -277,6 +313,8 @@ internal class FakeVoteRepository : VoteRepository {
   override suspend fun getVote(tripId: String, voteId: String): Vote? = error("Not used")
 
   override suspend fun getVotes(tripId: String): List<Vote> = error("Not used")
+
+  override fun observeVotes(tripId: String): Flow<List<Vote>> = error("Not used")
 
   override suspend fun submitBallot(tripId: String, voteId: String, ballot: VoteBallot) =
       error("Not used")

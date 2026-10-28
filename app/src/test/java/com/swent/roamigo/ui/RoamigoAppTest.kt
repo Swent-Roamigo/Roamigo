@@ -24,6 +24,7 @@ import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.sampleDestination
 import com.swent.roamigo.model.destination.sampleDestinationRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
+import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.authentication.AuthenticationScreenTestTags
 import com.swent.roamigo.ui.theme.RoamigoTheme
@@ -57,6 +58,7 @@ class RoamigoAppTest {
     composeRule.setContent {
       RoamigoTheme {
         RoamigoApp(
+            voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
             authRepository = authRepository,
             tripRepository = repository,
@@ -265,5 +267,31 @@ class RoamigoAppTest {
     pressBack()
 
     assertTrue(composeRule.activity.isFinishing)
+  }
+
+  @Test
+  fun historyOpensFromTripsAndBackReturnsToTrips() {
+    waitForTrips()
+    waitForTag(C.Tag.trips_history_button)
+
+    composeRule.onNodeWithTag(C.Tag.trips_history_button).performClick()
+
+    waitForTag(C.Tag.trip_history_screen)
+
+    composeRule.onNodeWithTag(C.Tag.trip_history_empty).assertIsDisplayed()
+
+    // Back button in the screen.
+    composeRule.onNodeWithTag(C.Tag.trip_history_back).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+
+    // Open history again and test Android system Back.
+    composeRule.onNodeWithTag(C.Tag.trips_history_button).performClick()
+
+    waitForTag(C.Tag.trip_history_screen)
+
+    pressBack()
+
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
   }
 }

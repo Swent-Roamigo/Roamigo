@@ -44,6 +44,27 @@ class VoteRepositoryFirestore(private val db: FirebaseFirestore) : VoteRepositor
   override suspend fun getVotes(tripId: String): List<Vote> =
       votes(tripId).get().await().documents.map { it.toVote(tripId) }
 
+  override fun observeVotes(tripId: String): Flow<List<Vote>> = callbackFlow {
+    val registration =
+        votes(tripId).addSnapshotListener { snapshot, error ->
+          if (error != null) {
+            close(error)
+          } else {
+            val updates =
+                try {
+                  requireNotNull(snapshot) { "Missing votes snapshot" }
+                      .documents
+                      .map { it.toVote(tripId) }
+                } catch (error: Exception) {
+                  close(error)
+                  return@addSnapshotListener
+                }
+            trySend(updates)
+          }
+        }
+    awaitClose { registration.remove() }
+  }
+
   override suspend fun submitBallot(tripId: String, voteId: String, ballot: VoteBallot) {
     requireDocumentId(ballot.userId)
     ballots(tripId, voteId)
