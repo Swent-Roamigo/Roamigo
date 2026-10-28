@@ -4,6 +4,7 @@ package com.swent.roamigo.ui.photos
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -76,6 +77,16 @@ class PhotoPreviewTest {
     composeRule.onNodeWithTag(C.Tag.photo_preview_close).performClick()
 
     assertEquals(listOf("save", "retake", "close"), calls)
+  }
+
+  @Test
+  fun cancelIsALabelledButtonSoItIsNotLostOnABrightPhoto() {
+    show()
+
+    composeRule
+        .onNodeWithTag(C.Tag.photo_preview_close)
+        .assertIsDisplayed()
+        .assertTextContains("Cancel")
   }
 
   @Test

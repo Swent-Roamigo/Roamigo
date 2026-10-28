@@ -264,7 +264,7 @@
     <string name="camera_blocked_description">Turn it on in Settings › Permissions › Camera to take photos.</string>
     <string name="camera_blocked_open_settings">Open Settings</string>
     <string name="photo_preview_description">The photo you just took</string>
-    <string name="photo_preview_close">Close</string>
+    <string name="photo_preview_cancel">Cancel</string>
     <string name="photo_preview_offline">You’re offline · it will be saved on this phone</string>
     <string name="photo_preview_note_online">Shared with the group once saved</string>
     <string name="photo_preview_note_offline">It will upload when you’re back online</string>
