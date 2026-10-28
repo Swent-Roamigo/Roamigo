@@ -106,6 +106,12 @@
         <item quantity="one">%d traveler</item>
         <item quantity="other">%d travelers</item>
     </plurals>
+    <!-- Trip overview map -->
+    <string name="trip_map_loading">Loading trip destinations…</string>
+    <string name="trip_map_empty">No trip destinations yet</string>
+    <string name="trip_map_load_error">Unable to load trip destinations. Please try again.</string>
+    <string name="trip_map_retry">Retry</string>
+
     <!-- Vote creation -->
     <string name="vote_new">New vote</string>
     <string name="vote_question">Question</string>
