@@ -29,6 +29,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.FakeDestinationRepository
+import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.RoamigoApp
 import com.swent.roamigo.ui.theme.RoamigoTheme
@@ -54,6 +55,7 @@ class AuthenticationFlowTest {
     composeRule.setContent {
       RoamigoTheme {
         RoamigoApp(
+            voteRepository = InMemoryVoteRepository(),
             destinationRepository = FakeDestinationRepository(),
             authRepository = repository,
             credentialManager = credentialManager,

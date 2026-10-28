@@ -6,6 +6,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +25,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,6 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -76,9 +79,11 @@ import java.time.Clock
  * @param onMapClick invoked when the Map navigation destination is selected.
  * @param onPhotosClick invoked when the Photos navigation destination is selected.
  * @param onProfileClick invoked when the user selects their profile avatar.
+ * @param onHistoryClick invoked when the user opens Trip History.
  * @param clock the clock used for time-dependent presentation logic.
  * @param refreshRequested whether a completed creation requires fresh trip data.
  * @param onRefreshConsumed clears the one-time creation result after starting the refresh.
+ * @param onOpenTrip opens the selected trip's Votes tab.
  */
 @Composable
 fun TripsRoute(
@@ -95,6 +100,8 @@ fun TripsRoute(
     clock: Clock = Clock.systemDefaultZone(),
     refreshRequested: Boolean = false,
     onRefreshConsumed: () -> Unit = {},
+    onHistoryClick: () -> Unit = rememberNotImplementedAction(),
+    onOpenTrip: (String, String) -> Unit = { _, _ -> },
 ) {
   val viewModel: TripsViewModel =
       viewModel(
@@ -124,6 +131,8 @@ fun TripsRoute(
       onMapClick = onMapClick,
       onPhotosClick = onPhotosClick,
       onProfileClick = onProfileClick,
+      onHistoryClick = onHistoryClick,
+      onOpenTrip = onOpenTrip,
   )
 }
 
@@ -142,6 +151,8 @@ fun TripsRoute(
  * @param onMapClick invoked when the Map navigation destination is selected.
  * @param onPhotosClick invoked when the Photos navigation destination is selected.
  * @param onProfileClick invoked when the user selects their profile avatar.
+ * @param onHistoryClick invoked when the user opens Trip History.
+ * @param onOpenTrip opens the selected trip's Votes tab.
  */
 @Composable
 fun TripsScreen(
@@ -154,6 +165,8 @@ fun TripsScreen(
     onMapClick: () -> Unit = rememberNotImplementedAction(),
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
     onProfileClick: () -> Unit = rememberNotImplementedAction(),
+    onHistoryClick: () -> Unit = rememberNotImplementedAction(),
+    onOpenTrip: (String, String) -> Unit = { _, _ -> },
 ) {
   Scaffold(
       modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.trips_screen },
@@ -213,6 +226,7 @@ fun TripsScreen(
                   trip = trip,
                   imageRes = mainTripImageRes,
                   onInviteClick = onInviteClick,
+                  onOpenTrip = { onOpenTrip(trip.id, trip.name) },
               )
             }
           }
@@ -229,16 +243,43 @@ fun TripsScreen(
               )
             }
           }
+        }
 
-          if (uiState.otherTrips.isNotEmpty()) {
-            item { SectionTitle(stringResource(R.string.trips_other_trips)) }
-
-            items(
-                items = uiState.otherTrips,
-                key = { trip -> trip.id },
-            ) { trip ->
-              OtherTripCard(trip)
+        item {
+          Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically,
+          ) {
+            if (uiState.errorMessage == null) {
+              SectionTitle(stringResource(R.string.trips_other_trips))
             }
+
+            TextButton(
+                onClick = onHistoryClick,
+                modifier =
+                    Modifier.markNotImplemented(onHistoryClick).semantics {
+                      testTag = C.Tag.trips_history_button
+                    },
+            ) {
+              Icon(
+                  imageVector = Icons.Outlined.History,
+                  contentDescription = null,
+              )
+              Spacer(modifier = Modifier.width(4.dp))
+              Text(stringResource(R.string.trips_history))
+            }
+          }
+        }
+        if (uiState.errorMessage == null) {
+          items(
+              items = uiState.otherTrips,
+              key = { trip -> trip.id },
+          ) { trip ->
+            OtherTripCard(
+                trip,
+                onClick = { onOpenTrip(trip.id, trip.name) },
+            )
           }
         }
       }
@@ -339,12 +380,15 @@ private fun MainTripCard(
     trip: MainTripUiModel,
     @DrawableRes imageRes: Int?,
     onInviteClick: () -> Unit,
+    onOpenTrip: () -> Unit,
 ) {
   Box(
       modifier =
-          Modifier.fillMaxWidth().height(190.dp).clip(MaterialTheme.shapes.large).semantics {
-            testTag = C.Tag.trips_main_trip_card
-          },
+          Modifier.fillMaxWidth()
+              .height(190.dp)
+              .clip(MaterialTheme.shapes.large)
+              .clickable(onClick = onOpenTrip)
+              .semantics { testTag = C.Tag.trips_main_trip_card },
   ) {
     TripImage(
         imageRes = imageRes,
@@ -547,8 +591,9 @@ private fun NextActivityCard(
 }
 
 @Composable
-private fun OtherTripCard(trip: OtherTripUiModel) {
+private fun OtherTripCard(trip: OtherTripUiModel, onClick: () -> Unit) {
   Surface(
+      onClick = onClick,
       modifier = Modifier.fillMaxWidth(),
       shape = MaterialTheme.shapes.medium,
       color = MaterialTheme.colorScheme.surface,

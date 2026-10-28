@@ -28,6 +28,7 @@ import com.swent.roamigo.model.authentication.AuthRepositoryFirebase
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TripRepository
+import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
@@ -40,17 +41,27 @@ import com.swent.roamigo.ui.profile.ProfileViewModel
 import com.swent.roamigo.ui.trip.creation.CreateTripViewModel
 import com.swent.roamigo.ui.trip.creation.DatesTravelersScreen
 import com.swent.roamigo.ui.trip.creation.DestinationScreen
+import com.swent.roamigo.ui.trip.history.TripHistoryRoute
+import com.swent.roamigo.ui.trip.voting.CreateVoteScreen
+import com.swent.roamigo.ui.trip.voting.CreateVoteViewModel
+import com.swent.roamigo.ui.trip.voting.VoteScreen
+import com.swent.roamigo.ui.trip.voting.VoteViewModel
+import com.swent.roamigo.ui.trip.voting.VotesScreen
+import com.swent.roamigo.ui.trip.voting.VotesViewModel
 import com.swent.roamigo.ui.trips.TripsRoute
 import kotlinx.coroutines.launch
 
 /**
  * New sign-ins continue through the permissions explainer to trips; existing sessions open trips.
  *
- * Repository defaults provide placeholders for previews and tests; MainActivity supplies real
- * trips.
+ * Repository defaults provide placeholders for previews and tests; MainActivity supplies real trips
+ * and votes.
+ *
+ * @param voteRepository Shared backend for trip vote discovery, creation, and individual ballots.
  */
 @Composable
 fun RoamigoApp(
+    voteRepository: VoteRepository,
     tripRepository: TripRepository = remember { FakeTripRepository() },
     userRepository: UserRepository = remember { FakeUserRepository(User("alex", "Alex", null)) },
     navController: NavHostController = rememberNavController(),
@@ -99,7 +110,57 @@ fun RoamigoApp(
           userRepository = userRepository,
           onNewTripClick = { navController.navigate(Route.NEW_TRIP) },
           onProfileClick = { navController.navigate(Route.PROFILE) },
+          onHistoryClick = {
+            navController.navigate(Route.TRIP_HISTORY) { launchSingleTop = true }
+          },
+          onOpenTrip = { tripId, tripName ->
+            navController.navigate(Route.votes(tripId, tripName))
+          },
       )
+    }
+    composable(Route.VOTES) { entry ->
+      val tripId = requireNotNull(entry.arguments?.getString("tripId"))
+      val tripName = entry.arguments?.getString("tripName").orEmpty()
+      VotesScreen(
+          viewModel = viewModel { VotesViewModel(voteRepository, tripId) },
+          tripName = tripName,
+          onOpenVote = { voteId -> navController.navigate(Route.vote(tripId, voteId)) },
+          onCreateVote = { navController.navigate(Route.newVote(tripId)) },
+          onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
+      )
+    }
+    composable(Route.VOTE) { entry ->
+      val tripId = requireNotNull(entry.arguments?.getString("tripId"))
+      val voteId = requireNotNull(entry.arguments?.getString("voteId"))
+      val userId = authRepository.getCurrentUser()?.uid
+      if (userId == null) {
+        LaunchedEffect(Unit) {
+          navController.navigate(Route.AUTHENTICATION) { popUpTo(navController.graph.id) }
+        }
+      } else {
+        VoteScreen(
+            viewModel = viewModel { VoteViewModel(voteRepository, tripId, voteId, userId) },
+            onBack = { navController.popBackStack() },
+        )
+      }
+    }
+    composable(Route.NEW_VOTE) { entry ->
+      val tripId = requireNotNull(entry.arguments?.getString("tripId"))
+      val userId = authRepository.getCurrentUser()?.uid
+      if (userId == null) {
+        LaunchedEffect(Unit) {
+          navController.navigate(Route.AUTHENTICATION) { popUpTo(navController.graph.id) }
+        }
+      } else {
+        val creationViewModel = viewModel { CreateVoteViewModel(voteRepository, tripId, userId) }
+        val state by creationViewModel.uiState.collectAsState()
+        BackHandler(enabled = state.isSubmitting) { /* Wait for the pending write. */ }
+        CreateVoteScreen(
+            viewModel = creationViewModel,
+            onBack = { navController.popBackStack() },
+            onVoteCreated = { navController.popBackStack() },
+        )
+      }
     }
     composable(Route.PROFILE) {
       val profileViewModel = viewModel { ProfileViewModel(authRepository) }
@@ -126,6 +187,20 @@ fun RoamigoApp(
           onSignOutClick = profileViewModel::signOut,
       )
     }
+
+    composable(Route.TRIP_HISTORY) {
+      TripHistoryRoute(
+          tripRepository = tripRepository,
+          onBackClick = { navController.popBackStack() },
+          onTripsClick = {
+            navController.popBackStack(
+                Route.TRIPS,
+                inclusive = false,
+            )
+          },
+      )
+    }
+
     composable(Route.NEW_TRIP) {
       val creationViewModel = viewModel {
         CreateTripViewModel(

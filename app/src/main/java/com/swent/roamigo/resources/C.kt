@@ -36,5 +36,15 @@ object C {
     const val friends_add_friend = "friends_add_friend"
     const val friends_avatar_prefix = "friends_avatar_"
     const val friends_view_map_prefix = "friends_view_map_"
+
+    const val trip_history_screen = "trip_history_screen"
+    const val trip_history_card_prefix = "trip_history_card_"
+    const val trip_history_empty = "trip_history_empty"
+    const val trip_history_loading = "trip_history_loading"
+    const val trip_history_error = "trip_history_error"
+    const val trip_history_back = "trip_history_back"
+    const val trip_history_world_map = "trip_history_world_map"
+    const val trips_history_button = "trips_history_button"
+    const val trip_history_retry = "trip_history_retry"
   }
 }
