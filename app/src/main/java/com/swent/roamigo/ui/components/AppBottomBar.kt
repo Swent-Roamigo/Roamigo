@@ -33,6 +33,7 @@ import com.swent.roamigo.resources.C
  * @param onPhotosClick invoked when the Photos destination is selected.
  * @param tripsSelected whether the Trips destination is highlighted; false on screens that are not
  *   the trips home.
+ * @param photosSelected whether the Photos destination is highlighted.
  */
 @Composable
 internal fun AppBottomBar(
@@ -40,6 +41,7 @@ internal fun AppBottomBar(
     onMapClick: () -> Unit,
     onPhotosClick: () -> Unit,
     tripsSelected: Boolean = true,
+    photosSelected: Boolean = false,
 ) {
   Column {
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -83,7 +85,7 @@ internal fun AppBottomBar(
       )
 
       NavigationBarItem(
-          selected = false,
+          selected = photosSelected,
           onClick = onPhotosClick,
           modifier =
               Modifier.markNotImplemented(onPhotosClick).semantics {

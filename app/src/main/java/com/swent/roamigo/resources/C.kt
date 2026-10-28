@@ -47,6 +47,16 @@ object C {
     const val trips_history_button = "trips_history_button"
     const val trip_history_retry = "trip_history_retry"
 
+    const val photos_screen = "photos_screen"
+    const val photos_title = "photos_title"
+    const val photos_banner = "photos_banner"
+    const val photos_progress = "photos_progress"
+    const val photos_empty = "photos_empty"
+    const val photos_take_photo = "photos_take_photo"
+    const val photos_item_prefix = "photos_item_"
+    const val photos_status_prefix = "photos_status_"
+    const val photos_retry_prefix = "photos_retry_"
+
     const val camera_rationale_sheet = "camera_rationale_sheet"
     const val camera_rationale_continue = "camera_rationale_continue"
     const val camera_rationale_not_now = "camera_rationale_not_now"
@@ -55,6 +65,7 @@ object C {
     const val camera_blocked_sheet = "camera_blocked_sheet"
     const val camera_blocked_open_settings = "camera_blocked_open_settings"
     const val camera_blocked_not_now = "camera_blocked_not_now"
+
     const val photo_preview = "photo_preview"
     const val photo_preview_image = "photo_preview_image"
     const val photo_preview_close = "photo_preview_close"

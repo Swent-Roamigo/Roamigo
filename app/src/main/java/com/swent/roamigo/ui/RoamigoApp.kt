@@ -25,7 +25,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.authentication.AuthRepositoryFirebase
+import com.swent.roamigo.model.connectivity.ConnectivityRepository
+import com.swent.roamigo.model.connectivity.DefaultConnectivityRepository
 import com.swent.roamigo.model.destination.DestinationRepository
+import com.swent.roamigo.model.photo.FakePhotoRepository
+import com.swent.roamigo.model.photo.PhotoRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.voting.VoteRepository
@@ -36,6 +40,8 @@ import com.swent.roamigo.ui.authentication.AuthenticationScreen
 import com.swent.roamigo.ui.authentication.AuthenticationViewModel
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.permissions.PermissionsScreen
+import com.swent.roamigo.ui.photos.PhotosRoute
+import com.swent.roamigo.ui.photos.PhotosViewModel
 import com.swent.roamigo.ui.profile.ProfileScreen
 import com.swent.roamigo.ui.profile.ProfileViewModel
 import com.swent.roamigo.ui.trip.creation.CreateTripViewModel
@@ -58,6 +64,8 @@ import kotlinx.coroutines.launch
  * and votes.
  *
  * @param voteRepository Shared backend for trip vote discovery, creation, and individual ballots.
+ * @param photoRepository Takes trip photos and keeps them until they are uploaded.
+ * @param connectivityRepository Tells whether the device is online; the device's own by default.
  */
 @Composable
 fun RoamigoApp(
@@ -68,6 +76,8 @@ fun RoamigoApp(
     authRepository: AuthRepository = remember { AuthRepositoryFirebase() },
     credentialManager: CredentialManager? = null,
     destinationRepository: DestinationRepository,
+    photoRepository: PhotoRepository = remember { FakePhotoRepository() },
+    connectivityRepository: ConnectivityRepository? = null,
 ) {
   val context = LocalContext.current
   val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }
@@ -126,6 +136,19 @@ fun RoamigoApp(
           tripName = tripName,
           onOpenVote = { voteId -> navController.navigate(Route.vote(tripId, voteId)) },
           onCreateVote = { navController.navigate(Route.newVote(tripId)) },
+          onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
+          onPhotosClick = { navController.navigate(Route.photos(tripId, tripName)) },
+      )
+    }
+    composable(Route.PHOTOS) { entry ->
+      val tripId = requireNotNull(entry.arguments?.getString("tripId"))
+      val tripName = entry.arguments?.getString("tripName").orEmpty()
+      val connectivity =
+          connectivityRepository ?: remember(context) { DefaultConnectivityRepository(context) }
+      PhotosRoute(
+          viewModel = viewModel { PhotosViewModel(photoRepository, connectivity, tripId) },
+          tripName = tripName,
+          fileOf = photoRepository::fileOf,
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
       )
     }
