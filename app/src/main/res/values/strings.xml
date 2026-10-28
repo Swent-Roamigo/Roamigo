@@ -230,4 +230,46 @@
     <string name="votes_empty_description">Start a vote to decide together with your trip members.</string>
     <string name="votes_load_error">Unable to load votes. Please try again.</string>
     <string name="votes_sync_error">Unable to update votes. Showing the last available votes.</string>
+    <!-- Trip photos -->
+    <string name="photos_title">Trip photos</string>
+    <string name="photos_take_photo">Take a photo</string>
+    <string name="photos_offline_empty">You’re offline · photos you take are saved on this phone</string>
+    <plurals name="photos_waiting_offline">
+        <item quantity="one">%d photo saved on this phone · waiting for a connection</item>
+        <item quantity="other">%d photos saved on this phone · waiting for a connection</item>
+    </plurals>
+    <plurals name="photos_waiting_online">
+        <item quantity="one">%d photo waiting to upload</item>
+        <item quantity="other">%d photos waiting to upload</item>
+    </plurals>
+    <plurals name="photos_uploading">
+        <item quantity="one">Back online · uploading %d photo…</item>
+        <item quantity="other">Back online · uploading %d photos…</item>
+    </plurals>
+    <string name="photos_empty_title">No photos waiting to upload</string>
+    <string name="photos_empty_description">Photos you take are uploaded by themselves once you are online.</string>
+    <string name="photos_item_description">Photo taken at %1$s</string>
+    <string name="photos_status_waiting">%1$s · Waiting to upload</string>
+    <string name="photos_status_uploading">%1$s · Uploading…</string>
+    <string name="photos_status_failed">%1$s · Upload failed</string>
+    <string name="photos_retry">Retry</string>
+    <string name="camera_rationale_title">Take photos for the trip?</string>
+    <string name="camera_rationale_description">Roamigo uses the camera only while you take a photo. Photos are shared with trip members only.</string>
+    <string name="camera_rationale_continue">Continue</string>
+    <string name="camera_rationale_not_now">Not now</string>
+    <string name="camera_denied_title">Camera stays off</string>
+    <string name="camera_denied_description">You can allow the camera the next time you take a photo.</string>
+    <string name="camera_denied_got_it">Got it</string>
+    <string name="camera_blocked_title">Camera is blocked</string>
+    <string name="camera_blocked_description">Turn it on in Settings › Permissions › Camera to take photos.</string>
+    <string name="camera_blocked_open_settings">Open Settings</string>
+    <string name="photo_preview_description">The photo you just took</string>
+    <string name="photo_preview_close">Close</string>
+    <string name="photo_preview_offline">You’re offline · it will be saved on this phone</string>
+    <string name="photo_preview_note_online">Shared with the group once saved</string>
+    <string name="photo_preview_note_offline">It will upload when you’re back online</string>
+    <string name="photo_preview_save_online">Save to trip</string>
+    <string name="photo_preview_save_offline">Save on this phone</string>
+    <string name="photo_preview_retake">Retake</string>
+    <string name="photo_preview_save_failed">Could not save the photo. Try again.</string>
 </resources>

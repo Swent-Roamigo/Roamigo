@@ -14,6 +14,7 @@ object Route {
   const val VOTES = "trip/{tripId}/votes?tripName={tripName}"
   const val VOTE = "trip/{tripId}/vote/{voteId}"
   const val NEW_VOTE = "trip/{tripId}/new_vote"
+  const val PHOTOS = "trip/{tripId}/photos?tripName={tripName}"
 
   fun votes(tripId: String, tripName: String): String =
       "trip/${Uri.encode(tripId)}/votes?tripName=${Uri.encode(tripName)}"
@@ -22,4 +23,7 @@ object Route {
       "trip/${Uri.encode(tripId)}/vote/${Uri.encode(voteId)}"
 
   fun newVote(tripId: String): String = "trip/${Uri.encode(tripId)}/new_vote"
+
+  fun photos(tripId: String, tripName: String): String =
+      "trip/${Uri.encode(tripId)}/photos?tripName=${Uri.encode(tripName)}"
 }

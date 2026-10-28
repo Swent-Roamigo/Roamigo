@@ -45,6 +45,7 @@ fun VotesScreen(
     onOpenVote: (String) -> Unit,
     onCreateVote: () -> Unit,
     onTripsClick: () -> Unit,
+    onPhotosClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   VotesScreenContent(
@@ -54,6 +55,7 @@ fun VotesScreen(
       onCreateVote = onCreateVote,
       onRetry = viewModel::retry,
       onTripsClick = onTripsClick,
+      onPhotosClick = onPhotosClick,
   )
 }
 
@@ -66,6 +68,7 @@ fun VotesScreenContent(
     onCreateVote: () -> Unit,
     onRetry: () -> Unit,
     onTripsClick: () -> Unit,
+    onPhotosClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   Scaffold(
       containerColor = MaterialTheme.colorScheme.background,
@@ -73,7 +76,7 @@ fun VotesScreenContent(
         AppBottomBar(
             onTripsClick = onTripsClick,
             onMapClick = rememberNotImplementedAction(),
-            onPhotosClick = rememberNotImplementedAction(),
+            onPhotosClick = onPhotosClick,
             tripsSelected = false,
         )
       },
