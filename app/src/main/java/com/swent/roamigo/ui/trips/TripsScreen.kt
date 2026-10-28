@@ -77,7 +77,10 @@ import java.time.Clock
  * @param onNewTripClick invoked when the user selects the new-trip action.
  * @param onTripsClick invoked when the Trips navigation destination is selected.
  * @param onMapClick invoked when the Map navigation destination is selected.
- * @param onPhotosClick invoked when the Photos navigation destination is selected.
+ * @param onPhotosClick invoked when the Photos navigation destination is selected and there is no
+ *   highlighted trip to show the photos of.
+ * @param onOpenTripPhotos opens the photos of the highlighted trip, when the Photos destination is
+ *   selected. Without it, or without a highlighted trip, [onPhotosClick] is invoked instead.
  * @param onProfileClick invoked when the user selects their profile avatar.
  * @param onHistoryClick invoked when the user opens Trip History.
  * @param clock the clock used for time-dependent presentation logic.
@@ -96,6 +99,7 @@ fun TripsRoute(
     onTripsClick: () -> Unit = {},
     onMapClick: () -> Unit = rememberNotImplementedAction(),
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
+    onOpenTripPhotos: ((String, String) -> Unit)? = null,
     onProfileClick: () -> Unit = rememberNotImplementedAction(),
     clock: Clock = Clock.systemDefaultZone(),
     refreshRequested: Boolean = false,
@@ -130,6 +134,7 @@ fun TripsRoute(
       onTripsClick = onTripsClick,
       onMapClick = onMapClick,
       onPhotosClick = onPhotosClick,
+      onOpenTripPhotos = onOpenTripPhotos,
       onProfileClick = onProfileClick,
       onHistoryClick = onHistoryClick,
       onOpenTrip = onOpenTrip,
@@ -149,7 +154,10 @@ fun TripsRoute(
  * @param onNewTripClick invoked when the user selects the new-trip action.
  * @param onTripsClick invoked when the Trips navigation destination is selected.
  * @param onMapClick invoked when the Map navigation destination is selected.
- * @param onPhotosClick invoked when the Photos navigation destination is selected.
+ * @param onPhotosClick invoked when the Photos navigation destination is selected and there is no
+ *   highlighted trip to show the photos of.
+ * @param onOpenTripPhotos opens the photos of the highlighted trip, when the Photos destination is
+ *   selected. Without it, or without a highlighted trip, [onPhotosClick] is invoked instead.
  * @param onProfileClick invoked when the user selects their profile avatar.
  * @param onHistoryClick invoked when the user opens Trip History.
  * @param onOpenTrip opens the selected trip's Votes tab.
@@ -164,10 +172,18 @@ fun TripsScreen(
     onTripsClick: () -> Unit = {},
     onMapClick: () -> Unit = rememberNotImplementedAction(),
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
+    onOpenTripPhotos: ((String, String) -> Unit)? = null,
     onProfileClick: () -> Unit = rememberNotImplementedAction(),
     onHistoryClick: () -> Unit = rememberNotImplementedAction(),
     onOpenTrip: (String, String) -> Unit = { _, _ -> },
 ) {
+  val mainTrip = uiState.mainTrip
+  val photosClick: () -> Unit =
+      if (onOpenTripPhotos != null && mainTrip != null) {
+        { onOpenTripPhotos(mainTrip.id, mainTrip.name) }
+      } else {
+        onPhotosClick
+      }
   Scaffold(
       modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.trips_screen },
       containerColor = MaterialTheme.colorScheme.background,
@@ -175,7 +191,7 @@ fun TripsScreen(
         AppBottomBar(
             onTripsClick = onTripsClick,
             onMapClick = onMapClick,
-            onPhotosClick = onPhotosClick,
+            onPhotosClick = photosClick,
         )
       },
   ) { innerPadding ->

@@ -126,6 +126,9 @@ fun RoamigoApp(
           onOpenTrip = { tripId, tripName ->
             navController.navigate(Route.votes(tripId, tripName))
           },
+          onOpenTripPhotos = { tripId, tripName ->
+            navController.navigate(Route.photos(tripId, tripName))
+          },
       )
     }
     composable(Route.VOTES) { entry ->
