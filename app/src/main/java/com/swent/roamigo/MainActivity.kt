@@ -23,6 +23,8 @@ import com.swent.roamigo.ui.theme.RoamigoTheme
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    // Photos left on the device, e.g. by an upload that gave up, get another chance at each launch.
+    (application as RoamigoApplication).photos.scheduler.schedule()
     setContent {
       RoamigoTheme {
         // A surface container using the 'background' color from the theme
@@ -42,6 +44,7 @@ class MainActivity : ComponentActivity() {
               authRepository = authRepository,
               voteRepository = voteRepository,
               destinationRepository = remember { OnlineDestinationRepository() },
+              photoRepository = remember { (application as RoamigoApplication).photos.repository },
           )
         }
       }
