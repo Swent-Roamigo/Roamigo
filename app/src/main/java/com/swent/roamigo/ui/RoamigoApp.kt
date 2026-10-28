@@ -34,6 +34,7 @@ import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.ui.authentication.AuthenticationScreen
 import com.swent.roamigo.ui.authentication.AuthenticationViewModel
+import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.friends.FriendsScreen
 import com.swent.roamigo.ui.friends.FriendsUiState
 import com.swent.roamigo.ui.navigation.Route
@@ -130,6 +131,7 @@ fun RoamigoApp(
           onOpenVote = { voteId -> navController.navigate(Route.vote(tripId, voteId)) },
           onCreateVote = { navController.navigate(Route.newVote(tripId)) },
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
+          onFriendsClick = { navController.navigate(Route.FRIENDS) { launchSingleTop = true } },
       )
     }
     composable(Route.VOTE) { entry ->
@@ -169,6 +171,8 @@ fun RoamigoApp(
       FriendsScreen(
           uiState = FriendsUiState(),
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
+          onMapClick = rememberNotImplementedAction(),
+          onPhotosClick = rememberNotImplementedAction(),
       )
     }
     composable(Route.PROFILE) {
