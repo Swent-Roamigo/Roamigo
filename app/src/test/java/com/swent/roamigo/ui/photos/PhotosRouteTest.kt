@@ -24,6 +24,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.connectivity.FakeConnectivityRepository
 import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.photo.PhotoModule
+import com.swent.roamigo.model.photo.tripPhoto
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import java.io.File
@@ -263,5 +264,30 @@ class PhotosRouteTest {
     tap(C.Tag.trips_navigation_trips)
 
     assertEquals(1, tripsClicks)
+  }
+
+  @Test
+  fun anUploadedPhotoOpensFullScreenAndTheCloseButtonGoesBack() {
+    repository.uploaded.value = listOf(tripPhoto("a"))
+    show()
+
+    tap(C.Tag.photos_uploaded_prefix + "a")
+    composeRule.onNodeWithTag(C.Tag.photo_viewer).assertIsDisplayed()
+    tap(C.Tag.photo_viewer_close)
+
+    composeRule.onNodeWithTag(C.Tag.photos_screen).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.photo_viewer).assertDoesNotExist()
+  }
+
+  @Test
+  fun backClosesTheFullScreenPhoto() {
+    repository.uploaded.value = listOf(tripPhoto("a"))
+    show()
+    tap(C.Tag.photos_uploaded_prefix + "a")
+
+    composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+    composeRule.waitForIdle()
+
+    composeRule.onNodeWithTag(C.Tag.photos_screen).assertIsDisplayed()
   }
 }

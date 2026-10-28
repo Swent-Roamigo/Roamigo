@@ -22,9 +22,14 @@ class FakePhotoRepository(
   private val files = PhotoFileStore(directory)
   private val photos = MutableStateFlow(initialPhotos)
 
+  /** The photos that count as uploaded, newest first. Tests and previews can set them. */
+  val uploaded = MutableStateFlow<List<TripPhoto>>(emptyList())
+
   override fun pendingPhotos(tripId: String): Flow<List<PendingPhoto>> = photos.map { list ->
     list.filter { it.tripId == tripId && it.userId == userId }
   }
+
+  override fun tripPhotos(tripId: String): Flow<List<TripPhoto>> = uploaded
 
   override fun newPhotoFile(): File = files.newFile()
 

@@ -12,6 +12,7 @@ import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.photo.PhotoUploadStatus
 import com.swent.roamigo.model.photo.pendingPhoto
+import com.swent.roamigo.model.photo.tripPhoto
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import java.io.File
@@ -35,6 +36,8 @@ class PhotosScreenTest {
             fileOf = { File("/nowhere/${it.fileName}") },
             onTakePhotoClick = { taps += "take" },
             onRetryClick = { taps += "retry $it" },
+            onPhotoClick = { taps += "photo $it" },
+            onGalleryRetryClick = { taps += "gallery retry" },
             onTripsClick = { taps += "trips" },
         )
       }
@@ -178,5 +181,78 @@ class PhotosScreenTest {
     composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).performClick()
 
     assertEquals(listOf("trips"), taps)
+  }
+
+  @Test
+  fun listsThePhotosTheTripHasWithWhoTookThem() {
+    show(
+        PhotosUiState(
+            uploaded =
+                listOf(tripPhoto("a", uploadedBy = "me"), tripPhoto("b", uploadedBy = "sam")),
+            currentUserId = "me",
+        )
+    )
+
+    composeRule.onNodeWithTag(C.Tag.photos_uploaded_title).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.photos_uploaded_prefix + "a").assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.photos_uploaded_prefix + "b").assertIsDisplayed()
+    composeRule.onNodeWithText("You ·", substring = true).assertIsDisplayed()
+    composeRule.onNodeWithText("A member ·", substring = true).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.photos_empty).assertDoesNotExist()
+  }
+
+  @Test
+  fun openingAnUploadedPhotoReportsItsId() {
+    show(PhotosUiState(uploaded = listOf(tripPhoto("a"))))
+
+    composeRule.onNodeWithTag(C.Tag.photos_uploaded_prefix + "a").performClick()
+
+    assertEquals(listOf("photo a"), taps)
+  }
+
+  @Test
+  fun showsWaitingPhotosAboveTheUploadedOnes() {
+    show(
+        PhotosUiState(
+            photos = waiting(1),
+            uploaded = listOf(tripPhoto("a")),
+        )
+    )
+
+    composeRule.onNodeWithTag(C.Tag.photos_item_prefix + "p0").assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.photos_uploaded_prefix + "a").assertIsDisplayed()
+  }
+
+  @Test
+  fun hidesTheUploadedTitleWhenThereAreNoUploadedPhotos() {
+    show(PhotosUiState(photos = waiting(1)))
+
+    composeRule.onNodeWithTag(C.Tag.photos_uploaded_title).assertDoesNotExist()
+  }
+
+  @Test
+  fun saysThePhotosCouldNotBeReadAndOffersARetry() {
+    show(PhotosUiState(galleryFailed = true))
+
+    composeRule.onNodeWithTag(C.Tag.photos_gallery_error).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.photos_empty).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.photos_gallery_retry).performClick()
+
+    assertEquals(listOf("gallery retry"), taps)
+  }
+
+  @Test
+  fun keepsThePhotosAlreadyReadWhenALaterReadFails() {
+    show(PhotosUiState(uploaded = listOf(tripPhoto("a")), galleryFailed = true))
+
+    composeRule.onNodeWithTag(C.Tag.photos_gallery_error).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.photos_uploaded_prefix + "a").assertIsDisplayed()
+  }
+
+  @Test
+  fun hidesTheErrorWhenNothingFailed() {
+    show(PhotosUiState(uploaded = listOf(tripPhoto("a"))))
+
+    composeRule.onNodeWithTag(C.Tag.photos_gallery_error).assertDoesNotExist()
   }
 }
