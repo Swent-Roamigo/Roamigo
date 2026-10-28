@@ -24,7 +24,7 @@ class PhotoModule(
   private val files = PhotoFileStore(File(appContext.filesDir, PHOTO_DIRECTORY))
   private val queue = DataStorePhotoQueue(appContext)
 
-  val syncer = PhotoSyncer(queue, files, PhotoUploaderFirebase(), currentUserId)
+  val syncer = PhotoSyncer(queue, files, PhotoUploaderFirestore(), currentUserId)
   // WorkManager starts only when a photo is saved or a sync is scheduled, not with the app.
   val scheduler: PhotoScheduler = PhotoSchedulerWorkManager { WorkManager.getInstance(appContext) }
   val repository: PhotoRepository =
