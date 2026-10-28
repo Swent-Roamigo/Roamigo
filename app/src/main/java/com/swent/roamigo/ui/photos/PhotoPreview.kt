@@ -17,9 +17,9 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,15 +71,23 @@ fun PhotoPreview(
       } else {
         Box(Modifier)
       }
-      IconButton(
+      // A labelled button on a dark pill: a bare cross disappears on a bright photo.
+      TextButton(
           onClick = onClose,
           modifier = Modifier.testTag(C.Tag.photo_preview_close),
           enabled = !saving,
+          colors =
+              ButtonDefaults.textButtonColors(
+                  containerColor = Color.Black.copy(alpha = 0.6f),
+                  contentColor = Color.White,
+                  disabledContainerColor = Color.Black.copy(alpha = 0.3f),
+                  disabledContentColor = Color.White.copy(alpha = 0.5f),
+              ),
       ) {
-        Icon(
-            Icons.Filled.Close,
-            contentDescription = stringResource(R.string.photo_preview_close),
-            tint = Color.White,
+        Icon(Icons.Filled.Close, contentDescription = null)
+        Text(
+            stringResource(R.string.photo_preview_cancel),
+            modifier = Modifier.padding(start = Spacing.small),
         )
       }
     }
