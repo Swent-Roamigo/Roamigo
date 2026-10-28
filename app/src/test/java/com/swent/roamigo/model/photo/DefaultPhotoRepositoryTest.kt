@@ -211,7 +211,6 @@ class DefaultPhotoRepositoryTest {
         DefaultPhotoRepository(
             queue,
             files,
-            PhotoSyncer(queue, files, FakePhotoUploader()) { userId },
             scheduler,
             location,
             { tripId ->
