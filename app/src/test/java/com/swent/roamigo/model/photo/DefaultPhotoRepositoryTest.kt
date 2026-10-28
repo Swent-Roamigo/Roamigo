@@ -31,12 +31,10 @@ class DefaultPhotoRepositoryTest {
 
   private fun create(locationTimeout: kotlin.time.Duration = 5.seconds) {
     files = PhotoFileStore(folder.newFolder())
-    val syncer = PhotoSyncer(queue, files, FakePhotoUploader()) { userId }
     repository =
         DefaultPhotoRepository(
             queue = queue,
             files = files,
-            syncer = syncer,
             scheduler = scheduler,
             locationRepository = location,
             currentUserId = { userId },
@@ -122,7 +120,6 @@ class DefaultPhotoRepositoryTest {
         DefaultPhotoRepository(
             queue,
             files,
-            PhotoSyncer(queue, files, FakePhotoUploader()) { userId },
             scheduler,
             slow,
             { userId },
