@@ -70,3 +70,12 @@ class FakePhotoUploader : PhotoUploader {
     uploaded += photo.id
   }
 }
+
+class FakePhotoScheduler : PhotoScheduler {
+  var calls = 0
+    private set
+
+  override fun schedule() {
+    calls++
+  }
+}
