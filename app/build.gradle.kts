@@ -174,6 +174,7 @@ dependencies {
   implementation(libs.firebase.firestore)
   implementation(libs.firebase.auth)
   implementation(libs.firebase.database)
+  implementation(libs.firebase.storage)
   implementation(libs.androidx.credentials)
   implementation(libs.androidx.credentials.play.services.auth)
   implementation(libs.google.id)
@@ -184,6 +185,8 @@ dependencies {
   implementation(libs.okhttp)
   implementation(libs.coil)
   implementation(libs.coil.compose)
+  implementation(libs.androidx.work.runtime)
+  testImplementation(libs.androidx.work.testing)
 
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.appcompat)
