@@ -9,6 +9,12 @@ interface PhotoRepository {
   /** Emits the trip's photos that are saved on this device and not uploaded yet. */
   fun pendingPhotos(tripId: String): Flow<List<PendingPhoto>>
 
+  /**
+   * Emits the latest photos of the trip that the server has, newest first. It fails if they cannot
+   * be read, e.g. because the user is not a member of the trip.
+   */
+  fun tripPhotos(tripId: String): Flow<List<TripPhoto>>
+
   /** An empty file in the app's photo folder, for the camera to write a new photo into. */
   fun newPhotoFile(): File
 

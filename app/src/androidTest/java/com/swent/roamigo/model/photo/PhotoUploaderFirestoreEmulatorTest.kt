@@ -24,8 +24,10 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.time.Instant
 import java.util.UUID
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -246,6 +248,64 @@ class PhotoUploaderFirestoreEmulatorTest {
         photoDocument(alice)
             .set(validData(alice) + mapOf("latitude" to -90.0, "longitude" to 180.0))
             .await()
+      }
+
+  private fun gallery(user: User, limit: Long = PhotoGalleryFirestore.LIMIT) =
+      PhotoGalleryFirestore({ user.db }, limit)
+
+  @Test
+  fun aMemberSeesTheUploadedPhotosNewestFirst() =
+      runBlocking<Unit> {
+        uploader(alice).upload(photo(alice, "old").copy(takenAtMillis = 1_000), photoFile)
+        uploader(alice)
+            .upload(photo(alice, "new", latitude = 41.5).copy(takenAtMillis = 2_000), photoFile)
+
+        val photos = withTimeout(10_000) { gallery(alice).observe(tripId).first { it.size == 2 } }
+
+        assertEquals(listOf("new", "old"), photos.map { it.id })
+        assertEquals(alice.userId, photos.first().uploadedBy)
+        assertEquals(41.5, photos.first().latitude)
+        assertTrue(photos.first().image.isNotEmpty())
+      }
+
+  @Test
+  fun theGalleryReadsOnlyTheLatestPhotos() =
+      runBlocking<Unit> {
+        listOf("a" to 1L, "b" to 2L, "c" to 3L).forEach { (id, time) ->
+          uploader(alice).upload(photo(alice, id).copy(takenAtMillis = time), photoFile)
+        }
+
+        val photos =
+            withTimeout(10_000) {
+              gallery(alice, limit = 2).observe(tripId).first { it.isNotEmpty() }
+            }
+
+        assertEquals(listOf("c", "b"), photos.map { it.id })
+      }
+
+  @Test
+  fun aTripWithoutPhotosHasAnEmptyGallery() =
+      runBlocking<Unit> {
+        val photos = withTimeout(10_000) { gallery(alice).observe(tripId).first() }
+
+        assertTrue(photos.isEmpty())
+      }
+
+  @Test
+  fun aNonMemberCannotReadTheGallery() =
+      runBlocking<Unit> {
+        uploader(alice).upload(photo(alice), photoFile)
+
+        val error = runCatching {
+          withTimeout(10_000) { gallery(bob).observe(tripId).first() }
+        }
+            .exceptionOrNull()
+
+        assertTrue(
+            error.toString(),
+            error is FirebaseFirestoreException &&
+                error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED,
+        )
       }
 
   private suspend fun assertPermissionDenied(block: suspend () -> Unit) {

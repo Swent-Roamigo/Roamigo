@@ -11,6 +11,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 /**
  * [PhotoRepository] that keeps photos in a [PhotoQueue] until [PhotoSyncer] uploads them.
  *
+ * @param gallery the photos of a trip that the server has.
  * @param currentUserId the signed-in user, or null.
  * @param locationRepository tags photos with a position. It is never asked for the permission.
  * @param locationTimeout how long saving waits for a position before saving without one. A slow fix
@@ -22,12 +23,15 @@ class DefaultPhotoRepository(
     private val syncer: PhotoSyncer,
     private val scheduler: PhotoScheduler,
     private val locationRepository: LocationRepository,
+    private val gallery: PhotoGallery,
     private val currentUserId: () -> String?,
     private val clock: () -> Long = System::currentTimeMillis,
     private val locationTimeout: Duration = 5.seconds,
 ) : PhotoRepository {
 
   override fun pendingPhotos(tripId: String): Flow<List<PendingPhoto>> = queue.observe(tripId)
+
+  override fun tripPhotos(tripId: String): Flow<List<TripPhoto>> = gallery.observe(tripId)
 
   override fun newPhotoFile(): File = files.newFile()
 

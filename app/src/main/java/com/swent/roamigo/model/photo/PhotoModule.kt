@@ -34,6 +34,7 @@ class PhotoModule(
           syncer = syncer,
           scheduler = scheduler,
           locationRepository = locationRepository,
+          gallery = PhotoGalleryFirestore(),
           currentUserId = currentUserId,
       )
 
