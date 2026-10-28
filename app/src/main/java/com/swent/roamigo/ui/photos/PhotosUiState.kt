@@ -2,6 +2,7 @@
 package com.swent.roamigo.ui.photos
 
 import com.swent.roamigo.model.photo.PendingPhoto
+import com.swent.roamigo.model.photo.TripPhoto
 import java.io.File
 
 /** The sheet explaining the camera permission, if one is open. */
@@ -21,6 +22,10 @@ enum class CameraStep {
 /**
  * @param isOnline whether the device can reach the internet.
  * @param photos the trip's photos saved on this device and not uploaded yet.
+ * @param uploaded the latest photos of the trip that the server has, newest first.
+ * @param galleryFailed whether [uploaded] could not be read.
+ * @param viewing the uploaded photo shown full screen, if any.
+ * @param currentUserId the signed-in user, to tell their photos from the others.
  * @param preview the photo just taken, waiting for the user to keep it or retake it.
  * @param saving whether [preview] is being saved.
  * @param saveFailed whether the last attempt to save [preview] failed.
@@ -28,6 +33,10 @@ enum class CameraStep {
 data class PhotosUiState(
     val isOnline: Boolean = true,
     val photos: List<PendingPhoto> = emptyList(),
+    val uploaded: List<TripPhoto> = emptyList(),
+    val galleryFailed: Boolean = false,
+    val viewing: TripPhoto? = null,
+    val currentUserId: String? = null,
     val cameraStep: CameraStep = CameraStep.NONE,
     val preview: File? = null,
     val saving: Boolean = false,

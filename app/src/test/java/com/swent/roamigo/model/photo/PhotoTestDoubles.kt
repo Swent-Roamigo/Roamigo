@@ -79,3 +79,13 @@ class FakePhotoScheduler : PhotoScheduler {
     calls++
   }
 }
+
+/** A [TripPhoto] with the fields tests rarely care about filled in. */
+fun tripPhoto(
+    id: String = "a",
+    uploadedBy: String = "u1",
+    takenAtMillis: Long = 1_000L,
+    latitude: Double? = null,
+    longitude: Double? = null,
+    image: ByteArray = byteArrayOf(1, 2, 3),
+) = TripPhoto(id, uploadedBy, takenAtMillis, latitude, longitude, image)

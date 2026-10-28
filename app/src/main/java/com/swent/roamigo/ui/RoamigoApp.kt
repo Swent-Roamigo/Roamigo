@@ -198,7 +198,8 @@ fun RoamigoApp(
                     photoRepository,
                     connectivity,
                     tripId,
-                    savedStateHandle = createSavedStateHandle(),
+                    authRepository.getCurrentUser()?.uid,
+                    createSavedStateHandle(),
                 )
               },
           tripName = tripName,
