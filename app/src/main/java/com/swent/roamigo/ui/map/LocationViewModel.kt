@@ -123,13 +123,16 @@ class LocationViewModel(
 
   /**
    * Updates the permission state after the user answers a permission request or the permission is
-   * checked again. Granting the permission does not start sharing: sharing stays opt-in.
+   * checked again. A refusal is reported as [LocationPermissionState.Denied] while the app may
+   * still ask again, and as [LocationPermissionState.Revoked] once the system no longer shows the
+   * request. Granting the permission does not start sharing: only [startSharing] does.
    *
    * @param granted whether the app now holds a location permission.
+   * @param shouldShowRationale value of `shouldShowRequestPermissionRationale` after the request.
    */
-  fun onPermissionResult(granted: Boolean) {
+  fun onPermissionResult(granted: Boolean, shouldShowRationale: Boolean) {
     _uiState.update { state ->
-      state.copy(permissionState = nextPermissionState(state.permissionState, granted))
+      state.copy(permissionState = nextPermissionState(granted, shouldShowRationale))
     }
   }
 
@@ -356,20 +359,20 @@ class LocationViewModel(
 /**
  * Computes the permission state after a permission result.
  *
- * A refusal after the permission was granted means the user withdrew it, which the map reports
- * differently from a first refusal.
+ * Android stops showing the rationale once the system no longer displays the request dialog, so a
+ * refusal without rationale means the permission was denied permanently or revoked from the
+ * settings, and only the settings can grant it again.
  *
- * @param current the permission state before the result.
  * @param granted whether the app now holds a location permission.
+ * @param shouldShowRationale value of `shouldShowRequestPermissionRationale` after the request.
  * @return the permission state after the result.
  */
 internal fun nextPermissionState(
-    current: LocationPermissionState,
     granted: Boolean,
+    shouldShowRationale: Boolean,
 ): LocationPermissionState =
     when {
       granted -> LocationPermissionState.Granted
-      current == LocationPermissionState.Granted || current == LocationPermissionState.Revoked ->
-          LocationPermissionState.Revoked
-      else -> LocationPermissionState.Denied
+      shouldShowRationale -> LocationPermissionState.Denied
+      else -> LocationPermissionState.Revoked
     }
