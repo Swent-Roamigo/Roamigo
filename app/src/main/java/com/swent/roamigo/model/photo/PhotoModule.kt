@@ -31,7 +31,6 @@ class PhotoModule(
       DefaultPhotoRepository(
           queue = queue,
           files = files,
-          syncer = syncer,
           scheduler = scheduler,
           locationRepository = locationRepository,
           gallery = PhotoGalleryFirestore(),

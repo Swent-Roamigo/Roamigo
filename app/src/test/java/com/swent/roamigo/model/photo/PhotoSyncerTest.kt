@@ -51,10 +51,10 @@ class PhotoSyncerTest {
     create()
     val file = save("a")
 
-    val result = syncer.sync()
+    val retryLater = syncer.sync()
 
     assertEquals(listOf("a"), uploader.uploaded)
-    assertEquals(SyncResult(uploaded = 1, failed = 0, shouldRetry = false), result)
+    assertFalse(retryLater)
     assertEquals(emptyList<PendingPhoto>(), queue.current)
     assertFalse(file.exists())
   }
@@ -87,9 +87,9 @@ class PhotoSyncerTest {
     save("a")
     userId = null
 
-    val result = syncer.sync()
+    val retryLater = syncer.sync()
 
-    assertEquals(SyncResult.NOTHING, result)
+    assertFalse(retryLater)
     assertEquals(emptyList<String>(), uploader.uploaded)
     assertEquals(1, queue.current.size)
   }
@@ -118,9 +118,9 @@ class PhotoSyncerTest {
     val file = save("a")
     uploader.failure = { PhotoUploadException("offline", retryable = true) }
 
-    val result = syncer.sync()
+    val retryLater = syncer.sync()
 
-    assertEquals(SyncResult(uploaded = 0, failed = 1, shouldRetry = true), result)
+    assertTrue(retryLater)
     assertEquals(PhotoUploadStatus.FAILED, queue.current.single().status)
     assertTrue(file.exists())
   }
@@ -131,9 +131,9 @@ class PhotoSyncerTest {
     save("a")
     uploader.failure = { PhotoUploadException("not a member", retryable = false) }
 
-    val result = syncer.sync()
+    val retryLater = syncer.sync()
 
-    assertEquals(SyncResult(uploaded = 0, failed = 1, shouldRetry = false), result)
+    assertFalse(retryLater)
     assertEquals(PhotoUploadStatus.FAILED, queue.current.single().status)
   }
 
@@ -143,9 +143,9 @@ class PhotoSyncerTest {
     save("a")
     uploader.failure = { IOException("reset") }
 
-    val result = syncer.sync()
+    val retryLater = syncer.sync()
 
-    assertEquals(SyncResult(uploaded = 0, failed = 1, shouldRetry = true), result)
+    assertTrue(retryLater)
     assertEquals(PhotoUploadStatus.FAILED, queue.current.single().status)
   }
 
@@ -155,10 +155,10 @@ class PhotoSyncerTest {
     listOf("a", "b", "c").forEach { save(it) }
     uploader.failure = { if (it.id == "b") PhotoUploadException("boom") else null }
 
-    val result = syncer.sync()
+    val retryLater = syncer.sync()
 
     assertEquals(listOf("a", "c"), uploader.uploaded)
-    assertEquals(SyncResult(uploaded = 2, failed = 1, shouldRetry = true), result)
+    assertTrue(retryLater)
     assertEquals(listOf("b"), queue.current.map { it.id })
   }
 
@@ -169,9 +169,7 @@ class PhotoSyncerTest {
     save("flaky")
     uploader.failure = { PhotoUploadException("x", retryable = it.id == "flaky") }
 
-    val result = syncer.sync()
-
-    assertEquals(SyncResult(uploaded = 0, failed = 2, shouldRetry = true), result)
+    assertTrue(syncer.sync())
   }
 
   @Test
@@ -179,10 +177,9 @@ class PhotoSyncerTest {
     create()
     save("a", status = PhotoUploadStatus.FAILED)
 
-    val result = syncer.sync()
+    syncer.sync()
 
     assertEquals(listOf("a"), uploader.uploaded)
-    assertEquals(1, result.uploaded)
   }
 
   @Test
@@ -201,10 +198,9 @@ class PhotoSyncerTest {
     queue.add(pendingPhoto("ghost"))
     save("a")
 
-    val result = syncer.sync()
+    assertFalse(syncer.sync())
 
     assertEquals(listOf("a"), uploader.uploaded)
-    assertEquals(SyncResult(uploaded = 1, failed = 0, shouldRetry = false), result)
     assertEquals(emptyList<PendingPhoto>(), queue.current)
   }
 
@@ -246,15 +242,5 @@ class PhotoSyncerTest {
     assertTrue(first.isCompleted && second.isCompleted)
     // The second round waited for the first, found nothing left, and did not send the photo again.
     assertEquals(listOf("a"), uploader.uploaded)
-  }
-
-  @Test
-  fun retryPutsAFailedPhotoBackAmongTheWaitingOnes() = runTest {
-    create()
-    save("a", status = PhotoUploadStatus.FAILED)
-
-    syncer.retry("a")
-
-    assertEquals(PhotoUploadStatus.WAITING, queue.current.single().status)
   }
 }

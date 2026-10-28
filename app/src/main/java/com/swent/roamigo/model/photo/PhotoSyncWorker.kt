@@ -17,11 +17,10 @@ class PhotoSyncWorker(
 ) : CoroutineWorker(context, params) {
 
   override suspend fun doWork(): Result {
-    val result = syncer.sync()
+    val mayGoAway = syncer.sync()
     // A failure that may go away is tried again later with a backoff, but not forever: the photo
     // stays on the device and the user can retry it, or the next scheduled sync takes it.
-    return if (result.shouldRetry && runAttemptCount < MAX_ATTEMPTS) Result.retry()
-    else Result.success()
+    return if (mayGoAway && runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.success()
   }
 
   companion object {

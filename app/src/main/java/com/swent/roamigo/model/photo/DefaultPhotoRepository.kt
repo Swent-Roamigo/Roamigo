@@ -20,7 +20,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 class DefaultPhotoRepository(
     private val queue: PhotoQueue,
     private val files: PhotoFileStore,
-    private val syncer: PhotoSyncer,
     private val scheduler: PhotoScheduler,
     private val locationRepository: LocationRepository,
     private val gallery: PhotoGallery,
@@ -63,7 +62,7 @@ class DefaultPhotoRepository(
   override fun discard(file: File) = files.delete(file)
 
   override suspend fun retry(photoId: String) {
-    syncer.retry(photoId)
+    queue.setStatus(photoId, PhotoUploadStatus.WAITING)
     scheduler.schedule()
   }
 }

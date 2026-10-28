@@ -2,6 +2,7 @@
 package com.swent.roamigo.model.photo
 
 import java.io.File
+import java.io.IOException
 
 /** Sends a photo saved on the device to the server. */
 interface PhotoUploader {
@@ -23,4 +24,4 @@ class PhotoUploadException(
     message: String,
     cause: Throwable? = null,
     val retryable: Boolean = true,
-) : Exception(message, cause)
+) : IOException(message, cause)
