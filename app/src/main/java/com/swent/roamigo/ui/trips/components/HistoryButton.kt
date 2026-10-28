@@ -19,7 +19,7 @@ import com.swent.roamigo.ui.components.markNotImplemented
 
 /** Button that opens the user's completed trip history. */
 @Composable
-fun HistoryButton(onClick: () -> Unit) {
+internal fun HistoryButton(onClick: () -> Unit) {
   TextButton(
       onClick = onClick,
       modifier =

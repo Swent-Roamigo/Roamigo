@@ -25,6 +25,7 @@ import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.markNotImplemented
 
+/** Displays the Trips Home title and profile shortcut. */
 @Composable
 internal fun TripsHeader(
     greeting: String,

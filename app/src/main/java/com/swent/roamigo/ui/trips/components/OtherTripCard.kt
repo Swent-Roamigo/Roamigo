@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.ui.trips.OtherTripUiModel
 
+/** Displays a secondary trip that can be opened. */
 @Composable
 internal fun OtherTripCard(trip: OtherTripUiModel, onClick: () -> Unit) {
   Surface(

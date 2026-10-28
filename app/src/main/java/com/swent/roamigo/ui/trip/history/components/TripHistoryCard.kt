@@ -28,6 +28,7 @@ import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.history.TripHistoryItemUiModel
 
+/** Displays a completed trip with its destinations, dates, and travelers. */
 @Composable
 internal fun TripHistoryCard(trip: TripHistoryItemUiModel) {
   Surface(

@@ -27,6 +27,7 @@ import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.trips.ActivityCardUiModel
 
+/** Displays the next upcoming activity. */
 @Composable
 internal fun NextActivityCard(
     activity: ActivityCardUiModel,

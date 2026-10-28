@@ -39,6 +39,7 @@ import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.trips.MainTripUiModel
 
+/** Displays the featured trip, its details, and invite action. */
 @Composable
 internal fun MainTripCard(
     trip: MainTripUiModel,
