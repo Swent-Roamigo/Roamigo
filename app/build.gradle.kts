@@ -196,6 +196,8 @@ dependencies {
   implementation(libs.okhttp)
   implementation(libs.coil)
   implementation(libs.coil.compose)
+  implementation(libs.androidx.work.runtime)
+  testImplementation(libs.androidx.work.testing)
 
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.appcompat)
