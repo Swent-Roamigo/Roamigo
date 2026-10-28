@@ -236,4 +236,24 @@
     <string name="votes_empty_description">Start a vote to decide together with your trip members.</string>
     <string name="votes_load_error">Unable to load votes. Please try again.</string>
     <string name="votes_sync_error">Unable to update votes. Showing the last available votes.</string>
+    <!-- Trip photos -->
+    <string name="camera_rationale_title">Take photos for the trip?</string>
+    <string name="camera_rationale_description">Roamigo uses the camera only while you take a photo. Photos are shared with trip members only.</string>
+    <string name="camera_rationale_continue">Continue</string>
+    <string name="camera_rationale_not_now">Not now</string>
+    <string name="camera_denied_title">Camera stays off</string>
+    <string name="camera_denied_description">You can allow the camera the next time you take a photo.</string>
+    <string name="camera_denied_got_it">Got it</string>
+    <string name="camera_blocked_title">Camera is blocked</string>
+    <string name="camera_blocked_description">Turn it on in Settings › Permissions › Camera to take photos.</string>
+    <string name="camera_blocked_open_settings">Open Settings</string>
+    <string name="photo_preview_description">The photo you just took</string>
+    <string name="photo_preview_cancel">Cancel</string>
+    <string name="photo_preview_offline">You’re offline · it will be saved on this phone</string>
+    <string name="photo_preview_note_online">Shared with the group once saved</string>
+    <string name="photo_preview_note_offline">It will upload when you’re back online</string>
+    <string name="photo_preview_save_online">Save to trip</string>
+    <string name="photo_preview_save_offline">Save on this phone</string>
+    <string name="photo_preview_retake">Retake</string>
+    <string name="photo_preview_save_failed">Could not save the photo. Try again.</string>
 </resources>
