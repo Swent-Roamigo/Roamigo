@@ -2,6 +2,8 @@
 package com.swent.roamigo.model.photo
 
 import java.io.File
+import java.io.IOException
+import java.nio.file.Files
 import java.util.UUID
 
 /**
@@ -23,9 +25,16 @@ class PhotoFileStore(private val directory: File) {
 
   fun fileOf(photo: PendingPhoto): File = File(directory, photo.fileName)
 
-  /** Deletes [file] if it is there; a file that is already gone is not an error. */
+  /**
+   * Deletes [file] if it is there. A file that is already gone is not an error, and neither is one
+   * that cannot be deleted: it is only a photo that stays on the device a little longer.
+   */
   fun delete(file: File) {
-    file.delete()
+    try {
+      Files.deleteIfExists(file.toPath())
+    } catch (_: IOException) {
+      // Nothing else can be done with it here.
+    }
   }
 
   companion object {

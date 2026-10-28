@@ -71,4 +71,18 @@ class PhotoFileStoreTest {
 
     store.delete(store.newFile())
   }
+
+  @Test
+  fun deletingAFolderThatIsNotEmptyIsNotAnError() {
+    val (store, directory) = store()
+    val file = store.newFile()
+    // A folder named like a photo cannot be deleted while it holds something.
+    val folderLikeFile = File(directory, "x.jpg").apply { mkdirs() }
+    File(folderLikeFile, "inside").writeText("x")
+
+    store.delete(folderLikeFile)
+
+    assertTrue(folderLikeFile.exists())
+    assertFalse(file.exists())
+  }
 }
