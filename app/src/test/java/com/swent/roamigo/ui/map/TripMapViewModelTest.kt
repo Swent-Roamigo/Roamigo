@@ -10,10 +10,14 @@ import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
+import com.swent.roamigo.model.users.FakeUserRepository
+import com.swent.roamigo.model.users.User
+import com.swent.roamigo.model.users.UserRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
@@ -56,7 +60,11 @@ class TripMapViewModelTest {
     advanceUntilIdle()
 
     assertEquals(
-        TripMapUiState.Loaded(trip, TripMapViewport.Centered(PARIS.latitude, PARIS.longitude)),
+        TripMapUiState.Loaded(
+            trip = trip,
+            viewport = TripMapViewport.Centered(PARIS.latitude, PARIS.longitude),
+            members = mapOf(ALICE.uid to MemberDisplayInfo("Alice", "A", ALICE_AVATAR)),
+        ),
         viewModel.uiState.value,
     )
   }
@@ -196,7 +204,7 @@ class TripMapViewModelTest {
 
   @Test
   fun factory_createsTripMapViewModel_andRejectsOtherClasses() {
-    val factory = TripMapViewModel.factory(TRIP_ID, FakeTripRepository())
+    val factory = TripMapViewModel.factory(TRIP_ID, FakeTripRepository(), FakeUserRepository(ALICE))
 
     assertTrue(factory.create(TripMapViewModel::class.java) is TripMapViewModel)
     assertThrows(IllegalArgumentException::class.java) {
@@ -204,17 +212,96 @@ class TripMapViewModelTest {
     }
   }
 
+  @Test
+  fun memberWithFullProfile_showsTheirNameAndAvatar() = runTest {
+    assertEquals(
+        MemberDisplayInfo(displayName = "Alice", initial = "A", avatarUrl = ALICE_AVATAR),
+        loadMembers(ALICE.uid)[ALICE.uid],
+    )
+  }
+
+  @Test
+  fun memberWithBlankName_fallsBackToTheirUserIdInitial() = runTest {
+    val nameless = User(uid = "bob-id", displayName = "  ", profilePictureUrl = BOB_AVATAR)
+
+    assertEquals(
+        MemberDisplayInfo(displayName = "B", initial = "B", avatarUrl = BOB_AVATAR),
+        loadMembers(nameless.uid, users = listOf(nameless))[nameless.uid],
+    )
+  }
+
+  @Test
+  fun memberWithoutAvatar_hasNoAvatarUrl() = runTest {
+    val noAvatar = User(uid = "bob-id", displayName = "Bob", profilePictureUrl = null)
+    val blankAvatar = User(uid = "carol-id", displayName = "Carol", profilePictureUrl = " ")
+
+    val members = loadMembers(noAvatar.uid, blankAvatar.uid, users = listOf(noAvatar, blankAvatar))
+
+    assertEquals(MemberDisplayInfo("Bob", "B", null), members[noAvatar.uid])
+    assertEquals(MemberDisplayInfo("Carol", "C", null), members[blankAvatar.uid])
+  }
+
+  @Test
+  fun memberWithoutProfile_fallsBackToTheirUserIdInitial() = runTest {
+    val members = loadMembers(ALICE.uid, "zoe-id")
+
+    assertEquals(setOf(ALICE.uid, "zoe-id"), members.keys)
+    assertEquals(MemberDisplayInfo("Z", "Z", null), members["zoe-id"])
+  }
+
+  @Test
+  fun failedUserLookup_stillLoadsTheMap_withFallbackForEveryMember() = runTest {
+    val viewModel =
+        createViewModel(
+            FakeTripRepository(
+                trips = listOf(trip(TRIP_ID, memberIds = listOf(ALICE.uid, "bob-id")))
+            ),
+            FakeUserRepository(ALICE, failure = IllegalStateException("Users unavailable")),
+        )
+
+    advanceUntilIdle()
+
+    assertEquals(
+        mapOf(
+            ALICE.uid to MemberDisplayInfo("A", "A", null),
+            "bob-id" to MemberDisplayInfo("B", "B", null),
+        ),
+        (viewModel.uiState.value as TripMapUiState.Loaded).members,
+    )
+  }
+
   private class OtherViewModel : ViewModel()
 
-  private fun createViewModel(repository: TripRepository): TripMapViewModel =
-      TripMapViewModel(TRIP_ID, repository).also { store.put("map", it) }
+  /** Loads a trip with the given members and returns their display information. */
+  private fun TestScope.loadMembers(
+      vararg memberIds: String,
+      users: List<User> = emptyList(),
+  ): Map<String, MemberDisplayInfo> {
+    val viewModel =
+        createViewModel(
+            FakeTripRepository(trips = listOf(trip(TRIP_ID, memberIds = memberIds.toList()))),
+            FakeUserRepository(ALICE, users),
+        )
+    advanceUntilIdle()
+    return (viewModel.uiState.value as TripMapUiState.Loaded).members
+  }
+
+  private fun createViewModel(
+      repository: TripRepository,
+      userRepository: UserRepository = FakeUserRepository(ALICE),
+  ): TripMapViewModel =
+      TripMapViewModel(TRIP_ID, repository, userRepository).also { store.put("map", it) }
 
   private fun repository(load: suspend () -> List<Trip>): TripRepository =
       object : TripRepository by FakeTripRepository() {
         override suspend fun getTrips(): List<Trip> = load()
       }
 
-  private fun trip(id: String, destinations: List<TripLocation> = emptyList()): Trip =
+  private fun trip(
+      id: String,
+      destinations: List<TripLocation> = emptyList(),
+      memberIds: List<String> = listOf(ALICE.uid),
+  ): Trip =
       Trip(
           uid = id,
           name = "$id trip",
@@ -225,8 +312,8 @@ class TripMapViewModelTest {
           flexibleDates = false,
           travelMode = TravelMode.SOLO,
           travelerCount = 1,
-          ownerId = "user",
-          memberIds = listOf("user"),
+          ownerId = memberIds.firstOrNull().orEmpty(),
+          memberIds = memberIds,
           status = TripStatus.PLANNED,
           createdAt = Timestamp(0, 0),
       )
@@ -236,5 +323,8 @@ class TripMapViewModelTest {
     const val OTHER_TRIP_ID = "trip-2"
     val PARIS = TripLocation(latitude = 48.8566, longitude = 2.3522, name = "Paris")
     val LONDON = TripLocation(latitude = 51.5074, longitude = -0.1278, name = "London")
+    const val ALICE_AVATAR = "https://example.com/alice.png"
+    const val BOB_AVATAR = "https://example.com/bob.png"
+    val ALICE = User(uid = "alice-id", displayName = "Alice", profilePictureUrl = ALICE_AVATAR)
   }
 }
