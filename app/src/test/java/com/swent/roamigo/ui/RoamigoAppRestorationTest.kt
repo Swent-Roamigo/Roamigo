@@ -35,9 +35,9 @@ import com.swent.roamigo.ui.trip.creation.DatesTravelersScreenTestTags
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
 import com.swent.roamigo.ui.trip.creation.components.DestinationCardTestTags
 import com.swent.roamigo.ui.trip.creation.searchSampleDestinations
-import org.junit.Rule
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -55,15 +55,16 @@ class RoamigoAppRestorationTest {
     restoration.setContent {
       navController = rememberNavController()
       val context = LocalContext.current
-      val manager = object : CredentialManager by CredentialManager.create(context) {
-        override suspend fun getCredential(
-            context: Context,
-            request: GetCredentialRequest,
-        ): GetCredentialResponse {
-          credentialRequests++
-          return GetCredentialResponse(CustomCredential("test-credential", Bundle()))
-        }
-      }
+      val manager =
+          object : CredentialManager by CredentialManager.create(context) {
+            override suspend fun getCredential(
+                context: Context,
+                request: GetCredentialRequest,
+            ): GetCredentialResponse {
+              credentialRequests++
+              return GetCredentialResponse(CustomCredential("test-credential", Bundle()))
+            }
+          }
       RoamigoTheme {
         RoamigoApp(
             destinationRepository = sampleDestinationRepository(),
@@ -74,8 +75,10 @@ class RoamigoAppRestorationTest {
         )
       }
     }
-    composeRule.onNodeWithTag(AuthenticationScreenTestTags.signInButton)
-        .performScrollTo().performClick()
+    composeRule
+        .onNodeWithTag(AuthenticationScreenTestTags.signInButton)
+        .performScrollTo()
+        .performClick()
     composeRule.waitUntil {
       composeRule.onAllNodesWithTag(C.Tag.permissions_title).fetchSemanticsNodes().isNotEmpty()
     }
