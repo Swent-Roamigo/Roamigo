@@ -51,7 +51,7 @@ fun TripReadyScreen(viewModel: TripReadyViewModel, photo: Bundle?) {
 }
 
 @Composable
-private fun TripReadyContent(state: TripReadyState.Ready, photo: Bundle?) {
+internal fun TripReadyContent(state: TripReadyState.Ready, photo: Bundle?) {
   val unavailable = rememberNotImplementedAction()
   val uriHandler = LocalUriHandler.current
   var imageLoaded by remember(photo?.getString("url")) { mutableStateOf(false) }

@@ -10,7 +10,9 @@ import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
@@ -20,8 +22,11 @@ import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
+import com.swent.roamigo.model.destination.DestinationPhoto
+import com.swent.roamigo.model.destination.FakeDestinationRepository
 import com.swent.roamigo.model.destination.sampleDestination
 import com.swent.roamigo.model.destination.sampleDestinationRepository
+import com.swent.roamigo.model.destination.sampleDestinations
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
@@ -167,6 +172,70 @@ class RoamigoAppInjectionTest {
     composeRule.waitUntil {
       composeRule.onAllNodesWithTag("trip_ready").fetchSemanticsNodes().isNotEmpty()
     }
+  }
+
+  @Test
+  fun creationCarriesFirstCityPhotoToConfirmation() {
+    val destination = sampleDestination("Lisbon")
+    val photo =
+        DestinationPhoto(
+            imageUrl = "android.resource://com.swent.roamigo/${R.drawable.destination_placeholder}",
+            creator = "Photographer",
+            sourceUrl = "https://example.com/photo",
+            license = "CC BY",
+            licenseUrl = "https://example.com/license",
+            title = "Lisbon photo",
+            credit = "Photo credit",
+        )
+    val destinationRepository =
+        FakeDestinationRepository(
+            search = { sampleDestinations },
+            photo = { if (it == destination) photo else null },
+        )
+    composeRule.setContent {
+      RoamigoTheme {
+        RoamigoApp(
+            voteRepository = InMemoryVoteRepository(),
+            destinationRepository = destinationRepository,
+            tripRepository = FakeTripRepository(currentUserId = "alex"),
+            authRepository =
+                FakeAuthRepository(
+                    AuthenticatedUser("alex", "Alex", null, null),
+                    initiallySignedIn = true,
+                ),
+        )
+      }
+    }
+    enterDatesStepWithPhoto(destination)
+    composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
+    composeRule.waitUntil(5_000) {
+      composeRule.onAllNodesWithTag("trip_ready").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.waitUntil(5_000) {
+      composeRule.onAllNodesWithText("Photo credits").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithText("Photo credits").performClick()
+    composeRule.onNodeWithText("Lisbon photo").assertExists()
+  }
+
+  private fun enterDatesStepWithPhoto(
+      destination: com.swent.roamigo.model.destination.Destination
+  ) {
+    composeRule.waitUntil {
+      composeRule.onAllNodesWithTag(C.Tag.trips_new_trip_button).fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
+    composeRule.searchSampleDestinations()
+    composeRule.waitUntil(5_000) {
+      composeRule
+          .onAllNodesWithTag(DestinationCardTestTags.photoCreditsFor(destination.stableId))
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    composeRule
+        .onNodeWithTag(DestinationCardTestTags.forDestination(destination.stableId))
+        .performClick()
+    composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
   }
 
   @Test
