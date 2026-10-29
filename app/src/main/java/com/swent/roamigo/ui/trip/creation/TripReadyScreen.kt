@@ -25,7 +25,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.swent.roamigo.R
-import com.swent.roamigo.ui.components.NotImplementedAction
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import java.time.ZoneId
@@ -70,7 +69,11 @@ internal fun TripReadyContent(
           CircularProgressIndicator(Modifier.semantics { testTag = TripReadyTestTags.LOADING })
         }
     TripReadyState.Error ->
-        Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
+        Column(
+            Modifier.fillMaxSize().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
           Text(
               stringResource(R.string.trip_ready_error),
               Modifier.semantics { testTag = TripReadyTestTags.ERROR },
@@ -88,7 +91,11 @@ internal fun TripReadyContent(
 
 @Composable
 private fun TripReadySuccessContent(state: TripReadyState.Ready, photo: Bundle?) {
-  val unavailable = rememberNotImplementedAction()
+  val onInviteClick = rememberNotImplementedAction()
+  val onSuggestClick = rememberNotImplementedAction()
+  val onShareLocationClick = rememberNotImplementedAction()
+  val onOpenItineraryClick = rememberNotImplementedAction()
+  val onShareTripClick = rememberNotImplementedAction()
   val uriHandler = LocalUriHandler.current
   var imageLoaded by remember(photo?.getString("url")) { mutableStateOf(false) }
   var credits by remember { mutableStateOf(false) }
@@ -152,37 +159,37 @@ private fun TripReadySuccessContent(state: TripReadyState.Ready, photo: Bundle?)
           stringResource(R.string.trip_ready_invite),
           stringResource(R.string.trip_ready_invite_detail),
           "invite",
-          unavailable,
+          onInviteClick,
       )
       ReadyCard(
           stringResource(R.string.trip_ready_suggest),
           stringResource(R.string.trip_ready_suggest_detail),
           "suggest",
-          unavailable,
+          onSuggestClick,
       )
       ReadyCard(
           stringResource(R.string.trip_ready_location),
           stringResource(R.string.trip_ready_location_detail),
           "location",
-          unavailable,
+          onShareLocationClick,
       )
       Text(
           stringResource(R.string.trip_ready_unavailable),
           style = MaterialTheme.typography.bodySmall,
       )
       Button(
-          onClick = unavailable,
+          onClick = onOpenItineraryClick,
           modifier =
-              Modifier.fillMaxWidth().markNotImplemented(unavailable).semantics {
+              Modifier.fillMaxWidth().markNotImplemented(onOpenItineraryClick).semantics {
                 testTag = TripReadyTestTags.ITINERARY
               },
       ) {
         Text(stringResource(R.string.trip_ready_itinerary))
       }
       OutlinedButton(
-          onClick = unavailable,
+          onClick = onShareTripClick,
           modifier =
-              Modifier.fillMaxWidth().markNotImplemented(unavailable).semantics {
+              Modifier.fillMaxWidth().markNotImplemented(onShareTripClick).semantics {
                 testTag = TripReadyTestTags.SHARE
               },
       ) {
@@ -247,7 +254,7 @@ private fun ReadyCard(
     title: String,
     detail: String,
     tag: String,
-    onClick: NotImplementedAction? = null,
+    onClick: (() -> Unit)? = null,
 ) {
   val actionModifier =
       onClick?.let {

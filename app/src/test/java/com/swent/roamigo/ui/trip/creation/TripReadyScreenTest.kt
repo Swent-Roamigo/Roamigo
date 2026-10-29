@@ -120,6 +120,12 @@ class TripReadyScreenTest {
     rule.waitUntil(5_000) {
       rule.onAllNodesWithTag(TripReadyTestTags.ERROR).fetchSemanticsNodes().isNotEmpty()
     }
+    val screenCenterX =
+        rule.onRoot().fetchSemanticsNode().boundsInRoot.let { (it.left + it.right) / 2f }
+    listOf(TripReadyTestTags.ERROR, TripReadyTestTags.RETRY).forEach { tag ->
+      val bounds = rule.onNodeWithTag(tag).assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+      assertEquals(screenCenterX, (bounds.left + bounds.right) / 2f, 1f)
+    }
     fail = false
     rule.onNodeWithTag(TripReadyTestTags.RETRY).performClick()
     rule.waitUntil(5_000) {
