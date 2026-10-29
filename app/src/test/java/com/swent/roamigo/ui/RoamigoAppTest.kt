@@ -301,6 +301,25 @@ class RoamigoAppTest {
   }
 
   @Test
+  fun tripsTabOnTripHistoryReturnsToTripsAndBackLeavesTheApp() {
+    waitForTrips()
+    composeRule.onNodeWithTag(C.Tag.trips_history_button).performClick()
+    waitForTag(C.Tag.trip_history_screen)
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
+
+    waitForTrips()
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).assertIsSelected()
+    composeRule.onAllNodesWithTag(C.Tag.trip_history_screen).assertCountEquals(0)
+
+    pressBack()
+
+    composeRule.waitUntil { composeRule.activity.isFinishing }
+    assertTrue(composeRule.activity.isFinishing)
+  }
+
+  @Test
   fun friendsTabOnTripsOpensFriendsAndBackReturnsToTrips() {
     waitForTrips()
 

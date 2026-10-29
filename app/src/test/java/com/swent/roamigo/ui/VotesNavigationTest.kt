@@ -118,6 +118,26 @@ class VotesNavigationTest {
   }
 
   @Test
+  fun overviewTabFromVotesReturnsToSelectedTripAndBackReturnsToTrips() {
+    openVotes()
+
+    composeRule.onNodeWithText("Overview").performClick()
+
+    composeRule.onNodeWithTag("trip_details_screen").assertIsDisplayed()
+    composeRule.onNodeWithText(tripName).assertIsDisplayed()
+    composeRule.onNodeWithText("Details").assertIsSelected()
+    composeRule.runOnIdle {
+      assertEquals(Route.TRIP_DETAILS, navController.currentBackStackEntry?.destination?.route)
+      assertEquals(tripId, navController.currentBackStackEntry?.arguments?.getString("tripId"))
+      assertEquals(0, repository.activeObservers)
+    }
+
+    composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+  }
+
+  @Test
   fun tripCardOpensScopedVotesAndVoteOpensExistingInteractionWithAuthenticatedMember() {
     openVotes()
     composeRule.onNodeWithText("$tripName · 1 open").assertIsDisplayed()
