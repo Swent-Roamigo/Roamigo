@@ -78,7 +78,6 @@ class AuthenticationViewModelTest {
       assertEquals(
           AuthenticationUiState(
               errorMessageRes = R.string.auth_sign_in_failed,
-              signedOut = true,
           ),
           viewModel.uiState.value,
       )
@@ -99,7 +98,6 @@ class AuthenticationViewModelTest {
       assertEquals(
           AuthenticationUiState(
               errorMessageRes = R.string.auth_sign_in_failed,
-              signedOut = true,
           ),
           viewModel.uiState.value,
       )
@@ -115,7 +113,7 @@ class AuthenticationViewModelTest {
         }
     signIn(viewModel, manager)
     assertEquals(
-        AuthenticationUiState(errorMessageRes = R.string.auth_credentials_failed, signedOut = true),
+        AuthenticationUiState(errorMessageRes = R.string.auth_credentials_failed),
         viewModel.uiState.value,
     )
   }
@@ -128,7 +126,6 @@ class AuthenticationViewModelTest {
     assertEquals(
         AuthenticationUiState(
             errorMessageRes = R.string.auth_no_credentials,
-            signedOut = true,
         ),
         viewModel.uiState.value,
     )
@@ -155,7 +152,6 @@ class AuthenticationViewModelTest {
     signIn(viewModel, TestCredentialManager(context))
     assertFalse(viewModel.uiState.value.isLoading)
     assertNull(viewModel.uiState.value.errorMessageRes)
-    assertFalse(viewModel.uiState.value.signedOut)
     assertNull(viewModel.uiState.value.user)
   }
 
