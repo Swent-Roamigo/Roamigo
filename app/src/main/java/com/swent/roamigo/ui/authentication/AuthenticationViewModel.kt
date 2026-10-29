@@ -3,6 +3,7 @@ package com.swent.roamigo.ui.authentication
 
 import android.content.Context
 import android.util.Log
+import androidx.annotation.StringRes
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
@@ -53,74 +54,26 @@ class AuthenticationViewModel(private val repository: AuthRepository = AuthRepos
         val signInOptions = getSignInOptions(context)
         val request = signInRequest(signInOptions)
         val credential = getCredential(context, request, credentialManager)
-        repository
-            .signInWithGoogle(credential)
-            .fold(
-                onSuccess = { user ->
-                  _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        user = user,
-                        errorMessageRes = null,
-                        signedOut = false,
-                    )
-                  }
-                },
-                onFailure = { failure ->
-                  if (failure is CancellationException) throw failure
-                  Log.w("AuthenticationViewModel", "Repository sign-in failed", failure)
-                  _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        user = null,
-                        errorMessageRes = R.string.auth_sign_in_failed,
-                        signedOut = true,
-                    )
-                  }
-                },
-            )
+        val user = repository.signInWithGoogle(credential).getOrThrow()
+        _uiState.value = AuthenticationUiState(user = user)
       } catch (_: GetCredentialCancellationException) {
-        _uiState.update {
-          it.copy(
-              isLoading = false,
-              user = null,
-              errorMessageRes = R.string.auth_sign_in_cancelled,
-              signedOut = true,
-          )
-        }
+        showFeedback(R.string.auth_sign_in_cancelled)
       } catch (_: NoCredentialException) {
-        _uiState.update {
-          it.copy(
-              isLoading = false,
-              user = null,
-              errorMessageRes = R.string.auth_no_credentials,
-              signedOut = true,
-          )
-        }
+        showFeedback(R.string.auth_no_credentials)
       } catch (e: GetCredentialException) {
         Log.w("AuthenticationViewModel", "Credential acquisition failed", e)
-        _uiState.update {
-          it.copy(
-              isLoading = false,
-              user = null,
-              errorMessageRes = R.string.auth_credentials_failed,
-              signedOut = true,
-          )
-        }
+        showFeedback(R.string.auth_credentials_failed)
       } catch (e: CancellationException) {
         _uiState.update { it.copy(isLoading = false) }
         throw e
       } catch (e: Exception) {
         Log.w("AuthenticationViewModel", "Unexpected sign-in failure", e)
-        _uiState.update {
-          it.copy(
-              isLoading = false,
-              user = null,
-              errorMessageRes = R.string.auth_sign_in_failed,
-              signedOut = true,
-          )
-        }
+        showFeedback(R.string.auth_sign_in_failed)
       }
     }
+  }
+
+  private fun showFeedback(@StringRes messageRes: Int) {
+    _uiState.value = AuthenticationUiState(errorMessageRes = messageRes)
   }
 }
