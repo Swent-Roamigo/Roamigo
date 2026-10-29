@@ -248,6 +248,17 @@ class PhotoUploaderFirestoreEmulatorTest {
             .await()
       }
 
+  @Test
+  fun aPositionWithOnlyOneCoordinateIsRefused() =
+      runBlocking<Unit> {
+        assertPermissionDenied {
+          photoDocument(alice).set(validData(alice) + ("latitude" to 41.5)).await()
+        }
+        assertPermissionDenied {
+          photoDocument(alice).set(validData(alice) + ("longitude" to 2.1)).await()
+        }
+      }
+
   private suspend fun assertPermissionDenied(block: suspend () -> Unit) {
     val error = runCatching { block() }.exceptionOrNull()
     assertTrue(

@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -98,6 +99,35 @@ class PhotoUploaderFirestoreTest {
 
     assertEquals(1.5, writtenData()[PhotoUploaderFirestore.LATITUDE])
     assertEquals(-2.5, writtenData()[PhotoUploaderFirestore.LONGITUDE])
+  }
+
+  @Test
+  fun leavesOutALonePositionCoordinate() = runTest {
+    writeSucceeds()
+
+    uploader().upload(pendingPhoto("p1", tripId = "t1", latitude = 1.5), file)
+
+    assertFalse(writtenData().containsKey(PhotoUploaderFirestore.LATITUDE))
+    assertFalse(writtenData().containsKey(PhotoUploaderFirestore.LONGITUDE))
+  }
+
+  @Test
+  fun shrinksThePhotoOnTheDispatcherItWasGiven() = runTest {
+    writeSucceeds()
+    var thread: Thread? = null
+    val dispatcher = StandardTestDispatcher(testScheduler)
+
+    PhotoUploaderFirestore(
+            { firestore },
+            PhotoCompressor {
+              thread = Thread.currentThread()
+              image
+            },
+            dispatcher,
+        )
+        .upload(pendingPhoto("p1", tripId = "t1"), file)
+
+    assertEquals(Thread.currentThread(), thread)
   }
 
   @Test

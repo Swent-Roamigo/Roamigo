@@ -194,4 +194,21 @@ class DataStorePhotoQueueTest {
 
     assertEquals(listOf(good), queue.all())
   }
+
+  @Test
+  fun skipsALineWithBrokenEncodingAndKeepsTheOthers() = runTest {
+    val first = pendingPhoto("first")
+    val last = pendingPhoto("last")
+    queue.add(first)
+    queue.add(last)
+    store.edit { preferences ->
+      val key = stringPreferencesKey("pending_photos")
+      val (firstLine, lastLine) = preferences[key].orEmpty().lines()
+      // A '%' that is not followed by two hex digits cannot be decoded.
+      val broken = firstLine.split("\t").toMutableList().also { it[0] = "50%" }.joinToString("\t")
+      preferences[key] = listOf(firstLine, broken, lastLine).joinToString("\n")
+    }
+
+    assertEquals(listOf(first, last), queue.all())
+  }
 }

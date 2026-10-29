@@ -151,6 +151,7 @@ service cloud.firestore {
           && photo.image is bytes
           && photo.image.size() > 0
           && photo.image.size() <= 800000
+          && ('latitude' in photo) == ('longitude' in photo)
           && (!('latitude' in photo) || (photo.latitude is number && math.abs(photo.latitude) <= 90))
           && (!('longitude' in photo)
               || (photo.longitude is number && math.abs(photo.longitude) <= 180));

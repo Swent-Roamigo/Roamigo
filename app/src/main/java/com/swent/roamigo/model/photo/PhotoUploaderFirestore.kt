@@ -9,6 +9,7 @@ import com.google.firebase.firestore.firestore
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -25,16 +26,18 @@ import kotlinx.coroutines.withContext
  * safe: the background job that calls this stops if the connection is lost.
  *
  * @param firestore looked up at the first upload, so Firebase is not touched before it is needed.
+ * @param dispatcher where the photo is shrunk, which is heavy work.
  */
 class PhotoUploaderFirestore(
     private val firestore: () -> FirebaseFirestore = { Firebase.firestore },
     private val compressor: PhotoCompressor = BitmapPhotoCompressor(),
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : PhotoUploader {
 
   override suspend fun upload(photo: PendingPhoto, file: File) {
     val image =
         try {
-          withContext(Dispatchers.Default) { compressor.compress(file) }
+          withContext(dispatcher) { compressor.compress(file) }
         } catch (e: IOException) {
           // The same file will not get any better, so there is no point in trying again.
           throw PhotoUploadException(
@@ -47,8 +50,11 @@ class PhotoUploaderFirestore(
       put(UPLOADED_BY, photo.userId)
       put(TAKEN_AT, photo.takenAtMillis)
       put(IMAGE, Blob.fromBytes(image))
-      photo.latitude?.let { put(LATITUDE, it) }
-      photo.longitude?.let { put(LONGITUDE, it) }
+      // The position is one value: both coordinates, or none.
+      if (photo.latitude != null && photo.longitude != null) {
+        put(LATITUDE, photo.latitude)
+        put(LONGITUDE, photo.longitude)
+      }
     }
     try {
       firestore()

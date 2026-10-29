@@ -65,7 +65,13 @@ class DataStorePhotoQueue(private val store: DataStore<Preferences>) : PhotoQueu
       text.orEmpty().lines().mapNotNull { line -> decodeLine(line) }
 
   private fun decodeLine(line: String): PendingPhoto? {
-    val fields = line.split(FIELD).map { URLDecoder.decode(it, CHARSET) }
+    // A corrupted escape sequence, such as a lone '%', makes the decoder throw.
+    val fields =
+        try {
+          line.split(FIELD).map { URLDecoder.decode(it, CHARSET) }
+        } catch (_: IllegalArgumentException) {
+          return null
+        }
     if (fields.size != FIELD_COUNT) return null
     val takenAt = fields[4].toLongOrNull() ?: return null
     val status = PhotoUploadStatus.entries.firstOrNull { it.name == fields[7] } ?: return null
