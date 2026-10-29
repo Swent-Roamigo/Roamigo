@@ -209,6 +209,47 @@ class LocationViewModelTest {
   }
 
   @Test
+  fun recheck_whileNotRequested_staysNotRequested() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = false)
+
+    viewModel.onPermissionChecked(granted = false)
+
+    assertEquals(NotRequested, viewModel.uiState.value.permissionState)
+  }
+
+  @Test
+  fun recheck_afterGrantedWithPermissionLost_becomesDenied() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = true)
+
+    viewModel.onPermissionChecked(granted = false)
+
+    assertEquals(Denied, viewModel.uiState.value.permissionState)
+  }
+
+  @Test
+  fun recheck_whileRevoked_staysRevoked() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = false)
+    viewModel.assertTransitions(DENIED_WITHOUT_RATIONALE to Revoked)
+
+    viewModel.onPermissionChecked(granted = false)
+
+    assertEquals(Revoked, viewModel.uiState.value.permissionState)
+  }
+
+  @Test
+  fun recheck_whenGranted_becomesGrantedWithoutStartingSharing() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = false)
+
+    repository.hasPermission = true
+    viewModel.onPermissionChecked(granted = true)
+    advanceUntilIdle()
+
+    assertEquals(Granted, viewModel.uiState.value.permissionState)
+    assertFalse(viewModel.uiState.value.isSharing)
+    assertTrue(repository.startSharingCalls.isEmpty())
+  }
+
+  @Test
   fun permissionChanges_keepTheRestOfTheState() = runLocationTest {
     val viewModel = createViewModel(hasPermission = false)
     val initial = viewModel.uiState.value
