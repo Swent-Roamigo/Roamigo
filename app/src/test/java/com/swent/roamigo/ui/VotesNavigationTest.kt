@@ -113,6 +113,7 @@ class VotesNavigationTest {
       composeRule.onAllNodesWithTag(C.Tag.trips_main_trip_card).fetchSemanticsNodes().isNotEmpty()
     }
     composeRule.onNodeWithTag(C.Tag.trips_main_trip_card).performClick()
+    composeRule.onNodeWithText("Votes").performClick()
     composeRule.onNodeWithText(vote.question).assertIsDisplayed()
   }
 
@@ -190,6 +191,7 @@ class VotesNavigationTest {
     openVotes()
     composeRule.onNodeWithText("Trips").performClick()
     composeRule.onNodeWithText("Other trip").performScrollTo().performClick()
+    composeRule.onNodeWithText("Votes").performClick()
     composeRule.onNodeWithText("Other trip vote?").assertIsDisplayed()
     composeRule.onNodeWithText(vote.question).assertDoesNotExist()
     composeRule.runOnIdle {

@@ -39,10 +39,19 @@ class VotesScreenTest {
       onRetry: () -> Unit = {},
       onCreateVote: () -> Unit = {},
       onTripsClick: () -> Unit = {},
+      onOverviewClick: () -> Unit = {},
   ) {
     composeRule.setContent {
       RoamigoTheme {
-        VotesScreenContent(state, "Lisbon & Porto", onOpenVote, onCreateVote, onRetry, onTripsClick)
+        VotesScreenContent(
+            state = state,
+            tripName = "Lisbon & Porto",
+            onOpenVote = onOpenVote,
+            onCreateVote = onCreateVote,
+            onRetry = onRetry,
+            onTripsClick = onTripsClick,
+            onOverviewClick = onOverviewClick,
+        )
       }
     }
   }
@@ -159,7 +168,17 @@ class VotesScreenTest {
   @Test
   fun stateUpdatesReplaceTheList() {
     var state by mutableStateOf<VotesUiState>(VotesUiState.Empty)
-    composeRule.setContent { RoamigoTheme { VotesScreenContent(state, "Trip", {}, {}, {}, {}) } }
+    composeRule.setContent {
+      RoamigoTheme {
+        VotesScreenContent(
+            state = state,
+            tripName = "Trip",
+            onOpenVote = {},
+            onCreateVote = {},
+            onRetry = {},
+        )
+      }
+    }
     composeRule.onNodeWithText("No votes yet").assertIsDisplayed()
     composeRule.runOnIdle { state = VotesUiState.Ready(listOf(live), emptyList()) }
     composeRule.onNodeWithText(live.question).assertIsDisplayed()
@@ -170,23 +189,37 @@ class VotesScreenTest {
   }
 
   @Test
-  fun votesTabIsSelectedAndTripsNavigationInvokesCallback() {
+  fun votesTabIsSelectedAndNavigationInvokesCallbacks() {
     var backs = 0
-    content(VotesUiState.Empty, onTripsClick = { backs++ })
+    var overviewClicks = 0
+    content(VotesUiState.Empty, onTripsClick = { backs++ }, onOverviewClick = { overviewClicks++ })
     composeRule
         .onNode(hasText("Votes") and androidx.compose.ui.test.isSelectable())
         .assertIsSelected()
-    for (label in listOf("Overview", "Itinerary")) {
-      ShadowToast.reset()
-      composeRule.onNodeWithText(label).assertIsEnabled().assert(isNotImplemented).performClick()
-      composeRule.runOnIdle {
-        assertEquals("Not implemented yet", ShadowToast.getTextOfLatestToast())
-      }
-      composeRule
-          .onNode(hasText("Votes") and androidx.compose.ui.test.isSelectable())
-          .assertIsSelected()
-          .assert(isNotImplemented.not())
+    composeRule
+        .onNodeWithText("Overview")
+        .assertIsEnabled()
+        .assert(isNotImplemented.not())
+        .performClick()
+    composeRule.runOnIdle {
+      assertEquals(1, overviewClicks)
+      assertEquals(0, backs)
     }
+
+    ShadowToast.reset()
+    composeRule
+        .onNodeWithText("Itinerary")
+        .assertIsEnabled()
+        .assert(isNotImplemented)
+        .performClick()
+    composeRule.runOnIdle {
+      assertEquals("Not implemented yet", ShadowToast.getTextOfLatestToast())
+    }
+    composeRule
+        .onNode(hasText("Votes") and androidx.compose.ui.test.isSelectable())
+        .assertIsSelected()
+        .assert(isNotImplemented.not())
+
     composeRule.onNodeWithText("Trips").performClick()
     composeRule.runOnIdle { assertEquals(1, backs) }
   }

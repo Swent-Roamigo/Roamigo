@@ -39,7 +39,7 @@ fun TripHistoryScreen(
     onBackClick: () -> Unit = rememberNotImplementedAction(),
     onOpenWorldMapClick: () -> Unit = rememberNotImplementedAction(),
     onTripsClick: () -> Unit = rememberNotImplementedAction(),
-    onMapClick: () -> Unit = rememberNotImplementedAction(),
+    onMapClick: () -> Unit = {},
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
     onRetryClick: () -> Unit = rememberNotImplementedAction(),
