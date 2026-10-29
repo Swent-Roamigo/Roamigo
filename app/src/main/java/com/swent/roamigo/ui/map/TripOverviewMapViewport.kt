@@ -14,19 +14,29 @@ internal fun rememberTripDestinationsMapViewport(
     markers: List<TripMarkerUiState>
 ): MapViewportState {
   val mapViewportState = rememberMapViewportState()
+  val viewport = tripMapViewportOf(markers.map { MapCoordinate(it.latitude, it.longitude) })
 
-  LaunchedEffect(markers, mapViewportState) { mapViewportState.fitMarkers(markers) }
+  LaunchedEffect(viewport, mapViewportState) { mapViewportState.apply(viewport) }
 
   return mapViewportState
 }
 
-// Camera fitting depends on the rendered map's dimensions and stays beside the SDK viewport.
-private suspend fun MapViewportState.fitMarkers(markers: List<TripMarkerUiState>) {
-  if (markers.isEmpty()) return
+private suspend fun MapViewportState.apply(viewport: TripMapViewport) {
+  when (viewport) {
+    TripMapViewport.None -> Unit
+    // A single point goes through the same fitting as several, so that its zoom stays the one the
+    // overview map has always shown.
+    is TripMapViewport.Centered ->
+        fitCoordinates(listOf(MapCoordinate(viewport.latitude, viewport.longitude)))
+    is TripMapViewport.FitAll -> fitCoordinates(viewport.coordinates)
+  }
+}
 
+// Camera fitting depends on the rendered map's dimensions and stays beside the SDK viewport.
+private suspend fun MapViewportState.fitCoordinates(coordinates: List<MapCoordinate>) {
   val cameraOptions =
       cameraForCoordinates(
-          coordinates = markers.map { Point.fromLngLat(it.longitude, it.latitude) },
+          coordinates = coordinates.map { Point.fromLngLat(it.longitude, it.latitude) },
           coordinatesPadding = EdgeInsets(100.0, 50.0, 100.0, 50.0),
       )
   val adjustedCameraOptions =

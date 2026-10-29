@@ -8,8 +8,12 @@ enum class LocationPermissionState {
   /** The user has not answered a permission request yet. */
   NotRequested,
   Granted,
+  /** The user refused the permission, and the app may still ask for it again. */
   Denied,
-  /** The permission was granted, then withdrawn. */
+  /**
+   * The user refused the permission and the system no longer shows the request, because it was
+   * denied permanently or revoked from the settings. Only the settings can grant it again.
+   */
   Revoked,
 }
 

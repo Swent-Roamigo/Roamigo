@@ -102,12 +102,15 @@ class LocationViewModelTest {
         "viewModel${createdViewModels++}", LocationViewModel::class.java]
   }
 
+  /** A permission result: whether it was granted, and whether the rationale should be shown. */
+  private data class PermissionResult(val granted: Boolean, val shouldShowRationale: Boolean)
+
   /** Answers the permission requests in order and checks the state reached after each answer. */
   private fun LocationViewModel.assertTransitions(
-      vararg steps: Pair<Boolean, LocationPermissionState>
+      vararg steps: Pair<PermissionResult, LocationPermissionState>
   ) {
-    steps.forEach { (granted, expected) ->
-      onPermissionResult(granted)
+    steps.forEach { (result, expected) ->
+      onPermissionResult(result.granted, result.shouldShowRationale)
       assertEquals(expected, uiState.value.permissionState)
     }
   }
@@ -140,47 +143,56 @@ class LocationViewModelTest {
 
   @Test
   fun notRequested_whenGranted_becomesGranted() = runLocationTest {
-    createViewModel(hasPermission = false).assertTransitions(true to Granted)
+    createViewModel(hasPermission = false).assertTransitions(GRANTED to Granted)
   }
 
   @Test
-  fun notRequested_whenDenied_becomesDenied() = runLocationTest {
-    createViewModel(hasPermission = false).assertTransitions(false to Denied)
+  fun notRequested_whenDeniedWithRationale_becomesDenied() = runLocationTest {
+    createViewModel(hasPermission = false).assertTransitions(DENIED_WITH_RATIONALE to Denied)
+  }
+
+  @Test
+  fun notRequested_whenDeniedWithoutRationale_becomesRevoked() = runLocationTest {
+    createViewModel(hasPermission = false).assertTransitions(DENIED_WITHOUT_RATIONALE to Revoked)
   }
 
   @Test
   fun granted_whenGrantedAgain_staysGranted() = runLocationTest {
-    createViewModel(hasPermission = true).assertTransitions(true to Granted)
+    createViewModel(hasPermission = true).assertTransitions(GRANTED to Granted)
   }
 
   @Test
-  fun granted_whenDenied_becomesRevoked() = runLocationTest {
-    createViewModel(hasPermission = true).assertTransitions(false to Revoked)
+  fun granted_whenDeniedWithRationale_becomesDenied() = runLocationTest {
+    createViewModel(hasPermission = true).assertTransitions(DENIED_WITH_RATIONALE to Denied)
   }
 
   @Test
-  fun granted_fromRequest_whenDenied_becomesRevoked() = runLocationTest {
-    createViewModel(hasPermission = false).assertTransitions(true to Granted, false to Revoked)
+  fun granted_whenDeniedWithoutRationale_becomesRevoked() = runLocationTest {
+    createViewModel(hasPermission = true).assertTransitions(DENIED_WITHOUT_RATIONALE to Revoked)
   }
 
   @Test
   fun denied_whenGranted_becomesGranted() = runLocationTest {
-    createViewModel(hasPermission = false).assertTransitions(false to Denied, true to Granted)
+    createViewModel(hasPermission = false)
+        .assertTransitions(DENIED_WITH_RATIONALE to Denied, GRANTED to Granted)
   }
 
   @Test
-  fun denied_whenDeniedAgain_staysDenied() = runLocationTest {
-    createViewModel(hasPermission = false).assertTransitions(false to Denied, false to Denied)
+  fun denied_whenDeniedAgainWithoutRationale_becomesRevoked() = runLocationTest {
+    createViewModel(hasPermission = false)
+        .assertTransitions(DENIED_WITH_RATIONALE to Denied, DENIED_WITHOUT_RATIONALE to Revoked)
   }
 
   @Test
   fun revoked_whenGranted_becomesGranted() = runLocationTest {
-    createViewModel(hasPermission = true).assertTransitions(false to Revoked, true to Granted)
+    createViewModel(hasPermission = false)
+        .assertTransitions(DENIED_WITHOUT_RATIONALE to Revoked, GRANTED to Granted)
   }
 
   @Test
-  fun revoked_whenDeniedAgain_staysRevoked() = runLocationTest {
-    createViewModel(hasPermission = true).assertTransitions(false to Revoked, false to Revoked)
+  fun revoked_whenDeniedAgainWithoutRationale_staysRevoked() = runLocationTest {
+    createViewModel(hasPermission = false)
+        .assertTransitions(DENIED_WITHOUT_RATIONALE to Revoked, DENIED_WITHOUT_RATIONALE to Revoked)
   }
 
   @Test
@@ -188,7 +200,48 @@ class LocationViewModelTest {
     val viewModel = createViewModel(hasPermission = false)
 
     repository.hasPermission = true
-    viewModel.onPermissionResult(granted = true)
+    viewModel.onPermissionResult(granted = true, shouldShowRationale = false)
+    advanceUntilIdle()
+
+    assertEquals(Granted, viewModel.uiState.value.permissionState)
+    assertFalse(viewModel.uiState.value.isSharing)
+    assertTrue(repository.startSharingCalls.isEmpty())
+  }
+
+  @Test
+  fun recheck_whileNotRequested_staysNotRequested() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = false)
+
+    viewModel.onPermissionChecked(granted = false)
+
+    assertEquals(NotRequested, viewModel.uiState.value.permissionState)
+  }
+
+  @Test
+  fun recheck_afterGrantedWithPermissionLost_becomesDenied() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = true)
+
+    viewModel.onPermissionChecked(granted = false)
+
+    assertEquals(Denied, viewModel.uiState.value.permissionState)
+  }
+
+  @Test
+  fun recheck_whileRevoked_staysRevoked() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = false)
+    viewModel.assertTransitions(DENIED_WITHOUT_RATIONALE to Revoked)
+
+    viewModel.onPermissionChecked(granted = false)
+
+    assertEquals(Revoked, viewModel.uiState.value.permissionState)
+  }
+
+  @Test
+  fun recheck_whenGranted_becomesGrantedWithoutStartingSharing() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = false)
+
+    repository.hasPermission = true
+    viewModel.onPermissionChecked(granted = true)
     advanceUntilIdle()
 
     assertEquals(Granted, viewModel.uiState.value.permissionState)
@@ -201,8 +254,8 @@ class LocationViewModelTest {
     val viewModel = createViewModel(hasPermission = false)
     val initial = viewModel.uiState.value
 
-    viewModel.onPermissionResult(granted = true)
-    viewModel.onPermissionResult(granted = false)
+    viewModel.onPermissionResult(granted = true, shouldShowRationale = false)
+    viewModel.onPermissionResult(granted = false, shouldShowRationale = false)
     advanceUntilIdle()
 
     assertEquals(initial.copy(permissionState = Revoked), viewModel.uiState.value)
@@ -356,8 +409,14 @@ class LocationViewModelTest {
   @Test
   fun startSharing_withoutGrantedPermission_setsErrorAndDoesNotShare() = runLocationTest {
     val notRequested = createViewModel(hasPermission = false)
-    val denied = createViewModel(hasPermission = false).apply { onPermissionResult(false) }
-    val revoked = createViewModel(hasPermission = true).apply { onPermissionResult(false) }
+    val denied =
+        createViewModel(hasPermission = false).apply {
+          onPermissionResult(granted = false, shouldShowRationale = true)
+        }
+    val revoked =
+        createViewModel(hasPermission = true).apply {
+          onPermissionResult(granted = false, shouldShowRationale = false)
+        }
 
     listOf(notRequested, denied, revoked).forEach { viewModel ->
       viewModel.startSharing()
@@ -390,7 +449,7 @@ class LocationViewModelTest {
   fun startSharing_whenRepositoryLacksPermission_showsErrorWithoutThrowing() = runLocationTest {
     val viewModel = createViewModel(hasPermission = false)
     // The UI saw a grant, but the system permission was withdrawn before sharing started.
-    viewModel.onPermissionResult(granted = true)
+    viewModel.onPermissionResult(granted = true, shouldShowRationale = false)
 
     viewModel.startSharing()
     advanceUntilIdle()
@@ -423,7 +482,7 @@ class LocationViewModelTest {
     viewModel.startSharing()
 
     repository.hasPermission = true
-    viewModel.onPermissionResult(granted = true)
+    viewModel.onPermissionResult(granted = true, shouldShowRationale = false)
     viewModel.startSharing()
     runCurrent()
 
@@ -499,7 +558,7 @@ class LocationViewModelTest {
     connectivity.online.value = false
     runCurrent()
     connectivity.online.value = true
-    viewModel.onPermissionResult(granted = true)
+    viewModel.onPermissionResult(granted = true, shouldShowRationale = false)
     advanceTimeBy(interval * 3)
     runCurrent()
 
@@ -693,8 +752,14 @@ class LocationViewModelTest {
   @Test
   fun memberLocations_areShownWhatever_thePermissionState() = runLocationTest {
     val notRequested = createViewModel(hasPermission = false)
-    val denied = createViewModel(hasPermission = false).apply { onPermissionResult(false) }
-    val revoked = createViewModel(hasPermission = true).apply { onPermissionResult(false) }
+    val denied =
+        createViewModel(hasPermission = false).apply {
+          onPermissionResult(granted = false, shouldShowRationale = true)
+        }
+    val revoked =
+        createViewModel(hasPermission = true).apply {
+          onPermissionResult(granted = false, shouldShowRationale = false)
+        }
 
     repository.memberLocations.value = listOf(ALICE, BOB)
     runCurrent()
@@ -895,5 +960,9 @@ class LocationViewModelTest {
     val ALICE = MemberLocation("alice", 46.52, 6.57, NOW_MILLIS)
     val BOB = MemberLocation("bob", 46.95, 7.44, NOW_MILLIS)
     val GENEVA = DeviceLocation(latitude = 46.2, longitude = 6.14)
+
+    val GRANTED = PermissionResult(granted = true, shouldShowRationale = false)
+    val DENIED_WITH_RATIONALE = PermissionResult(granted = false, shouldShowRationale = true)
+    val DENIED_WITHOUT_RATIONALE = PermissionResult(granted = false, shouldShowRationale = false)
   }
 }
