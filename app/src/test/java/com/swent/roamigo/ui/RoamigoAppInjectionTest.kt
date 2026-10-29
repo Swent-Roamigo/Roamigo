@@ -10,9 +10,7 @@ import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
@@ -40,6 +38,7 @@ import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import com.swent.roamigo.ui.trip.creation.TripReadyTestTags
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
 import com.swent.roamigo.ui.trip.creation.components.DestinationCardTestTags
 import com.swent.roamigo.ui.trip.creation.searchSampleDestinations
@@ -212,10 +211,13 @@ class RoamigoAppInjectionTest {
       composeRule.onAllNodesWithTag("trip_ready").fetchSemanticsNodes().isNotEmpty()
     }
     composeRule.waitUntil(5_000) {
-      composeRule.onAllNodesWithText("Photo credits").fetchSemanticsNodes().isNotEmpty()
+      composeRule
+          .onAllNodesWithTag(TripReadyTestTags.PHOTO_CREDITS)
+          .fetchSemanticsNodes()
+          .isNotEmpty()
     }
-    composeRule.onNodeWithText("Photo credits").performClick()
-    composeRule.onNodeWithText("Lisbon photo").assertExists()
+    composeRule.onNodeWithTag(TripReadyTestTags.PHOTO_CREDITS).performClick()
+    composeRule.onNodeWithTag(TripReadyTestTags.PHOTO_TITLE).assertTextContains("Lisbon photo")
   }
 
   private fun enterDatesStepWithPhoto(

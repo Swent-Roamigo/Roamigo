@@ -49,10 +49,15 @@ class TripReadyScreenTest {
   @Test
   fun summaryAndUnavailableActionsAreAccessible() {
     rule.setContent { RoamigoTheme { TripReadyContent(TripReadyState.Ready(trip(), 8), null) } }
-    rule.onNodeWithText("Your trip is ready!").assertIsDisplayed()
-    rule.onNodeWithText("Lisbon → Porto").assertExists()
-    rule.onNodeWithText("2 stops · 8 days").assertExists()
-    rule.onNodeWithText("Share your location (optional)").assertExists()
+    rule
+        .onNodeWithTag(TripReadyTestTags.TITLE)
+        .assertIsDisplayed()
+        .assertTextEquals("Your trip is ready!")
+    rule.onNodeWithTag(TripReadyTestTags.ROUTE).assertTextEquals("Lisbon → Porto")
+    rule.onNodeWithTag(TripReadyTestTags.SUMMARY).assertTextEquals("2 stops · 8 days")
+    rule
+        .onNodeWithTag(TripReadyTestTags.LOCATION)
+        .assertTextEquals("Share your location (optional)")
     rule
         .onNodeWithTag("trip_ready_itinerary")
         .performScrollTo()
@@ -90,15 +95,11 @@ class TripReadyScreenTest {
       rule.onAllNodesWithTag("trip_ready_error").fetchSemanticsNodes().isNotEmpty()
     }
     fail = false
-    rule
-        .onNodeWithText(
-            RuntimeEnvironment.getApplication().getString(R.string.destination_search_retry)
-        )
-        .performClick()
+    rule.onNodeWithTag(TripReadyTestTags.RETRY).performClick()
     rule.waitUntil(5_000) {
       rule.onAllNodesWithTag("trip_ready").fetchSemanticsNodes().isNotEmpty()
     }
-    rule.onNodeWithText("Lisbon → Porto").assertExists()
+    rule.onNodeWithTag(TripReadyTestTags.ROUTE).assertTextEquals("Lisbon → Porto")
   }
 
   @Test
@@ -118,14 +119,14 @@ class TripReadyScreenTest {
         }
     rule.setContent { RoamigoTheme { TripReadyContent(TripReadyState.Ready(trip(), 8), photo) } }
     rule.waitUntil(5_000) {
-      rule.onAllNodesWithText("Photo credits").fetchSemanticsNodes().isNotEmpty()
+      rule.onAllNodesWithTag(TripReadyTestTags.PHOTO_CREDITS).fetchSemanticsNodes().isNotEmpty()
     }
-    rule.onNodeWithText("Photo credits").performClick()
-    rule.onNodeWithText("City skyline").assertExists()
-    rule.onNodeWithText("Photo: Photographer").assertExists()
-    rule.onNodeWithText("Credit line").assertExists()
-    rule.onNodeWithText("OK").performClick()
-    rule.onNodeWithText("City skyline").assertDoesNotExist()
+    rule.onNodeWithTag(TripReadyTestTags.PHOTO_CREDITS).performClick()
+    rule.onNodeWithTag(TripReadyTestTags.PHOTO_TITLE).assertTextEquals("City skyline")
+    rule.onNodeWithTag(TripReadyTestTags.PHOTO_CREATOR).assertTextEquals("Photo: Photographer")
+    rule.onNodeWithTag(TripReadyTestTags.PHOTO_CREDIT).assertTextEquals("Credit line")
+    rule.onNodeWithTag(TripReadyTestTags.PHOTO_CLOSE).performClick()
+    rule.onNodeWithTag(TripReadyTestTags.PHOTO_TITLE).assertDoesNotExist()
   }
 
   @Test
@@ -140,19 +141,19 @@ class TripReadyScreenTest {
         }
     rule.setContent { RoamigoTheme { TripReadyContent(TripReadyState.Ready(trip(), 8), photo) } }
     rule.waitUntil(5_000) {
-      rule.onAllNodesWithText("Photo credits").fetchSemanticsNodes().isNotEmpty()
+      rule.onAllNodesWithTag(TripReadyTestTags.PHOTO_CREDITS).fetchSemanticsNodes().isNotEmpty()
     }
-    rule.onNodeWithText("Photo credits").performClick()
+    rule.onNodeWithTag(TripReadyTestTags.PHOTO_CREDITS).performClick()
     val creator =
         RuntimeEnvironment.getApplication()
             .getString(R.string.destination_photo_public_domain_creator)
     rule
-        .onNodeWithText(
+        .onNodeWithTag(TripReadyTestTags.PHOTO_CREATOR)
+        .assertTextEquals(
             RuntimeEnvironment.getApplication()
                 .getString(R.string.destination_photo_creator, creator)
         )
-        .assertExists()
-    rule.onNodeWithText("OK").performClick()
+    rule.onNodeWithTag(TripReadyTestTags.PHOTO_CLOSE).performClick()
   }
 
   @Test
@@ -160,7 +161,7 @@ class TripReadyScreenTest {
     val photo = Bundle().apply { putString("url", "android.resource://com.swent.roamigo/0") }
     rule.setContent { RoamigoTheme { TripReadyContent(TripReadyState.Ready(trip(), 8), photo) } }
     rule.waitForIdle()
-    rule.onNodeWithText("Your trip is ready!").assertExists()
-    rule.onNodeWithText("Photo credits").assertDoesNotExist()
+    rule.onNodeWithTag(TripReadyTestTags.TITLE).assertTextEquals("Your trip is ready!")
+    rule.onNodeWithTag(TripReadyTestTags.PHOTO_CREDITS).assertDoesNotExist()
   }
 }
