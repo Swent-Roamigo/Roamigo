@@ -1,15 +1,12 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.ui.authentication
 
-import android.graphics.Bitmap
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -22,7 +19,6 @@ import androidx.compose.ui.unit.Density
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.R
 import com.swent.roamigo.ui.theme.RoamigoTheme
-import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -62,24 +58,11 @@ class AuthenticationScreenTest {
     assertEquals(1, clicks)
   }
 
-  private fun screenshot(name: String) {
-    val file = File("build/reports/authentication/$name.png")
-    file.parentFile?.mkdirs()
-    file.outputStream().use {
-      composeRule
-          .onNodeWithTag(AuthenticationScreenTestTags.screen)
-          .captureToImage()
-          .asAndroidBitmap()
-          .compress(Bitmap.CompressFormat.PNG, 100, it)
-    }
-  }
-
   @Test
   fun welcomeShowsBrandAndGoogleButton() {
     render()
     composeRule.onNodeWithContentDescription("roamigo").assertIsDisplayed()
     composeRule.onNodeWithTag(AuthenticationScreenTestTags.heading).assertIsDisplayed()
-    screenshot("welcome")
     assertSignInAccessible()
   }
 
@@ -90,7 +73,6 @@ class AuthenticationScreenTest {
     composeRule
         .onNodeWithText("We couldn’t sign you in with Google. Check your connection and try again.")
         .assertIsDisplayed()
-    screenshot("failure")
     assertSignInAccessible("Try again")
   }
 
@@ -101,7 +83,6 @@ class AuthenticationScreenTest {
     composeRule
         .onNodeWithText("No problem. Continue with Google when you’re ready.")
         .assertIsDisplayed()
-    screenshot("cancelled")
     assertSignInAccessible()
   }
 
@@ -125,7 +106,6 @@ class AuthenticationScreenTest {
         .assertIsDisplayed()
     assertSignInAccessible()
     assertTermsAccessible()
-    screenshot("landscape")
   }
 
   @Test
@@ -134,7 +114,6 @@ class AuthenticationScreenTest {
     render()
     assertSignInAccessible()
     assertTermsAccessible()
-    screenshot("small")
   }
 
   @Test
@@ -147,7 +126,6 @@ class AuthenticationScreenTest {
         .assertIsDisplayed()
     assertSignInAccessible()
     assertButtonTextFits("Continue with Google")
-    screenshot("large-text")
     assertTermsAccessible()
   }
 
@@ -160,7 +138,6 @@ class AuthenticationScreenTest {
         .performScrollTo()
         .assertIsDisplayed()
     assertSignInAccessible("Try again")
-    screenshot("landscape-large-text")
     assertButtonTextFits("Try again")
     assertTermsAccessible()
   }
