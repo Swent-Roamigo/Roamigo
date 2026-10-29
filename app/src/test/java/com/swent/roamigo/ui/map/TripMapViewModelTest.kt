@@ -270,6 +270,90 @@ class TripMapViewModelTest {
     )
   }
 
+  @Test
+  fun slowUserLookup_showsTheMapWithFallbackMembers_thenTheirProfiles() = runTest {
+    val trip = trip(TRIP_ID, listOf(PARIS), memberIds = listOf(ALICE.uid, "bob-id"))
+    val pendingUsers = CompletableDeferred<List<User>>()
+    val viewModel =
+        createViewModel(
+            FakeTripRepository(trips = listOf(trip)),
+            userRepository { pendingUsers.await() },
+        )
+    runCurrent()
+
+    val viewport = TripMapViewport.Centered(PARIS.latitude, PARIS.longitude)
+    assertEquals(
+        TripMapUiState.Loaded(
+            trip = trip,
+            viewport = viewport,
+            members =
+                mapOf(
+                    ALICE.uid to MemberDisplayInfo("A", "A", null),
+                    "bob-id" to MemberDisplayInfo("B", "B", null),
+                ),
+        ),
+        viewModel.uiState.value,
+    )
+
+    pendingUsers.complete(listOf(ALICE, BOB))
+    advanceUntilIdle()
+
+    assertEquals(
+        TripMapUiState.Loaded(
+            trip = trip,
+            viewport = viewport,
+            members =
+                mapOf(
+                    ALICE.uid to MemberDisplayInfo("Alice", "A", ALICE_AVATAR),
+                    "bob-id" to MemberDisplayInfo("Bob", "B", BOB_AVATAR),
+                ),
+        ),
+        viewModel.uiState.value,
+    )
+  }
+
+  @Test
+  fun retry_duringUserLookup_cancelsItAndIgnoresItsResult() = runTest {
+    val firstUsers = CompletableDeferred<List<User>>()
+    val latestUsers = CompletableDeferred<List<User>>()
+    var firstLookupCancelled = false
+    var lookups = 0
+    val viewModel =
+        createViewModel(
+            FakeTripRepository(trips = listOf(trip(TRIP_ID))),
+            userRepository {
+              lookups++
+              if (lookups == 1) {
+                try {
+                  firstUsers.await()
+                } finally {
+                  firstLookupCancelled = true
+                }
+              } else {
+                latestUsers.await()
+              }
+            },
+        )
+    runCurrent()
+
+    viewModel.retry()
+    runCurrent()
+
+    assertTrue(firstLookupCancelled)
+    firstUsers.complete(listOf(ALICE.copy(displayName = "Outdated")))
+    runCurrent()
+    val fallback = mapOf(ALICE.uid to MemberDisplayInfo("A", "A", null))
+    assertEquals(fallback, (viewModel.uiState.value as TripMapUiState.Loaded).members)
+
+    latestUsers.complete(listOf(ALICE))
+    advanceUntilIdle()
+
+    assertEquals(
+        mapOf(ALICE.uid to MemberDisplayInfo("Alice", "A", ALICE_AVATAR)),
+        (viewModel.uiState.value as TripMapUiState.Loaded).members,
+    )
+  }
+
   private class OtherViewModel : ViewModel()
 
   /** Loads a trip with the given members and returns their display information. */
@@ -295,6 +379,11 @@ class TripMapViewModelTest {
   private fun repository(load: suspend () -> List<Trip>): TripRepository =
       object : TripRepository by FakeTripRepository() {
         override suspend fun getTrips(): List<Trip> = load()
+      }
+
+  private fun userRepository(load: suspend () -> List<User>): UserRepository =
+      object : UserRepository by FakeUserRepository(ALICE) {
+        override suspend fun getUsers(userIds: Set<String>): List<User> = load()
       }
 
   private fun trip(
@@ -326,5 +415,6 @@ class TripMapViewModelTest {
     const val ALICE_AVATAR = "https://example.com/alice.png"
     const val BOB_AVATAR = "https://example.com/bob.png"
     val ALICE = User(uid = "alice-id", displayName = "Alice", profilePictureUrl = ALICE_AVATAR)
+    val BOB = User(uid = "bob-id", displayName = "Bob", profilePictureUrl = BOB_AVATAR)
   }
 }
