@@ -138,6 +138,9 @@ fun RoamigoApp(
             navController.navigate(Route.TRIP_HISTORY) { launchSingleTop = true }
           },
           onOpenTrip = { tripId -> navController.navigate(Route.tripDetails(tripId)) },
+          onOpenTripPhotos = { tripId, tripName ->
+            navController.navigate(Route.photos(tripId, tripName))
+          },
       )
     }
     composable(Route.VOTES) { entry ->
@@ -166,7 +169,15 @@ fun RoamigoApp(
       val connectivity =
           connectivityRepository ?: remember(context) { DefaultConnectivityRepository(context) }
       PhotosRoute(
-          viewModel = viewModel { PhotosViewModel(photoRepository, connectivity, tripId) },
+          viewModel =
+              viewModel {
+                PhotosViewModel(
+                    photoRepository,
+                    connectivity,
+                    tripId,
+                    authRepository.getCurrentUser()?.uid,
+                )
+              },
           tripName = tripName,
           fileOf = photoRepository::fileOf,
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },

@@ -4,10 +4,13 @@ package com.swent.roamigo.ui.photos
 import com.swent.roamigo.model.photo.PendingPhoto
 import com.swent.roamigo.model.photo.PhotoFileStore
 import com.swent.roamigo.model.photo.PhotoRepository
+import com.swent.roamigo.model.photo.TripPhoto
 import java.io.File
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 
 /** [PhotoRepository] for view model tests: it records every call and can fail or wait. */
@@ -21,6 +24,16 @@ class TestPhotoRepository(directory: File) : PhotoRepository {
   val created = mutableListOf<File>()
   var resumed = 0
 
+  /** The photos the server has. */
+  val uploaded = MutableStateFlow<List<TripPhoto>>(emptyList())
+
+  /** Thrown by [tripPhotos] instead of emitting, when set. */
+  var galleryError: Exception? = null
+
+  /** How many times the gallery was observed. */
+  var galleryObservations = 0
+    private set
+
   /** Thrown by [savePhoto] instead of saving, when set. */
   var saveError: Exception? = null
 
@@ -29,6 +42,12 @@ class TestPhotoRepository(directory: File) : PhotoRepository {
 
   override fun pendingPhotos(tripId: String): Flow<List<PendingPhoto>> = photos.map { list ->
     list.filter { it.tripId == tripId }
+  }
+
+  override fun tripPhotos(tripId: String): Flow<List<TripPhoto>> = flow {
+    galleryObservations++
+    galleryError?.let { throw it }
+    emitAll(uploaded)
   }
 
   override fun newPhotoFile(): File = files.newFile().also { created += it }

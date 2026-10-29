@@ -42,7 +42,7 @@ class PhotosNavigationTest {
   private val connectivity = FakeConnectivityRepository()
   private lateinit var navController: NavHostController
 
-  private fun openPhotos() {
+  private fun openPhotos(fromTripsHome: Boolean = false) {
     val now = Instant.now().epochSecond
     val trip =
         Trip(
@@ -81,9 +81,12 @@ class PhotosNavigationTest {
     composeRule.waitUntil {
       composeRule.onAllNodesWithTag(C.Tag.trips_main_trip_card).fetchSemanticsNodes().isNotEmpty()
     }
-    composeRule.onNodeWithTag(C.Tag.trips_main_trip_card).performClick()
-    // A trip opens its details; Photos is reached from its Votes tab.
-    composeRule.onNodeWithText("Votes").performClick()
+    // The tab of the trips home leads to the main trip; the one of its votes leads to its own.
+    if (!fromTripsHome) {
+      composeRule.onNodeWithTag(C.Tag.trips_main_trip_card).performClick()
+      // A trip opens its details; Photos is reached from its Votes tab.
+      composeRule.onNodeWithText("Votes").performClick()
+    }
     composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).performClick()
   }
 
@@ -93,6 +96,18 @@ class PhotosNavigationTest {
 
     composeRule.onNodeWithTag(C.Tag.photos_screen).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.photos_title).assertTextEquals("Trip photos")
+    composeRule.runOnIdle {
+      assertEquals(Route.PHOTOS, navController.currentBackStackEntry?.destination?.route)
+      assertEquals(tripId, navController.currentBackStackEntry?.arguments?.getString("tripId"))
+      assertEquals(tripName, navController.currentBackStackEntry?.arguments?.getString("tripName"))
+    }
+  }
+
+  @Test
+  fun thePhotosTabOfTheTripsHomeOpensThePhotosOfTheMainTrip() {
+    openPhotos(fromTripsHome = true)
+
+    composeRule.onNodeWithTag(C.Tag.photos_screen).assertIsDisplayed()
     composeRule.runOnIdle {
       assertEquals(Route.PHOTOS, navController.currentBackStackEntry?.destination?.route)
       assertEquals(tripId, navController.currentBackStackEntry?.arguments?.getString("tripId"))

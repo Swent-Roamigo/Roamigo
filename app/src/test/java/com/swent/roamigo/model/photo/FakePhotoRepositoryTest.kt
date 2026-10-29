@@ -90,4 +90,14 @@ class FakePhotoRepositoryTest {
     assertEquals("alex", repository.pendingPhotos("trip").first().single().userId)
     repository.discard(file)
   }
+
+  @Test
+  fun listsTheUploadedPhotosItIsGiven() = runTest {
+    val repository = repository()
+
+    assertEquals(emptyList<TripPhoto>(), repository.tripPhotos("trip").first())
+    repository.uploaded.value = listOf(tripPhoto("a"))
+
+    assertEquals(listOf("a"), repository.tripPhotos("trip").first().map { it.id })
+  }
 }
