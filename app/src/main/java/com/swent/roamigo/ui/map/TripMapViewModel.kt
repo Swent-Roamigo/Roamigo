@@ -1,6 +1,7 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui.map
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -55,7 +56,9 @@ class TripMapViewModel(
           } catch (e: CancellationException) {
             throw e
           } catch (e: Exception) {
-            _uiState.value = TripMapUiState.Error(e.localizedMessage ?: LOAD_FAILED_MESSAGE)
+            // Repository messages can expose backend details, so users only see a fixed message.
+            Log.w(TAG, "Could not load trip $tripId", e)
+            _uiState.value = TripMapUiState.Error(LOAD_FAILED_MESSAGE)
             return@launch
           }
       if (trip == null) {
@@ -100,6 +103,8 @@ class TripMapViewModel(
     internal const val TRIP_NOT_FOUND_MESSAGE = "This trip could not be found."
 
     internal const val LOAD_FAILED_MESSAGE = "Unable to load the trip."
+
+    private const val TAG = "TripMapViewModel"
 
     /**
      * Creates a factory that supplies the dependencies required by [TripMapViewModel].

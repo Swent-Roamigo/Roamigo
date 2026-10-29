@@ -83,7 +83,10 @@ class TripMapViewModelTest {
             }
         )
     advanceUntilIdle()
-    assertEquals(TripMapUiState.Error("Load failed"), viewModel.uiState.value)
+    assertEquals(
+        TripMapUiState.Error(TripMapViewModel.LOAD_FAILED_MESSAGE),
+        viewModel.uiState.value,
+    )
 
     viewModel.retry()
     runCurrent()
@@ -98,8 +101,13 @@ class TripMapViewModelTest {
   }
 
   @Test
-  fun failedLoadWithoutMessage_showsDefaultError() = runTest {
-    val viewModel = createViewModel(FakeTripRepository(failure = IllegalStateException()))
+  fun failedLoad_showsFixedMessage_insteadOfTheTechnicalOne() = runTest {
+    val viewModel =
+        createViewModel(
+            FakeTripRepository(
+                failure = IllegalStateException("FirebaseFirestoreException: PERMISSION_DENIED")
+            )
+        )
 
     advanceUntilIdle()
 
