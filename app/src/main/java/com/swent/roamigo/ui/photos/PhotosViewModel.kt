@@ -58,6 +58,11 @@ class PhotosViewModel(
           }
           .stateIn(viewModelScope, SharingStarted.Eagerly, PhotosUiState())
 
+  init {
+    // Photos left by a user who signed out are only uploaded once something starts a round.
+    repository.resumeUploads()
+  }
+
   private val _effects = Channel<PhotosEffect>(Channel.BUFFERED)
   val effects: Flow<PhotosEffect> = _effects.receiveAsFlow()
 
