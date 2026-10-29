@@ -33,15 +33,19 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -103,9 +107,11 @@ fun AuthenticationScreen(
           .background(MaterialTheme.colorScheme.background)
           .safeDrawingPadding()
   ) {
-    val contentMinHeight = (maxHeight - 400.dp).coerceAtLeast(0.dp)
+    val density = LocalDensity.current
+    var heroHeight by remember { mutableStateOf(0.dp) }
+    val contentMinHeight = (maxHeight - heroHeight).coerceAtLeast(0.dp)
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-      AuthenticationHero()
+      AuthenticationHero(Modifier.onSizeChanged { heroHeight = with(density) { it.height.toDp() } })
       Column(
           Modifier.fillMaxWidth()
               .heightIn(min = contentMinHeight)
@@ -223,9 +229,10 @@ private fun AuthenticationFeedback(messageRes: Int) {
 }
 
 @Composable
-private fun AuthenticationHero() {
+private fun AuthenticationHero(modifier: Modifier = Modifier) {
   Column(
-      Modifier.fillMaxWidth()
+      modifier
+          .fillMaxWidth()
           .clipToBounds()
           .background(MaterialTheme.colorScheme.primary)
           .padding(top = 14.dp, bottom = 36.dp),
@@ -289,15 +296,20 @@ private fun AuthenticationHero() {
 @Composable
 private fun TravelPhotoRow(photos: List<Pair<Int, Int>>, offset: Dp) {
   // These deliberately cropped rows reproduce the collage without making it a scroll target.
-  Box(Modifier.fillMaxWidth().height(120.dp).clearAndSetSemantics {}) {
+  BoxWithConstraints(Modifier.fillMaxWidth().height(120.dp).clearAndSetSemantics {}) {
+    val photoWidth = 150.dp
+    val stride = photoWidth + Spacing.medium
+    // Repeat the decorative collage far enough to cover the viewport after cropping.
+    val photoCount = kotlin.math.ceil((maxWidth - offset + Spacing.medium) / stride).toInt()
     Row(
         Modifier.wrapContentWidth(Alignment.Start, unbounded = true)
-            .requiredWidth(960.dp)
+            .requiredWidth(stride * photoCount - Spacing.medium)
             .offset(x = offset),
         horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
     ) {
-      photos.forEach { (image, label) ->
-        Box(Modifier.size(150.dp, 120.dp).clip(RoundedCornerShape(18.dp))) {
+      repeat(photoCount) { index ->
+        val (image, label) = photos[index % photos.size]
+        Box(Modifier.size(photoWidth, 120.dp).clip(RoundedCornerShape(18.dp))) {
           Image(
               painterResource(image),
               contentDescription = null,

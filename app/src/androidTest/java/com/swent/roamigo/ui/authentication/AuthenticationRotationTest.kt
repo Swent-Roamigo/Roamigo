@@ -218,14 +218,23 @@ class AuthenticationRotationTest {
   fun recreationImmediatelyAfterSuccessAndFurtherRotationsKeepOnePermissionsEntry() {
     pendingAuthentication = CompletableDeferred()
     signIn()
-    scenario.onActivity {
-      val viewModel =
-          ViewModelProvider(navController.currentBackStackEntry!!)[
-              AuthenticationViewModel::class.java]
-      pendingAuthentication!!.complete(Unit)
-      assertEquals(user, viewModel.uiState.value.user)
-      assertEquals(Route.AUTHENTICATION, navController.currentDestination?.route)
-      it.recreate()
+    // Hold composition frames so we can await success before navigation consumes it.
+    composeRule.mainClock.autoAdvance = false
+    try {
+      lateinit var viewModel: AuthenticationViewModel
+      scenario.onActivity {
+        viewModel =
+            ViewModelProvider(navController.currentBackStackEntry!!)[
+                AuthenticationViewModel::class.java]
+        pendingAuthentication!!.complete(Unit)
+      }
+      composeRule.waitUntil(timeoutMillis = 10_000) { viewModel.uiState.value.user == user }
+      scenario.onActivity {
+        assertEquals(Route.AUTHENTICATION, navController.currentDestination?.route)
+        it.recreate()
+      }
+    } finally {
+      composeRule.mainClock.autoAdvance = true
     }
     assertPermissions()
     var entryId = ""

@@ -282,9 +282,7 @@ class AuthenticationFlowTest {
     waitForTag(AuthenticationScreenTestTags.errorMessage)
     composeRule
         .onNodeWithTag(AuthenticationScreenTestTags.errorMessage)
-        .assertTextEquals(
-            "We couldn’t sign you in with Google. Check your connection and try again."
-        )
+        .assertTextEquals("We couldn’t sign you in with Google. Please try again.")
     composeRule.onNodeWithTag(AuthenticationScreenTestTags.signInButton).assertIsEnabled()
     composeRule.onAllNodesWithTag(C.Tag.trips_screen).assertCountEquals(0)
     composeRule.onAllNodesWithTag(C.Tag.permissions_title).assertCountEquals(0)

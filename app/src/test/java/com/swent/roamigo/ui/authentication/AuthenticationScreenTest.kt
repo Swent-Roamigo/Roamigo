@@ -63,6 +63,10 @@ class AuthenticationScreenTest {
     render()
     composeRule.onNodeWithContentDescription("roamigo").assertIsDisplayed()
     composeRule.onNodeWithTag(AuthenticationScreenTestTags.heading).assertIsDisplayed()
+    composeRule.onNodeWithTag(AuthenticationScreenTestTags.signInButton).assertIsDisplayed()
+    composeRule
+        .onNodeWithText("By continuing you agree to the Terms and Privacy Policy.")
+        .assertIsDisplayed()
     assertSignInAccessible()
   }
 
@@ -71,7 +75,7 @@ class AuthenticationScreenTest {
     render(AuthenticationUiState(errorMessageRes = R.string.auth_sign_in_failed))
     composeRule.onNodeWithText("Sign-in didn’t work").performScrollTo().assertIsDisplayed()
     composeRule
-        .onNodeWithText("We couldn’t sign you in with Google. Check your connection and try again.")
+        .onNodeWithText("We couldn’t sign you in with Google. Please try again.")
         .assertIsDisplayed()
     assertSignInAccessible("Try again")
   }
