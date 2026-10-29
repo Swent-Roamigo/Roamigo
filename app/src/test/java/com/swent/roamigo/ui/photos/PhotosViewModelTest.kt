@@ -65,6 +65,11 @@ class PhotosViewModelTest {
   }
 
   @Test
+  fun asksForTheWaitingPhotosToBeUploadedWhenItOpens() {
+    assertEquals(1, repository.resumed)
+  }
+
+  @Test
   fun showsTheTripsWaitingPhotos() {
     repository.photos.value =
         listOf(pendingPhoto("a", tripId = "trip"), pendingPhoto("b", tripId = "x"))

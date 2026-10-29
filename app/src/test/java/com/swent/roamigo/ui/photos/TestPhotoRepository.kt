@@ -19,6 +19,7 @@ class TestPhotoRepository(directory: File) : PhotoRepository {
   val discarded = mutableListOf<File>()
   val retried = mutableListOf<String>()
   val created = mutableListOf<File>()
+  var resumed = 0
 
   /** Thrown by [savePhoto] instead of saving, when set. */
   var saveError: Exception? = null
@@ -47,5 +48,9 @@ class TestPhotoRepository(directory: File) : PhotoRepository {
 
   override suspend fun retry(photoId: String) {
     retried += photoId
+  }
+
+  override fun resumeUploads() {
+    resumed++
   }
 }
