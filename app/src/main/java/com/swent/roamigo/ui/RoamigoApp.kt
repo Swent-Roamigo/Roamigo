@@ -34,6 +34,9 @@ import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.ui.authentication.AuthenticationScreen
 import com.swent.roamigo.ui.authentication.AuthenticationViewModel
+import com.swent.roamigo.ui.components.rememberNotImplementedAction
+import com.swent.roamigo.ui.friends.FriendsScreen
+import com.swent.roamigo.ui.friends.FriendsUiState
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.permissions.PermissionsScreen
 import com.swent.roamigo.ui.profile.ProfileScreen
@@ -110,6 +113,7 @@ fun RoamigoApp(
           userRepository = userRepository,
           onNewTripClick = { navController.navigate(Route.NEW_TRIP) },
           onProfileClick = { navController.navigate(Route.PROFILE) },
+          onFriendsClick = { navController.navigate(Route.FRIENDS) { launchSingleTop = true } },
           onHistoryClick = {
             navController.navigate(Route.TRIP_HISTORY) { launchSingleTop = true }
           },
@@ -127,6 +131,7 @@ fun RoamigoApp(
           onOpenVote = { voteId -> navController.navigate(Route.vote(tripId, voteId)) },
           onCreateVote = { navController.navigate(Route.newVote(tripId)) },
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
+          onFriendsClick = { navController.navigate(Route.FRIENDS) { launchSingleTop = true } },
       )
     }
     composable(Route.VOTE) { entry ->
@@ -162,6 +167,14 @@ fun RoamigoApp(
         )
       }
     }
+    composable(Route.FRIENDS) {
+      FriendsScreen(
+          uiState = FriendsUiState(),
+          onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
+          onMapClick = rememberNotImplementedAction(),
+          onPhotosClick = rememberNotImplementedAction(),
+      )
+    }
     composable(Route.PROFILE) {
       val profileViewModel = viewModel { ProfileViewModel(authRepository) }
       val state by profileViewModel.uiState.collectAsState()
@@ -185,6 +198,7 @@ fun RoamigoApp(
           state,
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
           onSignOutClick = profileViewModel::signOut,
+          onFriendsClick = { navController.navigate(Route.FRIENDS) { launchSingleTop = true } },
       )
     }
 
@@ -198,6 +212,7 @@ fun RoamigoApp(
                 inclusive = false,
             )
           },
+          onFriendsClick = { navController.navigate(Route.FRIENDS) { launchSingleTop = true } },
       )
     }
 

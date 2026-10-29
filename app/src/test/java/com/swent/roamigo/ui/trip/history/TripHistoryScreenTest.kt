@@ -41,6 +41,7 @@ class TripHistoryScreenTest {
       onTripsClick: () -> Unit = {},
       onMapClick: () -> Unit = {},
       onPhotosClick: () -> Unit = {},
+      onFriendsClick: () -> Unit = {},
       onRetryClick: () -> Unit = {},
   ) {
     composeRule.setContent {
@@ -52,6 +53,7 @@ class TripHistoryScreenTest {
             onTripsClick = onTripsClick,
             onMapClick = onMapClick,
             onPhotosClick = onPhotosClick,
+            onFriendsClick = onFriendsClick,
             onRetryClick = onRetryClick,
         )
       }
@@ -121,6 +123,7 @@ class TripHistoryScreenTest {
     var tripsClicks = 0
     var mapClicks = 0
     var photosClicks = 0
+    var friendsClicks = 0
 
     show(
         state = TripHistoryUiState(isLoading = false, trips = listOf(rome)),
@@ -129,6 +132,7 @@ class TripHistoryScreenTest {
         onTripsClick = { tripsClicks++ },
         onMapClick = { mapClicks++ },
         onPhotosClick = { photosClicks++ },
+        onFriendsClick = { friendsClicks++ },
     )
 
     composeRule.onNodeWithTag(C.Tag.trip_history_back).performClick()
@@ -136,12 +140,14 @@ class TripHistoryScreenTest {
     composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
     composeRule.onNodeWithTag(C.Tag.trips_navigation_map).performClick()
     composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).performClick()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
 
     Assert.assertEquals(1, backClicks)
     Assert.assertEquals(1, worldMapClicks)
     Assert.assertEquals(1, tripsClicks)
     Assert.assertEquals(1, mapClicks)
     Assert.assertEquals(1, photosClicks)
+    Assert.assertEquals(1, friendsClicks)
   }
 
   @Test
