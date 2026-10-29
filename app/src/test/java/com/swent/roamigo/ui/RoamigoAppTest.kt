@@ -389,28 +389,22 @@ class RoamigoAppTest {
   }
 
   @Test
-  fun unavailableTabsOnFriendsShowNotImplementedFeedback() {
+  fun photosTabOnFriendsShowsNotImplementedFeedback() {
     waitForTrips()
 
-    // Open Friends.
     composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
     waitForTag(C.Tag.friends_screen)
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_map).assert(isNotImplemented.not())
 
-    // Map and Photos should show feedback instead of doing nothing.
-    for (tag in listOf(C.Tag.trips_navigation_map, C.Tag.trips_navigation_photos)) {
-      ShadowToast.reset()
+    ShadowToast.reset()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).assert(isNotImplemented).performClick()
 
-      composeRule.onNodeWithTag(tag).assert(isNotImplemented).performClick()
-
-      composeRule.runOnIdle {
-        assertEquals(
-            composeRule.activity.getString(R.string.feature_not_implemented),
-            ShadowToast.getTextOfLatestToast(),
-        )
-      }
-
-      // The user remains on Friends.
-      composeRule.onNodeWithTag(C.Tag.friends_screen).assertIsDisplayed()
+    composeRule.runOnIdle {
+      assertEquals(
+          composeRule.activity.getString(R.string.feature_not_implemented),
+          ShadowToast.getTextOfLatestToast(),
+      )
     }
+    composeRule.onNodeWithTag(C.Tag.friends_screen).assertIsDisplayed()
   }
 }
