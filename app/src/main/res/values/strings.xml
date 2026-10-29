@@ -88,6 +88,7 @@
     <string name="trips_nav_trips">Trips</string>
     <string name="trips_nav_map">Map</string>
     <string name="trips_nav_photos">Photos</string>
+    <string name="trips_nav_friends">Friends</string>
 
     <string name="trips_greeting">%1$s, %2$s</string>
     <string name="trips_open_profile">Open profile</string>

@@ -3,6 +3,7 @@ package com.swent.roamigo.ui
 
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -232,5 +233,30 @@ class VotesNavigationTest {
     composeRule.onNodeWithText("Cancel").performClick()
     composeRule.onNodeWithText(vote.question).assertIsDisplayed()
     composeRule.runOnIdle { assertEquals(listOf(tripId), repository.observedTrips) }
+  }
+
+  @Test
+  fun friendsTabFromVotesOpensFriendsAndBackReturnsToVotes() {
+    // Start from the Votes screen.
+    openVotes()
+
+    // Navigate to Friends.
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.friends_screen).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).assertIsSelected()
+
+    composeRule.runOnIdle {
+      assertEquals(Route.FRIENDS, navController.currentBackStackEntry?.destination?.route)
+    }
+
+    // Android Back should return to Votes.
+    composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+
+    composeRule.onNodeWithText("$tripName · 1 open").assertIsDisplayed()
+
+    composeRule.runOnIdle {
+      assertEquals(Route.VOTES, navController.currentBackStackEntry?.destination?.route)
+    }
   }
 }
