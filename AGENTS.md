@@ -24,6 +24,8 @@ Roamigo follows MVVM.
 - ViewModels contain presentation logic and expose UI state.
 - Repositories abstract local, Firebase, and external data sources.
 - UI and ViewModels should not depend directly on Firebase or Mapbox implementation details.
+- Inject repository dependencies into ViewModels through interfaces. Production entry points should provide real implementations; reserve fakes and sample data for tests, previews, or an explicitly selected demo mode.
+- Repository operations callable from the UI must be safe on the main thread, including response reading and parsing. Validate external data before use and handle failures and retries where appropriate.
 
 Firebase Authentication handles Google Sign-In.
 Cloud Firestore stores persistent trip data.
@@ -43,6 +45,9 @@ Write idiomatic and readable Kotlin.
 - Avoid duplicated logic when a clear reusable abstraction is appropriate.
 - Comments should explain why non-obvious logic exists, not restate what the code does.
 - Use KDoc where public APIs or contracts require documentation.
+- Use Android resources for user-facing and accessibility text, including plurals where appropriate. Prefer standard Compose components and semantics; test tags do not replace accessible labels.
+- Check that changed screens remain usable on small displays and in landscape, including access to primary actions.
+- Keep visible actions functional or use the existing feedback for unfinished actions. Verify the navigation-to-data path before describing a feature as integrated.
 
 Follow the style of the surrounding code rather than introducing a new convention.
 
@@ -53,7 +58,10 @@ New behavior should include appropriate tests.
 Before requesting review:
 - run the relevant Gradle tests and checks,
 - verify that existing behavior is not broken,
-- keep tests focused on observable behavior.
+- keep tests focused on observable behavior, meaningful boundaries, failures, and recovery,
+- inject fakes or controlled clients into unit and UI tests; do not make live billable network calls by default,
+- use isolated emulators for relevant Firebase integrations and distinguish emulator, device, and live-service verification,
+- reuse the existing test-tag convention and report checks actually run and their limitations.
 
 ## Git workflow
 
@@ -70,10 +78,10 @@ Use a commit body when useful to explain what changed and why, not how the imple
 
 ## Pull requests
 
-- Keep each pull request focused on one task.
+- Keep each pull request focused on one task. Aim for roughly 300 lines of production changes; if larger, consider coherent, independently useful steps. Do not omit validation, tests, or necessary integration just to meet a line target; explain justified larger changes.
 - Do not bundle unrelated changes into the same pull request.
-- Use `.github/pull_request_template.md` when creating a pull request, and replace its issue placeholder with a closing reference such as `Closes #123`.
-- Explain what was changed and why.
+- Use `.github/pull_request_template.md` when creating a pull request, and replace its issue placeholder with a closing reference such as `Closes #123` only when the issue is completed; otherwise use a non-closing reference.
+- Explain what was changed and why. Check the final diff against the description, including changes to model types and any incomplete behavior.
 - Include the relevant tests.
 - Run `./gradlew check` before requesting review.
 - Review the diff before submitting the pull request.
