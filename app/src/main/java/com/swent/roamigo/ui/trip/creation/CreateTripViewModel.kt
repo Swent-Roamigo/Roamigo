@@ -104,7 +104,8 @@ class CreateTripViewModel(
       if (submissionId != null && savedStateHandle.contains("submission_state")) {
         val submittedZone = runCatching {
           ZoneId.of(savedStateHandle.get<String>("submission_zone") ?: zoneId.id)
-        }.getOrDefault(zoneId)
+        }
+            .getOrDefault(zoneId)
         _uiState.value.toTripDraft(submittedZone)
       } else null
 
