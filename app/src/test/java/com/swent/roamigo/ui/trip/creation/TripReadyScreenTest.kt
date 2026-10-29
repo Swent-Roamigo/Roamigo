@@ -9,6 +9,7 @@ import com.google.firebase.Timestamp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.trip.*
+import com.swent.roamigo.ui.isNotImplemented
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import java.time.LocalDate
 import java.time.ZoneId
@@ -59,15 +60,23 @@ class TripReadyScreenTest {
         .onNodeWithTag(TripReadyTestTags.LOCATION)
         .assertTextEquals("Share your location (optional)")
     rule
-        .onNodeWithTag("trip_ready_itinerary")
+        .onNodeWithTag(TripReadyTestTags.ITINERARY)
         .performScrollTo()
+        .assertTextEquals("Open itinerary")
         .assertHasClickAction()
+        .assert(isNotImplemented)
         .performClick()
     assertEquals(
         RuntimeEnvironment.getApplication().getString(R.string.feature_not_implemented),
         ShadowToast.getTextOfLatestToast(),
     )
-    rule.onNodeWithTag("trip_ready_share").performScrollTo().assertHasClickAction().performClick()
+    rule
+        .onNodeWithTag(TripReadyTestTags.SHARE)
+        .performScrollTo()
+        .assertTextEquals("Share trip")
+        .assertHasClickAction()
+        .assert(isNotImplemented)
+        .performClick()
     assertEquals(
         RuntimeEnvironment.getApplication().getString(R.string.feature_not_implemented),
         ShadowToast.getTextOfLatestToast(),
@@ -89,10 +98,10 @@ class TripReadyScreenTest {
         }
     val vm = TripReadyViewModel(repository, "trip")
     rule.setContent { RoamigoTheme { TripReadyScreen(vm, null) } }
-    rule.onNodeWithTag("trip_ready_loading").assertExists()
+    rule.onNodeWithTag(TripReadyTestTags.LOADING).assertExists()
     gate.complete(Unit)
     rule.waitUntil(5_000) {
-      rule.onAllNodesWithTag("trip_ready_error").fetchSemanticsNodes().isNotEmpty()
+      rule.onAllNodesWithTag(TripReadyTestTags.ERROR).fetchSemanticsNodes().isNotEmpty()
     }
     fail = false
     rule.onNodeWithTag(TripReadyTestTags.RETRY).performClick()

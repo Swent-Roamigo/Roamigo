@@ -152,6 +152,7 @@ class CreateTripViewModel(
       _uiState.update { it.copy(creationError = TripCreationException.Validation(errors)) }
       return
     }
+    // Match the restored draft so a retry for the same trip keeps its original submission ID.
     if (
         submittedDraft == null &&
             submissionId != null &&

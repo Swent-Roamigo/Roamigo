@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.swent.roamigo.R
+import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -39,35 +40,48 @@ internal object TripReadyTestTags {
   const val PHOTO_CREATOR = "trip_ready_photo_creator"
   const val PHOTO_CREDIT = "trip_ready_photo_credit"
   const val PHOTO_CLOSE = "trip_ready_photo_close"
+  const val LOADING = "trip_ready_loading"
+  const val ERROR = "trip_ready_error"
+  const val ITINERARY = "trip_ready_itinerary"
+  const val SHARE = "trip_ready_share"
 }
 
 @Composable
 fun TripReadyScreen(viewModel: TripReadyViewModel, photo: Bundle?) {
   val state by viewModel.state.collectAsStateWithLifecycle()
-  when (val current = state) {
+  TripReadyContent(state, photo, viewModel::retry)
+}
+
+@Composable
+internal fun TripReadyContent(
+    state: TripReadyState,
+    photo: Bundle?,
+    onRetry: () -> Unit = {},
+) {
+  when (state) {
     TripReadyState.Loading ->
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-          CircularProgressIndicator(Modifier.semantics { testTag = "trip_ready_loading" })
+          CircularProgressIndicator(Modifier.semantics { testTag = TripReadyTestTags.LOADING })
         }
     TripReadyState.Error ->
         Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
           Text(
               stringResource(R.string.trip_ready_error),
-              Modifier.semantics { testTag = "trip_ready_error" },
+              Modifier.semantics { testTag = TripReadyTestTags.ERROR },
           )
           Button(
-              onClick = viewModel::retry,
+              onClick = onRetry,
               modifier = Modifier.semantics { testTag = TripReadyTestTags.RETRY },
           ) {
             Text(stringResource(R.string.destination_search_retry))
           }
         }
-    is TripReadyState.Ready -> TripReadyContent(current, photo)
+    is TripReadyState.Ready -> TripReadySuccessContent(state, photo)
   }
 }
 
 @Composable
-internal fun TripReadyContent(state: TripReadyState.Ready, photo: Bundle?) {
+private fun TripReadySuccessContent(state: TripReadyState.Ready, photo: Bundle?) {
   val unavailable = rememberNotImplementedAction()
   val uriHandler = LocalUriHandler.current
   var imageLoaded by remember(photo?.getString("url")) { mutableStateOf(false) }
@@ -149,13 +163,19 @@ internal fun TripReadyContent(state: TripReadyState.Ready, photo: Bundle?) {
       )
       Button(
           onClick = unavailable,
-          modifier = Modifier.fillMaxWidth().semantics { testTag = "trip_ready_itinerary" },
+          modifier =
+              Modifier.fillMaxWidth().markNotImplemented(unavailable).semantics {
+                testTag = TripReadyTestTags.ITINERARY
+              },
       ) {
         Text(stringResource(R.string.trip_ready_itinerary))
       }
       OutlinedButton(
           onClick = unavailable,
-          modifier = Modifier.fillMaxWidth().semantics { testTag = "trip_ready_share" },
+          modifier =
+              Modifier.fillMaxWidth().markNotImplemented(unavailable).semantics {
+                testTag = TripReadyTestTags.SHARE
+              },
       ) {
         Text(stringResource(R.string.trip_ready_share))
       }
