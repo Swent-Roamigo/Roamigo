@@ -14,11 +14,9 @@ import com.swent.roamigo.model.authentication.AuthenticatedUser
  * @property user The currently signed-in account, or null when not signed in.
  * @property errorMessageRes A string resource resolved by the screen, or null when there is no
  *   error.
- * @property signedOut Whether the last completed authentication attempt left the UI signed out.
  */
 data class AuthenticationUiState(
     val isLoading: Boolean = false,
     val user: AuthenticatedUser? = null,
     @StringRes val errorMessageRes: Int? = null,
-    val signedOut: Boolean = false,
 )

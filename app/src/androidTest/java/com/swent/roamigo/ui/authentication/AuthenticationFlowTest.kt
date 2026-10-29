@@ -15,6 +15,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
@@ -78,7 +79,10 @@ class AuthenticationFlowTest {
   }
 
   private fun signIn() {
-    composeRule.onNodeWithTag(AuthenticationScreenTestTags.signInButton).performClick()
+    composeRule
+        .onNodeWithTag(AuthenticationScreenTestTags.signInButton)
+        .performScrollTo()
+        .performClick()
   }
 
   private fun pressBackAndWaitForExit() {
@@ -125,7 +129,7 @@ class AuthenticationFlowTest {
 
     composeRule
         .onNodeWithTag(AuthenticationScreenTestTags.errorMessage)
-        .assertTextEquals("Sign-in cancelled")
+        .assertTextEquals("No problem. Continue with Google when you’re ready.")
     composeRule.onNodeWithTag(AuthenticationScreenTestTags.signInButton).assertIsEnabled()
     composeRule.onAllNodesWithTag(C.Tag.trips_screen).assertCountEquals(0)
     assertNull(repository.getCurrentUser())
@@ -278,7 +282,7 @@ class AuthenticationFlowTest {
     waitForTag(AuthenticationScreenTestTags.errorMessage)
     composeRule
         .onNodeWithTag(AuthenticationScreenTestTags.errorMessage)
-        .assertTextEquals("Sign-in failed. Try again.")
+        .assertTextEquals("We couldn’t sign you in with Google. Please try again.")
     composeRule.onNodeWithTag(AuthenticationScreenTestTags.signInButton).assertIsEnabled()
     composeRule.onAllNodesWithTag(C.Tag.trips_screen).assertCountEquals(0)
     composeRule.onAllNodesWithTag(C.Tag.permissions_title).assertCountEquals(0)

@@ -10,13 +10,29 @@
     <string name="auth_brand">roamigo</string>
     <string name="auth_signing_in">Signing in with Google</string>
     <string name="auth_heading">Decide together. Stay together.</string>
-    <string name="auth_description">Shared decisions, live voting, and a group map for friends traveling together on one trip.</string>
+    <string name="auth_description">Shared itineraries, live voting and a group map for friends travelling together.</string>
     <string name="auth_google_sign_in">Continue with Google</string>
     <string name="auth_sign_in_failed">Sign-in failed. Try again.</string>
     <string name="auth_sign_in_cancelled">Sign-in cancelled</string>
     <string name="auth_no_credentials">No Google credentials available. Try signing in again.</string>
     <string name="auth_credentials_failed">Unable to access your Google account. Please try again.</string>
-    <string name="auth_terms">By continuing, you agree to our Terms and Privacy Policy.</string>
+    <string name="auth_terms">By continuing you agree to the Terms and Privacy Policy.</string>
+    <string name="auth_error_title">Sign-in didn’t work</string>
+    <string name="auth_error_description">We couldn’t sign you in with Google. Please try again.</string>
+    <string name="auth_cancelled_description">No problem. Continue with Google when you’re ready.</string>
+    <string name="auth_try_again">Try again</string>
+    <string name="auth_lisbon" translatable="false">Lisbon</string>
+    <string name="auth_porto" translatable="false">Porto</string>
+    <string name="auth_barcelona" translatable="false">Barcelona</string>
+    <string name="auth_prague" translatable="false">Prague</string>
+    <string name="auth_rome" translatable="false">Rome</string>
+    <string name="auth_amsterdam" translatable="false">Amsterdam</string>
+    <string name="auth_belem" translatable="false">Belém Tower</string>
+    <string name="auth_market" translatable="false">Time Out Market</string>
+    <string name="auth_lx_factory" translatable="false">LX Factory</string>
+    <string name="auth_monte" translatable="false">Senhora do Monte</string>
+    <string name="auth_tram" translatable="false">Tram 28</string>
+    <string name="auth_bridge" translatable="false">Dom Luís I Bridge</string>
 
     <!-- Shared trip creation -->
     <string name="create_trip_back">Back</string>
@@ -237,17 +253,48 @@
     <string name="votes_empty_description">Start a vote to decide together with your trip members.</string>
     <string name="votes_load_error">Unable to load votes. Please try again.</string>
     <string name="votes_sync_error">Unable to update votes. Showing the last available votes.</string>
-  <string name="trip_ready_title">Your trip is ready!</string>
-  <string name="trip_ready_dates">%1$s · %2$s – %3$s</string>
-  <string name="trip_ready_summary">%1$s · %2$s</string>
-  <string name="trip_ready_invite">Invite your friends</string>
-  <string name="trip_ready_invite_detail">Invitations will be available in a future update</string>
-  <string name="trip_ready_suggest">Suggest places</string>
-  <string name="trip_ready_suggest_detail">Add sights and hotels for the group to vote on</string>
-  <string name="trip_ready_location">Share your location (optional)</string>
-  <string name="trip_ready_location_detail">Off by default · trip members only</string>
-  <string name="trip_ready_itinerary">Open itinerary</string>
-  <string name="trip_ready_share">Share trip</string>
-  <string name="trip_ready_error">Could not load this trip. Please try again.</string>
-  <string name="trip_ready_photo_credit">Photo credits</string>
+    <string name="trip_ready_title">Your trip is ready!</string>
+    <string name="trip_ready_dates">%1$s · %2$s – %3$s</string>
+    <string name="trip_ready_summary">%1$s · %2$s</string>
+    <string name="trip_ready_invite">Invite your friends</string>
+    <string name="trip_ready_invite_detail">Invitations will be available in a future update</string>
+    <string name="trip_ready_suggest">Suggest places</string>
+    <string name="trip_ready_suggest_detail">Add sights and hotels for the group to vote on</string>
+    <string name="trip_ready_location">Share your location (optional)</string>
+    <string name="trip_ready_location_detail">Off by default · trip members only</string>
+    <string name="trip_ready_itinerary">Open itinerary</string>
+    <string name="trip_ready_share">Share trip</string>
+    <string name="trip_ready_error">Could not load this trip. Please try again.</string>
+    <string name="trip_ready_photo_credit">Photo credits</string>
+    <!-- Trip Details -->
+    <string name="trip_details_tab">Details</string>
+    <string name="trip_details_itinerary">Itinerary</string>
+    <string name="trip_details_votes">Votes</string>
+    <string name="trip_details_share">Share trip</string>
+    <string name="trip_details_members">Members</string>
+    <string name="trip_details_places">Places to visit</string>
+    <string name="trip_details_live_votes">Live votes</string>
+    <string name="trip_details_photos">Trip photos</string>
+    <string name="trip_details_unavailable">Not available yet</string>
+    <string name="trip_details_unavailable_count">—</string>
+    <string name="trip_details_invite">Invite</string>
+    <string name="trip_details_map">Open trip map</string>
+    <string name="trip_details_loading">Loading trip details…</string>
+    <string name="trip_details_load_failed">Unable to load trip details.</string>
+    <string name="trip_details_not_found">This trip is no longer available to you.</string>
+    <string name="trip_details_retry">Retry</string>
+    <string name="trip_details_back">Back</string>
+    <string name="trip_details_subtitle">%1$s · %2$s</string>
+    <plurals name="trip_details_travelers">
+        <item quantity="one">%1$d traveler</item>
+        <item quantity="other">%1$d travelers</item>
+    </plurals>
+    <plurals name="trip_details_member_count">
+        <item quantity="one">%1$d member</item>
+        <item quantity="other">%1$d members</item>
+    </plurals>
+    <plurals name="trip_details_suggestions">
+        <item quantity="one">%1$d suggested place</item>
+        <item quantity="other">%1$d suggested places</item>
+    </plurals>
 </resources>
