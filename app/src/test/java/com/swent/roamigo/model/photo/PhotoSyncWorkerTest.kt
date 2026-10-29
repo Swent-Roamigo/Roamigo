@@ -82,8 +82,9 @@ class PhotoSyncWorkerTest {
     saveOnePhoto()
     uploader.failure = { PhotoUploadException("offline") }
 
-    assertEquals(ListenableWorker.Result.retry(), run(attempt = PhotoSyncWorker.MAX_ATTEMPTS - 1))
-    assertEquals(ListenableWorker.Result.success(), run(attempt = PhotoSyncWorker.MAX_ATTEMPTS))
+    // The attempt count starts at 0: the run with MAX_ATTEMPTS - 1 is the last of MAX_ATTEMPTS.
+    assertEquals(ListenableWorker.Result.retry(), run(attempt = PhotoSyncWorker.MAX_ATTEMPTS - 2))
+    assertEquals(ListenableWorker.Result.success(), run(attempt = PhotoSyncWorker.MAX_ATTEMPTS - 1))
     // The photo is still on the device for the next sync or a manual retry.
     assertEquals(1, queue.current.size)
   }

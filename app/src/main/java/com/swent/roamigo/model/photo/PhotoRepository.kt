@@ -6,7 +6,10 @@ import kotlinx.coroutines.flow.Flow
 
 /** What the screens need to take trip photos and follow their upload. */
 interface PhotoRepository {
-  /** Emits the trip's photos that are saved on this device and not uploaded yet. */
+  /**
+   * Emits the signed-in user's photos of the trip that are saved on this device and not uploaded
+   * yet.
+   */
   fun pendingPhotos(tripId: String): Flow<List<PendingPhoto>>
 
   /** An empty file in the app's photo folder, for the camera to write a new photo into. */
@@ -29,4 +32,10 @@ interface PhotoRepository {
 
   /** Puts a failed photo back among the waiting ones and schedules its upload. */
   suspend fun retry(photoId: String)
+
+  /**
+   * Asks for the waiting photos to be uploaded. Needed because a round skips the photos of a user
+   * who is not signed in, and nothing else starts one when that user signs in again.
+   */
+  fun resumeUploads()
 }

@@ -20,7 +20,8 @@ class PhotoSyncWorker(
     val mayGoAway = syncer.sync()
     // A failure that may go away is tried again later with a backoff, but not forever: the photo
     // stays on the device and the user can retry it, or the next scheduled sync takes it.
-    return if (mayGoAway && runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.success()
+    // runAttemptCount starts at 0, so the last of the MAX_ATTEMPTS runs has MAX_ATTEMPTS - 1.
+    return if (mayGoAway && runAttemptCount < MAX_ATTEMPTS - 1) Result.retry() else Result.success()
   }
 
   companion object {

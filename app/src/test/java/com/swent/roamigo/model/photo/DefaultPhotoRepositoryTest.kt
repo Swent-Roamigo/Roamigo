@@ -170,6 +170,29 @@ class DefaultPhotoRepositoryTest {
   }
 
   @Test
+  fun listsOnlyThePhotosOfTheSignedInUser() = runTest {
+    create()
+    queue.add(pendingPhoto("mine", tripId = "trip", userId = "u1"))
+    queue.add(pendingPhoto("theirs", tripId = "trip", userId = "someone-else"))
+
+    assertEquals(listOf("mine"), repository.pendingPhotos("trip").first().map { it.id })
+
+    userId = null
+    assertEquals(emptyList<PendingPhoto>(), repository.pendingPhotos("trip").first())
+  }
+
+  @Test
+  fun resumingSchedulesAnUploadWithoutChangingThePhotos() = runTest {
+    create()
+    queue.add(pendingPhoto("a"))
+
+    repository.resumeUploads()
+
+    assertEquals(1, scheduler.calls)
+    assertEquals(listOf(pendingPhoto("a")), queue.current)
+  }
+
+  @Test
   fun givesTheFileOfAPhoto() = runTest {
     create()
     val file = takePhoto()

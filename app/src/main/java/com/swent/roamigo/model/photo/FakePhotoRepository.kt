@@ -11,17 +11,19 @@ import kotlinx.coroutines.flow.map
  * nothing is uploaded.
  *
  * @param directory where the camera writes new photos, and where saved photos stay.
+ * @param initialPhotos photos already waiting, e.g. a failed one for a preview.
  */
 class FakePhotoRepository(
     private val directory: File = File(System.getProperty("java.io.tmpdir"), "roamigo-photos"),
     private val userId: String = "alex",
+    initialPhotos: List<PendingPhoto> = emptyList(),
     private val clock: () -> Long = System::currentTimeMillis,
 ) : PhotoRepository {
   private val files = PhotoFileStore(directory)
-  private val photos = MutableStateFlow<List<PendingPhoto>>(emptyList())
+  private val photos = MutableStateFlow(initialPhotos)
 
   override fun pendingPhotos(tripId: String): Flow<List<PendingPhoto>> = photos.map { list ->
-    list.filter { it.tripId == tripId }
+    list.filter { it.tripId == tripId && it.userId == userId }
   }
 
   override fun newPhotoFile(): File = files.newFile()
@@ -41,4 +43,6 @@ class FakePhotoRepository(
           if (it.id == photoId) it.copy(status = PhotoUploadStatus.WAITING) else it
         }
   }
+
+  override fun resumeUploads() = Unit
 }

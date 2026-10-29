@@ -6,6 +6,7 @@ import java.io.File
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -26,7 +27,9 @@ class DefaultPhotoRepository(
     private val locationTimeout: Duration = 5.seconds,
 ) : PhotoRepository {
 
-  override fun pendingPhotos(tripId: String): Flow<List<PendingPhoto>> = queue.observe(tripId)
+  // The queue belongs to the device, so photos saved by another account stay out of sight.
+  override fun pendingPhotos(tripId: String): Flow<List<PendingPhoto>> =
+      queue.observe(tripId).map { photos -> photos.filter { it.userId == currentUserId() } }
 
   override fun newPhotoFile(): File = files.newFile()
 
@@ -61,4 +64,6 @@ class DefaultPhotoRepository(
     queue.setStatus(photoId, PhotoUploadStatus.WAITING)
     scheduler.schedule()
   }
+
+  override fun resumeUploads() = scheduler.schedule()
 }

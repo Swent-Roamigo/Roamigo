@@ -38,16 +38,37 @@ class FakePhotoRepositoryTest {
 
   @Test
   fun retryingWaitsAgainOnlyThatPhoto() = runTest {
-    val repository = repository()
-    repository.savePhoto("trip", repository.newPhotoFile())
+    val failed = { id: String ->
+      pendingPhoto(id, userId = "me", status = PhotoUploadStatus.FAILED)
+    }
+    val repository =
+        FakePhotoRepository(
+            File(folder.root, "photos"),
+            "me",
+            initialPhotos = listOf(failed("a"), failed("b")),
+        )
 
-    repository.retry(repository.pendingPhotos("trip").first().single().id)
+    repository.retry("a")
     repository.retry("unknown")
 
+    val statuses = repository.pendingPhotos("t1").first().associate { it.id to it.status }
     assertEquals(
-        PhotoUploadStatus.WAITING,
-        repository.pendingPhotos("trip").first().single().status,
+        mapOf("a" to PhotoUploadStatus.WAITING, "b" to PhotoUploadStatus.FAILED),
+        statuses,
     )
+  }
+
+  @Test
+  fun listsOnlyThePhotosOfItsUser() = runTest {
+    val repository =
+        FakePhotoRepository(
+            File(folder.root, "photos"),
+            "me",
+            initialPhotos = listOf(pendingPhoto("mine", userId = "me"), pendingPhoto("theirs")),
+        )
+
+    assertEquals(listOf("mine"), repository.pendingPhotos("t1").first().map { it.id })
+    repository.resumeUploads()
   }
 
   @Test
