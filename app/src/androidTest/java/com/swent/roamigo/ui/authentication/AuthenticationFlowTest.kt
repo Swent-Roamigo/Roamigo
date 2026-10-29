@@ -125,7 +125,7 @@ class AuthenticationFlowTest {
 
     composeRule
         .onNodeWithTag(AuthenticationScreenTestTags.errorMessage)
-        .assertTextEquals("Sign-in cancelled")
+        .assertTextEquals("No problem. Continue with Google when you’re ready.")
     composeRule.onNodeWithTag(AuthenticationScreenTestTags.signInButton).assertIsEnabled()
     composeRule.onAllNodesWithTag(C.Tag.trips_screen).assertCountEquals(0)
     assertNull(repository.getCurrentUser())
@@ -278,7 +278,9 @@ class AuthenticationFlowTest {
     waitForTag(AuthenticationScreenTestTags.errorMessage)
     composeRule
         .onNodeWithTag(AuthenticationScreenTestTags.errorMessage)
-        .assertTextEquals("Sign-in failed. Try again.")
+        .assertTextEquals(
+            "We couldn’t sign you in with Google. Check your connection and try again."
+        )
     composeRule.onNodeWithTag(AuthenticationScreenTestTags.signInButton).assertIsEnabled()
     composeRule.onAllNodesWithTag(C.Tag.trips_screen).assertCountEquals(0)
     composeRule.onAllNodesWithTag(C.Tag.permissions_title).assertCountEquals(0)
