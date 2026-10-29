@@ -7,6 +7,14 @@ import com.swent.roamigo.R
 import com.swent.roamigo.ui.theme.RoamigoTheme
 
 @Preview(name = "Welcome", showBackground = true, widthDp = 390, heightDp = 796)
+@Preview(name = "Landscape", showBackground = true, widthDp = 796, heightDp = 340)
+@Preview(
+    name = "Small, large text",
+    showBackground = true,
+    widthDp = 320,
+    heightDp = 480,
+    fontScale = 2f,
+)
 @Composable
 private fun AuthenticationScreenPreview() {
   RoamigoTheme { AuthenticationScreen(AuthenticationUiState(), onSignInClick = {}) }

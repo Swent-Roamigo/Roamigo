@@ -103,15 +103,14 @@ fun AuthenticationScreen(
           .background(MaterialTheme.colorScheme.background)
           .safeDrawingPadding()
   ) {
-    val screenHeight = maxHeight
-    Column(
-        Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = screenHeight)
-    ) {
+    val contentMinHeight = (maxHeight - 400.dp).coerceAtLeast(0.dp)
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
       AuthenticationHero()
       Column(
           Modifier.fillMaxWidth()
-              .weight(1f)
+              .heightIn(min = contentMinHeight)
               .padding(horizontal = Spacing.extraLarge, vertical = 28.dp),
+          verticalArrangement = Arrangement.SpaceBetween,
       ) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
           Text(
@@ -126,7 +125,7 @@ fun AuthenticationScreen(
               style = MaterialTheme.typography.bodyMedium,
           )
         }
-        Spacer(Modifier.weight(1f).heightIn(min = Spacing.extraLarge * 2))
+        Spacer(Modifier.height(Spacing.extraLarge * 2))
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
           uiState.errorMessageRes?.let { AuthenticationFeedback(it) }
           GoogleSignInButton(uiState, onSignInClick)
@@ -150,7 +149,9 @@ private fun GoogleSignInButton(uiState: AuthenticationUiState, onSignInClick: ()
       onClick = onSignInClick,
       enabled = !uiState.isLoading && uiState.user == null,
       modifier =
-          Modifier.testTag(AuthenticationScreenTestTags.signInButton).fillMaxWidth().height(60.dp),
+          Modifier.testTag(AuthenticationScreenTestTags.signInButton)
+              .fillMaxWidth()
+              .heightIn(min = 60.dp),
       contentPadding = PaddingValues(horizontal = Spacing.screenPadding, vertical = 15.dp),
       shape = MaterialTheme.shapes.small,
       border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outlineVariant),
