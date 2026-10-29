@@ -2,6 +2,7 @@
 package com.swent.roamigo.ui.trip.creation
 
 import android.os.Bundle
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -9,12 +10,14 @@ import com.google.firebase.Timestamp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.trip.*
+import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.isNotImplemented
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -49,7 +52,7 @@ class TripReadyScreenTest {
 
   @Test
   fun summaryAndUnavailableActionsAreAccessible() {
-    rule.setContent { RoamigoTheme { TripReadyContent(TripReadyState.Ready(trip(), 8), null) } }
+    rule.setContent { RoamigoTheme { TestTripReadyContent(TripReadyState.Ready(trip(), 8), null) } }
     rule
         .onNodeWithTag(TripReadyTestTags.TITLE)
         .assertIsDisplayed()
@@ -101,6 +104,33 @@ class TripReadyScreenTest {
   }
 
   @Test
+  fun injectedInviteCallbackRunsWithoutPlaceholderMarker() {
+    var invited = false
+    rule.setContent {
+      RoamigoTheme {
+        TripReadyContent(
+            state = TripReadyState.Ready(trip(), 8),
+            photo = null,
+            onRetry = {},
+            onInviteClick = { invited = true },
+            onSuggestClick = {},
+            onShareLocationClick = {},
+            onOpenItineraryClick = {},
+            onShareTripClick = {},
+        )
+      }
+    }
+
+    rule
+        .onNodeWithTag(TripReadyTestTags.INVITE_CARD)
+        .performScrollTo()
+        .assertHasClickAction()
+        .assert(isNotImplemented.not())
+        .performClick()
+    assertTrue(invited)
+  }
+
+  @Test
   fun loadingThenErrorCanRetryAndShowTrip() {
     val gate = CompletableDeferred<Unit>()
     var fail = true
@@ -114,7 +144,7 @@ class TripReadyScreenTest {
           }
         }
     val vm = TripReadyViewModel(repository, "trip")
-    rule.setContent { RoamigoTheme { TripReadyScreen(vm, null) } }
+    rule.setContent { RoamigoTheme { TestTripReadyScreen(vm, null) } }
     rule.onNodeWithTag(TripReadyTestTags.LOADING).assertExists()
     gate.complete(Unit)
     rule.waitUntil(5_000) {
@@ -149,7 +179,9 @@ class TripReadyScreenTest {
           putString("source", "https://example.com/photo")
           putString("licenseUrl", "https://example.com/license")
         }
-    rule.setContent { RoamigoTheme { TripReadyContent(TripReadyState.Ready(trip(), 8), photo) } }
+    rule.setContent {
+      RoamigoTheme { TestTripReadyContent(TripReadyState.Ready(trip(), 8), photo) }
+    }
     rule.waitUntil(5_000) {
       rule.onAllNodesWithTag(TripReadyTestTags.PHOTO_CREDITS).fetchSemanticsNodes().isNotEmpty()
     }
@@ -171,7 +203,9 @@ class TripReadyScreenTest {
           )
           putString("license", "Public domain")
         }
-    rule.setContent { RoamigoTheme { TripReadyContent(TripReadyState.Ready(trip(), 8), photo) } }
+    rule.setContent {
+      RoamigoTheme { TestTripReadyContent(TripReadyState.Ready(trip(), 8), photo) }
+    }
     rule.waitUntil(5_000) {
       rule.onAllNodesWithTag(TripReadyTestTags.PHOTO_CREDITS).fetchSemanticsNodes().isNotEmpty()
     }
@@ -191,9 +225,62 @@ class TripReadyScreenTest {
   @Test
   fun invalidPhotoUsesPlaceholderWithoutCredits() {
     val photo = Bundle().apply { putString("url", "android.resource://com.swent.roamigo/0") }
-    rule.setContent { RoamigoTheme { TripReadyContent(TripReadyState.Ready(trip(), 8), photo) } }
+    rule.setContent {
+      RoamigoTheme { TestTripReadyContent(TripReadyState.Ready(trip(), 8), photo) }
+    }
     rule.waitForIdle()
     rule.onNodeWithTag(TripReadyTestTags.TITLE).assertTextEquals("Your trip is ready!")
     rule.onNodeWithTag(TripReadyTestTags.PHOTO_CREDITS).assertDoesNotExist()
   }
+
+  @Composable
+  private fun TestTripReadyContent(
+      state: TripReadyState,
+      photo: Bundle?,
+      onRetry: () -> Unit = {},
+  ) {
+    val actions = rememberTripReadyTestActions()
+    TripReadyContent(
+        state,
+        photo,
+        onRetry,
+        actions.onInviteClick,
+        actions.onSuggestClick,
+        actions.onShareLocationClick,
+        actions.onOpenItineraryClick,
+        actions.onShareTripClick,
+    )
+  }
+
+  @Composable
+  private fun TestTripReadyScreen(viewModel: TripReadyViewModel, photo: Bundle?) {
+    val actions = rememberTripReadyTestActions()
+    TripReadyScreen(
+        viewModel,
+        photo,
+        actions.onInviteClick,
+        actions.onSuggestClick,
+        actions.onShareLocationClick,
+        actions.onOpenItineraryClick,
+        actions.onShareTripClick,
+    )
+  }
+
+  @Composable
+  private fun rememberTripReadyTestActions() =
+      TripReadyTestActions(
+          onInviteClick = rememberNotImplementedAction(),
+          onSuggestClick = rememberNotImplementedAction(),
+          onShareLocationClick = rememberNotImplementedAction(),
+          onOpenItineraryClick = rememberNotImplementedAction(),
+          onShareTripClick = rememberNotImplementedAction(),
+      )
+
+  private data class TripReadyTestActions(
+      val onInviteClick: () -> Unit,
+      val onSuggestClick: () -> Unit,
+      val onShareLocationClick: () -> Unit,
+      val onOpenItineraryClick: () -> Unit,
+      val onShareTripClick: () -> Unit,
+  )
 }

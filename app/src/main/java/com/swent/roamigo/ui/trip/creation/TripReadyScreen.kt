@@ -26,7 +26,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.swent.roamigo.R
 import com.swent.roamigo.ui.components.markNotImplemented
-import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -52,16 +51,38 @@ internal object TripReadyTestTags {
 }
 
 @Composable
-fun TripReadyScreen(viewModel: TripReadyViewModel, photo: Bundle?) {
+fun TripReadyScreen(
+    viewModel: TripReadyViewModel,
+    photo: Bundle?,
+    onInviteClick: () -> Unit,
+    onSuggestClick: () -> Unit,
+    onShareLocationClick: () -> Unit,
+    onOpenItineraryClick: () -> Unit,
+    onShareTripClick: () -> Unit,
+) {
   val state by viewModel.state.collectAsStateWithLifecycle()
-  TripReadyContent(state, photo, viewModel::retry)
+  TripReadyContent(
+      state = state,
+      photo = photo,
+      onRetry = viewModel::retry,
+      onInviteClick = onInviteClick,
+      onSuggestClick = onSuggestClick,
+      onShareLocationClick = onShareLocationClick,
+      onOpenItineraryClick = onOpenItineraryClick,
+      onShareTripClick = onShareTripClick,
+  )
 }
 
 @Composable
 internal fun TripReadyContent(
     state: TripReadyState,
     photo: Bundle?,
-    onRetry: () -> Unit = {},
+    onRetry: () -> Unit,
+    onInviteClick: () -> Unit,
+    onSuggestClick: () -> Unit,
+    onShareLocationClick: () -> Unit,
+    onOpenItineraryClick: () -> Unit,
+    onShareTripClick: () -> Unit,
 ) {
   when (state) {
     TripReadyState.Loading ->
@@ -85,17 +106,29 @@ internal fun TripReadyContent(
             Text(stringResource(R.string.destination_search_retry))
           }
         }
-    is TripReadyState.Ready -> TripReadySuccessContent(state, photo)
+    is TripReadyState.Ready ->
+        TripReadySuccessContent(
+            state,
+            photo,
+            onInviteClick,
+            onSuggestClick,
+            onShareLocationClick,
+            onOpenItineraryClick,
+            onShareTripClick,
+        )
   }
 }
 
 @Composable
-private fun TripReadySuccessContent(state: TripReadyState.Ready, photo: Bundle?) {
-  val onInviteClick = rememberNotImplementedAction()
-  val onSuggestClick = rememberNotImplementedAction()
-  val onShareLocationClick = rememberNotImplementedAction()
-  val onOpenItineraryClick = rememberNotImplementedAction()
-  val onShareTripClick = rememberNotImplementedAction()
+private fun TripReadySuccessContent(
+    state: TripReadyState.Ready,
+    photo: Bundle?,
+    onInviteClick: () -> Unit,
+    onSuggestClick: () -> Unit,
+    onShareLocationClick: () -> Unit,
+    onOpenItineraryClick: () -> Unit,
+    onShareTripClick: () -> Unit,
+) {
   val uriHandler = LocalUriHandler.current
   var imageLoaded by remember(photo?.getString("url")) { mutableStateOf(false) }
   var credits by remember { mutableStateOf(false) }
@@ -153,25 +186,26 @@ private fun TripReadySuccessContent(state: TripReadyState.Ready, photo: Bundle?)
       ReadyCard(
           stringResource(R.string.trip_ready_summary, trip.destinations.size, state.days),
           trip.destinations.joinToString(" → ") { it.name },
-          "summary",
+          tag = "summary",
+          onClick = null,
       )
       ReadyCard(
           stringResource(R.string.trip_ready_invite),
           stringResource(R.string.trip_ready_invite_detail),
-          "invite",
-          onInviteClick,
+          tag = "invite",
+          onClick = onInviteClick,
       )
       ReadyCard(
           stringResource(R.string.trip_ready_suggest),
           stringResource(R.string.trip_ready_suggest_detail),
-          "suggest",
-          onSuggestClick,
+          tag = "suggest",
+          onClick = onSuggestClick,
       )
       ReadyCard(
           stringResource(R.string.trip_ready_location),
           stringResource(R.string.trip_ready_location_detail),
-          "location",
-          onShareLocationClick,
+          tag = "location",
+          onClick = onShareLocationClick,
       )
       Text(
           stringResource(R.string.trip_ready_unavailable),
@@ -254,7 +288,7 @@ private fun ReadyCard(
     title: String,
     detail: String,
     tag: String,
-    onClick: (() -> Unit)? = null,
+    onClick: (() -> Unit)?,
 ) {
   val actionModifier =
       onClick?.let {

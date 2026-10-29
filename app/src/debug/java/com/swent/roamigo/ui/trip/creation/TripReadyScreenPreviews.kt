@@ -31,5 +31,16 @@ private fun TripReadyPreview() {
           status = TripStatus.PLANNED,
           createdAt = Timestamp(1791763200, 0),
       )
-  RoamigoTheme { TripReadyContent(TripReadyState.Ready(trip, 8), null) }
+  RoamigoTheme {
+    TripReadyContent(
+        state = TripReadyState.Ready(trip, 8),
+        photo = null,
+        onRetry = {},
+        onInviteClick = {},
+        onSuggestClick = {},
+        onShareLocationClick = {},
+        onOpenItineraryClick = {},
+        onShareTripClick = {},
+    )
+  }
 }
