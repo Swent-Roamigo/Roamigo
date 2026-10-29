@@ -3,6 +3,7 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui
 
+import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -102,6 +103,68 @@ class RoamigoAppInjectionTest {
         .onNodeWithTag(C.Tag.trips_main_trip_card)
         .assert(hasText(trip.name, substring = true))
     assertEquals(Route.TRIPS, navController.currentBackStackEntry?.destination?.route)
+  }
+
+  @Test
+  fun tripReadyObservesPhotoAddedAfterNavigation() {
+    val now = Instant.now()
+    val trip =
+        Trip(
+            uid = "t1",
+            name = "Lisbon",
+            description = null,
+            destinations = listOf(TripLocation(38.7, -9.1, "Lisbon")),
+            startDate = timestamp(now),
+            endDate = timestamp(now),
+            flexibleDates = false,
+            travelMode = TravelMode.SOLO,
+            travelerCount = 1,
+            ownerId = "sam",
+            memberIds = listOf("sam"),
+            status = TripStatus.PLANNED,
+            createdAt = timestamp(now),
+        )
+    lateinit var navController: NavHostController
+    composeRule.setContent {
+      navController = rememberNavController()
+      RoamigoTheme {
+        RoamigoApp(
+            voteRepository = InMemoryVoteRepository(),
+            destinationRepository = sampleDestinationRepository(),
+            tripRepository = FakeTripRepository(trips = listOf(trip)),
+            userRepository = FakeUserRepository(User("sam", "Sam", null)),
+            navController = navController,
+            authRepository =
+                FakeAuthRepository(
+                    AuthenticatedUser("sam", "Sam", null, null),
+                    initiallySignedIn = true,
+                ),
+        )
+      }
+    }
+    composeRule.runOnUiThread { navController.navigate(Route.tripReady("t1")) }
+    composeRule.waitUntil(5_000) {
+      composeRule.onAllNodesWithTag("trip_ready").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.runOnUiThread {
+      navController.currentBackStackEntry!!.savedStateHandle["ready_photo"] =
+          Bundle().apply {
+            putString(
+                "url",
+                "android.resource://com.swent.roamigo/${R.drawable.destination_placeholder}",
+            )
+            putString("title", "Late photo")
+            putString("license", "CC BY")
+          }
+    }
+    composeRule.waitUntil(5_000) {
+      composeRule
+          .onAllNodesWithTag(TripReadyTestTags.PHOTO_CREDITS)
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    composeRule.onNodeWithTag(TripReadyTestTags.PHOTO_CREDITS).performClick()
+    composeRule.onNodeWithTag(TripReadyTestTags.PHOTO_TITLE).assertTextContains("Late photo")
   }
 
   @Test

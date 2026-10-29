@@ -78,6 +78,33 @@ class CreateTripViewModelTest {
   }
 
   @Test
+  fun changedRestoredSubmissionUsesNewId() = runTest {
+    val repository = RecordingRepository().apply { gate = CompletableDeferred() }
+    val saved = SavedStateHandle()
+    val first =
+        createTestCreateTripViewModel(
+            repository,
+            destinationRepository = FakeDestinationRepository(),
+            savedStateHandle = saved,
+        )
+    first.toggleDestination(sampleDestination("Lisbon"))
+    first.createTrip()
+    runCurrent()
+    val initialId = repository.requests.single().first
+    repository.gate = null
+    val restored =
+        createTestCreateTripViewModel(
+            repository,
+            destinationRepository = FakeDestinationRepository(),
+            savedStateHandle = saved,
+        )
+    restored.toggleDestination(sampleDestination("Porto"))
+    restored.createTrip()
+    advanceUntilIdle()
+    assertNotEquals(initialId, repository.requests.last().first)
+  }
+
+  @Test
   fun initialStateHasNoSelectedDestinations() {
     val viewModel =
         createTestCreateTripViewModel(

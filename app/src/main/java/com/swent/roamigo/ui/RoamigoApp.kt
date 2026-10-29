@@ -222,6 +222,8 @@ fun RoamigoApp(
     composable(Route.TRIP_READY) { entry ->
       val id = requireNotNull(entry.arguments?.getString("tripId"))
       val readyViewModel = viewModel { TripReadyViewModel(tripRepository, id) }
+      val photo by
+          entry.savedStateHandle.getStateFlow<Bundle?>("ready_photo", null).collectAsState()
       val onInviteClick = rememberNotImplementedAction()
       val onSuggestClick = rememberNotImplementedAction()
       val onShareLocationClick = rememberNotImplementedAction()
@@ -229,7 +231,7 @@ fun RoamigoApp(
       val onShareTripClick = rememberNotImplementedAction()
       TripReadyScreen(
           viewModel = readyViewModel,
-          photo = entry.savedStateHandle.get<Bundle>("ready_photo"),
+          photo = photo,
           onInviteClick = onInviteClick,
           onSuggestClick = onSuggestClick,
           onShareLocationClick = onShareLocationClick,

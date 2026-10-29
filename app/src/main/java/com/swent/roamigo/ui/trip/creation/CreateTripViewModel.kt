@@ -94,12 +94,19 @@ class CreateTripViewModel(
     private val requestDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
-  private var submittedDraft: TripDraft? = null
   private var submissionId: String? = savedStateHandle["submission_id"]
   private var searchJob: Job? = null
   private val requestedPhotoIds = mutableSetOf<String>()
   private val _uiState = MutableStateFlow(restoreSubmission())
   val uiState: StateFlow<CreateTripUiState> = _uiState.asStateFlow()
+  // Keep the submitted draft separate from subsequent edits so retries retain the right ID.
+  private var submittedDraft: TripDraft? =
+      if (submissionId != null && savedStateHandle.contains("submission_state")) {
+        val submittedZone = runCatching {
+          ZoneId.of(savedStateHandle.get<String>("submission_zone") ?: zoneId.id)
+        }.getOrDefault(zoneId)
+        _uiState.value.toTripDraft(submittedZone)
+      } else null
 
   private fun restoreSubmission(): CreateTripUiState {
     val values =
@@ -136,29 +143,11 @@ class CreateTripViewModel(
   fun createTrip() {
     val state = uiState.value
     if (!state.canCreateTrip) return
-    val draft =
-        TripDraft(
-            name = state.selectedDestinations.joinToString(" → ") { it.name },
-            destinations =
-                state.selectedDestinations.map { TripLocation(it.latitude, it.longitude, it.name) },
-            startDate = state.startDate.atStartOfDay(zoneId).toInstant(),
-            endDate = state.endDate.atStartOfDay(zoneId).toInstant(),
-            flexibleDates = state.flexibleDates,
-            travelMode = state.travelMode,
-            travelerCount = state.travelerCount,
-        )
+    val draft = state.toTripDraft(zoneId)
     val errors = draft.validate()
     if (errors.isNotEmpty()) {
       _uiState.update { it.copy(creationError = TripCreationException.Validation(errors)) }
       return
-    }
-    // Match the restored draft so a retry for the same trip keeps its original submission ID.
-    if (
-        submittedDraft == null &&
-            submissionId != null &&
-            savedStateHandle.get<String>("submission_draft") == draft.toString()
-    ) {
-      submittedDraft = draft
     }
     if (draft != submittedDraft) {
       submittedDraft = draft
@@ -166,7 +155,7 @@ class CreateTripViewModel(
     }
     val tripId = requireNotNull(submissionId)
     savedStateHandle["submission_id"] = tripId
-    savedStateHandle["submission_draft"] = draft.toString()
+    savedStateHandle["submission_zone"] = zoneId.id
     savedStateHandle["submission_state"] =
         arrayListOf(
                 state.startDate.toString(),
@@ -211,6 +200,18 @@ class CreateTripViewModel(
       }
     }
   }
+
+  private fun CreateTripUiState.toTripDraft(zone: ZoneId): TripDraft =
+      TripDraft(
+          name = selectedDestinations.joinToString(" → ") { it.name },
+          destinations =
+              selectedDestinations.map { TripLocation(it.latitude, it.longitude, it.name) },
+          startDate = startDate.atStartOfDay(zone).toInstant(),
+          endDate = endDate.atStartOfDay(zone).toInstant(),
+          flexibleDates = flexibleDates,
+          travelMode = travelMode,
+          travelerCount = travelerCount,
+      )
 
   private fun edit(update: (CreateTripUiState) -> CreateTripUiState) {
     _uiState.update { state ->
