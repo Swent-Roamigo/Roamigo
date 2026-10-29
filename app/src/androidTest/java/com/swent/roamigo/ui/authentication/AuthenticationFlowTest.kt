@@ -15,6 +15,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
@@ -78,7 +79,10 @@ class AuthenticationFlowTest {
   }
 
   private fun signIn() {
-    composeRule.onNodeWithTag(AuthenticationScreenTestTags.signInButton).performClick()
+    composeRule
+        .onNodeWithTag(AuthenticationScreenTestTags.signInButton)
+        .performScrollTo()
+        .performClick()
   }
 
   private fun pressBackAndWaitForExit() {

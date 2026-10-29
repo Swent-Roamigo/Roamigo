@@ -1,10 +1,15 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.ui.authentication
 
+import android.app.Activity
+import android.app.Application
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.assertIsDisplayed
@@ -23,6 +28,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
@@ -49,7 +55,9 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class AuthenticationRotationTest {
   @get:Rule val composeRule = createEmptyComposeRule()
-  private lateinit var scenario: ActivityScenario<AuthenticationRotationTestActivity>
+  private lateinit var scenario: ActivityScenario<ComponentActivity>
+  private lateinit var application: Application
+  private lateinit var activityCallbacks: Application.ActivityLifecycleCallbacks
   private lateinit var navController: NavHostController
   private val user = AuthenticatedUser("test-user", "Test User", null, null)
   private val fake = FakeAuthRepository(user)
@@ -70,7 +78,7 @@ class AuthenticationRotationTest {
 
   @Before
   fun launch() {
-    AuthenticationRotationTestActivity.content = {
+    val activityContent: @Composable () -> Unit = {
       val controller = rememberNavController()
       SideEffect { navController = controller }
       val context = LocalContext.current
@@ -94,18 +102,44 @@ class AuthenticationRotationTest {
         )
       }
     }
-    scenario = ActivityScenario.launch(AuthenticationRotationTestActivity::class.java)
+    application =
+        InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as Application
+    // Install content for every newly created host, including the instances created by rotation.
+    // ComponentActivity is already registered by Compose's test-manifest dependency.
+    activityCallbacks =
+        object : Application.ActivityLifecycleCallbacks {
+          override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
+            if (activity.javaClass == ComponentActivity::class.java) {
+              (activity as ComponentActivity).setContent { activityContent() }
+            }
+          }
+
+          override fun onActivityStarted(activity: Activity) {}
+
+          override fun onActivityResumed(activity: Activity) {}
+
+          override fun onActivityPaused(activity: Activity) {}
+
+          override fun onActivityStopped(activity: Activity) {}
+
+          override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+
+          override fun onActivityDestroyed(activity: Activity) {}
+        }
+    application.registerActivityLifecycleCallbacks(activityCallbacks)
+    scenario = ActivityScenario.launch(ComponentActivity::class.java)
     composeRule.waitForIdle()
   }
 
   @After
   fun close() {
-    scenario.close()
-    AuthenticationRotationTestActivity.content = null
+    if (::scenario.isInitialized) scenario.close()
+    if (::activityCallbacks.isInitialized)
+        application.unregisterActivityLifecycleCallbacks(activityCallbacks)
   }
 
   private fun rotate(landscape: Boolean) {
-    lateinit var previous: AuthenticationRotationTestActivity
+    lateinit var previous: ComponentActivity
     scenario.onActivity {
       previous = it
       it.requestedOrientation =
