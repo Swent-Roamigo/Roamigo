@@ -13,6 +13,7 @@ fun TripHistoryRoute(
     onBackClick: () -> Unit,
     onTripsClick: () -> Unit,
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
+    onMapClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   val historyViewModel: TripHistoryViewModel =
       viewModel(factory = TripHistoryViewModel.factory(tripRepository))
@@ -24,6 +25,7 @@ fun TripHistoryRoute(
       onBackClick = onBackClick,
       onTripsClick = onTripsClick,
       onFriendsClick = onFriendsClick,
+      onMapClick = onMapClick,
       onRetryClick = historyViewModel::refresh,
   )
 }

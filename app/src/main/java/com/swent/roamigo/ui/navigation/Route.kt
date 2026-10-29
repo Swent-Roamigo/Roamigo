@@ -16,9 +16,13 @@ object Route {
   fun tripReady(tripId: String): String = "trip/${Uri.encode(tripId)}/ready"
 
   const val TRIP_HISTORY = "trip_history"
+  const val TRIP_DETAILS = "trip/{tripId}/details"
   const val VOTES = "trip/{tripId}/votes?tripName={tripName}"
   const val VOTE = "trip/{tripId}/vote/{voteId}"
   const val NEW_VOTE = "trip/{tripId}/new_vote"
+  const val TRIP_OVERVIEW_MAP = "trip_overview_map"
+
+  fun tripDetails(tripId: String): String = "trip/${Uri.encode(tripId)}/details"
 
   fun votes(tripId: String, tripName: String): String =
       "trip/${Uri.encode(tripId)}/votes?tripName=${Uri.encode(tripName)}"

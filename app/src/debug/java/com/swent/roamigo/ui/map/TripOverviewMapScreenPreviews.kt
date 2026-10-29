@@ -60,7 +60,6 @@ class TripOverviewMapScreenPreviews {
               TripOverviewMapUiState(
                   markers = listOf(sampleTrip, sampleTrip2).flatMap { it.toTripMarkerUiStates() }
               ),
-          onRetry = {},
       )
     }
   }

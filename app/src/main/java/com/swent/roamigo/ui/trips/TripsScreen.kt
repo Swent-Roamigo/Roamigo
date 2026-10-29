@@ -70,7 +70,7 @@ import java.time.Clock
  * @param clock the clock used for time-dependent presentation logic.
  * @param refreshRequested whether a completed creation requires fresh trip data.
  * @param onRefreshConsumed clears the one-time creation result after starting the refresh.
- * @param onOpenTrip opens the selected trip's Votes tab.
+ * @param onOpenTrip opens the selected trip's details.
  */
 @Composable
 fun TripsRoute(
@@ -89,7 +89,7 @@ fun TripsRoute(
     refreshRequested: Boolean = false,
     onRefreshConsumed: () -> Unit = {},
     onHistoryClick: () -> Unit = rememberNotImplementedAction(),
-    onOpenTrip: (String, String) -> Unit = { _, _ -> },
+    onOpenTrip: (String) -> Unit = {},
 ) {
   val viewModel: TripsViewModel =
       viewModel(
@@ -142,7 +142,7 @@ fun TripsRoute(
  * @param onFriendsClick invoked when the Friends navigation destination is selected.
  * @param onProfileClick invoked when the user selects their profile avatar.
  * @param onHistoryClick invoked when the user opens Trip History.
- * @param onOpenTrip opens the selected trip's Votes tab.
+ * @param onOpenTrip opens the selected trip's details.
  */
 @Composable
 fun TripsScreen(
@@ -157,7 +157,7 @@ fun TripsScreen(
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
     onProfileClick: () -> Unit = rememberNotImplementedAction(),
     onHistoryClick: () -> Unit = rememberNotImplementedAction(),
-    onOpenTrip: (String, String) -> Unit = { _, _ -> },
+    onOpenTrip: (String) -> Unit = {},
 ) {
   Scaffold(
       modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.trips_screen },
@@ -218,7 +218,7 @@ fun TripsScreen(
                   trip = trip,
                   imageRes = mainTripImageRes,
                   onInviteClick = onInviteClick,
-                  onOpenTrip = { onOpenTrip(trip.id, trip.name) },
+                  onOpenTrip = { onOpenTrip(trip.id) },
               )
             }
           }
@@ -257,7 +257,7 @@ fun TripsScreen(
           ) { trip ->
             OtherTripCard(
                 trip,
-                onClick = { onOpenTrip(trip.id, trip.name) },
+                onClick = { onOpenTrip(trip.id) },
             )
           }
         }

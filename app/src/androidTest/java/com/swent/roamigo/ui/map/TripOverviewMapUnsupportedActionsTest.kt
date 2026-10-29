@@ -48,7 +48,6 @@ class TripOverviewMapUnsupportedActionsTest {
       RoamigoTheme {
         TripOverviewMapScreen(
             uiState = uiState.value,
-            onRetry = {},
             onMarkerClick = { tripId -> clickedTripId = tripId },
         )
       }

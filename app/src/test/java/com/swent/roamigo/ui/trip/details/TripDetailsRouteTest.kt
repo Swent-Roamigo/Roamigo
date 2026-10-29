@@ -65,7 +65,14 @@ class TripDetailsRouteTest {
         }
     composeRule.setContent {
       RoamigoTheme {
-        TripDetailsRoute("trip", repository, onBack = { backed = true }, onTripsClick = {})
+        TripDetailsRoute(
+            "trip",
+            repository,
+            onBack = { backed = true },
+            onTripsClick = {},
+            onVotesClick = {},
+            onMapClick = {},
+        )
       }
     }
     composeRule.onNodeWithText("Unable to load trip details.").assertIsDisplayed()
