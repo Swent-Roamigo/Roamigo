@@ -1,21 +1,17 @@
 // Implemented with assistance from OpenAI Codex.
 package com.swent.roamigo.ui.trip.details
 
-import android.graphics.Bitmap
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -23,7 +19,6 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.ui.theme.RoamigoTheme
-import java.io.File
 import java.time.LocalDate
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -47,15 +42,6 @@ class TripDetailsScreenTest {
     composeRule.onNodeWithText("4").assertIsDisplayed()
     composeRule.onNodeWithText("12 – 19 Oct · 3 travelers").assertIsDisplayed()
     composeRule.onAllNodesWithText("—").assertCountEquals(2)
-    val screenshot = File("build/reports/trip-details.png")
-    screenshot.parentFile?.mkdirs()
-    screenshot.outputStream().use {
-      composeRule
-          .onNodeWithTag("trip_details_screen")
-          .captureToImage()
-          .asAndroidBitmap()
-          .compress(Bitmap.CompressFormat.PNG, 100, it)
-    }
     composeRule.onNodeWithText("Trip photos").performScrollTo().assertIsDisplayed()
   }
 
