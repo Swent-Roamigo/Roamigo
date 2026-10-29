@@ -13,14 +13,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,7 +27,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -47,6 +42,7 @@ import coil.compose.AsyncImage
 import com.swent.roamigo.R
 import com.swent.roamigo.model.destination.Destination
 import com.swent.roamigo.model.destination.DestinationPhoto
+import com.swent.roamigo.ui.components.PhotoCreditsDialog
 
 internal object DestinationCardTestTags {
   const val PREFIX = "destination_card_"
@@ -65,7 +61,6 @@ fun DestinationCard(
     onRequestPhoto: () -> Unit,
     onClick: () -> Unit,
 ) {
-  val uriHandler = LocalUriHandler.current
   var photoLoaded by remember(photo?.imageUrl) { mutableStateOf(false) }
   var showPhotoCredits by remember(photo?.imageUrl) { mutableStateOf(false) }
   androidx.compose.runtime.LaunchedEffect(destination.stableId) { onRequestPhoto() }
@@ -157,36 +152,15 @@ fun DestinationCard(
     }
   }
   if (showPhotoCredits && photo != null && photoLoaded) {
-    AlertDialog(
-        onDismissRequest = { showPhotoCredits = false },
-        title = { Text(stringResource(R.string.destination_photo_credits_title)) },
-        text = {
-          Column(Modifier.verticalScroll(rememberScrollState())) {
-            photo.title?.let { Text(it) }
-            Text(
-                stringResource(
-                    R.string.destination_photo_creator,
-                    photo.creator
-                        ?: stringResource(R.string.destination_photo_public_domain_creator),
-                )
-            )
-            photo.credit?.takeIf { it != photo.creator }?.let { Text(it) }
-            Text(stringResource(R.string.destination_photo_license_cropped, photo.license))
-            TextButton(onClick = { uriHandler.openUri(photo.sourceUrl) }) {
-              Text(stringResource(R.string.destination_photo_view_original))
-            }
-            photo.licenseUrl?.let { licenseUrl ->
-              TextButton(onClick = { uriHandler.openUri(licenseUrl) }) {
-                Text(stringResource(R.string.destination_photo_view_license))
-              }
-            }
-          }
-        },
-        confirmButton = {
-          TextButton(onClick = { showPhotoCredits = false }) {
-            Text(stringResource(R.string.create_trip_close))
-          }
-        },
+    PhotoCreditsDialog(
+        title = photo.title,
+        creator = photo.creator,
+        credit = photo.credit,
+        license = photo.license,
+        sourceUrl = photo.sourceUrl,
+        licenseUrl = photo.licenseUrl,
+        closeLabel = stringResource(R.string.create_trip_close),
+        onDismiss = { showPhotoCredits = false },
     )
   }
 }

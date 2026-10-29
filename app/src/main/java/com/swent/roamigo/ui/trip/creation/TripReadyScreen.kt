@@ -25,6 +25,8 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.roamigo.R
+import com.swent.roamigo.model.trip.toDomainInstant
+import com.swent.roamigo.ui.components.PhotoCreditsDialogTestTags
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.trip.creation.components.TripReadyCard
 import com.swent.roamigo.ui.trip.creation.components.TripReadyHeader
@@ -40,10 +42,10 @@ internal object TripReadyTestTags {
   const val LOCATION = "trip_ready_location_title"
   const val RETRY = "trip_ready_retry"
   const val PHOTO_CREDITS = "trip_ready_photo_credits"
-  const val PHOTO_TITLE = "trip_ready_photo_title"
-  const val PHOTO_CREATOR = "trip_ready_photo_creator"
-  const val PHOTO_CREDIT = "trip_ready_photo_credit"
-  const val PHOTO_CLOSE = "trip_ready_photo_close"
+  const val PHOTO_TITLE = PhotoCreditsDialogTestTags.TITLE
+  const val PHOTO_CREATOR = PhotoCreditsDialogTestTags.CREATOR
+  const val PHOTO_CREDIT = PhotoCreditsDialogTestTags.CREDIT
+  const val PHOTO_CLOSE = PhotoCreditsDialogTestTags.CLOSE
   const val LOADING = "trip_ready_loading"
   const val ERROR = "trip_ready_error"
   const val ITINERARY = "trip_ready_itinerary"
@@ -135,8 +137,8 @@ private fun TripReadySuccessContent(
   val trip = state.trip
   val formatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
   val zone = ZoneId.systemDefault()
-  val start = trip.startDate.toDate().toInstant().atZone(zone).toLocalDate()
-  val end = trip.endDate.toDate().toInstant().atZone(zone).toLocalDate()
+  val start = trip.startDate.toDomainInstant().atZone(zone).toLocalDate()
+  val end = trip.endDate.toDomainInstant().atZone(zone).toLocalDate()
   val durationDays = ChronoUnit.DAYS.between(start, end) + 1
   val stopsText =
       pluralStringResource(

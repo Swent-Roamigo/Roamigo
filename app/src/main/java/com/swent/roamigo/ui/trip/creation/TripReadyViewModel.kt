@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripRepository
+import com.swent.roamigo.model.trip.toDomainInstant
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -38,8 +39,8 @@ class TripReadyViewModel(private val repository: TripRepository, private val tri
       try {
         val trip = repository.getTrip(tripId)
         val zone = ZoneId.systemDefault()
-        val start = trip?.startDate?.toDate()?.toInstant()?.atZone(zone)?.toLocalDate()
-        val end = trip?.endDate?.toDate()?.toInstant()?.atZone(zone)?.toLocalDate()
+        val start = trip?.startDate?.toDomainInstant()?.atZone(zone)?.toLocalDate()
+        val end = trip?.endDate?.toDomainInstant()?.atZone(zone)?.toLocalDate()
         mutableState.value =
             if (
                 trip == null ||

@@ -1,7 +1,6 @@
 // AI assistance was used for implementation support.
-package com.swent.roamigo.ui.trip.creation.components
+package com.swent.roamigo.ui.components
 
-import android.os.Bundle
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -15,43 +14,49 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import com.swent.roamigo.R
-import com.swent.roamigo.ui.trip.creation.TripReadyTestTags
+
+internal object PhotoCreditsDialogTestTags {
+  const val TITLE = "trip_ready_photo_title"
+  const val CREATOR = "trip_ready_photo_creator"
+  const val CREDIT = "trip_ready_photo_credit"
+  const val CLOSE = "trip_ready_photo_close"
+}
 
 @Composable
-internal fun TripReadyPhotoCreditsDialog(photo: Bundle, onDismiss: () -> Unit) {
+internal fun PhotoCreditsDialog(
+    title: String?,
+    creator: String?,
+    credit: String?,
+    license: String,
+    sourceUrl: String?,
+    licenseUrl: String?,
+    closeLabel: String,
+    onDismiss: () -> Unit,
+) {
   val uriHandler = LocalUriHandler.current
   AlertDialog(
       onDismissRequest = onDismiss,
       title = { Text(stringResource(R.string.destination_photo_credits_title)) },
       text = {
         Column(Modifier.verticalScroll(rememberScrollState())) {
-          photo.getString("title")?.let {
-            Text(it, Modifier.semantics { testTag = TripReadyTestTags.PHOTO_TITLE })
-          }
+          title?.let { Text(it, Modifier.semantics { testTag = PhotoCreditsDialogTestTags.TITLE }) }
           Text(
               stringResource(
                   R.string.destination_photo_creator,
-                  photo.getString("creator")
-                      ?: stringResource(R.string.destination_photo_public_domain_creator),
+                  creator ?: stringResource(R.string.destination_photo_public_domain_creator),
               ),
-              Modifier.semantics { testTag = TripReadyTestTags.PHOTO_CREATOR },
+              Modifier.semantics { testTag = PhotoCreditsDialogTestTags.CREATOR },
           )
-          photo
-              .getString("credit")
-              ?.takeIf { it != photo.getString("creator") }
-              ?.let { Text(it, Modifier.semantics { testTag = TripReadyTestTags.PHOTO_CREDIT }) }
-          Text(
-              stringResource(
-                  R.string.destination_photo_license_cropped,
-                  photo.getString("license").orEmpty(),
-              )
-          )
-          photo.getString("source")?.let { url ->
+          credit
+              ?.takeIf { it != creator }
+              ?.let { Text(it, Modifier.semantics { testTag = PhotoCreditsDialogTestTags.CREDIT }) }
+          Text(stringResource(R.string.destination_photo_license_cropped, license))
+          sourceUrl?.let { url ->
             TextButton(onClick = { uriHandler.openUri(url) }) {
               Text(stringResource(R.string.destination_photo_view_original))
             }
           }
-          photo.getString("licenseUrl")?.let { url ->
+          licenseUrl?.let { url ->
             TextButton(onClick = { uriHandler.openUri(url) }) {
               Text(stringResource(R.string.destination_photo_view_license))
             }
@@ -61,9 +66,9 @@ internal fun TripReadyPhotoCreditsDialog(photo: Bundle, onDismiss: () -> Unit) {
       confirmButton = {
         TextButton(
             onClick = onDismiss,
-            modifier = Modifier.semantics { testTag = TripReadyTestTags.PHOTO_CLOSE },
+            modifier = Modifier.semantics { testTag = PhotoCreditsDialogTestTags.CLOSE },
         ) {
-          Text(stringResource(android.R.string.ok))
+          Text(closeLabel)
         }
       },
   )

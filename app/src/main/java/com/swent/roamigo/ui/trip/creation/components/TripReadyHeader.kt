@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.swent.roamigo.R
+import com.swent.roamigo.ui.components.PhotoCreditsDialog
 import com.swent.roamigo.ui.trip.creation.TripReadyTestTags
 
 @Composable
@@ -70,6 +71,15 @@ internal fun TripReadyHeader(dateSummary: String, photo: Bundle?) {
         }
   }
   if (showPhotoCredits && photo != null) {
-    TripReadyPhotoCreditsDialog(photo) { showPhotoCredits = false }
+    PhotoCreditsDialog(
+        title = photo.getString("title"),
+        creator = photo.getString("creator"),
+        credit = photo.getString("credit"),
+        license = photo.getString("license").orEmpty(),
+        sourceUrl = photo.getString("source"),
+        licenseUrl = photo.getString("licenseUrl"),
+        closeLabel = stringResource(android.R.string.ok),
+        onDismiss = { showPhotoCredits = false },
+    )
   }
 }
