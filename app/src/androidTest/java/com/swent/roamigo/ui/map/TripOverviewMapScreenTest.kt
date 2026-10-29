@@ -57,7 +57,6 @@ class TripOverviewMapScreenTest {
         TripOverviewMapScreen(
             uiState = uiState.value,
             onMarkerClick = { tripId -> clickedTripId = tripId },
-            onRetry = {},
         )
       }
     }

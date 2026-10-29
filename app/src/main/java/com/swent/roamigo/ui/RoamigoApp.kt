@@ -38,6 +38,8 @@ import com.swent.roamigo.ui.authentication.AuthenticationViewModel
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.friends.FriendsScreen
 import com.swent.roamigo.ui.friends.FriendsUiState
+import com.swent.roamigo.ui.map.TripOverviewMapRoute
+import com.swent.roamigo.ui.map.TripOverviewMapViewModel
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.permissions.PermissionsScreen
 import com.swent.roamigo.ui.profile.ProfileScreen
@@ -47,6 +49,8 @@ import com.swent.roamigo.ui.trip.creation.DatesTravelersScreen
 import com.swent.roamigo.ui.trip.creation.DestinationScreen
 import com.swent.roamigo.ui.trip.creation.TripReadyScreen
 import com.swent.roamigo.ui.trip.creation.TripReadyViewModel
+import com.swent.roamigo.ui.trip.details.TripDetailsRoute
+import com.swent.roamigo.ui.trip.details.TripDetailsViewModel
 import com.swent.roamigo.ui.trip.history.TripHistoryRoute
 import com.swent.roamigo.ui.trip.voting.CreateVoteScreen
 import com.swent.roamigo.ui.trip.voting.CreateVoteViewModel
@@ -78,6 +82,9 @@ fun RoamigoApp(
   val context = LocalContext.current
   val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }
   val scope = rememberCoroutineScope()
+  val onMapClick: () -> Unit = {
+    navController.navigate(Route.TRIP_OVERVIEW_MAP) { launchSingleTop = true }
+  }
   val startDestination =
       remember(authRepository) {
         if (authRepository.getCurrentUser() == null) Route.AUTHENTICATION else Route.TRIPS
@@ -112,6 +119,7 @@ fun RoamigoApp(
       TripsRoute(
           refreshRequested = refreshRequested,
           onRefreshConsumed = { entry.savedStateHandle["trip_created"] = false },
+          onMapClick = onMapClick,
           tripRepository = tripRepository,
           userRepository = userRepository,
           onNewTripClick = { navController.navigate(Route.NEW_TRIP) },
@@ -120,9 +128,7 @@ fun RoamigoApp(
           onHistoryClick = {
             navController.navigate(Route.TRIP_HISTORY) { launchSingleTop = true }
           },
-          onOpenTrip = { tripId, tripName ->
-            navController.navigate(Route.votes(tripId, tripName))
-          },
+          onOpenTrip = { tripId -> navController.navigate(Route.tripDetails(tripId)) },
       )
     }
     composable(Route.VOTES) { entry ->
@@ -133,6 +139,13 @@ fun RoamigoApp(
           tripName = tripName,
           onOpenVote = { voteId -> navController.navigate(Route.vote(tripId, voteId)) },
           onCreateVote = { navController.navigate(Route.newVote(tripId)) },
+          onOverviewClick = {
+            navController.popBackStack(
+                Route.tripDetails(tripId),
+                inclusive = false,
+            )
+          },
+          onMapClick = onMapClick,
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
           onFriendsClick = { navController.navigate(Route.FRIENDS) { launchSingleTop = true } },
       )
@@ -174,7 +187,7 @@ fun RoamigoApp(
       FriendsScreen(
           uiState = FriendsUiState(),
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
-          onMapClick = rememberNotImplementedAction(),
+          onMapClick = onMapClick,
           onPhotosClick = rememberNotImplementedAction(),
       )
     }
@@ -201,6 +214,7 @@ fun RoamigoApp(
           state,
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
           onSignOutClick = profileViewModel::signOut,
+          onMapClick = onMapClick,
           onFriendsClick = { navController.navigate(Route.FRIENDS) { launchSingleTop = true } },
       )
     }
@@ -209,6 +223,7 @@ fun RoamigoApp(
       TripHistoryRoute(
           tripRepository = tripRepository,
           onBackClick = { navController.popBackStack() },
+          onMapClick = onMapClick,
           onTripsClick = {
             navController.popBackStack(
                 Route.TRIPS,
@@ -216,6 +231,28 @@ fun RoamigoApp(
             )
           },
           onFriendsClick = { navController.navigate(Route.FRIENDS) { launchSingleTop = true } },
+      )
+    }
+
+    composable(Route.TRIP_DETAILS) { entry ->
+      val tripId = requireNotNull(entry.arguments?.getString("tripId"))
+      // Share the route's keyed ViewModel so Votes receives the loaded trip name.
+      val detailsViewModel =
+          viewModel(key = tripId) { TripDetailsViewModel(tripId, tripRepository) }
+      TripDetailsRoute(
+          tripId = tripId,
+          tripRepository = tripRepository,
+          onBack = { navController.popBackStack() },
+          onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
+          onShareClick = rememberNotImplementedAction(),
+          onInviteClick = rememberNotImplementedAction(),
+          onItineraryClick = rememberNotImplementedAction(),
+          onVotesClick = {
+            val tripName = detailsViewModel.uiState.value.details?.name.orEmpty()
+            navController.navigate(Route.votes(tripId, tripName))
+          },
+          onMapClick = onMapClick,
+          onPhotosClick = rememberNotImplementedAction(),
       )
     }
 
@@ -304,6 +341,16 @@ fun RoamigoApp(
             onContinue = { datesStep = true },
         )
       }
+    }
+
+    composable(Route.TRIP_OVERVIEW_MAP) {
+      TripOverviewMapRoute(
+          viewModel = viewModel { TripOverviewMapViewModel(tripRepository) },
+          onMarkerClick = { tripId -> navController.navigate(Route.tripDetails(tripId)) },
+          onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
+          onMapClick = onMapClick,
+          onFriendsClick = { navController.navigate(Route.FRIENDS) { launchSingleTop = true } },
+      )
     }
   }
 }

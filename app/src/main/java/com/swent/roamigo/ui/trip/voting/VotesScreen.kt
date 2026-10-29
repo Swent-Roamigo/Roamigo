@@ -44,8 +44,11 @@ fun VotesScreen(
     tripName: String,
     onOpenVote: (String) -> Unit,
     onCreateVote: () -> Unit,
+    onOverviewClick: () -> Unit,
+    onItineraryClick: () -> Unit = rememberNotImplementedAction(),
     onTripsClick: () -> Unit,
     onFriendsClick: () -> Unit,
+    onMapClick: () -> Unit,
 ) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   VotesScreenContent(
@@ -54,8 +57,10 @@ fun VotesScreen(
       onOpenVote = { id -> viewModel.selectVote(id)?.let(onOpenVote) },
       onCreateVote = onCreateVote,
       onRetry = viewModel::retry,
+      onOverviewClick = onOverviewClick,
       onTripsClick = onTripsClick,
       onFriendsClick = onFriendsClick,
+      onMapClick = onMapClick,
   )
 }
 
@@ -67,15 +72,18 @@ fun VotesScreenContent(
     onOpenVote: (String) -> Unit,
     onCreateVote: () -> Unit,
     onRetry: () -> Unit,
+    onItineraryClick: () -> Unit = rememberNotImplementedAction(),
+    onOverviewClick: () -> Unit,
     onTripsClick: () -> Unit,
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
+    onMapClick: () -> Unit,
 ) {
   Scaffold(
       containerColor = MaterialTheme.colorScheme.background,
       bottomBar = {
         AppBottomBar(
             onTripsClick = onTripsClick,
-            onMapClick = rememberNotImplementedAction(),
+            onMapClick = onMapClick,
             onPhotosClick = rememberNotImplementedAction(),
             onFriendsClick = onFriendsClick,
             tripsSelected = false,
@@ -109,8 +117,8 @@ fun VotesScreenContent(
       }
       TripTabs(
           selectedTab = TripTab.VOTES,
-          onOverviewClick = rememberNotImplementedAction(),
-          onItineraryClick = rememberNotImplementedAction(),
+          onOverviewClick = onOverviewClick,
+          onItineraryClick = onItineraryClick,
       )
       Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
         when (state) {

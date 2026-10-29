@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -22,6 +24,7 @@ import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
+import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -64,19 +67,24 @@ class TripOverviewMapRouteTest {
       )
 
   @Test
-  fun collectsViewModelStateAndForwardsMarkerClicksAndModifier() {
+  fun collectsViewModelStateAndForwardsActionsAndModifier() {
     val pendingTrips = CompletableDeferred<List<Trip>>()
     val repository =
         object : TripRepository by FakeTripRepository() {
           override suspend fun getTrips(): List<Trip> = pendingTrips.await()
         }
     var clickedTripId: String? = null
+    val navigationActions = mutableListOf<String>()
     composeRule.setContent {
       RoamigoTheme {
         TripOverviewMapRoute(
             viewModel = viewModel { TripOverviewMapViewModel(repository) },
             modifier = Modifier.testTag("trip_overview_route"),
             onMarkerClick = { clickedTripId = it },
+            onTripsClick = { navigationActions += "trips" },
+            onMapClick = { navigationActions += "map" },
+            onPhotosClick = { navigationActions += "photos" },
+            onFriendsClick = { navigationActions += "friends" },
         )
       }
     }
@@ -86,7 +94,14 @@ class TripOverviewMapRouteTest {
     composeRule.onNodeWithTag(markerTag).assertDoesNotExist()
 
     composeRule.loadLocalMapStyle()
-    composeRule.runOnIdle { pendingTrips.complete(listOf(sampleTrip)) }
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_map).assertIsSelected().performClick()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).assertIsNotSelected().performClick()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).performClick()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).assertIsNotSelected().performClick()
+    composeRule.runOnIdle {
+      assertEquals(listOf("map", "trips", "photos", "friends"), navigationActions)
+      pendingTrips.complete(listOf(sampleTrip))
+    }
 
     waitForMarker()
     composeRule.onNodeWithText(loadingMessage).assertDoesNotExist()
@@ -111,7 +126,9 @@ class TripOverviewMapRouteTest {
         }
     composeRule.setContent {
       RoamigoTheme {
-        TripOverviewMapRoute(viewModel = viewModel { TripOverviewMapViewModel(repository) })
+        TripOverviewMapRoute(
+            viewModel = viewModel { TripOverviewMapViewModel(repository) },
+        )
       }
     }
 

@@ -36,6 +36,7 @@ import com.swent.roamigo.resources.C
  *   the trips home.
  * @param onFriendsClick invoked when the Friends destination is selected.
  * @param friendsSelected whether the Friends destination is highlighted.
+ * @param mapSelected whether the Map destination is highlighted.
  */
 @Composable
 internal fun AppBottomBar(
@@ -45,6 +46,7 @@ internal fun AppBottomBar(
     tripsSelected: Boolean = true,
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
     friendsSelected: Boolean = false,
+    mapSelected: Boolean = false,
 ) {
   Column {
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -71,7 +73,7 @@ internal fun AppBottomBar(
       )
 
       NavigationBarItem(
-          selected = false,
+          selected = mapSelected,
           onClick = onMapClick,
           modifier =
               Modifier.markNotImplemented(onMapClick).semantics {

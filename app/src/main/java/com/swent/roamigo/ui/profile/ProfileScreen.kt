@@ -42,6 +42,7 @@ fun ProfileScreen(
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
     onSignOutClick: () -> Unit = {},
     modifier: Modifier = Modifier,
+    onMapClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   val notImplemented = rememberNotImplementedAction()
   Scaffold(
@@ -49,7 +50,7 @@ fun ProfileScreen(
       bottomBar = {
         AppBottomBar(
             onTripsClick = onTripsClick,
-            onMapClick = notImplemented,
+            onMapClick = onMapClick,
             onPhotosClick = notImplemented,
             tripsSelected = false,
             onFriendsClick = onFriendsClick,

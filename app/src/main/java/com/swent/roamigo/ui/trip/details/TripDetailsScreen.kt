@@ -69,8 +69,8 @@ fun TripDetailsRoute(
     onShareClick: () -> Unit = rememberNotImplementedAction(),
     onInviteClick: () -> Unit = rememberNotImplementedAction(),
     onItineraryClick: () -> Unit = rememberNotImplementedAction(),
-    onVotesClick: () -> Unit = rememberNotImplementedAction(),
-    onMapClick: () -> Unit = rememberNotImplementedAction(),
+    onVotesClick: () -> Unit,
+    onMapClick: () -> Unit,
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   val model = viewModel(key = tripId) { TripDetailsViewModel(tripId, tripRepository) }
