@@ -45,7 +45,7 @@ class DatesTravelersScreenTest {
   @Test
   fun initialScreenShowsC2ControlsAndEnablesCreationForValidDefaultDraft() {
     val viewModel =
-        CreateTripViewModel(
+        createTestCreateTripViewModel(
             repository = com.swent.roamigo.model.trip.FakeTripRepository(),
             destinationRepository = FakeDestinationRepository(),
         )
@@ -65,7 +65,7 @@ class DatesTravelersScreenTest {
   @Test
   fun shortScreenCanScrollToTravelerControlsWhileKeepingCreateActionVisible() {
     val viewModel =
-        CreateTripViewModel(
+        createTestCreateTripViewModel(
             repository = com.swent.roamigo.model.trip.FakeTripRepository(),
             destinationRepository = FakeDestinationRepository(),
         )
@@ -97,7 +97,7 @@ class DatesTravelersScreenTest {
   @Test
   fun monthNavigationMovesAcrossYearBoundaryAndRestoresTheOriginalMonth() {
     val viewModel =
-        CreateTripViewModel(
+        createTestCreateTripViewModel(
             repository = com.swent.roamigo.model.trip.FakeTripRepository(),
             destinationRepository = FakeDestinationRepository(),
         )
@@ -129,7 +129,7 @@ class DatesTravelersScreenTest {
   @Test
   fun selectedDatesCanSpanMonthsAndProduceInclusiveDuration() {
     val viewModel =
-        CreateTripViewModel(
+        createTestCreateTripViewModel(
             repository = com.swent.roamigo.model.trip.FakeTripRepository(),
             destinationRepository = FakeDestinationRepository(),
         )
@@ -173,7 +173,7 @@ class DatesTravelersScreenTest {
   @Test
   fun selectingEarlierDateRestartsRangeAndFlexiblePreferenceIsRetained() {
     val viewModel =
-        CreateTripViewModel(
+        createTestCreateTripViewModel(
             repository = com.swent.roamigo.model.trip.FakeTripRepository(),
             destinationRepository = FakeDestinationRepository(),
         )
@@ -198,7 +198,7 @@ class DatesTravelersScreenTest {
   @Test
   fun soloAndGroupSelectionRespectTravelerBounds() {
     val viewModel =
-        CreateTripViewModel(
+        createTestCreateTripViewModel(
             repository = com.swent.roamigo.model.trip.FakeTripRepository(),
             destinationRepository = FakeDestinationRepository(),
         )
@@ -259,7 +259,7 @@ class DatesTravelersScreenTest {
   @Test
   fun clickingCreateTripInvokesCallbackWithoutMutatingDraft() {
     val viewModel =
-        CreateTripViewModel(
+        createTestCreateTripViewModel(
             repository = com.swent.roamigo.model.trip.FakeTripRepository(),
             destinationRepository = FakeDestinationRepository(),
         )

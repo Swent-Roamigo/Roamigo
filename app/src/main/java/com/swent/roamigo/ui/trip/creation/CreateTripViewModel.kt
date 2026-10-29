@@ -92,7 +92,7 @@ class CreateTripViewModel(
     private val zoneId: ZoneId = ZoneId.systemDefault(),
     private val destinationRepository: DestinationRepository,
     private val requestDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
   private var submittedDraft: TripDraft? = null
   private var submissionId: String? = savedStateHandle["submission_id"]
