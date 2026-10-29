@@ -22,7 +22,7 @@ private fun TripReadyPreview() {
           destinations =
               listOf(TripLocation(38.72, -9.14, "Lisbon"), TripLocation(41.16, -8.63, "Porto")),
           startDate = Timestamp(1791763200, 0),
-          endDate = Timestamp(1792368000, 0),
+          endDate = Timestamp(1791763200, 0),
           flexibleDates = false,
           travelMode = TravelMode.GROUP,
           travelerCount = 3,
@@ -33,7 +33,7 @@ private fun TripReadyPreview() {
       )
   RoamigoTheme {
     TripReadyContent(
-        state = TripReadyState.Ready(trip, 8),
+        state = TripReadyState.Ready(trip),
         photo = null,
         onRetry = {},
         onInviteClick = {},

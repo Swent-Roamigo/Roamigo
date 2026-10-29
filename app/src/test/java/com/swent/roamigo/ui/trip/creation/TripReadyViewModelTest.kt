@@ -37,7 +37,7 @@ class TripReadyViewModelTest {
   }
 
   @Test
-  fun loadsTheRequestedTripInRouteOrderAndCountsInclusiveDays() =
+  fun loadsTheRequestedTripWithItsOrderedRouteAndDateRange() =
       runTest(dispatcher) {
         val repo = FakeTripRepository()
         val zone = ZoneId.systemDefault()
@@ -59,7 +59,11 @@ class TripReadyViewModelTest {
         val ready = vm.state.value as TripReadyState.Ready
         assertEquals("trip", ready.trip.uid)
         assertEquals(listOf("Lisbon", "Porto"), ready.trip.destinations.map { it.name })
-        assertEquals(8L, ready.days)
+        assertEquals(date, ready.trip.startDate.toDate().toInstant().atZone(zone).toLocalDate())
+        assertEquals(
+            date.plusDays(7),
+            ready.trip.endDate.toDate().toInstant().atZone(zone).toLocalDate(),
+        )
       }
 
   @Test
@@ -124,7 +128,7 @@ class TripReadyViewModelTest {
         result = original
         vm.retry()
         advanceUntilIdle()
-        assertEquals(1L, (vm.state.value as TripReadyState.Ready).days)
+        assertEquals(original.endDate, (vm.state.value as TripReadyState.Ready).trip.endDate)
       }
 
   @Test

@@ -12,13 +12,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
@@ -31,6 +31,7 @@ import com.swent.roamigo.ui.trip.creation.components.TripReadyHeader
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.time.temporal.ChronoUnit
 
 internal object TripReadyTestTags {
   const val TITLE = "trip_ready_title"
@@ -136,6 +137,15 @@ private fun TripReadySuccessContent(
   val zone = ZoneId.systemDefault()
   val start = trip.startDate.toDate().toInstant().atZone(zone).toLocalDate()
   val end = trip.endDate.toDate().toInstant().atZone(zone).toLocalDate()
+  val durationDays = ChronoUnit.DAYS.between(start, end) + 1
+  val stopsText =
+      pluralStringResource(
+          R.plurals.trips_stop_count,
+          trip.destinations.size,
+          trip.destinations.size,
+      )
+  val durationText =
+      pluralStringResource(R.plurals.trips_duration_days, durationDays.toInt(), durationDays)
   val dateSummary =
       stringResource(
           R.string.trip_ready_dates,
@@ -152,7 +162,7 @@ private fun TripReadySuccessContent(
     TripReadyHeader(dateSummary = dateSummary, photo = photo)
     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
       TripReadyCard(
-          title = stringResource(R.string.trip_ready_summary, trip.destinations.size, state.days),
+          title = stringResource(R.string.trip_ready_summary, stopsText, durationText),
           detail = trip.destinations.joinToString(" → ") { it.name },
           tag = "summary",
           onClick = null,
@@ -174,10 +184,6 @@ private fun TripReadySuccessContent(
           detail = stringResource(R.string.trip_ready_location_detail),
           tag = "location",
           onClick = onShareLocationClick,
-      )
-      Text(
-          stringResource(R.string.trip_ready_unavailable),
-          style = MaterialTheme.typography.bodySmall,
       )
       Button(
           onClick = onOpenItineraryClick,

@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripRepository
 import java.time.ZoneId
-import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +17,7 @@ sealed interface TripReadyState {
 
   data object Error : TripReadyState
 
-  data class Ready(val trip: Trip, val days: Long) : TripReadyState
+  data class Ready(val trip: Trip) : TripReadyState
 }
 
 class TripReadyViewModel(private val repository: TripRepository, private val tripId: String) :
@@ -52,7 +51,7 @@ class TripReadyViewModel(private val repository: TripRepository, private val tri
                     end.isBefore(start)
             ) {
               TripReadyState.Error
-            } else TripReadyState.Ready(trip, ChronoUnit.DAYS.between(start, end) + 1)
+            } else TripReadyState.Ready(trip)
       } catch (cancelled: CancellationException) {
         throw cancelled
       } catch (_: Exception) {
