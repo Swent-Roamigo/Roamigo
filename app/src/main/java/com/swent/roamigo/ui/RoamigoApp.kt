@@ -50,7 +50,6 @@ import com.swent.roamigo.ui.trip.creation.DestinationScreen
 import com.swent.roamigo.ui.trip.creation.TripReadyScreen
 import com.swent.roamigo.ui.trip.creation.TripReadyViewModel
 import com.swent.roamigo.ui.trip.details.TripDetailsRoute
-import com.swent.roamigo.ui.trip.details.TripDetailsViewModel
 import com.swent.roamigo.ui.trip.history.TripHistoryRoute
 import com.swent.roamigo.ui.trip.voting.CreateVoteScreen
 import com.swent.roamigo.ui.trip.voting.CreateVoteViewModel
@@ -236,9 +235,6 @@ fun RoamigoApp(
 
     composable(Route.TRIP_DETAILS) { entry ->
       val tripId = requireNotNull(entry.arguments?.getString("tripId"))
-      // Share the route's keyed ViewModel so Votes receives the loaded trip name.
-      val detailsViewModel =
-          viewModel(key = tripId) { TripDetailsViewModel(tripId, tripRepository) }
       TripDetailsRoute(
           tripId = tripId,
           tripRepository = tripRepository,
@@ -247,10 +243,7 @@ fun RoamigoApp(
           onShareClick = rememberNotImplementedAction(),
           onInviteClick = rememberNotImplementedAction(),
           onItineraryClick = rememberNotImplementedAction(),
-          onVotesClick = {
-            val tripName = detailsViewModel.uiState.value.details?.name.orEmpty()
-            navController.navigate(Route.votes(tripId, tripName))
-          },
+          onVotesClick = { tripName -> navController.navigate(Route.votes(tripId, tripName)) },
           onMapClick = onMapClick,
           onPhotosClick = rememberNotImplementedAction(),
       )

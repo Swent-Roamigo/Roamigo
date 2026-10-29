@@ -69,7 +69,7 @@ fun TripDetailsRoute(
     onShareClick: () -> Unit = rememberNotImplementedAction(),
     onInviteClick: () -> Unit = rememberNotImplementedAction(),
     onItineraryClick: () -> Unit = rememberNotImplementedAction(),
-    onVotesClick: () -> Unit,
+    onVotesClick: (String) -> Unit,
     onMapClick: () -> Unit,
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
 ) {
@@ -83,7 +83,7 @@ fun TripDetailsRoute(
       onShareClick = onShareClick,
       onInviteClick = onInviteClick,
       onItineraryClick = onItineraryClick,
-      onVotesClick = onVotesClick,
+      onVotesClick = { state.details?.let { onVotesClick(it.name) } },
       onMapClick = onMapClick,
       onPhotosClick = onPhotosClick,
   )
@@ -95,12 +95,12 @@ fun TripDetailsScreen(
     state: TripDetailsUiState,
     onRetry: () -> Unit,
     onBack: () -> Unit,
-    onTripsClick: () -> Unit,
+    onTripsClick: () -> Unit = {},
     onShareClick: () -> Unit = rememberNotImplementedAction(),
     onInviteClick: () -> Unit = rememberNotImplementedAction(),
     onItineraryClick: () -> Unit = rememberNotImplementedAction(),
-    onVotesClick: () -> Unit = rememberNotImplementedAction(),
-    onMapClick: () -> Unit = rememberNotImplementedAction(),
+    onVotesClick: () -> Unit = {},
+    onMapClick: () -> Unit = {},
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   Scaffold(

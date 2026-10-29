@@ -38,10 +38,10 @@ import com.swent.roamigo.ui.theme.Spacing
 @Composable
 fun ProfileScreen(
     state: ProfileUiState,
+    modifier: Modifier = Modifier,
     onTripsClick: () -> Unit = rememberNotImplementedAction(),
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
     onSignOutClick: () -> Unit = {},
-    modifier: Modifier = Modifier,
     onMapClick: () -> Unit = {},
 ) {
   val notImplemented = rememberNotImplementedAction()

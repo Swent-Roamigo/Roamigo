@@ -13,7 +13,7 @@ fun TripHistoryRoute(
     onBackClick: () -> Unit,
     onTripsClick: () -> Unit,
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
-    onMapClick: () -> Unit = {},
+    onMapClick: () -> Unit,
 ) {
   val historyViewModel: TripHistoryViewModel =
       viewModel(factory = TripHistoryViewModel.factory(tripRepository))

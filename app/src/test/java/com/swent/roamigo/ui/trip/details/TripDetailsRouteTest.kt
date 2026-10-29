@@ -24,6 +24,7 @@ class TripDetailsRouteTest {
   @Test
   fun loadsTheSelectedTripAndForwardsActionsWithoutANavHost() {
     val actions = mutableListOf<String>()
+    val votedTripNames = mutableListOf<String>()
     val repository = FakeTripRepository(trips = listOf(detailsTestTrip()))
     composeRule.setContent {
       RoamigoTheme {
@@ -35,7 +36,10 @@ class TripDetailsRouteTest {
             onShareClick = { actions += "share" },
             onInviteClick = { actions += "invite" },
             onItineraryClick = { actions += "itinerary" },
-            onVotesClick = { actions += "votes" },
+            onVotesClick = { tripName ->
+              actions += "votes"
+              votedTripNames += tripName
+            },
             onMapClick = { actions += "map" },
             onPhotosClick = { actions += "photos" },
         )
@@ -50,12 +54,14 @@ class TripDetailsRouteTest {
     composeRule.onNodeWithText("Trips").performClick()
     composeRule.onNodeWithText("Photos").performClick()
     assertEquals(listOf("share", "invite", "itinerary", "votes", "map", "trips", "photos"), actions)
+    assertEquals(listOf("Lisbon & Porto"), votedTripNames)
   }
 
   @Test
   fun backIsForwardedAndRetryReloadsThroughTheViewModel() {
     var fails = true
     var backed = false
+    val votedTripNames = mutableListOf<String>()
     val repository =
         object : TripRepository by FakeTripRepository() {
           override suspend fun getTrips(): List<Trip> {
@@ -70,7 +76,7 @@ class TripDetailsRouteTest {
             repository,
             onBack = { backed = true },
             onTripsClick = {},
-            onVotesClick = {},
+            onVotesClick = { votedTripNames += it },
             onMapClick = {},
         )
       }
@@ -81,5 +87,7 @@ class TripDetailsRouteTest {
     composeRule.runOnIdle { fails = false }
     composeRule.onNodeWithText("Retry").performClick()
     composeRule.onNodeWithText("Lisbon & Porto").assertIsDisplayed()
+    composeRule.onNodeWithText("Votes").performClick()
+    assertEquals(listOf("Lisbon & Porto"), votedTripNames)
   }
 }
