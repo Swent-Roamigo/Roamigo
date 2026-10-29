@@ -24,7 +24,7 @@ jobs:
           owner: Swent-Roamigo
           repositories: Roamigo
           permission-issues: read
-          permission-projects: write
+          permission-organization-projects: write
 
       - name: Check out workflow code
         uses: actions/checkout@v7
