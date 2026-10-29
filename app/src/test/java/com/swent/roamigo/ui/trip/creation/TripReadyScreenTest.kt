@@ -57,8 +57,25 @@ class TripReadyScreenTest {
     rule.onNodeWithTag(TripReadyTestTags.ROUTE).assertTextEquals("Lisbon → Porto")
     rule.onNodeWithTag(TripReadyTestTags.SUMMARY).assertTextEquals("2 stops · 8 days")
     rule
-        .onNodeWithTag(TripReadyTestTags.LOCATION)
+        .onNodeWithTag(TripReadyTestTags.LOCATION, useUnmergedTree = true)
         .assertTextEquals("Share your location (optional)")
+    listOf(
+            TripReadyTestTags.INVITE_CARD,
+            TripReadyTestTags.SUGGEST_CARD,
+            TripReadyTestTags.LOCATION_CARD,
+        )
+        .forEach { tag ->
+          rule
+              .onNodeWithTag(tag)
+              .performScrollTo()
+              .assertHasClickAction()
+              .assert(isNotImplemented)
+              .performClick()
+          assertEquals(
+              RuntimeEnvironment.getApplication().getString(R.string.feature_not_implemented),
+              ShadowToast.getTextOfLatestToast(),
+          )
+        }
     rule
         .onNodeWithTag(TripReadyTestTags.ITINERARY)
         .performScrollTo()

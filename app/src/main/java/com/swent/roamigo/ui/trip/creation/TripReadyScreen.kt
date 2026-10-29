@@ -3,6 +3,7 @@ package com.swent.roamigo.ui.trip.creation
 
 import android.os.Bundle
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +17,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -23,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.swent.roamigo.R
+import com.swent.roamigo.ui.components.NotImplementedAction
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import java.time.ZoneId
@@ -44,6 +47,9 @@ internal object TripReadyTestTags {
   const val ERROR = "trip_ready_error"
   const val ITINERARY = "trip_ready_itinerary"
   const val SHARE = "trip_ready_share"
+  const val INVITE_CARD = "trip_ready_invite"
+  const val SUGGEST_CARD = "trip_ready_suggest"
+  const val LOCATION_CARD = "trip_ready_location"
 }
 
 @Composable
@@ -146,16 +152,19 @@ private fun TripReadySuccessContent(state: TripReadyState.Ready, photo: Bundle?)
           stringResource(R.string.trip_ready_invite),
           stringResource(R.string.trip_ready_invite_detail),
           "invite",
+          unavailable,
       )
       ReadyCard(
           stringResource(R.string.trip_ready_suggest),
           stringResource(R.string.trip_ready_suggest_detail),
           "suggest",
+          unavailable,
       )
       ReadyCard(
           stringResource(R.string.trip_ready_location),
           stringResource(R.string.trip_ready_location_detail),
           "location",
+          unavailable,
       )
       Text(
           stringResource(R.string.trip_ready_unavailable),
@@ -234,9 +243,21 @@ private fun TripReadySuccessContent(state: TripReadyState.Ready, photo: Bundle?)
 }
 
 @Composable
-private fun ReadyCard(title: String, detail: String, tag: String) {
+private fun ReadyCard(
+    title: String,
+    detail: String,
+    tag: String,
+    onClick: NotImplementedAction? = null,
+) {
+  val actionModifier =
+      onClick?.let {
+        Modifier.markNotImplemented(it).clickable(role = Role.Button, onClick = it).semantics {
+          testTag = "trip_ready_$tag"
+        }
+      } ?: Modifier
   Column(
       Modifier.fillMaxWidth()
+          .then(actionModifier)
           .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp))
           .padding(14.dp)
   ) {
