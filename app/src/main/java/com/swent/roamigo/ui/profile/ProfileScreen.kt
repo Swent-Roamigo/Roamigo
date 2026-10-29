@@ -42,7 +42,7 @@ fun ProfileScreen(
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
     onSignOutClick: () -> Unit = {},
     modifier: Modifier = Modifier,
-    onMapClick: () -> Unit = rememberNotImplementedAction(),
+    onMapClick: () -> Unit = {},
 ) {
   val notImplemented = rememberNotImplementedAction()
   Scaffold(

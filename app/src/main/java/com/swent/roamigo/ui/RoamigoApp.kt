@@ -348,7 +348,7 @@ fun RoamigoApp(
           viewModel = viewModel { TripOverviewMapViewModel(tripRepository) },
           onMarkerClick = { tripId -> navController.navigate(Route.tripDetails(tripId)) },
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
-          onMapClick = onMapClick,
+          onMapClick = {},
           onFriendsClick = { navController.navigate(Route.FRIENDS) { launchSingleTop = true } },
       )
     }

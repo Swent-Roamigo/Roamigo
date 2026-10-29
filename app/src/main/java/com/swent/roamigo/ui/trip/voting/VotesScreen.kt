@@ -44,11 +44,11 @@ fun VotesScreen(
     tripName: String,
     onOpenVote: (String) -> Unit,
     onCreateVote: () -> Unit,
-    onOverviewClick: () -> Unit,
+    onOverviewClick: () -> Unit = {},
     onItineraryClick: () -> Unit = rememberNotImplementedAction(),
-    onTripsClick: () -> Unit,
+    onTripsClick: () -> Unit = {},
     onFriendsClick: () -> Unit,
-    onMapClick: () -> Unit,
+    onMapClick: () -> Unit = {},
 ) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   VotesScreenContent(
@@ -73,10 +73,10 @@ fun VotesScreenContent(
     onCreateVote: () -> Unit,
     onRetry: () -> Unit,
     onItineraryClick: () -> Unit = rememberNotImplementedAction(),
-    onOverviewClick: () -> Unit,
-    onTripsClick: () -> Unit,
+    onOverviewClick: () -> Unit = {},
+    onTripsClick: () -> Unit = {},
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
-    onMapClick: () -> Unit,
+    onMapClick: () -> Unit = {},
 ) {
   Scaffold(
       containerColor = MaterialTheme.colorScheme.background,
