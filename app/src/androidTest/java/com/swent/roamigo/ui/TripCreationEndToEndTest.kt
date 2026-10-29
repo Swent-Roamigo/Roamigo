@@ -10,6 +10,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -124,6 +125,11 @@ class TripCreationEndToEndTest {
       composeRule.onNodeWithTag(TripCalendarTestTags.dayFor(it)).performScrollTo().performClick()
     }
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
+    waitFor("trip_ready")
+    composeRule.onNodeWithText("Your trip is ready!").assertExists()
+    composeRule.onNodeWithText("Lisbon → Porto").assertExists()
+    composeRule.onNodeWithText("2 stops · 3 days").assertExists()
+    composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
     waitFor(C.Tag.trips_main_trip_card)
     composeRule
         .onNodeWithTag(C.Tag.trips_main_trip_card, useUnmergedTree = true)
