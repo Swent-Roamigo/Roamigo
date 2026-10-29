@@ -3,14 +3,29 @@
 package com.swent.roamigo
 
 import android.app.Application
+import androidx.work.Configuration
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.util.DebugLogger
 import com.swent.roamigo.model.destination.DESTINATION_USER_AGENT
+import com.swent.roamigo.model.location.DefaultLocationRepository
+import com.swent.roamigo.model.location.LocationRepository
+import com.swent.roamigo.model.photo.PhotoModule
+import com.swent.roamigo.model.photo.PhotoSyncWorkerFactory
 import okhttp3.OkHttpClient
 
-class RoamigoApplication : Application(), ImageLoaderFactory {
+class RoamigoApplication : Application(), ImageLoaderFactory, Configuration.Provider {
+  // One instance for the whole app, as the repository requires.
+  val locationRepository: LocationRepository by lazy { DefaultLocationRepository(this) }
+
+  // Outside any screen, because the uploads run in the background.
+  val photos: PhotoModule by lazy { PhotoModule(this, locationRepository) }
+
+  override val workManagerConfiguration: Configuration
+    get() =
+        Configuration.Builder().setWorkerFactory(PhotoSyncWorkerFactory { photos.syncer }).build()
+
   override fun newImageLoader(): ImageLoader =
       ImageLoader.Builder(this)
           .okHttpClient(::destinationImageHttpClient)
