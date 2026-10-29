@@ -94,12 +94,14 @@ const iterationsByDate = allIterations.filter((iteration) => {
   const day = new Date(`${iteration.startDate}T00:00:00Z`);
   day.setUTCDate(day.getUTCDate() + iteration.duration);
   const endExclusive = day.toISOString().slice(0, 10);
-  const closedDate = new Intl.DateTimeFormat("en-CA", {
+  const dateParts = new Intl.DateTimeFormat("en", {
     timeZone: "Europe/Zurich",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(new Date(eventClosedAt));
+  }).formatToParts(new Date(eventClosedAt));
+  const datePart = (type) => dateParts.find((part) => part.type === type).value;
+  const closedDate = `${datePart("year")}-${datePart("month")}-${datePart("day")}`;
   return iteration.startDate <= closedDate && closedDate < endExclusive;
 });
 
@@ -111,21 +113,34 @@ const sprintNumber = sprint.title.match(/^(?:Sprint\s*)?S?(\d+)$/i)[1];
 const doneOption = statusField.options.find((option) => option.name === `Done in S${sprintNumber}`);
 if (!doneOption) throw new Error(`Status option "Done in S${sprintNumber}" does not exist.`);
 
-const updateField = async (fieldId, value) => {
-  await api(`
-    mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: ProjectV2FieldValue!) {
-      updateProjectV2ItemFieldValue(input: {
-        projectId: $projectId
-        itemId: $itemId
-        fieldId: $fieldId
-        value: $value
-      }) {
-        projectV2Item { id }
-      }
-    }
-  `, { projectId: project.id, itemId: item.id, fieldId, value });
-};
-
-await updateField(sprintField.id, { iterationId: sprint.id });
-await updateField(statusField.id, { singleSelectOptionId: doneOption.id });
+await api(`
+  mutation(
+    $projectId: ID!
+    $itemId: ID!
+    $sprintFieldId: ID!
+    $sprintValue: ProjectV2FieldValue!
+    $statusFieldId: ID!
+    $statusValue: ProjectV2FieldValue!
+  ) {
+    updateSprint: updateProjectV2ItemFieldValue(input: {
+      projectId: $projectId
+      itemId: $itemId
+      fieldId: $sprintFieldId
+      value: $sprintValue
+    }) { projectV2Item { id } }
+    updateDoneStatus: updateProjectV2ItemFieldValue(input: {
+      projectId: $projectId
+      itemId: $itemId
+      fieldId: $statusFieldId
+      value: $statusValue
+    }) { projectV2Item { id } }
+  }
+`, {
+  projectId: project.id,
+  itemId: item.id,
+  sprintFieldId: sprintField.id,
+  sprintValue: { iterationId: sprint.id },
+  statusFieldId: statusField.id,
+  statusValue: { singleSelectOptionId: doneOption.id },
+});
 console.log(`Updated issue #${issueNumber}: Sprint ${sprintNumber}, Done in S${sprintNumber}.`);
