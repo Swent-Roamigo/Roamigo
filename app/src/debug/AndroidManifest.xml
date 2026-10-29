@@ -3,9 +3,5 @@
     <application
         android:allowBackup="false"
         android:networkSecurityConfig="@xml/debug_network_security_config"
-        tools:replace="android:allowBackup">
-        <activity
-            android:name=".ui.authentication.AuthenticationRotationTestActivity"
-            android:exported="false" />
-    </application>
+        tools:replace="android:allowBackup" />
 </manifest>
