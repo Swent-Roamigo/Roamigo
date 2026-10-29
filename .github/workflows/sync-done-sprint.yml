@@ -1,0 +1,37 @@
+name: Sync closed issues to their completion sprint
+
+on:
+  issues:
+    types: [closed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: done-sprint-${{ github.event.issue.node_id }}
+  cancel-in-progress: false
+
+jobs:
+  update-project:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create project-scoped GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.ROAMIGO_PROJECT_APP_ID }}
+          private-key: ${{ secrets.ROAMIGO_PROJECT_APP_PRIVATE_KEY }}
+          owner: Swent-Roamigo
+          repositories: Roamigo
+          permission-issues: read
+          permission-projects: write
+
+      - name: Check out workflow code
+        uses: actions/checkout@v7
+
+      - name: Move issue to the sprint in which it was closed
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_CLOSED_AT: ${{ github.event.issue.closed_at }}
+        run: node .github/scripts/sync-done-sprint.mjs

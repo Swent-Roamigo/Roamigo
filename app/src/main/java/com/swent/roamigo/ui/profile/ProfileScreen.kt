@@ -39,6 +39,7 @@ import com.swent.roamigo.ui.theme.Spacing
 fun ProfileScreen(
     state: ProfileUiState,
     onTripsClick: () -> Unit = rememberNotImplementedAction(),
+    onFriendsClick: () -> Unit = rememberNotImplementedAction(),
     onSignOutClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -46,12 +47,12 @@ fun ProfileScreen(
   Scaffold(
       modifier = modifier,
       bottomBar = {
-        // The profile is not one of the three tabs.
         AppBottomBar(
             onTripsClick = onTripsClick,
             onMapClick = notImplemented,
             onPhotosClick = notImplemented,
             tripsSelected = false,
+            onFriendsClick = onFriendsClick,
         )
       },
   ) { padding ->
@@ -126,7 +127,10 @@ fun ProfileScreen(
             ),
             Modifier.testTag(C.Tag.profile_friends_row),
         ) {
-          EditAction(stringResource(R.string.profile_view))
+          EditAction(
+              label = stringResource(R.string.profile_view),
+              onClick = onFriendsClick,
+          )
         }
       }
       state.errorMessageRes?.let {
@@ -144,11 +148,13 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun EditAction(label: String) {
-  val notImplemented = rememberNotImplementedAction()
+private fun EditAction(
+    label: String,
+    onClick: () -> Unit = rememberNotImplementedAction(),
+) {
   TextButton(
-      onClick = notImplemented,
-      modifier = Modifier.markNotImplemented(notImplemented).testTag(C.Tag.profile_action),
+      onClick = onClick,
+      modifier = Modifier.markNotImplemented(onClick).testTag(C.Tag.profile_action),
   ) {
     Text(label)
   }

@@ -13,6 +13,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
@@ -33,9 +34,20 @@ class ProfileScreenTest {
 
   private val state = ProfileUiState(User("u1", "Sam", null), "sam@epfl.ch", 2)
 
-  private fun show(modifier: Modifier = Modifier, onTripsClick: () -> Unit = {}) {
+  private fun show(
+      modifier: Modifier = Modifier,
+      onTripsClick: () -> Unit = {},
+      onFriendsClick: () -> Unit = {},
+  ) {
     composeRule.setContent {
-      RoamigoTheme { ProfileScreen(state, onTripsClick = onTripsClick, modifier = modifier) }
+      RoamigoTheme {
+        ProfileScreen(
+            state,
+            onTripsClick = onTripsClick,
+            onFriendsClick = onFriendsClick,
+            modifier = modifier,
+        )
+      }
     }
   }
 
@@ -75,7 +87,12 @@ class ProfileScreenTest {
     show()
     composeRule.onNodeWithTag(C.Tag.profile_log_out).assertIsDisplayed()
     composeRule.onAllNodesWithTag(C.Tag.profile_action).assertCountEquals(3)
-    listOf(C.Tag.trips_navigation_trips, C.Tag.trips_navigation_map, C.Tag.trips_navigation_photos)
+    listOf(
+            C.Tag.trips_navigation_trips,
+            C.Tag.trips_navigation_map,
+            C.Tag.trips_navigation_photos,
+            C.Tag.trips_navigation_friends,
+        )
         .forEach { composeRule.onNodeWithTag(it).assertIsDisplayed() }
   }
 
@@ -104,5 +121,20 @@ class ProfileScreenTest {
 
     composeRule.onNodeWithTag(C.Tag.profile_friends_row).performScrollTo().assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.profile_log_out).assertIsDisplayed()
+  }
+
+  @Test
+  fun friendsActionsInvokeCallback() {
+    var friendsClicks = 0
+
+    show(onFriendsClick = { friendsClicks++ })
+
+    // Friends button inside Profile.
+    composeRule.onNodeWithText("View").performClick()
+    assertEquals(1, friendsClicks)
+
+    // Friends tab in the bottom navigation.
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
+    assertEquals(2, friendsClicks)
   }
 }
