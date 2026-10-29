@@ -5,7 +5,8 @@ rules_version = '2';
 // Membership model: a trip document lists its members in memberIds, and ownerId is the
 // authoritative owner. Only members can read a trip and its subcollections. A client may only
 // create a new trip it owns, together with its own OWNER member document, in one transaction.
-// Trips and members cannot be changed or deleted by clients yet.
+// Trips and members cannot be changed or deleted by clients yet. Photos can be added by members
+// and read by members, and never changed.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -139,6 +140,23 @@ service cloud.firestore {
           && ballot.updatedAt is timestamp;
     }
 
+    // A trip photo is stored as a small JPEG in the document, because Cloud Storage needs a paid
+    // plan. Mirrors BitmapPhotoCompressor.MAX_BYTES (model/photo), with room to spare under the
+    // 1 MiB limit of a document.
+    function isValidNewPhoto(photo) {
+      return photo.keys().hasAll(['uploadedBy', 'takenAt', 'image'])
+          && photo.keys().hasOnly(['uploadedBy', 'takenAt', 'image', 'latitude', 'longitude'])
+          && photo.uploadedBy == request.auth.uid
+          && photo.takenAt is int
+          && photo.image is bytes
+          && photo.image.size() > 0
+          && photo.image.size() <= 800000
+          && ('latitude' in photo) == ('longitude' in photo)
+          && (!('latitude' in photo) || (photo.latitude is number && math.abs(photo.latitude) <= 90))
+          && (!('longitude' in photo)
+              || (photo.longitude is number && math.abs(photo.longitude) <= 180));
+    }
+
     match /trips/{tripId} {
       allow create: if signedIn() && isValidNewTrip(request.resource.data);
       // A missing trip is readable so that creation can first check whether it already exists.
@@ -164,6 +182,15 @@ service cloud.firestore {
       match /activities/{activityId} {
         allow read: if isMember(tripId);
         allow write: if false;
+      }
+
+      match /photos/{photoId} {
+        allow read: if isMember(tripId);
+        allow create: if isMember(tripId) && isValidNewPhoto(request.resource.data);
+        // Uploading again a photo whose first answer was lost writes the same content. Anything
+        // else is a change, which is not allowed.
+        allow update: if isMember(tripId) && request.resource.data == resource.data;
+        allow delete: if false;
       }
 
       match /votes/{voteId} {
