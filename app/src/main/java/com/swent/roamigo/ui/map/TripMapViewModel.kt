@@ -12,11 +12,13 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
  * Loads a single trip for the trip map and exposes it with the viewport showing its destinations
- * and the display information of its members.
+ * and the display information of its members. The trip is shown without waiting for the members'
+ * profiles, which may load more slowly.
  *
  * @param tripId identifier of the trip to show.
  * @param tripRepository the repository providing the user's trips.
@@ -36,33 +38,47 @@ class TripMapViewModel(
     retry()
   }
 
-  /** Loads the trip again, cancelling any running load so only the latest one updates the UI. */
+  /**
+   * Loads the trip again, cancelling any running load so only the latest one updates the UI.
+   *
+   * The map is shown as soon as the trip is found, with fallback information for every member, and
+   * the members' profiles are filled in once they are fetched.
+   */
   fun retry() {
     loadJob?.cancel()
     loadJob = viewModelScope.launch {
       _uiState.value = TripMapUiState.Loading
       // The repository has no single-trip getter, so the trip is picked among the user's trips.
-      val result = runCatching { tripRepository.getTrips().find { it.uid == tripId } }
+      val trip =
+          try {
+            tripRepository.getTrips().find { it.uid == tripId }
+          } catch (e: CancellationException) {
+            throw e
+          } catch (e: Exception) {
+            _uiState.value = TripMapUiState.Error(e.localizedMessage ?: LOAD_FAILED_MESSAGE)
+            return@launch
+          }
+      if (trip == null) {
+        _uiState.value = TripMapUiState.Error(TRIP_NOT_FOUND_MESSAGE)
+        return@launch
+      }
+
+      val coordinates = trip.destinations.map { MapCoordinate(it.latitude, it.longitude) }
       _uiState.value =
-          result.fold(
-              onSuccess = { trip ->
-                if (trip == null) {
-                  TripMapUiState.Error(TRIP_NOT_FOUND_MESSAGE)
-                } else {
-                  val coordinates =
-                      trip.destinations.map { MapCoordinate(it.latitude, it.longitude) }
-                  TripMapUiState.Loaded(
-                      trip = trip,
-                      viewport = tripMapViewportOf(coordinates),
-                      members = loadMembers(trip.memberIds),
-                  )
-                }
-              },
-              onFailure = { error ->
-                if (error is CancellationException) throw error
-                TripMapUiState.Error(error.localizedMessage ?: LOAD_FAILED_MESSAGE)
-              },
+          TripMapUiState.Loaded(
+              trip = trip,
+              viewport = tripMapViewportOf(coordinates),
+              members = trip.memberIds.associateWith { userId -> memberDisplayInfo(userId, null) },
           )
+
+      val members = loadMembers(trip.memberIds)
+      _uiState.update { state ->
+        if (state is TripMapUiState.Loaded && state.trip.uid == trip.uid) {
+          state.copy(members = members)
+        } else {
+          state
+        }
+      }
     }
   }
 
@@ -73,7 +89,7 @@ class TripMapViewModel(
         } catch (e: CancellationException) {
           throw e
         } catch (e: Exception) {
-          // Profiles only decorate the markers: the map stays usable with fallback names.
+          // Profiles only decorate the markers: the map stays usable with the fallback names.
           emptyMap()
         }
     return memberIds.associateWith { userId -> memberDisplayInfo(userId, usersById[userId]) }

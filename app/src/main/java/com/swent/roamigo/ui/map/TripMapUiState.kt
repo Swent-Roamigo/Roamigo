@@ -20,7 +20,8 @@ sealed interface TripMapUiState {
    *
    * @property trip the trip shown on the map.
    * @property viewport camera target showing the trip's destinations.
-   * @property members display information of every trip member, keyed by user ID.
+   * @property members display information of every trip member, keyed by user ID. Until the
+   *   members' profiles are loaded, or if they cannot be, each entry holds fallback information.
    */
   data class Loaded(
       val trip: Trip,
