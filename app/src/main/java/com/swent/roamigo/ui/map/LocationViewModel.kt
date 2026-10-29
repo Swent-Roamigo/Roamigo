@@ -122,10 +122,11 @@ class LocationViewModel(
   }
 
   /**
-   * Updates the permission state after the user answers a permission request or the permission is
-   * checked again. A refusal is reported as [LocationPermissionState.Denied] while the app may
-   * still ask again, and as [LocationPermissionState.Revoked] once the system no longer shows the
-   * request. Granting the permission does not start sharing: only [startSharing] does.
+   * Updates the permission state after the user answers a permission request. Call only from the
+   * permission request callback: rechecks that are not the result of a request go through
+   * [onPermissionChecked]. A refusal is reported as [LocationPermissionState.Denied] while the app
+   * may still ask again, and as [LocationPermissionState.Revoked] once the system no longer shows
+   * the request. Granting the permission does not start sharing: only [startSharing] does.
    *
    * @param granted whether the app now holds a location permission.
    * @param shouldShowRationale value of `shouldShowRequestPermissionRationale` after the request.
@@ -133,6 +134,19 @@ class LocationViewModel(
   fun onPermissionResult(granted: Boolean, shouldShowRationale: Boolean) {
     _uiState.update { state ->
       state.copy(permissionState = nextPermissionState(granted, shouldShowRationale))
+    }
+  }
+
+  /**
+   * Updates the permission state after the permission is checked again without a request, for
+   * example when the screen resumes. A recheck never reports [LocationPermissionState.Revoked] and
+   * never starts sharing: only [startSharing] does.
+   *
+   * @param granted whether the app now holds a location permission.
+   */
+  fun onPermissionChecked(granted: Boolean) {
+    _uiState.update { state ->
+      state.copy(permissionState = checkedPermissionState(state.permissionState, granted))
     }
   }
 
@@ -375,4 +389,28 @@ internal fun nextPermissionState(
       granted -> LocationPermissionState.Granted
       shouldShowRationale -> LocationPermissionState.Denied
       else -> LocationPermissionState.Revoked
+    }
+
+/**
+ * Computes the permission state after the permission is checked again without a request.
+ *
+ * `shouldShowRequestPermissionRationale` is also false before the app ever asked, so a recheck
+ * cannot tell a permanent refusal from a first request and never reports
+ * [LocationPermissionState.Revoked]. A permission lost while granted becomes
+ * [LocationPermissionState.Denied] so that the app asks again; if the system no longer shows the
+ * request, the result of that request reports [LocationPermissionState.Revoked]. Any other refusal
+ * keeps the current state.
+ *
+ * @param current the permission state before the check.
+ * @param granted whether the app now holds a location permission.
+ * @return the permission state after the check.
+ */
+internal fun checkedPermissionState(
+    current: LocationPermissionState,
+    granted: Boolean,
+): LocationPermissionState =
+    when {
+      granted -> LocationPermissionState.Granted
+      current == LocationPermissionState.Granted -> LocationPermissionState.Denied
+      else -> current
     }
