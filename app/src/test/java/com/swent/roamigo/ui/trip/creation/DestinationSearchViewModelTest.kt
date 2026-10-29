@@ -35,7 +35,8 @@ class DestinationSearchViewModelTest {
       val repository =
           FakeDestinationRepository(search = { throw DestinationConfigurationException() })
       val viewModel =
-          CreateTripViewModel(
+          createTestCreateTripViewModel(
+              repository = com.swent.roamigo.model.trip.FakeTripRepository(),
               destinationRepository = repository,
               requestDispatcher = StandardTestDispatcher(testScheduler),
           )
@@ -59,7 +60,8 @@ class DestinationSearchViewModelTest {
     try {
       val repository = FakeDestinationRepository()
       val viewModel =
-          CreateTripViewModel(
+          createTestCreateTripViewModel(
+              repository = com.swent.roamigo.model.trip.FakeTripRepository(),
               destinationRepository = repository,
               requestDispatcher = StandardTestDispatcher(testScheduler),
           )
@@ -95,7 +97,8 @@ class DestinationSearchViewModelTest {
               search = { query -> if (query == "Old") oldSearch.await() else newSearch.await() },
           )
       val viewModel =
-          CreateTripViewModel(
+          createTestCreateTripViewModel(
+              repository = com.swent.roamigo.model.trip.FakeTripRepository(),
               destinationRepository = repository,
               requestDispatcher = StandardTestDispatcher(testScheduler),
           )
@@ -134,7 +137,8 @@ class DestinationSearchViewModelTest {
               },
           )
       val viewModel =
-          CreateTripViewModel(
+          createTestCreateTripViewModel(
+              repository = com.swent.roamigo.model.trip.FakeTripRepository(),
               destinationRepository = repository,
               requestDispatcher = StandardTestDispatcher(testScheduler),
           )
@@ -176,7 +180,8 @@ class DestinationSearchViewModelTest {
     try {
       val repository = FakeDestinationRepository()
       val viewModel =
-          CreateTripViewModel(
+          createTestCreateTripViewModel(
+              repository = com.swent.roamigo.model.trip.FakeTripRepository(),
               destinationRepository = repository,
               requestDispatcher = StandardTestDispatcher(testScheduler),
           )
@@ -205,7 +210,8 @@ class DestinationSearchViewModelTest {
     try {
       val repository = FakeDestinationRepository()
       val viewModel =
-          CreateTripViewModel(
+          createTestCreateTripViewModel(
+              repository = com.swent.roamigo.model.trip.FakeTripRepository(),
               destinationRepository = repository,
               requestDispatcher = StandardTestDispatcher(testScheduler),
           )
@@ -234,7 +240,8 @@ class DestinationSearchViewModelTest {
 
       val repository = FakeDestinationRepository(search = { listOf(zurich) })
       val viewModel =
-          CreateTripViewModel(
+          createTestCreateTripViewModel(
+              repository = com.swent.roamigo.model.trip.FakeTripRepository(),
               destinationRepository = repository,
               requestDispatcher = StandardTestDispatcher(testScheduler),
           )
@@ -262,7 +269,8 @@ class DestinationSearchViewModelTest {
               photo = { throw IOException("offline") },
           )
       val viewModel =
-          CreateTripViewModel(
+          createTestCreateTripViewModel(
+              repository = com.swent.roamigo.model.trip.FakeTripRepository(),
               destinationRepository = repository,
               requestDispatcher = StandardTestDispatcher(testScheduler),
           )
@@ -290,7 +298,8 @@ class DestinationSearchViewModelTest {
       val city = destination("geonames:1", "City")
       val repository = FakeDestinationRepository(photo = { null })
       val viewModel =
-          CreateTripViewModel(
+          createTestCreateTripViewModel(
+              repository = com.swent.roamigo.model.trip.FakeTripRepository(),
               destinationRepository = repository,
               requestDispatcher = StandardTestDispatcher(testScheduler),
           )
@@ -321,7 +330,8 @@ class DestinationSearchViewModelTest {
             },
         )
     val viewModel =
-        CreateTripViewModel(
+        createTestCreateTripViewModel(
+            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
             destinationRepository = repository,
             requestDispatcher = StandardTestDispatcher(testScheduler),
         )

@@ -20,4 +20,11 @@ class TripDateMappingTest {
 
     assertEquals(Timestamp(-1, 500_000_000), instant.toFirebaseTimestamp())
   }
+
+  @Test
+  fun timestampConversionPreservesSecondsAndNanoseconds() {
+    val timestamp = Timestamp(1_900_000_000, 123_456_789)
+
+    assertEquals(Instant.ofEpochSecond(1_900_000_000, 123_456_789), timestamp.toDomainInstant())
+  }
 }

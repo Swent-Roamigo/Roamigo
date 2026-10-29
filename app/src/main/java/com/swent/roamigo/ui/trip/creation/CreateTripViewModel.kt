@@ -3,6 +3,7 @@
 package com.swent.roamigo.ui.trip.creation
 
 import androidx.annotation.StringRes
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.swent.roamigo.R
@@ -13,7 +14,6 @@ import com.swent.roamigo.model.destination.DestinationPhoto
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.destination.MAX_DESTINATION_RESULTS
 import com.swent.roamigo.model.destination.MIN_DESTINATION_QUERY_LENGTH
-import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.MAX_GROUP_TRAVELER_COUNT
 import com.swent.roamigo.model.trip.MIN_GROUP_TRAVELER_COUNT
 import com.swent.roamigo.model.trip.SOLO_TRAVELER_COUNT
@@ -88,33 +88,63 @@ enum class DestinationSearchStatus {
 
 /** Holds the draft shared by the steps of the trip-creation flow. */
 class CreateTripViewModel(
-    private val repository: TripRepository = FakeTripRepository(),
+    private val repository: TripRepository,
     private val zoneId: ZoneId = ZoneId.systemDefault(),
     private val destinationRepository: DestinationRepository,
     private val requestDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
-  private var submittedDraft: TripDraft? = null
-  private var submissionId: String? = null
+  private var submissionId: String? = savedStateHandle["submission_id"]
   private var searchJob: Job? = null
   private val requestedPhotoIds = mutableSetOf<String>()
-  private val _uiState = MutableStateFlow(CreateTripUiState())
+  private val _uiState = MutableStateFlow(restoreSubmission())
   val uiState: StateFlow<CreateTripUiState> = _uiState.asStateFlow()
+  // Keep the submitted draft separate from subsequent edits so retries retain the right ID.
+  private var submittedDraft: TripDraft? =
+      if (submissionId != null && savedStateHandle.contains("submission_state")) {
+        val submittedZone = runCatching {
+          ZoneId.of(savedStateHandle.get<String>("submission_zone") ?: zoneId.id)
+        }
+            .getOrDefault(zoneId)
+        _uiState.value.toTripDraft(submittedZone)
+      } else null
+
+  private fun restoreSubmission(): CreateTripUiState {
+    val values =
+        savedStateHandle.get<ArrayList<String>>("submission_state") ?: return CreateTripUiState()
+    return try {
+      val destinations =
+          values.drop(5).chunked(8).map { item ->
+            Destination(
+                item[0],
+                com.swent.roamigo.model.destination.DestinationKind.valueOf(item[1]),
+                item[2],
+                item[3],
+                item[4],
+                item[5].toDouble(),
+                item[6].toDouble(),
+                item[7].toInt(),
+            )
+          }
+      CreateTripUiState(
+          selectedDestinations = destinations,
+          startDate = LocalDate.parse(values[0]),
+          endDate = LocalDate.parse(values[1]),
+          flexibleDates = values[2].toBooleanStrict(),
+          travelMode = TravelMode.valueOf(values[3]),
+          travelerCount = values[4].toInt(),
+          createdTripId = savedStateHandle["created_trip_id"],
+      )
+    } catch (_: Exception) {
+      CreateTripUiState()
+    }
+  }
 
   /** Saves the current draft, retaining its ID for an unchanged retry. */
   fun createTrip() {
     val state = uiState.value
     if (!state.canCreateTrip) return
-    val draft =
-        TripDraft(
-            name = state.selectedDestinations.joinToString(" → ") { it.name },
-            destinations =
-                state.selectedDestinations.map { TripLocation(it.latitude, it.longitude, it.name) },
-            startDate = state.startDate.atStartOfDay(zoneId).toInstant(),
-            endDate = state.endDate.atStartOfDay(zoneId).toInstant(),
-            flexibleDates = state.flexibleDates,
-            travelMode = state.travelMode,
-            travelerCount = state.travelerCount,
-        )
+    val draft = state.toTripDraft(zoneId)
     val errors = draft.validate()
     if (errors.isNotEmpty()) {
       _uiState.update { it.copy(creationError = TripCreationException.Validation(errors)) }
@@ -125,10 +155,37 @@ class CreateTripViewModel(
       submissionId = UUID.randomUUID().toString()
     }
     val tripId = requireNotNull(submissionId)
+    savedStateHandle["submission_id"] = tripId
+    savedStateHandle["submission_zone"] = zoneId.id
+    savedStateHandle["submission_state"] =
+        arrayListOf(
+                state.startDate.toString(),
+                state.endDate.toString(),
+                state.flexibleDates.toString(),
+                state.travelMode.name,
+                state.travelerCount.toString(),
+            )
+            .apply {
+              state.selectedDestinations.forEach { destination ->
+                addAll(
+                    listOf(
+                        destination.stableId,
+                        destination.kind.name,
+                        destination.name,
+                        destination.countryName,
+                        destination.countryCode,
+                        destination.latitude.toString(),
+                        destination.longitude.toString(),
+                        destination.geonameId.toString(),
+                    )
+                )
+              }
+            }
     _uiState.update { it.copy(isSubmitting = true, creationError = null) }
     viewModelScope.launch {
       try {
         repository.createTrip(tripId, draft)
+        savedStateHandle["created_trip_id"] = tripId
         _uiState.update { it.copy(isSubmitting = false, createdTripId = tripId) }
       } catch (error: CancellationException) {
         _uiState.update { it.copy(isSubmitting = false) }
@@ -144,6 +201,18 @@ class CreateTripViewModel(
       }
     }
   }
+
+  private fun CreateTripUiState.toTripDraft(zone: ZoneId): TripDraft =
+      TripDraft(
+          name = selectedDestinations.joinToString(" → ") { it.name },
+          destinations =
+              selectedDestinations.map { TripLocation(it.latitude, it.longitude, it.name) },
+          startDate = startDate.atStartOfDay(zone).toInstant(),
+          endDate = endDate.atStartOfDay(zone).toInstant(),
+          flexibleDates = flexibleDates,
+          travelMode = travelMode,
+          travelerCount = travelerCount,
+      )
 
   private fun edit(update: (CreateTripUiState) -> CreateTripUiState) {
     _uiState.update { state ->

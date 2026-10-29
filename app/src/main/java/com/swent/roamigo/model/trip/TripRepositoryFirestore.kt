@@ -22,6 +22,13 @@ class TripRepositoryFirestore(
 ) : TripRepository {
 
   // A signed-out user belongs to no trip.
+  override suspend fun getTrip(tripId: String): Trip? {
+    val userId = currentUserId() ?: return null
+    val snapshot = trips().document(validDocumentId(tripId)).get().await()
+    if (!snapshot.exists()) return null
+    return snapshot.toTrip().takeIf { userId in it.memberIds }
+  }
+
   override suspend fun getTrips(): List<Trip> {
     val userId = currentUserId() ?: return emptyList()
     return trips().whereArrayContains("memberIds", userId).get().await().documents.map {

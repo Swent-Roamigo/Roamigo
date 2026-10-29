@@ -3,6 +3,7 @@
 // Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui
 
+import android.os.Bundle
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
@@ -44,6 +45,8 @@ import com.swent.roamigo.ui.profile.ProfileViewModel
 import com.swent.roamigo.ui.trip.creation.CreateTripViewModel
 import com.swent.roamigo.ui.trip.creation.DatesTravelersScreen
 import com.swent.roamigo.ui.trip.creation.DestinationScreen
+import com.swent.roamigo.ui.trip.creation.TripReadyScreen
+import com.swent.roamigo.ui.trip.creation.TripReadyViewModel
 import com.swent.roamigo.ui.trip.history.TripHistoryRoute
 import com.swent.roamigo.ui.trip.voting.CreateVoteScreen
 import com.swent.roamigo.ui.trip.voting.CreateVoteViewModel
@@ -216,11 +219,33 @@ fun RoamigoApp(
       )
     }
 
-    composable(Route.NEW_TRIP) {
+    composable(Route.TRIP_READY) { entry ->
+      val id = requireNotNull(entry.arguments?.getString("tripId"))
+      val readyViewModel = viewModel { TripReadyViewModel(tripRepository, id) }
+      val photo by
+          entry.savedStateHandle.getStateFlow<Bundle?>("ready_photo", null).collectAsState()
+      val onInviteClick = rememberNotImplementedAction()
+      val onSuggestClick = rememberNotImplementedAction()
+      val onShareLocationClick = rememberNotImplementedAction()
+      val onOpenItineraryClick = rememberNotImplementedAction()
+      val onShareTripClick = rememberNotImplementedAction()
+      TripReadyScreen(
+          viewModel = readyViewModel,
+          photo = photo,
+          onInviteClick = onInviteClick,
+          onSuggestClick = onSuggestClick,
+          onShareLocationClick = onShareLocationClick,
+          onOpenItineraryClick = onOpenItineraryClick,
+          onShareTripClick = onShareTripClick,
+      )
+    }
+
+    composable(Route.NEW_TRIP) { entry ->
       val creationViewModel = viewModel {
         CreateTripViewModel(
             repository = tripRepository,
             destinationRepository = destinationRepository,
+            savedStateHandle = entry.savedStateHandle,
         )
       }
       val state by creationViewModel.uiState.collectAsState()
@@ -234,7 +259,28 @@ fun RoamigoApp(
       LaunchedEffect(state.createdTripId) {
         if (state.createdTripId != null) {
           navController.getBackStackEntry(Route.TRIPS).savedStateHandle["trip_created"] = true
-          navController.popBackStack(Route.TRIPS, inclusive = false)
+          val first = state.selectedDestinations.firstOrNull()
+          val photo = first?.let { state.photosByDestinationId[it.stableId] }
+          navController.navigate(Route.tripReady(state.createdTripId!!)) {
+            popUpTo(Route.NEW_TRIP) { inclusive = true }
+            launchSingleTop = true
+          }
+          if (photo != null) {
+            navController.currentBackStackEntry
+                ?.savedStateHandle
+                ?.set(
+                    "ready_photo",
+                    Bundle().apply {
+                      putString("url", photo.imageUrl)
+                      putString("creator", photo.creator)
+                      putString("source", photo.sourceUrl)
+                      putString("license", photo.license)
+                      putString("licenseUrl", photo.licenseUrl)
+                      putString("title", photo.title)
+                      putString("credit", photo.credit)
+                    },
+                )
+          }
         }
       }
       if (datesStep) {

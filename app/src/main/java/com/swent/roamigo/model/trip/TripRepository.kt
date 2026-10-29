@@ -12,6 +12,9 @@ interface TripRepository {
   /** Returns all trips belonging to the current user. */
   suspend fun getTrips(): List<Trip>
 
+  /** Returns a trip visible to the current user, or null if absent. */
+  suspend fun getTrip(tripId: String): Trip? = getTrips().firstOrNull { it.uid == tripId }
+
   /** Returns the activities belonging to the requested trip. */
   suspend fun getActivitiesForTrip(tripId: String): List<Activity>
 

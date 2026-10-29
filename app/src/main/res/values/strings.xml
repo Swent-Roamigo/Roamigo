@@ -253,6 +253,19 @@
     <string name="votes_empty_description">Start a vote to decide together with your trip members.</string>
     <string name="votes_load_error">Unable to load votes. Please try again.</string>
     <string name="votes_sync_error">Unable to update votes. Showing the last available votes.</string>
+    <string name="trip_ready_title">Your trip is ready!</string>
+    <string name="trip_ready_dates">%1$s · %2$s – %3$s</string>
+    <string name="trip_ready_summary">%1$s · %2$s</string>
+    <string name="trip_ready_invite">Invite your friends</string>
+    <string name="trip_ready_invite_detail">Invitations will be available in a future update</string>
+    <string name="trip_ready_suggest">Suggest places</string>
+    <string name="trip_ready_suggest_detail">Add sights and hotels for the group to vote on</string>
+    <string name="trip_ready_location">Share your location (optional)</string>
+    <string name="trip_ready_location_detail">Off by default · trip members only</string>
+    <string name="trip_ready_itinerary">Open itinerary</string>
+    <string name="trip_ready_share">Share trip</string>
+    <string name="trip_ready_error">Could not load this trip. Please try again.</string>
+    <string name="trip_ready_photo_credit">Photo credits</string>
     <!-- Trip Details -->
     <string name="trip_details_tab">Details</string>
     <string name="trip_details_itinerary">Itinerary</string>

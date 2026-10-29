@@ -5,6 +5,7 @@ package com.swent.roamigo.ui
 
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -29,6 +30,7 @@ import com.swent.roamigo.model.trip.TripRepositoryFirestore
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import com.swent.roamigo.ui.trip.creation.TripReadyTestTags
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
 import com.swent.roamigo.ui.trip.creation.components.DestinationCardTestTags
 import com.swent.roamigo.ui.trip.creation.components.TripCalendarTestTags
@@ -124,6 +126,11 @@ class TripCreationEndToEndTest {
       composeRule.onNodeWithTag(TripCalendarTestTags.dayFor(it)).performScrollTo().performClick()
     }
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
+    waitFor("trip_ready")
+    composeRule.onNodeWithTag(TripReadyTestTags.TITLE).assertTextEquals("Your trip is ready!")
+    composeRule.onNodeWithTag(TripReadyTestTags.ROUTE).assertTextEquals("Lisbon → Porto")
+    composeRule.onNodeWithTag(TripReadyTestTags.SUMMARY).assertTextEquals("2 stops · 3 days")
+    composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
     waitFor(C.Tag.trips_main_trip_card)
     composeRule
         .onNodeWithTag(C.Tag.trips_main_trip_card, useUnmergedTree = true)
