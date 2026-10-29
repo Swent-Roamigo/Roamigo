@@ -59,10 +59,11 @@ class TripReadyViewModelTest {
         val ready = vm.state.value as TripReadyState.Ready
         assertEquals("trip", ready.trip.uid)
         assertEquals(listOf("Lisbon", "Porto"), ready.trip.destinations.map { it.name })
-        assertEquals(date, ready.trip.startDate.toDate().toInstant().atZone(zone).toLocalDate())
+        assertEquals(date, ready.startDate)
+        assertEquals(8L, ready.days)
         assertEquals(
             date.plusDays(7),
-            ready.trip.endDate.toDate().toInstant().atZone(zone).toLocalDate(),
+            ready.endDate,
         )
       }
 

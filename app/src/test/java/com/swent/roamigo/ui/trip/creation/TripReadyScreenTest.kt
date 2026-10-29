@@ -50,9 +50,20 @@ class TripReadyScreenTest {
     )
   }
 
+  private fun ready(trip: Trip): TripReadyState.Ready {
+    val start = trip.startDate.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
+    val end = trip.endDate.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
+    return TripReadyState.Ready(
+        trip,
+        start,
+        end,
+        java.time.temporal.ChronoUnit.DAYS.between(start, end) + 1,
+    )
+  }
+
   @Test
   fun summaryAndUnavailableActionsAreAccessible() {
-    rule.setContent { RoamigoTheme { TestTripReadyContent(TripReadyState.Ready(trip()), null) } }
+    rule.setContent { RoamigoTheme { TestTripReadyContent(ready(trip()), null) } }
     rule
         .onNodeWithTag(TripReadyTestTags.TITLE)
         .assertIsDisplayed()
@@ -112,9 +123,7 @@ class TripReadyScreenTest {
               endDate = original.startDate,
           )
         }
-    rule.setContent {
-      RoamigoTheme { TestTripReadyContent(TripReadyState.Ready(oneDayTrip), null) }
-    }
+    rule.setContent { RoamigoTheme { TestTripReadyContent(ready(oneDayTrip), null) } }
 
     rule.onNodeWithTag(TripReadyTestTags.SUMMARY).assertTextEquals("1 stop · 1 day")
   }
@@ -125,7 +134,7 @@ class TripReadyScreenTest {
     rule.setContent {
       RoamigoTheme {
         TripReadyContent(
-            state = TripReadyState.Ready(trip()),
+            state = ready(trip()),
             photo = null,
             onRetry = {},
             onInviteClick = { invited = true },
@@ -195,7 +204,7 @@ class TripReadyScreenTest {
           putString("source", "https://example.com/photo")
           putString("licenseUrl", "https://example.com/license")
         }
-    rule.setContent { RoamigoTheme { TestTripReadyContent(TripReadyState.Ready(trip()), photo) } }
+    rule.setContent { RoamigoTheme { TestTripReadyContent(ready(trip()), photo) } }
     rule.waitUntil(5_000) {
       rule.onAllNodesWithTag(TripReadyTestTags.PHOTO_CREDITS).fetchSemanticsNodes().isNotEmpty()
     }
@@ -217,7 +226,7 @@ class TripReadyScreenTest {
           )
           putString("license", "Public domain")
         }
-    rule.setContent { RoamigoTheme { TestTripReadyContent(TripReadyState.Ready(trip()), photo) } }
+    rule.setContent { RoamigoTheme { TestTripReadyContent(ready(trip()), photo) } }
     rule.waitUntil(5_000) {
       rule.onAllNodesWithTag(TripReadyTestTags.PHOTO_CREDITS).fetchSemanticsNodes().isNotEmpty()
     }
@@ -237,7 +246,7 @@ class TripReadyScreenTest {
   @Test
   fun invalidPhotoUsesPlaceholderWithoutCredits() {
     val photo = Bundle().apply { putString("url", "android.resource://com.swent.roamigo/0") }
-    rule.setContent { RoamigoTheme { TestTripReadyContent(TripReadyState.Ready(trip()), photo) } }
+    rule.setContent { RoamigoTheme { TestTripReadyContent(ready(trip()), photo) } }
     rule.waitForIdle()
     rule.onNodeWithTag(TripReadyTestTags.TITLE).assertTextEquals("Your trip is ready!")
     rule.onNodeWithTag(TripReadyTestTags.PHOTO_CREDITS).assertDoesNotExist()

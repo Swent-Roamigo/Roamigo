@@ -25,15 +25,12 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.roamigo.R
-import com.swent.roamigo.model.trip.toDomainInstant
 import com.swent.roamigo.ui.components.PhotoCreditsDialogTestTags
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.trip.creation.components.TripReadyCard
 import com.swent.roamigo.ui.trip.creation.components.TripReadyHeader
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
-import java.time.temporal.ChronoUnit
 
 internal object TripReadyTestTags {
   const val TITLE = "trip_ready_title"
@@ -136,10 +133,6 @@ private fun TripReadySuccessContent(
 ) {
   val trip = state.trip
   val formatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-  val zone = ZoneId.systemDefault()
-  val start = trip.startDate.toDomainInstant().atZone(zone).toLocalDate()
-  val end = trip.endDate.toDomainInstant().atZone(zone).toLocalDate()
-  val durationDays = ChronoUnit.DAYS.between(start, end) + 1
   val stopsText =
       pluralStringResource(
           R.plurals.trips_stop_count,
@@ -147,13 +140,13 @@ private fun TripReadySuccessContent(
           trip.destinations.size,
       )
   val durationText =
-      pluralStringResource(R.plurals.trips_duration_days, durationDays.toInt(), durationDays)
+      pluralStringResource(R.plurals.trips_duration_days, state.days.toInt(), state.days)
   val dateSummary =
       stringResource(
           R.string.trip_ready_dates,
           trip.name,
-          formatter.format(start),
-          formatter.format(end),
+          formatter.format(state.startDate),
+          formatter.format(state.endDate),
       )
 
   Column(

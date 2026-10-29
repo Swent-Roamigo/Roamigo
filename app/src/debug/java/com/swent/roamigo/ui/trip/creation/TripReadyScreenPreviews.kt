@@ -9,6 +9,8 @@ import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import java.time.Instant
+import java.time.ZoneId
 
 @Preview(name = "Trip ready", showBackground = true, widthDp = 390, heightDp = 844)
 @Preview(name = "Trip ready landscape", showBackground = true, widthDp = 800, heightDp = 360)
@@ -33,7 +35,13 @@ private fun TripReadyPreview() {
       )
   RoamigoTheme {
     TripReadyContent(
-        state = TripReadyState.Ready(trip),
+        state =
+            TripReadyState.Ready(
+                trip,
+                Instant.ofEpochSecond(1791763200).atZone(ZoneId.systemDefault()).toLocalDate(),
+                Instant.ofEpochSecond(1791763200).atZone(ZoneId.systemDefault()).toLocalDate(),
+                1,
+            ),
         photo = null,
         onRetry = {},
         onInviteClick = {},
