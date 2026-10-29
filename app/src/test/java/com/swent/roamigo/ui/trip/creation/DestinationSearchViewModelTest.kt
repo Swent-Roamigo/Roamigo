@@ -36,6 +36,7 @@ class DestinationSearchViewModelTest {
           FakeDestinationRepository(search = { throw DestinationConfigurationException() })
       val viewModel =
           CreateTripViewModel(
+              repository = com.swent.roamigo.model.trip.FakeTripRepository(),
               destinationRepository = repository,
               requestDispatcher = StandardTestDispatcher(testScheduler),
           )
@@ -60,6 +61,7 @@ class DestinationSearchViewModelTest {
       val repository = FakeDestinationRepository()
       val viewModel =
           CreateTripViewModel(
+              repository = com.swent.roamigo.model.trip.FakeTripRepository(),
               destinationRepository = repository,
               requestDispatcher = StandardTestDispatcher(testScheduler),
           )
@@ -96,6 +98,7 @@ class DestinationSearchViewModelTest {
           )
       val viewModel =
           CreateTripViewModel(
+              repository = com.swent.roamigo.model.trip.FakeTripRepository(),
               destinationRepository = repository,
               requestDispatcher = StandardTestDispatcher(testScheduler),
           )
@@ -135,6 +138,7 @@ class DestinationSearchViewModelTest {
           )
       val viewModel =
           CreateTripViewModel(
+              repository = com.swent.roamigo.model.trip.FakeTripRepository(),
               destinationRepository = repository,
               requestDispatcher = StandardTestDispatcher(testScheduler),
           )
@@ -177,6 +181,7 @@ class DestinationSearchViewModelTest {
       val repository = FakeDestinationRepository()
       val viewModel =
           CreateTripViewModel(
+              repository = com.swent.roamigo.model.trip.FakeTripRepository(),
               destinationRepository = repository,
               requestDispatcher = StandardTestDispatcher(testScheduler),
           )
@@ -206,6 +211,7 @@ class DestinationSearchViewModelTest {
       val repository = FakeDestinationRepository()
       val viewModel =
           CreateTripViewModel(
+              repository = com.swent.roamigo.model.trip.FakeTripRepository(),
               destinationRepository = repository,
               requestDispatcher = StandardTestDispatcher(testScheduler),
           )
@@ -235,6 +241,7 @@ class DestinationSearchViewModelTest {
       val repository = FakeDestinationRepository(search = { listOf(zurich) })
       val viewModel =
           CreateTripViewModel(
+              repository = com.swent.roamigo.model.trip.FakeTripRepository(),
               destinationRepository = repository,
               requestDispatcher = StandardTestDispatcher(testScheduler),
           )
@@ -263,6 +270,7 @@ class DestinationSearchViewModelTest {
           )
       val viewModel =
           CreateTripViewModel(
+              repository = com.swent.roamigo.model.trip.FakeTripRepository(),
               destinationRepository = repository,
               requestDispatcher = StandardTestDispatcher(testScheduler),
           )
@@ -291,6 +299,7 @@ class DestinationSearchViewModelTest {
       val repository = FakeDestinationRepository(photo = { null })
       val viewModel =
           CreateTripViewModel(
+              repository = com.swent.roamigo.model.trip.FakeTripRepository(),
               destinationRepository = repository,
               requestDispatcher = StandardTestDispatcher(testScheduler),
           )
@@ -322,6 +331,7 @@ class DestinationSearchViewModelTest {
         )
     val viewModel =
         CreateTripViewModel(
+            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
             destinationRepository = repository,
             requestDispatcher = StandardTestDispatcher(testScheduler),
         )

@@ -34,7 +34,11 @@ class DestinationSelectionScreenTest {
 
   @Test
   fun injectedSharedViewModelKeepsSelectedDestinationsAndContinueIsAnEvent() {
-    val viewModel = CreateTripViewModel(destinationRepository = sampleDestinationRepository())
+    val viewModel =
+        CreateTripViewModel(
+            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
+            destinationRepository = sampleDestinationRepository(),
+        )
     var continued = false
 
     composeRule.setContent {
@@ -72,7 +76,11 @@ class DestinationSelectionScreenTest {
 
   @Test
   fun continueIsDisabledWhenRouteIsEmpty() {
-    val viewModel = CreateTripViewModel(destinationRepository = sampleDestinationRepository())
+    val viewModel =
+        CreateTripViewModel(
+            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
+            destinationRepository = sampleDestinationRepository(),
+        )
 
     composeRule.setContent {
       RoamigoTheme {
@@ -90,7 +98,11 @@ class DestinationSelectionScreenTest {
 
   @Test
   fun continueLabelUsesSingularAndPluralStopForms() {
-    val viewModel = CreateTripViewModel(destinationRepository = sampleDestinationRepository())
+    val viewModel =
+        CreateTripViewModel(
+            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
+            destinationRepository = sampleDestinationRepository(),
+        )
 
     composeRule.setContent {
       RoamigoTheme {
@@ -135,7 +147,11 @@ class DestinationSelectionScreenTest {
 
   @Test
   fun searchFiltersDestinationsAndSelectedStopCanBeRemoved() {
-    val viewModel = CreateTripViewModel(destinationRepository = sampleDestinationRepository())
+    val viewModel =
+        CreateTripViewModel(
+            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
+            destinationRepository = sampleDestinationRepository(),
+        )
     viewModel.toggleDestination(sampleDestination("Lisbon"))
     viewModel.toggleDestination(sampleDestination("Porto"))
 

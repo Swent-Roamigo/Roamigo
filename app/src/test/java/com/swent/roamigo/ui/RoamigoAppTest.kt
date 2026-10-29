@@ -237,8 +237,10 @@ class RoamigoAppTest {
         .onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION)
         .assertIsEnabled()
         .performClick()
-    waitForTag(C.Tag.trips_main_trip_card)
+    waitForTag("trip_ready")
     composeRule.onAllNodesWithTag(DatesTravelersScreenTestTags.SCREEN).assertCountEquals(0)
+    pressBack()
+    waitForTag(C.Tag.trips_main_trip_card)
 
     // Returning through another screen must not replay the completed creation navigation.
     composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()

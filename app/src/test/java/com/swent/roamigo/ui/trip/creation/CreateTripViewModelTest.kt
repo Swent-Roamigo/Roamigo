@@ -3,6 +3,7 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.trip.creation
 
+import androidx.lifecycle.SavedStateHandle
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.destination.FakeDestinationRepository
 import com.swent.roamigo.model.destination.destinationFixture
@@ -50,8 +51,39 @@ class CreateTripViewModelTest {
   }
 
   @Test
+  fun restoredUncertainSubmissionRetriesSameId() = runTest {
+    val repository = RecordingRepository().apply { gate = CompletableDeferred() }
+    val saved = SavedStateHandle()
+    val first =
+        CreateTripViewModel(
+            repository,
+            destinationRepository = FakeDestinationRepository(),
+            savedStateHandle = saved,
+        )
+    first.toggleDestination(sampleDestination("Lisbon"))
+    first.createTrip()
+    runCurrent()
+    val initialId = repository.requests.single().first
+    repository.gate = null
+    val restored =
+        CreateTripViewModel(
+            repository,
+            destinationRepository = FakeDestinationRepository(),
+            savedStateHandle = saved,
+        )
+    restored.createTrip()
+    advanceUntilIdle()
+    assertEquals(initialId, repository.requests.last().first)
+    assertEquals(initialId, restored.uiState.value.createdTripId)
+  }
+
+  @Test
   fun initialStateHasNoSelectedDestinations() {
-    val viewModel = CreateTripViewModel(destinationRepository = FakeDestinationRepository())
+    val viewModel =
+        CreateTripViewModel(
+            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
+            destinationRepository = FakeDestinationRepository(),
+        )
 
     assertTrue(viewModel.uiState.value.selectedDestinations.isEmpty())
     assertEquals(DestinationSearchStatus.INITIAL, viewModel.uiState.value.destinationSearchStatus)
@@ -59,7 +91,11 @@ class CreateTripViewModelTest {
 
   @Test
   fun addingAndRemovingStructuredDestinationsKeepsIdentityAndRouteOrder() {
-    val viewModel = CreateTripViewModel(destinationRepository = FakeDestinationRepository())
+    val viewModel =
+        CreateTripViewModel(
+            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
+            destinationRepository = FakeDestinationRepository(),
+        )
     val lisbon = destinationFixture("geonames:2267057", "Lisbon", "Portugal", "PT", 2267057)
     val porto = destinationFixture("geonames:2735943", "Porto", "Portugal", "PT", 2735943)
     val paris = destinationFixture("geonames:2988507", "Paris", "France", "FR", 2988507)

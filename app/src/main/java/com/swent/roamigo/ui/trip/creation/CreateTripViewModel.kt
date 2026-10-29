@@ -3,6 +3,7 @@
 package com.swent.roamigo.ui.trip.creation
 
 import androidx.annotation.StringRes
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.swent.roamigo.R
@@ -13,7 +14,6 @@ import com.swent.roamigo.model.destination.DestinationPhoto
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.destination.MAX_DESTINATION_RESULTS
 import com.swent.roamigo.model.destination.MIN_DESTINATION_QUERY_LENGTH
-import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.MAX_GROUP_TRAVELER_COUNT
 import com.swent.roamigo.model.trip.MIN_GROUP_TRAVELER_COUNT
 import com.swent.roamigo.model.trip.SOLO_TRAVELER_COUNT
@@ -88,17 +88,49 @@ enum class DestinationSearchStatus {
 
 /** Holds the draft shared by the steps of the trip-creation flow. */
 class CreateTripViewModel(
-    private val repository: TripRepository = FakeTripRepository(),
+    private val repository: TripRepository,
     private val zoneId: ZoneId = ZoneId.systemDefault(),
     private val destinationRepository: DestinationRepository,
     private val requestDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
 ) : ViewModel() {
   private var submittedDraft: TripDraft? = null
-  private var submissionId: String? = null
+  private var submissionId: String? = savedStateHandle["submission_id"]
   private var searchJob: Job? = null
   private val requestedPhotoIds = mutableSetOf<String>()
-  private val _uiState = MutableStateFlow(CreateTripUiState())
+  private val _uiState = MutableStateFlow(restoreSubmission())
   val uiState: StateFlow<CreateTripUiState> = _uiState.asStateFlow()
+
+  private fun restoreSubmission(): CreateTripUiState {
+    val values =
+        savedStateHandle.get<ArrayList<String>>("submission_state") ?: return CreateTripUiState()
+    return try {
+      val destinations =
+          values.drop(5).chunked(8).map { item ->
+            Destination(
+                item[0],
+                com.swent.roamigo.model.destination.DestinationKind.valueOf(item[1]),
+                item[2],
+                item[3],
+                item[4],
+                item[5].toDouble(),
+                item[6].toDouble(),
+                item[7].toInt(),
+            )
+          }
+      CreateTripUiState(
+          selectedDestinations = destinations,
+          startDate = LocalDate.parse(values[0]),
+          endDate = LocalDate.parse(values[1]),
+          flexibleDates = values[2].toBooleanStrict(),
+          travelMode = TravelMode.valueOf(values[3]),
+          travelerCount = values[4].toInt(),
+          createdTripId = savedStateHandle["created_trip_id"],
+      )
+    } catch (_: Exception) {
+      CreateTripUiState()
+    }
+  }
 
   /** Saves the current draft, retaining its ID for an unchanged retry. */
   fun createTrip() {
@@ -120,15 +152,49 @@ class CreateTripViewModel(
       _uiState.update { it.copy(creationError = TripCreationException.Validation(errors)) }
       return
     }
+    if (
+        submittedDraft == null &&
+            submissionId != null &&
+            savedStateHandle.get<String>("submission_draft") == draft.toString()
+    ) {
+      submittedDraft = draft
+    }
     if (draft != submittedDraft) {
       submittedDraft = draft
       submissionId = UUID.randomUUID().toString()
     }
     val tripId = requireNotNull(submissionId)
+    savedStateHandle["submission_id"] = tripId
+    savedStateHandle["submission_draft"] = draft.toString()
+    savedStateHandle["submission_state"] =
+        arrayListOf(
+                state.startDate.toString(),
+                state.endDate.toString(),
+                state.flexibleDates.toString(),
+                state.travelMode.name,
+                state.travelerCount.toString(),
+            )
+            .apply {
+              state.selectedDestinations.forEach { destination ->
+                addAll(
+                    listOf(
+                        destination.stableId,
+                        destination.kind.name,
+                        destination.name,
+                        destination.countryName,
+                        destination.countryCode,
+                        destination.latitude.toString(),
+                        destination.longitude.toString(),
+                        destination.geonameId.toString(),
+                    )
+                )
+              }
+            }
     _uiState.update { it.copy(isSubmitting = true, creationError = null) }
     viewModelScope.launch {
       try {
         repository.createTrip(tripId, draft)
+        savedStateHandle["created_trip_id"] = tripId
         _uiState.update { it.copy(isSubmitting = false, createdTripId = tripId) }
       } catch (error: CancellationException) {
         _uiState.update { it.copy(isSubmitting = false) }

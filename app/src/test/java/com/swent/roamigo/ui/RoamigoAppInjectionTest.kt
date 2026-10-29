@@ -142,7 +142,7 @@ class RoamigoAppInjectionTest {
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsNotEnabled()
     gate.complete(Unit)
     composeRule.waitUntil {
-      composeRule.onAllNodesWithTag(C.Tag.trips_main_trip_card).fetchSemanticsNodes().isNotEmpty()
+      composeRule.onAllNodesWithTag("trip_ready").fetchSemanticsNodes().isNotEmpty()
     }
   }
 
@@ -165,7 +165,7 @@ class RoamigoAppInjectionTest {
     fail = false
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
     composeRule.waitUntil {
-      composeRule.onAllNodesWithTag(C.Tag.trips_main_trip_card).fetchSemanticsNodes().isNotEmpty()
+      composeRule.onAllNodesWithTag("trip_ready").fetchSemanticsNodes().isNotEmpty()
     }
   }
 

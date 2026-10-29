@@ -35,7 +35,11 @@ class DestinationScreenTest {
     val response = CompletableDeferred<List<Destination>>()
     val repository = FakeDestinationRepository(search = { response.await() })
     val viewModel =
-        CreateTripViewModel(destinationRepository = repository, requestDispatcher = Dispatchers.IO)
+        CreateTripViewModel(
+            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
+            destinationRepository = repository,
+            requestDispatcher = Dispatchers.IO,
+        )
     show(viewModel)
 
     viewModel.updateDestinationQuery("Paris")
@@ -65,7 +69,11 @@ class DestinationScreenTest {
             },
         )
     val viewModel =
-        CreateTripViewModel(destinationRepository = repository, requestDispatcher = Dispatchers.IO)
+        CreateTripViewModel(
+            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
+            destinationRepository = repository,
+            requestDispatcher = Dispatchers.IO,
+        )
     show(viewModel)
 
     viewModel.updateDestinationQuery("Paris")
@@ -108,7 +116,11 @@ class DestinationScreenTest {
             photo = { if (it.stableId == destinations.first().stableId) photo else null },
         )
     val viewModel =
-        CreateTripViewModel(destinationRepository = repository, requestDispatcher = Dispatchers.IO)
+        CreateTripViewModel(
+            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
+            destinationRepository = repository,
+            requestDispatcher = Dispatchers.IO,
+        )
     show(viewModel)
 
     viewModel.updateDestinationQuery("City")
@@ -153,7 +165,11 @@ class DestinationScreenTest {
         )
     val repository = FakeDestinationRepository(search = { listOf(city) }, photo = { photo })
     val viewModel =
-        CreateTripViewModel(destinationRepository = repository, requestDispatcher = Dispatchers.IO)
+        CreateTripViewModel(
+            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
+            destinationRepository = repository,
+            requestDispatcher = Dispatchers.IO,
+        )
     show(viewModel)
     viewModel.updateDestinationQuery("Paris")
     composeRule.waitUntil(5_000) {
@@ -181,7 +197,11 @@ class DestinationScreenTest {
         )
     val repository = FakeDestinationRepository(search = { listOf(city) }, photo = { photo })
     val viewModel =
-        CreateTripViewModel(destinationRepository = repository, requestDispatcher = Dispatchers.IO)
+        CreateTripViewModel(
+            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
+            destinationRepository = repository,
+            requestDispatcher = Dispatchers.IO,
+        )
     show(viewModel)
 
     viewModel.updateDestinationQuery("Paris")
@@ -211,7 +231,11 @@ class DestinationScreenTest {
         )
     val repository = FakeDestinationRepository(search = { listOf(city) }, photo = { photo })
     val viewModel =
-        CreateTripViewModel(destinationRepository = repository, requestDispatcher = Dispatchers.IO)
+        CreateTripViewModel(
+            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
+            destinationRepository = repository,
+            requestDispatcher = Dispatchers.IO,
+        )
     show(viewModel)
 
     viewModel.updateDestinationQuery("Lisbon")
@@ -231,7 +255,11 @@ class DestinationScreenTest {
     val lisbon = destination("lisbon-pt", "Lisbon", "Portugal", "PT", 2267057)
     val repository = FakeDestinationRepository(search = { emptyList() })
     val viewModel =
-        CreateTripViewModel(destinationRepository = repository, requestDispatcher = Dispatchers.IO)
+        CreateTripViewModel(
+            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
+            destinationRepository = repository,
+            requestDispatcher = Dispatchers.IO,
+        )
     viewModel.toggleDestination(paris)
     viewModel.toggleDestination(lisbon)
     show(viewModel)
