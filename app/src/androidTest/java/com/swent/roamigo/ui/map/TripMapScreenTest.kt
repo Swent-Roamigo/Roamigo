@@ -2,6 +2,11 @@
 package com.swent.roamigo.ui.map
 
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.activity.result.ActivityResultRegistry
+import androidx.activity.result.ActivityResultRegistryOwner
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
@@ -11,6 +16,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.core.app.ActivityOptionsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.Timestamp
@@ -153,6 +159,21 @@ class TripMapScreenTest {
   }
 
   @Test
+  fun openingTheScreenDoesNotRequestAnyPermission() {
+    val registry = RecordingActivityResultRegistry()
+    setScreen(
+        FakeTripRepository(trips = listOf(trip)),
+        RecordingLocationRepository(),
+        activityResultRegistry = registry,
+    )
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_map).assertIsDisplayed()
+    composeRule.waitForIdle()
+
+    assertEquals(emptyList<Any?>(), registry.launchedInputs)
+  }
+
+  @Test
   fun sharingOffShowsOffBannerAndTurnOnButton() {
     var turnOnRequests = 0
     var pauseRequests = 0
@@ -221,9 +242,10 @@ class TripMapScreenTest {
 
     composeRule.onNodeWithText(pauseSharingLabel).performClick()
 
+    // Checked before waiting for the UI, so that a delayed or deferred stop would fail.
+    composeRule.runOnIdle { assertEquals(1, locationRepository.stopSharingCalls.get()) }
     waitForText(turnOnSharingLabel)
     composeRule.onNodeWithText(sharingOffTitle).assertIsDisplayed()
-    assertEquals(1, locationRepository.stopSharingCalls.get())
   }
 
   @Test
@@ -276,25 +298,35 @@ class TripMapScreenTest {
     }
   }
 
-  private fun setScreen(tripRepository: TripRepository, locationRepository: LocationRepository) {
+  private fun setScreen(
+      tripRepository: TripRepository,
+      locationRepository: LocationRepository,
+      activityResultRegistry: ActivityResultRegistry = RecordingActivityResultRegistry(),
+  ) {
+    val registryOwner =
+        object : ActivityResultRegistryOwner {
+          override val activityResultRegistry = activityResultRegistry
+        }
     composeRule.setContent {
-      RoamigoTheme {
-        TripMapScreen(
-            tripId = TRIP_ID,
-            tripMapViewModelFactory =
-                TripMapViewModel.factory(
-                    tripId = TRIP_ID,
-                    tripRepository = tripRepository,
-                    userRepository = FakeUserRepository(User(USER_ID, "Alex", null)),
-                ),
-            locationViewModelFactory =
-                LocationViewModel.factory(
-                    tripId = TRIP_ID,
-                    currentUserId = USER_ID,
-                    locationRepository = locationRepository,
-                    connectivityRepository = AlwaysOnlineConnectivityRepository,
-                ),
-        )
+      CompositionLocalProvider(LocalActivityResultRegistryOwner provides registryOwner) {
+        RoamigoTheme {
+          TripMapScreen(
+              tripId = TRIP_ID,
+              tripMapViewModelFactory =
+                  TripMapViewModel.factory(
+                      tripId = TRIP_ID,
+                      tripRepository = tripRepository,
+                      userRepository = FakeUserRepository(User(USER_ID, "Alex", null)),
+                  ),
+              locationViewModelFactory =
+                  LocationViewModel.factory(
+                      tripId = TRIP_ID,
+                      currentUserId = USER_ID,
+                      locationRepository = locationRepository,
+                      connectivityRepository = AlwaysOnlineConnectivityRepository,
+                  ),
+          )
+        }
       }
     }
     composeRule.loadLocalMapStyle()
@@ -344,6 +376,23 @@ class TripMapScreenTest {
         flowOf(emptyList())
 
     override fun isSharing(tripId: String): Flow<Boolean> = sharing
+  }
+
+  /**
+   * Records what the screen launches through the Activity Result API, such as a system permission
+   * request, without showing anything.
+   */
+  private class RecordingActivityResultRegistry : ActivityResultRegistry() {
+    val launchedInputs = mutableListOf<Any?>()
+
+    override fun <I, O> onLaunch(
+        requestCode: Int,
+        contract: ActivityResultContract<I, O>,
+        input: I,
+        options: ActivityOptionsCompat?,
+    ) {
+      launchedInputs += input
+    }
   }
 
   private object AlwaysOnlineConnectivityRepository : ConnectivityRepository {
