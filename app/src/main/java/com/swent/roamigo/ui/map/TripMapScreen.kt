@@ -67,7 +67,7 @@ fun TripMapScreen(
       isSharing = locationUiState.isSharing,
       onRetry = tripMapViewModel::retry,
       onTurnOnSharing = {
-        // TODO(#144): ask for the permission instead of doing nothing when it is not granted.
+        // Should request location permission when not granted instead of ignoring the tap (#144).
         if (locationUiState.permissionState == LocationPermissionState.Granted) {
           locationViewModel.startSharing()
         }
