@@ -47,5 +47,24 @@ object C {
     const val trip_history_world_map = "trip_history_world_map"
     const val trips_history_button = "trips_history_button"
     const val trip_history_retry = "trip_history_retry"
+
+    const val trip_map_map = "trip_map_map"
+    const val trip_map_sharing_banner = "trip_map_sharing_banner"
+    const val trip_map_sharing_button = "trip_map_sharing_button"
+    const val trip_map_share_location_sheet = "trip_map_share_location_sheet"
+    const val trip_map_share_location_continue = "trip_map_share_location_continue"
+    const val trip_map_share_location_not_now = "trip_map_share_location_not_now"
+    const val trip_map_location_denied_sheet = "trip_map_location_denied_sheet"
+    const val trip_map_location_denied_got_it = "trip_map_location_denied_got_it"
+    const val trip_map_location_blocked_sheet = "trip_map_location_blocked_sheet"
+    const val trip_map_location_blocked_open_settings = "trip_map_location_blocked_open_settings"
+    const val trip_map_location_blocked_not_now = "trip_map_location_blocked_not_now"
+    // Followed by the member's user ID, which is case-sensitive and so kept as is.
+    const val trip_map_member_marker_prefix = "trip_map_member_marker_"
+    const val trip_map_my_location = "trip_map_my_location"
+    const val trip_map_loading = "trip_map_loading"
+    const val trip_map_error = "trip_map_error"
+    const val trip_map_retry = "trip_map_retry"
+    const val trip_map_offline = "trip_map_offline"
   }
 }

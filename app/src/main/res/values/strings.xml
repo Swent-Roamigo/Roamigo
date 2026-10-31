@@ -129,6 +129,16 @@
     <string name="trip_map_load_error">Unable to load trip destinations. Please try again.</string>
     <string name="trip_map_retry">Retry</string>
 
+    <!-- Trip map -->
+    <string name="trip_map_trip_loading">Loading trip…</string>
+    <string name="trip_map_trip_load_error">Unable to load this trip. Please try again.</string>
+    <string name="trip_map_sharing_off_title">Location sharing is off</string>
+    <string name="trip_map_sharing_off_description">The rest of the app works. Turn it on to appear.</string>
+    <string name="trip_map_sharing_on_title">Location sharing is on</string>
+    <string name="trip_map_sharing_on_description">Trip members can see you on the map.</string>
+    <string name="trip_map_turn_on_sharing">Turn on sharing</string>
+    <string name="trip_map_pause_sharing">Pause sharing</string>
+
     <!-- Vote creation -->
     <string name="vote_new">New vote</string>
     <string name="vote_question">Question</string>
