@@ -4,8 +4,10 @@ package com.swent.roamigo.ui.map
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -48,6 +50,10 @@ class TripMapScreenTest {
 
   private val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
   private val errorMessage = targetContext.getString(R.string.trip_map_trip_load_error)
+  private val sharingOffTitle = targetContext.getString(R.string.trip_map_sharing_off_title)
+  private val sharingOnTitle = targetContext.getString(R.string.trip_map_sharing_on_title)
+  private val turnOnSharingLabel = targetContext.getString(R.string.trip_map_turn_on_sharing)
+  private val pauseSharingLabel = targetContext.getString(R.string.trip_map_pause_sharing)
 
   private val trip =
       Trip(
@@ -68,6 +74,7 @@ class TripMapScreenTest {
       )
 
   private val uiState = mutableStateOf<TripMapUiState>(TripMapUiState.Loading)
+  private val isSharing = mutableStateOf(false)
 
   @Test
   fun loadingStateShowsOverlayOverTheMap() {
@@ -145,12 +152,128 @@ class TripMapScreenTest {
     assertEquals(0, locationRepository.getCurrentLocationCalls.get())
   }
 
-  private fun setContent(initialState: TripMapUiState, onRetry: () -> Unit = {}) {
+  @Test
+  fun sharingOffShowsOffBannerAndTurnOnButton() {
+    var turnOnRequests = 0
+    var pauseRequests = 0
+    setContent(
+        loadedState,
+        sharing = false,
+        onTurnOnSharing = { turnOnRequests++ },
+        onPauseSharing = { pauseRequests++ },
+    )
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_banner).assertIsDisplayed()
+    composeRule.onNodeWithText(sharingOffTitle).assertIsDisplayed()
+    composeRule.onNodeWithText(sharingOnTitle).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertTextEquals(turnOnSharingLabel)
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).performClick()
+
+    composeRule.runOnIdle {
+      assertEquals(1, turnOnRequests)
+      assertEquals(0, pauseRequests)
+    }
+  }
+
+  @Test
+  fun sharingOnShowsOnBannerAndPauseButton() {
+    var turnOnRequests = 0
+    var pauseRequests = 0
+    setContent(
+        loadedState,
+        sharing = true,
+        onTurnOnSharing = { turnOnRequests++ },
+        onPauseSharing = { pauseRequests++ },
+    )
+
+    composeRule.onNodeWithText(sharingOnTitle).assertIsDisplayed()
+    composeRule.onNodeWithText(sharingOffTitle).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertTextEquals(pauseSharingLabel)
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).performClick()
+
+    composeRule.runOnIdle {
+      assertEquals(0, turnOnRequests)
+      assertEquals(1, pauseRequests)
+    }
+  }
+
+  @Test
+  fun bannerAndButtonStayVisibleOverTheErrorOverlay() {
+    setContent(TripMapUiState.Error("failure"))
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_error).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_banner).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertIsDisplayed()
+  }
+
+  @Test
+  fun turnOnWithGrantedPermissionStartsSharingAndPauseStopsIt() {
+    val locationRepository = RecordingLocationRepository(hasPermission = true)
+    setScreen(FakeTripRepository(trips = listOf(trip)), locationRepository)
+
+    composeRule.onNodeWithText(turnOnSharingLabel).performClick()
+
+    waitForText(pauseSharingLabel)
+    composeRule.onNodeWithText(sharingOnTitle).assertIsDisplayed()
+    assertEquals(1, locationRepository.startSharingCalls.get())
+
+    composeRule.onNodeWithText(pauseSharingLabel).performClick()
+
+    waitForText(turnOnSharingLabel)
+    composeRule.onNodeWithText(sharingOffTitle).assertIsDisplayed()
+    assertEquals(1, locationRepository.stopSharingCalls.get())
+  }
+
+  @Test
+  fun turnOnWithoutPermissionDoesNothing() {
+    val locationRepository = RecordingLocationRepository(hasPermission = false)
+    setScreen(FakeTripRepository(trips = listOf(trip)), locationRepository)
+
+    composeRule.onNodeWithText(turnOnSharingLabel).performClick()
+    composeRule.waitForIdle()
+
+    composeRule.onNodeWithText(sharingOffTitle).assertIsDisplayed()
+    composeRule.onNodeWithText(turnOnSharingLabel).assertIsDisplayed()
+    assertEquals(0, locationRepository.startSharingCalls.get())
+  }
+
+  private val loadedState
+    get() =
+        TripMapUiState.Loaded(
+            trip = trip,
+            viewport = TripMapViewport.Centered(38.7223, -9.1393),
+            members = emptyMap(),
+        )
+
+  private fun setContent(
+      initialState: TripMapUiState,
+      sharing: Boolean = false,
+      onRetry: () -> Unit = {},
+      onTurnOnSharing: () -> Unit = {},
+      onPauseSharing: () -> Unit = {},
+  ) {
     uiState.value = initialState
+    isSharing.value = sharing
     composeRule.setContent {
-      RoamigoTheme { TripMapContent(uiState = uiState.value, onRetry = onRetry) }
+      RoamigoTheme {
+        TripMapContent(
+            uiState = uiState.value,
+            isSharing = isSharing.value,
+            onRetry = onRetry,
+            onTurnOnSharing = onTurnOnSharing,
+            onPauseSharing = onPauseSharing,
+        )
+      }
     }
     composeRule.loadLocalMapStyle()
+  }
+
+  private fun waitForText(text: String) {
+    composeRule.waitUntil(timeoutMillis = MAP_TEST_TIMEOUT_MILLIS) {
+      composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
+    }
   }
 
   private fun setScreen(tripRepository: TripRepository, locationRepository: LocationRepository) {
@@ -187,12 +310,14 @@ class TripMapScreenTest {
     }
   }
 
-  private class RecordingLocationRepository : LocationRepository {
+  private class RecordingLocationRepository(private val hasPermission: Boolean = false) :
+      LocationRepository {
     val startSharingCalls = AtomicInteger(0)
+    val stopSharingCalls = AtomicInteger(0)
     val getCurrentLocationCalls = AtomicInteger(0)
     private val sharing = MutableStateFlow(false)
 
-    override fun hasLocationPermission(): Boolean = false
+    override fun hasLocationPermission(): Boolean = hasPermission
 
     override suspend fun getCurrentLocation(): DeviceLocation? {
       getCurrentLocationCalls.incrementAndGet()
@@ -205,6 +330,7 @@ class TripMapScreenTest {
     }
 
     override suspend fun stopSharing(tripId: String) {
+      stopSharingCalls.incrementAndGet()
       sharing.value = false
     }
 
