@@ -18,23 +18,29 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.ui.theme.Spacing
 
-/** A rounded card with an icon badge, a title and subtitle, and an optional trailing [action]. */
+/**
+ * A rounded card with an icon badge, a title and subtitle, and an optional trailing [action].
+ *
+ * @param containerColor background of the card.
+ */
 @Composable
 fun InfoRow(
     @DrawableRes icon: Int,
     title: String,
     subtitle: String,
     modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceVariant,
     action: (@Composable () -> Unit)? = null,
 ) {
   Surface(
       modifier = modifier.fillMaxWidth(),
       shape = MaterialTheme.shapes.medium,
-      color = MaterialTheme.colorScheme.surfaceVariant,
+      color = containerColor,
   ) {
     Row(
         modifier = Modifier.padding(Spacing.cardPadding),
