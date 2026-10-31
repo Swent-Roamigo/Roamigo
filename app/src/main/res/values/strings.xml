@@ -129,6 +129,34 @@
     <string name="trip_map_load_error">Unable to load trip destinations. Please try again.</string>
     <string name="trip_map_retry">Retry</string>
 
+    <!-- Trip map -->
+    <string name="trip_map_trip_loading">Loading trip…</string>
+    <string name="trip_map_trip_load_error">Unable to load this trip. Please try again.</string>
+    <string name="trip_map_sharing_off_title">Location sharing is off</string>
+    <string name="trip_map_sharing_off_description">The rest of the app works. Turn it on to appear.</string>
+    <string name="trip_map_sharing_on_title">Location sharing is on</string>
+    <string name="trip_map_sharing_on_description">Trip members can see you on the map.</string>
+    <string name="trip_map_turn_on_sharing">Turn on sharing</string>
+    <string name="trip_map_pause_sharing">Pause sharing</string>
+    <string name="trip_map_share_location_title">Share your location with the group?</string>
+    <string name="trip_map_share_location_description">Roamigo uses your location only while sharing is on. Only trip members can see it, and you can pause any time.</string>
+    <string name="trip_map_share_location_continue">Continue</string>
+    <string name="trip_map_share_location_not_now">Not now</string>
+    <string name="trip_map_location_denied_title">Location stays off</string>
+    <string name="trip_map_location_denied_description">The rest of the app works. You can turn sharing on any time from the map.</string>
+    <string name="trip_map_location_denied_got_it">Got it</string>
+    <string name="trip_map_location_blocked_title">Location is blocked</string>
+    <string name="trip_map_location_blocked_description">Turn it on in Settings › Permissions › Location to share with your group.</string>
+    <string name="trip_map_location_blocked_open_settings">Open Settings</string>
+    <string name="trip_map_location_blocked_not_now">Not now</string>
+    <string name="trip_map_member_label">%1$s · %2$s</string>
+    <string name="trip_map_member_live">live</string>
+    <string name="trip_map_member_seconds_ago">%1$d s ago</string>
+    <string name="trip_map_member_minutes_ago">%1$d min ago</string>
+    <string name="trip_map_member_stale_description">%1$s, location outdated</string>
+    <string name="trip_map_my_location_description">Your location</string>
+    <string name="trip_map_offline">You are offline · saved plan only. Live locations, votes and new updates need internet.</string>
+
     <!-- Vote creation -->
     <string name="vote_new">New vote</string>
     <string name="vote_question">Question</string>
