@@ -229,6 +229,7 @@ fun RoamigoApp(
                 inclusive = false,
             )
           },
+          onOpenTrip = { tripId -> navController.navigate(Route.tripDetails(tripId)) },
           onFriendsClick = { navController.navigate(Route.FRIENDS) { launchSingleTop = true } },
       )
     }
