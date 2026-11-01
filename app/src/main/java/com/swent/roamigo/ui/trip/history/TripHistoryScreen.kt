@@ -38,6 +38,7 @@ import java.time.LocalDate
 fun TripHistoryScreen(
     uiState: TripHistoryUiState,
     onOpenTrip: (String) -> Unit,
+    modifier: Modifier = Modifier,
     onBackClick: () -> Unit = rememberNotImplementedAction(),
     onOpenWorldMapClick: () -> Unit = rememberNotImplementedAction(),
     onTripsClick: () -> Unit = rememberNotImplementedAction(),
@@ -49,7 +50,7 @@ fun TripHistoryScreen(
   val completedTrips = (uiState as? TripHistoryUiState.Success)?.trips
 
   Scaffold(
-      modifier = Modifier.testTag(C.Tag.trip_history_screen),
+      modifier = modifier.testTag(C.Tag.trip_history_screen),
       containerColor = MaterialTheme.colorScheme.background,
       bottomBar = {
         Column {
