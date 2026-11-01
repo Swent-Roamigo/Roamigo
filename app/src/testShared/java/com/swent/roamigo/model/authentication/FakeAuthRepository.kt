@@ -12,6 +12,7 @@ internal class FakeAuthRepository(
   var lastCredential: Credential? = null
     private set
   var failure: Exception? = null
+  var signOutFailure: Exception? = null
 
   override suspend fun signInWithGoogle(credential: Credential): Result<AuthenticatedUser> {
     lastCredential = credential
@@ -23,6 +24,7 @@ internal class FakeAuthRepository(
   override fun getCurrentUser(): AuthenticatedUser? = currentAccount
 
   override fun signOut(): Result<Unit> {
+    signOutFailure?.let { return Result.failure(it) }
     currentAccount = null
     return Result.success(Unit)
   }

@@ -1,7 +1,10 @@
-// Implemented with assistance from Claude (Anthropic).
+// Author : Constantin Dunoyer de Segonzac
+// Co-author : ChatGPT-Codex
+// Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -11,36 +14,60 @@ import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.credentials.ClearCredentialStateRequest
+import androidx.credentials.CredentialManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.swent.roamigo.R
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
+import com.swent.roamigo.model.destination.sampleDestination
+import com.swent.roamigo.model.destination.sampleDestinationRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
+import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.authentication.AuthenticationScreenTestTags
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.DatesTravelersScreenTestTags
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
 import com.swent.roamigo.ui.trip.creation.components.DestinationCardTestTags
 import com.swent.roamigo.ui.trip.creation.components.TripTypeSelectorTestTags
+import com.swent.roamigo.ui.trip.creation.searchSampleDestinations
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.shadows.ShadowToast
 
 /** Checks that the screens are connected as intended and that Back returns to the right one. */
 @RunWith(AndroidJUnit4::class)
 class RoamigoAppTest {
   @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
   private val repository = FakeTripRepository(currentUserId = "alex")
+  private val authRepository =
+      FakeAuthRepository(AuthenticatedUser("alex", "Alex", null, null), initiallySignedIn = true)
 
   @Before
   fun setUp() {
-    val authRepository =
-        FakeAuthRepository(AuthenticatedUser("alex", "Alex", null, null), initiallySignedIn = true)
+    val credentialManager =
+        object : CredentialManager by CredentialManager.create(composeRule.activity) {
+          override suspend fun clearCredentialState(request: ClearCredentialStateRequest) {}
+        }
     composeRule.setContent {
-      RoamigoTheme { RoamigoApp(authRepository = authRepository, tripRepository = repository) }
+      RoamigoTheme {
+        RoamigoApp(
+            voteRepository = InMemoryVoteRepository(),
+            destinationRepository = sampleDestinationRepository(),
+            authRepository = authRepository,
+            tripRepository = repository,
+            credentialManager = credentialManager,
+        )
+      }
     }
   }
 
@@ -54,6 +81,43 @@ class RoamigoAppTest {
 
   private fun pressBack() {
     composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+  }
+
+  @Test
+  fun signOutOpensAuthenticationAndBackDoesNotRestoreTrips() {
+    waitForTrips()
+    waitForTag(C.Tag.trips_profile_avatar)
+    composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
+    composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    waitForTag(AuthenticationScreenTestTags.heading)
+    composeRule.onNodeWithTag(AuthenticationScreenTestTags.heading).assertIsDisplayed()
+    composeRule.onAllNodesWithTag(C.Tag.profile_title).assertCountEquals(0)
+    composeRule.onAllNodesWithTag(C.Tag.trips_screen).assertCountEquals(0)
+    assertNull(authRepository.getCurrentUser())
+    pressBack()
+    assertTrue(composeRule.activity.isFinishing)
+  }
+
+  @Test
+  fun signOutFailureStaysOnProfileAndAllowsRetry() {
+    authRepository.signOutFailure = IllegalStateException("Technical details")
+    waitForTrips()
+    waitForTag(C.Tag.trips_profile_avatar)
+    composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
+    composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.profile_log_out).assertIsEnabled()
+    composeRule
+        .onNodeWithText(
+            composeRule.activity.getString(com.swent.roamigo.R.string.profile_sign_out_failed)
+        )
+        .assertIsDisplayed()
+    composeRule.onAllNodesWithTag(AuthenticationScreenTestTags.heading).assertCountEquals(0)
+    assertEquals("alex", authRepository.getCurrentUser()?.uid)
+    composeRule.runOnIdle { authRepository.signOutFailure = null }
+    composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    waitForTag(AuthenticationScreenTestTags.heading)
+    assertNull(authRepository.getCurrentUser())
   }
 
   @Test
@@ -102,6 +166,7 @@ class RoamigoAppTest {
     waitForTrips()
 
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
+    composeRule.searchSampleDestinations()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsDisplayed()
 
     pressBack()
@@ -112,6 +177,7 @@ class RoamigoAppTest {
   fun backButtonOnTheDestinationStepReturnsToTrips() {
     waitForTrips()
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
+    composeRule.searchSampleDestinations()
 
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.BACK).performClick()
 
@@ -123,6 +189,7 @@ class RoamigoAppTest {
   fun closeButtonOnTheDestinationStepReturnsToTrips() {
     waitForTrips()
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
+    composeRule.searchSampleDestinations()
 
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.CLOSE).performClick()
 
@@ -134,20 +201,26 @@ class RoamigoAppTest {
   fun datesBackPreservesDestinationsAndOptionsAndCloseDiscardsDraft() {
     waitForTrips()
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
+    composeRule.searchSampleDestinations()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsNotEnabled()
-    composeRule.onNodeWithTag(DestinationCardTestTags.forDestination("Lisbon")).performClick()
+    composeRule
+        .onNodeWithTag(DestinationCardTestTags.forDestination(sampleDestination("Lisbon").stableId))
+        .performClick()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
     composeRule.onNodeWithTag(DatesTravelersScreenTestTags.SCREEN).assertIsDisplayed()
     composeRule.onNodeWithTag(TripTypeSelectorTestTags.SOLO).performScrollTo().performClick()
 
     pressBack()
-    composeRule.onNodeWithTag(DestinationCardTestTags.forDestination("Lisbon")).assertIsSelected()
+    composeRule
+        .onNodeWithTag(DestinationCardTestTags.forDestination(sampleDestination("Lisbon").stableId))
+        .assertIsSelected()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
     composeRule.onNodeWithTag(TripTypeSelectorTestTags.SOLO).performScrollTo().assertIsSelected()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.CLOSE).performClick()
     waitForTrips()
 
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
+    composeRule.searchSampleDestinations()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsNotEnabled()
   }
 
@@ -155,14 +228,19 @@ class RoamigoAppTest {
   fun creationReturnsToRefreshedTripsAndNextDraftStartsEmpty() {
     waitForTrips()
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
-    composeRule.onNodeWithTag(DestinationCardTestTags.forDestination("Lisbon")).performClick()
+    composeRule.searchSampleDestinations()
+    composeRule
+        .onNodeWithTag(DestinationCardTestTags.forDestination(sampleDestination("Lisbon").stableId))
+        .performClick()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
     composeRule
         .onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION)
         .assertIsEnabled()
         .performClick()
-    waitForTag(C.Tag.trips_main_trip_card)
+    waitForTag("trip_ready")
     composeRule.onAllNodesWithTag(DatesTravelersScreenTestTags.SCREEN).assertCountEquals(0)
+    pressBack()
+    waitForTag(C.Tag.trips_main_trip_card)
 
     // Returning through another screen must not replay the completed creation navigation.
     composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
@@ -171,6 +249,7 @@ class RoamigoAppTest {
     composeRule.waitUntil { composeRule.onNodeWithTag(C.Tag.trips_main_trip_card).isDisplayed() }
     composeRule.onNodeWithTag(C.Tag.trips_main_trip_card).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
+    composeRule.searchSampleDestinations()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsNotEnabled()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.CLOSE).performClick()
     composeRule.waitUntil {
@@ -193,5 +272,158 @@ class RoamigoAppTest {
     pressBack()
 
     assertTrue(composeRule.activity.isFinishing)
+  }
+
+  @Test
+  fun historyOpensFromTripsAndBackReturnsToTrips() {
+    waitForTrips()
+    waitForTag(C.Tag.trips_history_button)
+
+    composeRule.onNodeWithTag(C.Tag.trips_history_button).performClick()
+
+    waitForTag(C.Tag.trip_history_screen)
+
+    composeRule.onNodeWithTag(C.Tag.trip_history_empty).assertIsDisplayed()
+
+    // Back button in the screen.
+    composeRule.onNodeWithTag(C.Tag.trip_history_back).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+
+    // Open history again and test Android system Back.
+    composeRule.onNodeWithTag(C.Tag.trips_history_button).performClick()
+
+    waitForTag(C.Tag.trip_history_screen)
+
+    pressBack()
+
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+  }
+
+  @Test
+  fun tripsTabOnTripHistoryReturnsToTripsAndBackLeavesTheApp() {
+    waitForTrips()
+    composeRule.onNodeWithTag(C.Tag.trips_history_button).performClick()
+    waitForTag(C.Tag.trip_history_screen)
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
+
+    waitForTrips()
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).assertIsSelected()
+    composeRule.onAllNodesWithTag(C.Tag.trip_history_screen).assertCountEquals(0)
+
+    pressBack()
+
+    composeRule.waitUntil { composeRule.activity.isFinishing }
+    assertTrue(composeRule.activity.isFinishing)
+  }
+
+  @Test
+  fun friendsTabOnTripsOpensFriendsAndBackReturnsToTrips() {
+    waitForTrips()
+
+    // Open Friends using the bottom navigation bar.
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
+
+    // Verify that Friends is displayed and selected.
+    waitForTag(C.Tag.friends_screen)
+    composeRule.onNodeWithTag(C.Tag.friends_screen).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).assertIsSelected()
+
+    // Verify that Android Back returns to Trips.
+    pressBack()
+    waitForTrips()
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+  }
+
+  @Test
+  fun profileViewFriendsOpensFriendsAndBackReturnsToProfile() {
+    waitForTrips()
+
+    composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
+    waitForTag(C.Tag.profile_title)
+
+    composeRule.onNodeWithText("View").performClick()
+
+    waitForTag(C.Tag.friends_screen)
+    composeRule.onNodeWithTag(C.Tag.friends_screen).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).assertIsSelected()
+
+    pressBack()
+
+    waitForTag(C.Tag.profile_title)
+    composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
+  }
+
+  @Test
+  fun friendsTabOnProfileOpensFriendsAndBackReturnsToProfile() {
+    waitForTrips()
+
+    composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
+    waitForTag(C.Tag.profile_title)
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
+
+    waitForTag(C.Tag.friends_screen)
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).assertIsSelected()
+
+    pressBack()
+
+    waitForTag(C.Tag.profile_title)
+    composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
+  }
+
+  @Test
+  fun friendsTabOnTripHistoryOpensFriendsAndBackReturnsToHistory() {
+    waitForTrips()
+
+    composeRule.onNodeWithTag(C.Tag.trips_history_button).performClick()
+    waitForTag(C.Tag.trip_history_screen)
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
+
+    waitForTag(C.Tag.friends_screen)
+    composeRule.onNodeWithTag(C.Tag.friends_screen).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).assertIsSelected()
+
+    pressBack()
+
+    waitForTag(C.Tag.trip_history_screen)
+    composeRule.onNodeWithTag(C.Tag.trip_history_screen).assertIsDisplayed()
+  }
+
+  @Test
+  fun tripsTabOnFriendsReturnsToTrips() {
+    waitForTrips()
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
+    waitForTag(C.Tag.friends_screen)
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
+
+    waitForTrips()
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+    composeRule.onAllNodesWithTag(C.Tag.friends_screen).assertCountEquals(0)
+  }
+
+  @Test
+  fun photosTabOnFriendsShowsNotImplementedFeedback() {
+    waitForTrips()
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
+    waitForTag(C.Tag.friends_screen)
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_map).assert(isNotImplemented.not())
+
+    ShadowToast.reset()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).assert(isNotImplemented).performClick()
+
+    composeRule.runOnIdle {
+      assertEquals(
+          composeRule.activity.getString(R.string.feature_not_implemented),
+          ShadowToast.getTextOfLatestToast(),
+      )
+    }
+    composeRule.onNodeWithTag(C.Tag.friends_screen).assertIsDisplayed()
   }
 }

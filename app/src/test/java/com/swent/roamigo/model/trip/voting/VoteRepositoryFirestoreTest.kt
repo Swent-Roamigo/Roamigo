@@ -432,6 +432,7 @@ class VoteRepositoryFirestoreTest {
         listOf<suspend () -> Unit>(
             { repository.createVote(vote.copy(uid = "bad/id")) },
             { repository.getVotes("") },
+            { repository.observeVotes("").first() },
             {
               repository.submitBallot(
                   "trip-1",
@@ -445,6 +446,123 @@ class VoteRepositoryFirestoreTest {
       assertTrue(runCatching { it() }.exceptionOrNull() is IllegalArgumentException)
     }
     verifyNoInteractions(db)
+  }
+
+  @Test
+  fun observeVotesEmitsInitialAdditionsUpdatesAndRemovalsAndCleansUp() = runTest {
+    val registration = mock(ListenerRegistration::class.java)
+    `when`(votes.addSnapshotListener(any<EventListener<QuerySnapshot>>())).thenReturn(registration)
+    val changes = mutableListOf<List<Vote>>()
+    val flow = repository.observeVotes("trip-1")
+    verifyNoInteractions(votes)
+    val collection = launch { flow.take(5).collect { changes.add(it) } }
+    runCurrent()
+    val listener = capturedListener(votes)
+    val second = vote.copy(uid = "vote-2")
+    val updated = vote.copy(question = "Updated?", status = VoteStatus.CLOSED)
+    listener.onEvent(query(), null)
+    listener.onEvent(query(document(vote.uid, voteData)), null)
+    listener.onEvent(query(document(vote.uid, voteData), document(second.uid, voteData)), null)
+    listener.onEvent(
+        query(document(vote.uid, voteData + mapOf("question" to "Updated?", "status" to "CLOSED"))),
+        null,
+    )
+    listener.onEvent(query(), null)
+    collection.join()
+
+    assertEquals(
+        listOf(emptyList(), listOf(vote), listOf(vote, second), listOf(updated), emptyList()),
+        changes,
+    )
+    verify(trips).document("trip-1")
+    verify(trip).collection("votes")
+    verify(registration).remove()
+  }
+
+  @Test
+  fun observeVotesIsIsolatedToTheRequestedTripAndUsesPathIds() = runTest {
+    val otherTrip = mock(DocumentReference::class.java)
+    val otherVotes = mock(CollectionReference::class.java)
+    `when`(trips.document("trip-2")).thenReturn(otherTrip)
+    `when`(otherTrip.collection("votes")).thenReturn(otherVotes)
+    val registration = mock(ListenerRegistration::class.java)
+    val otherRegistration = mock(ListenerRegistration::class.java)
+    `when`(votes.addSnapshotListener(any<EventListener<QuerySnapshot>>())).thenReturn(registration)
+    `when`(otherVotes.addSnapshotListener(any<EventListener<QuerySnapshot>>()))
+        .thenReturn(otherRegistration)
+    val current = mutableListOf<List<Vote>>()
+    val other = mutableListOf<List<Vote>>()
+    val firstCollection = launch { repository.observeVotes("trip-1").collect { current.add(it) } }
+    val secondCollection = launch { repository.observeVotes("trip-2").collect { other.add(it) } }
+    runCurrent()
+    val listener = capturedListener(votes)
+    val otherListener = capturedListener(otherVotes)
+    listener.onEvent(query(), null)
+    otherListener.onEvent(query(document("other-vote", voteData)), null)
+    runCurrent()
+    assertEquals(listOf(emptyList<Vote>()), current)
+    assertEquals(listOf(listOf(vote.copy(uid = "other-vote", tripId = "trip-2"))), other)
+    listener.onEvent(
+        query(document(vote.uid, voteData + mapOf("tripId" to "trip-2", "uid" to "wrong"))),
+        null,
+    )
+    runCurrent()
+    assertEquals(listOf(emptyList(), listOf(vote)), current)
+    firstCollection.cancel()
+    secondCollection.cancel()
+    firstCollection.join()
+    secondCollection.join()
+    verify(registration).remove()
+    verify(otherRegistration).remove()
+  }
+
+  @Test
+  fun observeVotesRemovesListenerWhenCollectionIsCancelled() = runTest {
+    val registration = mock(ListenerRegistration::class.java)
+    `when`(votes.addSnapshotListener(any<EventListener<QuerySnapshot>>())).thenReturn(registration)
+    val collection = launch { repository.observeVotes("trip-1").collect() }
+    runCurrent()
+    collection.cancel()
+    collection.join()
+    verify(registration).remove()
+  }
+
+  @Test
+  fun observeVotesPropagatesObservationFailureAndRemovesListener() = runTest {
+    val registration = mock(ListenerRegistration::class.java)
+    `when`(votes.addSnapshotListener(any<EventListener<QuerySnapshot>>())).thenReturn(registration)
+    val error =
+        FirebaseFirestoreException("Unavailable", FirebaseFirestoreException.Code.UNAVAILABLE)
+    val result = async { runCatching { repository.observeVotes("trip-1").first() } }
+    runCurrent()
+    capturedListener(votes).onEvent(null, error)
+    assertSame(error, result.await().exceptionOrNull())
+    verify(registration).remove()
+  }
+
+  @Test
+  fun observeVotesRejectsMalformedSnapshotsWithoutEmittingPartialLists() = runTest {
+    for (snapshot in
+        listOf(query(document(vote.uid, voteData), document("bad", voteData - "question")), null)) {
+      reset(votes)
+      val registration = mock(ListenerRegistration::class.java)
+      `when`(votes.addSnapshotListener(any<EventListener<QuerySnapshot>>()))
+          .thenReturn(registration)
+      val result = async { runCatching { repository.observeVotes("trip-1").first() } }
+      runCurrent()
+      capturedListener(votes).onEvent(snapshot, null)
+      assertTrue(result.await().exceptionOrNull() is IllegalArgumentException)
+      verify(registration).remove()
+    }
+  }
+
+  @Test
+  fun observeVotesReportsListenerRegistrationFailure() = runTest {
+    val error = IllegalStateException("Unable to register")
+    `when`(votes.addSnapshotListener(any<EventListener<QuerySnapshot>>())).thenThrow(error)
+    val failure = runCatching { repository.observeVotes("trip-1").first() }.exceptionOrNull()
+    assertTrue(failure is IllegalStateException)
+    assertEquals(error.message, failure?.message)
   }
 
   @Test
@@ -562,11 +680,13 @@ class VoteRepositoryFirestoreTest {
   }
 
   @Suppress("UNCHECKED_CAST")
-  private fun capturedListener(): EventListener<QuerySnapshot> {
+  private fun capturedListener(
+      collection: CollectionReference = ballots
+  ): EventListener<QuerySnapshot> {
     val captor =
         ArgumentCaptor.forClass(EventListener::class.java)
             as ArgumentCaptor<EventListener<QuerySnapshot>>
-    verify(ballots).addSnapshotListener(captor.capture())
+    verify(collection).addSnapshotListener(captor.capture())
     return captor.value
   }
 

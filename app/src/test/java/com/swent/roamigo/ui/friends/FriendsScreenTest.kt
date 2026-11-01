@@ -4,6 +4,7 @@ package com.swent.roamigo.ui.friends
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -141,6 +142,8 @@ class FriendsScreenTest {
     composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.trips_navigation_map).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).assertIsDisplayed()
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).assertIsDisplayed().assertIsSelected()
   }
 
   @Test

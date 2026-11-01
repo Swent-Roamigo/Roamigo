@@ -41,6 +41,18 @@ interface VoteRepository {
   suspend fun getVotes(tripId: String): List<Vote>
 
   /**
+   * Observes all votes in the specified trip, including the initial empty list and subsequent
+   * additions, updates, and removals. Each collector owns a listener removed when collection ends.
+   * Listener or mapping errors terminate collection without emitting partial data.
+   *
+   * @param tripId ID of the trip whose vote subcollection is observed.
+   * @return A cold flow of complete vote lists in unspecified order.
+   * @throws IllegalArgumentException During collection if the trip ID or stored data is invalid.
+   * @throws FirebaseFirestoreException During collection if registration or observation fails.
+   */
+  fun observeVotes(tripId: String): Flow<List<Vote>>
+
+  /**
    * Creates or replaces the user's ballot, preserving the caller-supplied update timestamp. The
    * caller must supply an existing trip/vote and a choice from that vote's options.
    *

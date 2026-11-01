@@ -1,4 +1,4 @@
-// Implemented with assistance from Claude (Anthropic).
+// Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui.profile
 
 import androidx.compose.foundation.background
@@ -38,19 +38,22 @@ import com.swent.roamigo.ui.theme.Spacing
 @Composable
 fun ProfileScreen(
     state: ProfileUiState,
-    onTripsClick: () -> Unit = rememberNotImplementedAction(),
     modifier: Modifier = Modifier,
+    onTripsClick: () -> Unit = rememberNotImplementedAction(),
+    onFriendsClick: () -> Unit = rememberNotImplementedAction(),
+    onSignOutClick: () -> Unit = {},
+    onMapClick: () -> Unit = {},
 ) {
   val notImplemented = rememberNotImplementedAction()
   Scaffold(
       modifier = modifier,
       bottomBar = {
-        // The profile is not one of the three tabs.
         AppBottomBar(
             onTripsClick = onTripsClick,
-            onMapClick = notImplemented,
+            onMapClick = onMapClick,
             onPhotosClick = notImplemented,
             tripsSelected = false,
+            onFriendsClick = onFriendsClick,
         )
       },
   ) { padding ->
@@ -127,16 +130,19 @@ fun ProfileScreen(
             ),
             Modifier.testTag(C.Tag.profile_friends_row),
         ) {
-          EditAction(stringResource(R.string.profile_view))
+          EditAction(
+              label = stringResource(R.string.profile_view),
+              onClick = onFriendsClick,
+          )
         }
       }
-      // Sign-out is not connected to authentication yet.
+      state.errorMessageRes?.let {
+        Text(stringResource(it), color = MaterialTheme.colorScheme.error)
+      }
       OutlinedButton(
-          onClick = notImplemented,
-          modifier =
-              Modifier.fillMaxWidth()
-                  .markNotImplemented(notImplemented)
-                  .testTag(C.Tag.profile_log_out),
+          onClick = onSignOutClick,
+          enabled = !state.signedOut,
+          modifier = Modifier.fillMaxWidth().testTag(C.Tag.profile_log_out),
       ) {
         Text(stringResource(R.string.profile_log_out))
       }
@@ -145,11 +151,13 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun EditAction(label: String) {
-  val notImplemented = rememberNotImplementedAction()
+private fun EditAction(
+    label: String,
+    onClick: () -> Unit = rememberNotImplementedAction(),
+) {
   TextButton(
-      onClick = notImplemented,
-      modifier = Modifier.markNotImplemented(notImplemented).testTag(C.Tag.profile_action),
+      onClick = onClick,
+      modifier = Modifier.markNotImplemented(onClick).testTag(C.Tag.profile_action),
   ) {
     Text(label)
   }

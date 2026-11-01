@@ -117,7 +117,7 @@ fun CreateVoteScreenContent(
             },
         )
       }
-      FilledTonalButton(onClick = onAddOption, enabled = editable) {
+      FilledTonalButton(onClick = onAddOption, enabled = state.canAddOption) {
         Text(stringResource(R.string.vote_add_option))
       }
     }

@@ -441,6 +441,41 @@ class TripsViewModelTest {
     }
   }
 
+  @Test
+  fun selectMainTripExcludesExpiredActiveTrip() {
+    val now = ZonedDateTime.parse("2026-10-08T14:00:00Z")
+
+    val expired =
+        trip(
+            uid = "expired",
+            name = "Expired active trip",
+            start = "2026-10-04T08:00:00Z",
+            end = "2026-10-07T20:00:00Z",
+            status = TripStatus.ACTIVE,
+        )
+
+    assertNull(selectMainTrip(listOf(expired), now))
+  }
+
+  @Test
+  fun selectMainTripKeepsActiveTripEndingToday() {
+    val now = ZonedDateTime.parse("2026-10-08T14:00:00Z")
+
+    val endingToday =
+        trip(
+            uid = "ending-today",
+            name = "Trip ending today",
+            start = "2026-10-06T08:00:00Z",
+            end = "2026-10-08T08:00:00Z",
+            status = TripStatus.ACTIVE,
+        )
+
+    assertEquals(
+        endingToday,
+        selectMainTrip(listOf(endingToday), now),
+    )
+  }
+
   private class OtherViewModel : ViewModel()
 
   private fun trip(

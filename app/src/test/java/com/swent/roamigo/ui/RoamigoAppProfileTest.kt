@@ -11,6 +11,8 @@ import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
+import com.swent.roamigo.model.destination.sampleDestinationRepository
+import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import org.junit.Rule
@@ -29,7 +31,15 @@ class RoamigoAppProfileTest {
             AuthenticatedUser("u1", "Sam Rivers", "sam@gmail.com", null),
             initiallySignedIn = true,
         )
-    composeRule.setContent { RoamigoTheme { RoamigoApp(authRepository = authRepository) } }
+    composeRule.setContent {
+      RoamigoTheme {
+        RoamigoApp(
+            voteRepository = InMemoryVoteRepository(),
+            destinationRepository = sampleDestinationRepository(),
+            authRepository = authRepository,
+        )
+      }
+    }
     composeRule.waitUntil {
       composeRule.onAllNodesWithTag(C.Tag.trips_profile_avatar).fetchSemanticsNodes().isNotEmpty()
     }

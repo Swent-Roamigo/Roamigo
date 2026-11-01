@@ -76,6 +76,8 @@ fun FriendsScreen(
             onMapClick = onMapClick,
             onPhotosClick = onPhotosClick,
             tripsSelected = false,
+            onFriendsClick = {},
+            friendsSelected = true,
         )
       },
       containerColor = MaterialTheme.colorScheme.background,

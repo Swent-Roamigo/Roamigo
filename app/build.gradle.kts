@@ -1,3 +1,6 @@
+// Author : Constantin Dunoyer de Segonzac
+// Co-author : ChatGPT-Codex
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -8,6 +11,14 @@ plugins {
   alias(libs.plugins.googleServices)
   id("jacoco")
 }
+
+val localProps =
+    Properties().apply {
+      val f = rootProject.file("local.properties")
+      if (f.exists()) f.inputStream().use { load(it) }
+    }
+val mapboxToken: String =
+    localProps.getProperty("MAPBOX_ACCESS_TOKEN") ?: System.getenv("MAPBOX_ACCESS_TOKEN") ?: ""
 
 android {
   namespace = "com.swent.roamigo"
@@ -20,8 +31,18 @@ android {
     versionCode = 1
     versionName = "1.0"
 
+    val geonamesUsername =
+        providers
+            .gradleProperty("GEONAMES_USERNAME")
+            .orElse(providers.environmentVariable("GEONAMES_USERNAME"))
+            .orElse("")
+            .get()
+    buildConfigField("String", "GEONAMES_USERNAME", "\"$geonamesUsername\"")
+
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     vectorDrawables { useSupportLibrary = true }
+
+    resValue("string", "mapbox_access_token", mapboxToken)
   }
 
   buildTypes {
@@ -41,7 +62,11 @@ android {
 
   testCoverage { jacocoVersion = "0.8.11" }
 
-  buildFeatures { compose = true }
+  buildFeatures {
+    compose = true
+    resValues = true
+    buildConfig = true
+  }
 
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -120,7 +145,8 @@ sonar {
         "${project.layout.buildDirectory.get()}/reports/jacoco/jacocoTestReport/jacocoTestReport.xml",
     )
 
-    // TEMP FIX for code coverage
+    // Data holders and theme setup contain little behavior to exercise in unit tests.
+    // Previews are design-time examples, not production behavior.
     property(
         "sonar.coverage.exclusions",
         listOf(
@@ -134,6 +160,7 @@ sonar {
                 "**/com/swent/roamigo/model/trip/voting/VoteOption.kt",
                 "**/com/swent/roamigo/model/users/User.kt",
                 "**/com/swent/roamigo/ui/theme/Theme.kt",
+                "**/*Previews.kt",
             )
             .joinToString(","),
     )
@@ -166,6 +193,11 @@ dependencies {
   testImplementation(libs.mockito.core)
   implementation(libs.kotlinx.coroutines.play.services)
   implementation(libs.androidx.datastore.preferences)
+  implementation(libs.okhttp)
+  implementation(libs.coil)
+  implementation(libs.coil.compose)
+  implementation(libs.androidx.work.runtime)
+  testImplementation(libs.androidx.work.testing)
 
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.appcompat)
@@ -178,6 +210,10 @@ dependencies {
   testImplementation(libs.kotlinx.coroutines.test)
   globalTestImplementation(libs.androidx.junit)
   globalTestImplementation(libs.androidx.espresso.core)
+
+  // ------------- Mapbox ------------------
+  implementation(libs.mapbox.maps)
+  implementation(libs.mapbox.compose)
 
   // ------------- Jetpack Compose ------------------
   val composeBom = platform(libs.compose.bom)

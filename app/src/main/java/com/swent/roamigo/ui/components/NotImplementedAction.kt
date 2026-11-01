@@ -15,16 +15,18 @@ import com.swent.roamigo.R
 internal val NotImplemented = SemanticsPropertyKey<Boolean>("notImplemented")
 
 /** Marks only placeholder callbacks, so connecting a real action also removes the marker. */
-internal fun Modifier.markNotImplemented(action: () -> Unit): Modifier =
+internal fun Modifier.markNotImplemented(action: Any?): Modifier =
     if (action is NotImplementedAction) semantics { this[NotImplemented] = true } else this
 
-private class NotImplementedAction(private val toast: Toast) : () -> Unit {
+internal class NotImplementedAction(private val toast: Toast) : () -> Unit, (Any?) -> Unit {
   override fun invoke() = toast.show()
+
+  override fun invoke(p1: Any?) = toast.show()
 }
 
 /** Gives unfinished actions visible feedback until their real callback is connected. */
 @Composable
-internal fun rememberNotImplementedAction(): () -> Unit {
+internal fun rememberNotImplementedAction(): NotImplementedAction {
   val context = LocalContext.current
   val message = stringResource(R.string.feature_not_implemented)
   val toast = remember(context, message) { Toast.makeText(context, message, Toast.LENGTH_SHORT) }

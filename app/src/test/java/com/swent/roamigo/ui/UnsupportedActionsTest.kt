@@ -79,4 +79,5 @@ class UnsupportedActionsTest {
       assertNull(ShadowToast.getTextOfLatestToast())
     }
   }
+  // Map overview unsupported feedback has to be in androidTest
 }

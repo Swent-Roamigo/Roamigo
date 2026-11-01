@@ -1,11 +1,13 @@
+// Author : Constantin Dunoyer de Segonzac
+// Co-author : ChatGPT-Codex
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui
 
+import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
-import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -19,6 +21,11 @@ import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
+import com.swent.roamigo.model.destination.DestinationPhoto
+import com.swent.roamigo.model.destination.FakeDestinationRepository
+import com.swent.roamigo.model.destination.sampleDestination
+import com.swent.roamigo.model.destination.sampleDestinationRepository
+import com.swent.roamigo.model.destination.sampleDestinations
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
@@ -26,13 +33,16 @@ import com.swent.roamigo.model.trip.TripCreationException
 import com.swent.roamigo.model.trip.TripDraft
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
+import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import com.swent.roamigo.ui.trip.creation.TripReadyTestTags
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
 import com.swent.roamigo.ui.trip.creation.components.DestinationCardTestTags
+import com.swent.roamigo.ui.trip.creation.searchSampleDestinations
 import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
@@ -71,6 +81,8 @@ class RoamigoAppInjectionTest {
       navController = rememberNavController()
       RoamigoTheme {
         RoamigoApp(
+            voteRepository = InMemoryVoteRepository(),
+            destinationRepository = sampleDestinationRepository(),
             tripRepository = FakeTripRepository(trips = listOf(trip)),
             userRepository = FakeUserRepository(User("sam", "Sam", null)),
             navController = navController,
@@ -89,8 +101,70 @@ class RoamigoAppInjectionTest {
 
     composeRule
         .onNodeWithTag(C.Tag.trips_main_trip_card)
-        .assert(hasAnyDescendant(hasText(trip.name, substring = true)))
+        .assert(hasText(trip.name, substring = true))
     assertEquals(Route.TRIPS, navController.currentBackStackEntry?.destination?.route)
+  }
+
+  @Test
+  fun tripReadyObservesPhotoAddedAfterNavigation() {
+    val now = Instant.now()
+    val trip =
+        Trip(
+            uid = "t1",
+            name = "Lisbon",
+            description = null,
+            destinations = listOf(TripLocation(38.7, -9.1, "Lisbon")),
+            startDate = timestamp(now),
+            endDate = timestamp(now),
+            flexibleDates = false,
+            travelMode = TravelMode.SOLO,
+            travelerCount = 1,
+            ownerId = "sam",
+            memberIds = listOf("sam"),
+            status = TripStatus.PLANNED,
+            createdAt = timestamp(now),
+        )
+    lateinit var navController: NavHostController
+    composeRule.setContent {
+      navController = rememberNavController()
+      RoamigoTheme {
+        RoamigoApp(
+            voteRepository = InMemoryVoteRepository(),
+            destinationRepository = sampleDestinationRepository(),
+            tripRepository = FakeTripRepository(trips = listOf(trip)),
+            userRepository = FakeUserRepository(User("sam", "Sam", null)),
+            navController = navController,
+            authRepository =
+                FakeAuthRepository(
+                    AuthenticatedUser("sam", "Sam", null, null),
+                    initiallySignedIn = true,
+                ),
+        )
+      }
+    }
+    composeRule.runOnUiThread { navController.navigate(Route.tripReady("t1")) }
+    composeRule.waitUntil(5_000) {
+      composeRule.onAllNodesWithTag("trip_ready").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.runOnUiThread {
+      navController.currentBackStackEntry!!.savedStateHandle["ready_photo"] =
+          Bundle().apply {
+            putString(
+                "url",
+                "android.resource://com.swent.roamigo/${R.drawable.destination_placeholder}",
+            )
+            putString("title", "Late photo")
+            putString("license", "CC BY")
+          }
+    }
+    composeRule.waitUntil(5_000) {
+      composeRule
+          .onAllNodesWithTag(TripReadyTestTags.PHOTO_CREDITS)
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    composeRule.onNodeWithTag(TripReadyTestTags.PHOTO_CREDITS).performClick()
+    composeRule.onNodeWithTag(TripReadyTestTags.PHOTO_TITLE).assertTextContains("Late photo")
   }
 
   @Test
@@ -107,6 +181,8 @@ class RoamigoAppInjectionTest {
     composeRule.setContent {
       RoamigoTheme {
         RoamigoApp(
+            voteRepository = InMemoryVoteRepository(),
+            destinationRepository = sampleDestinationRepository(),
             tripRepository = repository,
             authRepository =
                 FakeAuthRepository(
@@ -120,7 +196,10 @@ class RoamigoAppInjectionTest {
       composeRule.onAllNodesWithTag(C.Tag.trips_new_trip_button).fetchSemanticsNodes().isNotEmpty()
     }
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
-    composeRule.onNodeWithTag(DestinationCardTestTags.forDestination("Lisbon")).performClick()
+    composeRule.searchSampleDestinations()
+    composeRule
+        .onNodeWithTag(DestinationCardTestTags.forDestination(sampleDestination("Lisbon").stableId))
+        .performClick()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsNotEnabled()
@@ -130,7 +209,7 @@ class RoamigoAppInjectionTest {
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsNotEnabled()
     gate.complete(Unit)
     composeRule.waitUntil {
-      composeRule.onAllNodesWithTag(C.Tag.trips_main_trip_card).fetchSemanticsNodes().isNotEmpty()
+      composeRule.onAllNodesWithTag("trip_ready").fetchSemanticsNodes().isNotEmpty()
     }
   }
 
@@ -153,8 +232,75 @@ class RoamigoAppInjectionTest {
     fail = false
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
     composeRule.waitUntil {
-      composeRule.onAllNodesWithTag(C.Tag.trips_main_trip_card).fetchSemanticsNodes().isNotEmpty()
+      composeRule.onAllNodesWithTag("trip_ready").fetchSemanticsNodes().isNotEmpty()
     }
+  }
+
+  @Test
+  fun creationCarriesFirstCityPhotoToConfirmation() {
+    val destination = sampleDestination("Lisbon")
+    val photo =
+        DestinationPhoto(
+            imageUrl = "android.resource://com.swent.roamigo/${R.drawable.destination_placeholder}",
+            creator = "Photographer",
+            sourceUrl = "https://example.com/photo",
+            license = "CC BY",
+            licenseUrl = "https://example.com/license",
+            title = "Lisbon photo",
+            credit = "Photo credit",
+        )
+    val destinationRepository =
+        FakeDestinationRepository(
+            search = { sampleDestinations },
+            photo = { if (it == destination) photo else null },
+        )
+    composeRule.setContent {
+      RoamigoTheme {
+        RoamigoApp(
+            voteRepository = InMemoryVoteRepository(),
+            destinationRepository = destinationRepository,
+            tripRepository = FakeTripRepository(currentUserId = "alex"),
+            authRepository =
+                FakeAuthRepository(
+                    AuthenticatedUser("alex", "Alex", null, null),
+                    initiallySignedIn = true,
+                ),
+        )
+      }
+    }
+    enterDatesStepWithPhoto(destination)
+    composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
+    composeRule.waitUntil(5_000) {
+      composeRule.onAllNodesWithTag("trip_ready").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.waitUntil(5_000) {
+      composeRule
+          .onAllNodesWithTag(TripReadyTestTags.PHOTO_CREDITS)
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    composeRule.onNodeWithTag(TripReadyTestTags.PHOTO_CREDITS).performClick()
+    composeRule.onNodeWithTag(TripReadyTestTags.PHOTO_TITLE).assertTextContains("Lisbon photo")
+  }
+
+  private fun enterDatesStepWithPhoto(
+      destination: com.swent.roamigo.model.destination.Destination
+  ) {
+    composeRule.waitUntil {
+      composeRule.onAllNodesWithTag(C.Tag.trips_new_trip_button).fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
+    composeRule.searchSampleDestinations()
+    composeRule.waitUntil(5_000) {
+      composeRule
+          .onAllNodesWithTag(DestinationCardTestTags.photoCreditsFor(destination.stableId))
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    composeRule
+        .onNodeWithTag(DestinationCardTestTags.forDestination(destination.stableId))
+        .performClick()
+    composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
   }
 
   @Test
@@ -169,6 +315,8 @@ class RoamigoAppInjectionTest {
       navController = rememberNavController()
       RoamigoTheme {
         RoamigoApp(
+            voteRepository = InMemoryVoteRepository(),
+            destinationRepository = sampleDestinationRepository(),
             tripRepository = FakeTripRepository(currentUserId = null),
             authRepository = auth,
             navController = navController,
@@ -192,6 +340,8 @@ class RoamigoAppInjectionTest {
     composeRule.setContent {
       RoamigoTheme {
         RoamigoApp(
+            voteRepository = InMemoryVoteRepository(),
+            destinationRepository = sampleDestinationRepository(),
             tripRepository = repository,
             authRepository =
                 FakeAuthRepository(
@@ -209,7 +359,10 @@ class RoamigoAppInjectionTest {
       composeRule.onAllNodesWithTag(C.Tag.trips_new_trip_button).fetchSemanticsNodes().isNotEmpty()
     }
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
-    composeRule.onNodeWithTag(DestinationCardTestTags.forDestination("Lisbon")).performClick()
+    composeRule.searchSampleDestinations()
+    composeRule
+        .onNodeWithTag(DestinationCardTestTags.forDestination(sampleDestination("Lisbon").stableId))
+        .performClick()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
   }
 }

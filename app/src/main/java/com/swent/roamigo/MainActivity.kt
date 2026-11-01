@@ -13,7 +13,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import com.google.firebase.firestore.FirebaseFirestore
 import com.swent.roamigo.model.authentication.AuthRepositoryFirebase
+import com.swent.roamigo.model.destination.OnlineDestinationRepository
 import com.swent.roamigo.model.trip.TripRepositoryFirestore
+import com.swent.roamigo.model.trip.voting.VoteRepositoryFirestore
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.RoamigoApp
 import com.swent.roamigo.ui.theme.RoamigoTheme
@@ -34,7 +36,13 @@ class MainActivity : ComponentActivity() {
               authRepository.getCurrentUser()?.uid
             }
           }
-          RoamigoApp(tripRepository = tripRepository, authRepository = authRepository)
+          val voteRepository = remember { VoteRepositoryFirestore(FirebaseFirestore.getInstance()) }
+          RoamigoApp(
+              tripRepository = tripRepository,
+              authRepository = authRepository,
+              voteRepository = voteRepository,
+              destinationRepository = remember { OnlineDestinationRepository() },
+          )
         }
       }
     }

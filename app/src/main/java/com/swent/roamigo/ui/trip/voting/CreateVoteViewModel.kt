@@ -4,6 +4,8 @@ package com.swent.roamigo.ui.trip.voting
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.Timestamp
+import com.swent.roamigo.model.trip.voting.MAX_VOTE_OPTIONS
+import com.swent.roamigo.model.trip.voting.MIN_VOTE_OPTIONS
 import com.swent.roamigo.model.trip.voting.Vote
 import com.swent.roamigo.model.trip.voting.VoteOption
 import com.swent.roamigo.model.trip.voting.VoteRepository
@@ -27,7 +29,13 @@ data class CreateVoteUiState(
     val pendingVoteCreatedId: String? = null,
 ) {
   val isValid: Boolean
-    get() = question.isNotBlank() && options.size >= 2 && options.all { it.isNotBlank() }
+    get() =
+        question.isNotBlank() &&
+            options.size in MIN_VOTE_OPTIONS..MAX_VOTE_OPTIONS &&
+            options.all { it.isNotBlank() }
+
+  val canAddOption: Boolean
+    get() = options.size < MAX_VOTE_OPTIONS && !isSubmitting && createdVoteId == null
 
   val canSubmit: Boolean
     get() = isValid && !isSubmitting && createdVoteId == null
@@ -69,7 +77,10 @@ class CreateVoteViewModel(
 
   fun updateQuestion(question: String) = edit { it.copy(question = question) }
 
-  fun addOption() = edit { it.copy(options = it.options + "") }
+  fun addOption() {
+    if (!uiState.value.canAddOption) return
+    edit { it.copy(options = it.options + "") }
+  }
 
   fun updateOption(index: Int, text: String) = edit { state ->
     state.copy(options = state.options.mapIndexed { i, option -> if (i == index) text else option })

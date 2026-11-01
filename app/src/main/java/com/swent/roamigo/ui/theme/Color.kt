@@ -13,6 +13,14 @@ val SlateMist = Color(0xFFECEEEC)
 val Ochre = Color(0xFFE2A04A)
 val Border = Color(0xFFE1E2DB)
 
+// Authentication feedback banners from Figma (2394:80 and 2398:85).
+val AuthErrorSurface = Color(0xFFFBEAE8)
+val AuthErrorBorder = Color(0xFFF0C4BF)
+val AuthErrorTitle = Color(0xFF8C1D18)
+val AuthErrorBody = Color(0xFF5A3B38)
+val AuthNoticeSurface = Color(0xFFF0F1EE)
+val AuthNoticeBorder = Color(0xFFDDE0E0)
+
 // Material has no success role; keep this semantic token separate from its accent roles.
 val Success = Color(0xFF4F8A6A)
 

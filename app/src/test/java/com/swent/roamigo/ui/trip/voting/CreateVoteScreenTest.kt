@@ -112,6 +112,34 @@ class CreateVoteScreenTest {
     composeRule.onNodeWithTag("vote_submit").assertIsEnabled()
   }
 
+  @Test
+  fun addingUpToTenDisablesAddAndAllowsCreatingTenValidOptions() {
+    val repository = FakeVoteRepository()
+    val viewModel = CreateVoteViewModel(repository, "trip", "member")
+    viewModel.updateQuestion("Where next?")
+    viewModel.updateOption(0, "First")
+    viewModel.updateOption(1, "Second")
+    composeRule.setContent {
+      RoamigoTheme { CreateVoteScreen(viewModel, onBack = {}, onVoteCreated = {}) }
+    }
+    for (index in 2..9) {
+      composeRule.onNodeWithText("+ Add option").performScrollTo().assertIsEnabled().performClick()
+      composeRule
+          .onNodeWithTag("vote_option_$index")
+          .performScrollTo()
+          .performTextInput("Option $index")
+      composeRule.onNodeWithTag("vote_submit").assertIsEnabled()
+    }
+    composeRule.onNodeWithText("+ Add option").performScrollTo().assertIsNotEnabled().performClick()
+    composeRule.runOnIdle { assertEquals(10, viewModel.uiState.value.options.size) }
+    composeRule.onNodeWithContentDescription("Remove option 10").performScrollTo().performClick()
+    composeRule.onNodeWithText("+ Add option").performScrollTo().assertIsEnabled().performClick()
+    composeRule.onNodeWithTag("vote_option_9").performScrollTo().performTextInput("Last")
+    composeRule.onNodeWithTag("vote_submit").performClick()
+    composeRule.waitForIdle()
+    composeRule.runOnIdle { assertEquals(10, repository.created.single().options.size) }
+  }
+
   private fun content(state: CreateVoteUiState) {
     composeRule.setContent {
       RoamigoTheme { CreateVoteScreenContent(state, {}, {}, { _, _ -> }, {}, {}, {}) }
