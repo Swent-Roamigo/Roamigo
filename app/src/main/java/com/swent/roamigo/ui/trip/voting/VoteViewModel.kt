@@ -116,6 +116,18 @@ class VoteViewModel(
     updateReady { it.copy(submissionState = VoteSubmissionState.Submitting) }
     viewModelScope.launch {
       try {
+        val currentVote = voteRepository.getVote(tripId, voteId)
+        if (currentVote == null) {
+          observationJob?.cancel()
+          _uiState.value = VoteUiState.LoadError(VoteLoadError.NOT_FOUND)
+          return@launch
+        }
+        if (currentVote.status != VoteStatus.OPEN) {
+          observationJob?.cancel()
+          _uiState.value = VoteUiState.Closed
+          return@launch
+        }
+        require(currentVote.options.any { it.uid == optionId })
         val now = clock.instant()
         val ballot = VoteBallot(userId, optionId, Timestamp(now.epochSecond, now.nano))
         voteRepository.submitBallot(tripId, voteId, ballot)

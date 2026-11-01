@@ -15,6 +15,7 @@ class InMemoryVoteRepository(initialVotes: List<Vote> = emptyList()) : VoteRepos
     private set
   var maximumObservers = 0
     private set
+  val activeBallotObservers = mutableMapOf<String, Int>()
   private val ballots = mutableMapOf<Pair<String, String>, MutableStateFlow<List<VoteBallot>>>()
 
   override fun observeVotes(tripId: String): Flow<List<Vote>> = flow {
@@ -41,7 +42,14 @@ class InMemoryVoteRepository(initialVotes: List<Vote> = emptyList()) : VoteRepos
       snapshots.value.getOrThrow().filter { it.tripId == tripId }
 
   override fun observeBallots(tripId: String, voteId: String): Flow<List<VoteBallot>> =
-      ballotStream(tripId, voteId)
+      flow {
+        activeBallotObservers[voteId] = (activeBallotObservers[voteId] ?: 0) + 1
+        try {
+          ballotStream(tripId, voteId).collect { emit(it) }
+        } finally {
+          activeBallotObservers[voteId] = activeBallotObservers.getValue(voteId) - 1
+        }
+      }
 
   override suspend fun submitBallot(tripId: String, voteId: String, ballot: VoteBallot) {
     submissions += Triple(tripId, voteId, ballot)

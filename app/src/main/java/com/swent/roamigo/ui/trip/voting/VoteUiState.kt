@@ -2,7 +2,9 @@
 package com.swent.roamigo.ui.trip.voting
 
 import com.swent.roamigo.model.trip.voting.Vote
+import com.swent.roamigo.model.trip.voting.VoteStatus
 
+/** Single-vote draft, persisted ballot, and submission state owned by [VoteViewModel]. */
 sealed interface VoteUiState {
   data object Loading : VoteUiState
 
@@ -44,7 +46,10 @@ sealed interface VoteUiState {
       get() = syncState == VoteSyncState.Synced && !isSubmitting
 
     val canSubmit: Boolean
-      get() = canSelect && vote.options.any { it.uid == selectedOptionId }
+      get() =
+          vote.status == VoteStatus.OPEN &&
+              canSelect &&
+              vote.options.any { it.uid == selectedOptionId }
 
     val hasPersistedBallot: Boolean
       get() = persistedOptionId != null
