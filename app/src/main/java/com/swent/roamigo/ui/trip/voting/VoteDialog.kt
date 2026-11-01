@@ -31,18 +31,30 @@ fun VoteDialog(voteId: String, createViewModel: (String) -> VoteViewModel, onDis
   val viewModel = viewModel(viewModelStoreOwner = owner) { createViewModel(voteId) }
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   val dismiss = { if ((state as? VoteUiState.Ready)?.isSubmitting != true) onDismiss() }
-  Dialog(onDismissRequest = dismiss) {
+  VoteDialogContent(
+      state,
+      viewModel::selectOption,
+      viewModel::submitVote,
+      viewModel::retryLoad,
+      dismiss,
+  )
+}
+
+/** Stateless dialog presentation; [VoteDialog] supplies the interaction state and callbacks. */
+@Composable
+internal fun VoteDialogContent(
+    state: VoteUiState,
+    onSelectOption: (String) -> Unit,
+    onSubmit: () -> Unit,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+  Dialog(onDismissRequest = onDismiss) {
     Surface(
         Modifier.fillMaxWidth().height(600.dp).testTag("vote_dialog"),
         shape = MaterialTheme.shapes.large,
     ) {
-      VoteScreenContent(
-          state,
-          viewModel::selectOption,
-          viewModel::submitVote,
-          viewModel::retryLoad,
-          dismiss,
-      )
+      VoteScreenContent(state, onSelectOption, onSubmit, onRetry, onDismiss)
     }
   }
 }
