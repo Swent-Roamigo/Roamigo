@@ -10,24 +10,28 @@ import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.voting.components.VoteCard
 
+private val dinnerPreview = previewDinnerState()
+
 @Preview(name = "Live vote · No ballots", showBackground = true, widthDp = 390)
 @Composable
 private fun LiveVoteNoBallotsPreview() =
-    LiveVotePreview(LiveVoteSummary(previewDinnerVote.options.associate { it.uid to 0 }, false))
+    LiveVotePreview(LiveVoteSummary(dinnerPreview.vote.options.associate { it.uid to 0 }, false))
 
 @Preview(name = "Live vote · Vote", showBackground = true, widthDp = 390)
 @Composable
-private fun LiveVoteCastPreview() = LiveVotePreview(LiveVoteSummary(previewDinnerCounts, false))
+private fun LiveVoteCastPreview() =
+    LiveVotePreview(LiveVoteSummary(dinnerPreview.voteCounts, false))
 
 @Preview(name = "Live vote · Change vote", showBackground = true, widthDp = 390)
 @Composable
-private fun LiveVoteChangePreview() = LiveVotePreview(LiveVoteSummary(previewDinnerCounts, true))
+private fun LiveVoteChangePreview() =
+    LiveVotePreview(LiveVoteSummary(dinnerPreview.voteCounts, true))
 
 @Composable
 private fun LiveVotePreview(summary: LiveVoteSummary) {
   RoamigoTheme {
     Box(Modifier.padding(Spacing.screenPadding)) {
-      VoteCard(vote = previewDinnerVote, onClick = {}, summary = summary)
+      VoteCard(vote = dinnerPreview.vote, onClick = {}, summary = summary)
     }
   }
 }
