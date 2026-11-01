@@ -19,6 +19,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
+import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
@@ -126,10 +127,14 @@ class VotesNavigationTest {
   private fun assertCounts(a: Int, b: Int) {
     composeRule
         .onNodeWithTag("vote_count_${vote.uid}_a", useUnmergedTree = true)
-        .assertTextEquals(a.toString())
+        .assertTextEquals(
+            composeRule.activity.resources.getQuantityString(R.plurals.vote_count, a, a)
+        )
     composeRule
         .onNodeWithTag("vote_count_${vote.uid}_b", useUnmergedTree = true)
-        .assertTextEquals(b.toString())
+        .assertTextEquals(
+            composeRule.activity.resources.getQuantityString(R.plurals.vote_count, b, b)
+        )
   }
 
   @Test

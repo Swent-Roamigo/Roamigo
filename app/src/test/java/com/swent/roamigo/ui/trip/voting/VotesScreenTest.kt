@@ -75,16 +75,16 @@ class VotesScreenTest {
     )
     composeRule
         .onNodeWithTag("vote_count_${live.uid}_a", useUnmergedTree = true)
-        .assertTextEquals("0")
+        .assertTextEquals("0 votes")
     composeRule
         .onNodeWithTag("vote_count_${live.uid}_b", useUnmergedTree = true)
-        .assertTextEquals("2")
+        .assertTextEquals("2 votes")
     composeRule
         .onNodeWithTag("vote_count_${other.uid}_a", useUnmergedTree = true)
-        .assertTextEquals("1")
+        .assertTextEquals("1 vote")
     composeRule
         .onNodeWithTag("vote_count_${other.uid}_b", useUnmergedTree = true)
-        .assertTextEquals("0")
+        .assertTextEquals("0 votes")
     composeRule.onNodeWithText("Vote").performClick()
     composeRule.onNodeWithText("Change vote").performClick()
     composeRule.runOnIdle { assertEquals(listOf(live.uid, other.uid), opened) }

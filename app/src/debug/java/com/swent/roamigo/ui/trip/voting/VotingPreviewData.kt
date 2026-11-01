@@ -24,4 +24,4 @@ internal val previewDinnerVote =
         winningOptionId = null,
     )
 
-internal val previewDinnerCounts = mapOf("market" to 3, "taberna" to 1, "pizza" to 0)
+internal val previewDinnerCounts = mapOf("market" to 2, "taberna" to 1, "pizza" to 0)
