@@ -37,7 +37,7 @@ import com.swent.roamigo.ui.trip.components.TripTabs
 import com.swent.roamigo.ui.trip.voting.components.VoteErrorContent
 import com.swent.roamigo.ui.trip.voting.components.VotesList
 
-/** Collects trip-level state; the caller navigates to the existing individual vote flow. */
+/** Collects live trip summaries and forwards card actions to the trip route. */
 @Composable
 fun VotesScreen(
     viewModel: VotesViewModel,

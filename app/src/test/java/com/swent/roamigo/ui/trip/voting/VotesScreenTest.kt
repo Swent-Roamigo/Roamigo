@@ -10,10 +10,12 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -54,6 +56,38 @@ class VotesScreenTest {
         )
       }
     }
+  }
+
+  @Test
+  fun cardsRenderOwnCountsAndVoteOrChangeVoteActions() {
+    val opened = mutableListOf<String>()
+    content(
+        VotesUiState.Ready(
+            listOf(live, other),
+            emptyList(),
+            liveSummaries =
+                mapOf(
+                    live.uid to LiveVoteSummary(mapOf("a" to 0, "b" to 2), false),
+                    other.uid to LiveVoteSummary(mapOf("a" to 1, "b" to 0), true),
+                ),
+        ),
+        onOpenVote = opened::add,
+    )
+    composeRule
+        .onNodeWithTag("vote_count_${live.uid}_a", useUnmergedTree = true)
+        .assertTextEquals("0")
+    composeRule
+        .onNodeWithTag("vote_count_${live.uid}_b", useUnmergedTree = true)
+        .assertTextEquals("2")
+    composeRule
+        .onNodeWithTag("vote_count_${other.uid}_a", useUnmergedTree = true)
+        .assertTextEquals("1")
+    composeRule
+        .onNodeWithTag("vote_count_${other.uid}_b", useUnmergedTree = true)
+        .assertTextEquals("0")
+    composeRule.onNodeWithText("Vote").performClick()
+    composeRule.onNodeWithText("Change vote").performClick()
+    composeRule.runOnIdle { assertEquals(listOf(live.uid, other.uid), opened) }
   }
 
   @Test

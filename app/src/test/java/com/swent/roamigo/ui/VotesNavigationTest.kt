@@ -5,6 +5,9 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -117,6 +120,18 @@ class VotesNavigationTest {
     composeRule.onNodeWithText(vote.question).assertIsDisplayed()
   }
 
+  private fun dialogText(text: String) =
+      composeRule.onNode(hasText(text) and hasAnyAncestor(hasTestTag("vote_dialog")))
+
+  private fun assertCounts(a: Int, b: Int) {
+    composeRule
+        .onNodeWithTag("vote_count_${vote.uid}_a", useUnmergedTree = true)
+        .assertTextEquals(a.toString())
+    composeRule
+        .onNodeWithTag("vote_count_${vote.uid}_b", useUnmergedTree = true)
+        .assertTextEquals(b.toString())
+  }
+
   @Test
   fun overviewTabFromVotesReturnsToSelectedTripAndBackReturnsToTrips() {
     openVotes()
@@ -138,16 +153,18 @@ class VotesNavigationTest {
   }
 
   @Test
-  fun tripCardOpensScopedVotesAndVoteOpensExistingInteractionWithAuthenticatedMember() {
+  fun inlineVoteUpdatesCardAndReopeningRestoresChoiceWithoutRefresh() {
     openVotes()
     composeRule.onNodeWithText("$tripName · 1 open").assertIsDisplayed()
     composeRule.onNodeWithText("Other trip vote?").assertDoesNotExist()
-    composeRule.onNodeWithText(vote.question).performClick()
-    composeRule.onNodeWithText("Market").performClick()
+    assertCounts(0, 0)
+    composeRule.onNodeWithText("Vote").performClick()
+    composeRule.onNodeWithTag("vote_dialog").assertIsDisplayed()
+    dialogText("Market").performClick()
     composeRule.onNodeWithText("Submit vote").performClick()
     composeRule.runOnIdle {
-      assertEquals(Route.VOTE, navController.currentBackStackEntry?.destination?.route)
-      assertEquals(listOf(tripId to vote.uid), repository.lookups)
+      assertEquals(Route.VOTES, navController.currentBackStackEntry?.destination?.route)
+      assertEquals(listOf(tripId to vote.uid, tripId to vote.uid), repository.lookups)
       val submission = repository.submissions.single()
       assertEquals(tripId, submission.first)
       assertEquals(vote.uid, submission.second)
@@ -157,9 +174,43 @@ class VotesNavigationTest {
     composeRule.onNodeWithText("Update vote").assertIsDisplayed()
     composeRule.onNodeWithText("Back").performClick()
     composeRule.onNodeWithText("$tripName · 1 open").assertIsDisplayed()
+    composeRule.onNodeWithText("Change vote").assertIsDisplayed().performClick()
+    dialogText("Market").assertIsSelected()
+    dialogText("Restaurant").performClick()
+    composeRule.onNodeWithText("Update vote").performClick()
+    composeRule.onNodeWithText("Back").performClick()
+    assertCounts(0, 1)
+    composeRule.onNodeWithText("Change vote").assertIsDisplayed()
+    composeRule.runOnIdle { assertEquals(1, repository.activeBallotObservers[vote.uid]) }
     composeRule.onNodeWithText("Trips").performClick()
     composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
     composeRule.runOnIdle { assertEquals(0, repository.activeObservers) }
+  }
+
+  @Test
+  fun dismissingDraftDoesNotPersistAndReopeningStartsFromPersistedBallot() {
+    openVotes()
+    composeRule.onNodeWithText("Vote").performClick()
+    dialogText("Restaurant").performClick()
+    composeRule.onNodeWithText("Back").performClick()
+    composeRule.runOnIdle {
+      assertTrue(repository.submissions.isEmpty())
+      assertEquals(1, repository.activeBallotObservers[vote.uid])
+    }
+    assertCounts(0, 0)
+    composeRule.onNodeWithText("Vote").performClick()
+    dialogText("Market").performClick()
+    composeRule.onNodeWithText("Submit vote").performClick()
+    composeRule.onNodeWithText("Back").performClick()
+    assertCounts(1, 0)
+    composeRule.onNodeWithText("Change vote").performClick()
+    dialogText("Market").assertIsSelected()
+    dialogText("Restaurant").performClick()
+    composeRule.onNodeWithText("Back").performClick()
+    assertCounts(1, 0)
+    composeRule.onNodeWithText("Change vote").performClick()
+    dialogText("Market").assertIsSelected()
+    composeRule.runOnIdle { assertEquals(1, repository.submissions.size) }
   }
 
   @Test
@@ -175,11 +226,13 @@ class VotesNavigationTest {
     composeRule.runOnIdle {
       assertEquals(Route.VOTES, navController.currentBackStackEntry?.destination?.route)
       assertEquals(tripId, repository.snapshots.value.getOrThrow().last().tripId)
-      assertEquals(listOf(tripId), repository.observedTrips)
+      assertEquals(listOf(tripId, tripId), repository.observedTrips)
+      assertEquals(1, repository.activeObservers)
+      assertEquals(1, repository.maximumObservers)
     }
     composeRule.onNodeWithText("Where tomorrow?").performClick()
-    composeRule.onNodeWithText("Park").assertIsDisplayed()
-    composeRule.onNodeWithText("Beach").assertIsDisplayed()
+    dialogText("Park").assertIsDisplayed()
+    dialogText("Beach").assertIsDisplayed()
   }
 
   @Test
@@ -254,7 +307,11 @@ class VotesNavigationTest {
     composeRule.onNodeWithTag("vote_question").assertTextEquals("Question", "")
     composeRule.onNodeWithText("Cancel").performClick()
     composeRule.onNodeWithText(vote.question).assertIsDisplayed()
-    composeRule.runOnIdle { assertEquals(listOf(tripId), repository.observedTrips) }
+    composeRule.runOnIdle {
+      assertEquals(listOf(tripId, tripId), repository.observedTrips)
+      assertEquals(1, repository.activeObservers)
+      assertEquals(1, repository.maximumObservers)
+    }
   }
 
   @Test

@@ -446,6 +446,7 @@ class TripRepositoryFirestoreEmulatorTest {
         listOf(
             data + ("userId" to bob.userId),
             data + ("optionId" to " "),
+            data + ("optionId" to "not-an-option"),
             data + ("updatedAt" to "invalid"),
             data + ("extra" to true),
             data - "optionId",
@@ -455,30 +456,61 @@ class TripRepositoryFirestoreEmulatorTest {
         voteDocument(alice).collection("ballots").document(alice.userId).set(fields).await()
       }
     }
+    alice.voteRepository.submitBallot(tripId, "vote", ballot)
+    assertPermissionDenied {
+      voteDocument(alice)
+          .collection("ballots")
+          .document(alice.userId)
+          .set(data + ("optionId" to "not-an-option"))
+          .await()
+    }
   }
 
   @Test
-  fun ballotRulesDoNotIntroduceFutureClosedVoteRestrictions() = runBlocking {
+  fun lastOptionOfMaximumSizeVoteAcceptsBallot() = runBlocking {
+    alice.repository.createTrip(tripId, draft)
+    alice.voteRepository.createVote(
+        voteCreatedBy(alice)
+            .copy(
+                options = List(10) { VoteOption("option-$it", "Option $it") },
+            )
+    )
+    val ballot = VoteBallot(alice.userId, "option-9", Timestamp.now())
+    alice.voteRepository.submitBallot(tripId, "vote", ballot)
+    assertEquals(
+        listOf(ballot),
+        withTimeout(10_000) {
+          alice.voteRepository.observeBallots(tripId, "vote").first { it == listOf(ballot) }
+        },
+    )
+  }
+
+  @Test
+  fun closedVotesRejectBallotCreationAndUpdates() = runBlocking {
     alice.repository.createTrip(tripId, draft)
     alice.voteRepository.createVote(voteCreatedBy(alice))
-    // Seed CLOSED as trusted backend data; client vote updates remain forbidden.
+    val ballot = VoteBallot(alice.userId, "a", Timestamp.now())
+    alice.voteRepository.submitBallot(tripId, "vote", ballot)
     updateAsAdmin(
         "trips/$tripId/votes/vote",
         JSONObject().put("status", JSONObject().put("stringValue", "CLOSED")),
     )
-    val ballot = VoteBallot(alice.userId, "a", Timestamp.now())
-    alice.voteRepository.submitBallot(tripId, "vote", ballot)
-    alice.voteRepository.submitBallot(tripId, "vote", ballot.copy(optionId = "b"))
-    assertEquals(
-        "b",
-        withTimeout(10_000) {
-              alice.voteRepository.observeBallots(tripId, "vote").first {
-                it.singleOrNull()?.optionId == "b"
-              }
-            }
-            .single()
-            .optionId,
-    )
+    assertPermissionDenied {
+      voteDocument(alice)
+          .collection("ballots")
+          .document(alice.userId)
+          .set(ballotData(ballot.copy(optionId = "b")))
+          .await()
+    }
+    // A second member has no ballot yet, so this checks creation as well as update.
+    addBobToTrip()
+    assertPermissionDenied {
+      voteDocument(bob)
+          .collection("ballots")
+          .document(bob.userId)
+          .set(ballotData(ballot.copy(userId = bob.userId)))
+          .await()
+    }
   }
 
   private class User(

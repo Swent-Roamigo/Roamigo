@@ -131,6 +131,25 @@ service cloud.firestore {
           && vote.winningOptionId == null;
     }
 
+    // Options are bounded by MAX_VOTE_OPTIONS; guard each optional index.
+    function containsVoteOption(options, optionId) {
+      return options[0].uid == optionId
+          || options[1].uid == optionId
+          || (options.size() > 2 && options[2].uid == optionId)
+          || (options.size() > 3 && options[3].uid == optionId)
+          || (options.size() > 4 && options[4].uid == optionId)
+          || (options.size() > 5 && options[5].uid == optionId)
+          || (options.size() > 6 && options[6].uid == optionId)
+          || (options.size() > 7 && options[7].uid == optionId)
+          || (options.size() > 8 && options[8].uid == optionId)
+          || (options.size() > 9 && options[9].uid == optionId);
+    }
+
+    function acceptsBallot(tripId, voteId, optionId) {
+      let vote = get(/databases/$(database)/documents/trips/$(tripId)/votes/$(voteId)).data;
+      return vote.status == 'OPEN' && containsVoteOption(vote.options, optionId);
+    }
+
     function isValidBallot(ballot) {
       return ballot.keys().hasAll(['userId', 'optionId', 'updatedAt'])
           && ballot.keys().hasOnly(['userId', 'optionId', 'updatedAt'])
@@ -205,7 +224,8 @@ service cloud.firestore {
           allow create, update: if isMember(tripId)
               && userId == request.auth.uid
               && exists(/databases/$(database)/documents/trips/$(tripId)/votes/$(voteId))
-              && isValidBallot(request.resource.data);
+              && isValidBallot(request.resource.data)
+              && acceptsBallot(tripId, voteId, request.resource.data.optionId);
           allow delete: if false;
         }
       }
