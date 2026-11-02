@@ -1,6 +1,7 @@
 // Author : Constantin Dunoyer de Segonzac
 // Co-author : ChatGPT-Codex
 // Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
+// AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui
 
 import androidx.activity.ComponentActivity
@@ -13,6 +14,7 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -21,11 +23,14 @@ import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.R
+import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.sampleDestination
 import com.swent.roamigo.model.destination.sampleDestinationRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
+import com.swent.roamigo.model.trip.TravelMode
+import com.swent.roamigo.model.trip.TripDraft
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.authentication.AuthenticationScreenTestTags
@@ -35,6 +40,8 @@ import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
 import com.swent.roamigo.ui.trip.creation.components.DestinationCardTestTags
 import com.swent.roamigo.ui.trip.creation.components.TripTypeSelectorTestTags
 import com.swent.roamigo.ui.trip.creation.searchSampleDestinations
+import java.time.Instant
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -298,6 +305,46 @@ class RoamigoAppTest {
     pressBack()
 
     composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+  }
+
+  @Test
+  fun completedTripOpensDetailsAndBackReturnsToHistory() {
+    runBlocking {
+      repository.createTrip(
+          "past-trip",
+          TripDraft(
+              name = "Summer in Italy",
+              destinations = listOf(TripLocation(41.9, 12.5, "Rome")),
+              startDate = Instant.parse("2020-06-05T00:00:00Z"),
+              endDate = Instant.parse("2020-06-12T00:00:00Z"),
+              flexibleDates = false,
+              travelMode = TravelMode.SOLO,
+              travelerCount = 1,
+          ),
+      )
+    }
+
+    waitForTrips()
+    waitForTag(C.Tag.trips_history_button)
+
+    composeRule.onNodeWithTag(C.Tag.trips_history_button).performClick()
+
+    val cardTag = C.Tag.trip_history_card_prefix + "past-trip"
+    waitForTag(cardTag)
+
+    composeRule.onNodeWithTag(cardTag).performClick()
+
+    waitForTag("trip_details_screen")
+    composeRule.waitUntil(5_000) {
+      composeRule.onAllNodesWithText("Summer in Italy").fetchSemanticsNodes().isNotEmpty()
+    }
+
+    composeRule.onNodeWithText("Summer in Italy").assertIsDisplayed()
+
+    pressBack()
+
+    waitForTag(C.Tag.trip_history_screen)
+    composeRule.onNodeWithTag(cardTag).assertIsDisplayed()
   }
 
   @Test
