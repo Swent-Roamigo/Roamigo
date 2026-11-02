@@ -67,6 +67,21 @@ class ProfileScreenTest {
   }
 
   @Test
+  fun showsThePhotoWhenTheAccountHasOne() {
+    val withPhoto = state.copy(user = User("u1", "Sam", "https://img/sam.png"))
+    composeRule.setContent { RoamigoTheme { ProfileScreen(withPhoto) } }
+
+    composeRule.onNodeWithTag(C.Tag.profile_photo).assertExists()
+    composeRule.onNodeWithTag(C.Tag.profile_avatar).assertIsDisplayed()
+  }
+
+  @Test
+  fun showsNoPhotoWhenTheAccountHasNone() {
+    show()
+    composeRule.onAllNodesWithTag(C.Tag.profile_photo).assertCountEquals(0)
+  }
+
+  @Test
   fun hidesTheEmailWhenTheAccountHasNone() {
     composeRule.setContent { RoamigoTheme { ProfileScreen(state.copy(email = null)) } }
 
