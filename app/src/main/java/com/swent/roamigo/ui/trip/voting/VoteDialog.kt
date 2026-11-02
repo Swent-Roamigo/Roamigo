@@ -2,7 +2,7 @@
 package com.swent.roamigo.ui.trip.voting
 
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -20,7 +20,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 
 /** A fresh interaction scope per opening: dismissal discards the draft and cancels observation. */
 @Composable
-fun VoteDialog(voteId: String, createViewModel: (String) -> VoteViewModel, onDismiss: () -> Unit) {
+fun VoteDialog(
+    voteId: String,
+    createViewModel: (String) -> VoteViewModel,
+    modifier: Modifier = Modifier,
+    onDismiss: () -> Unit,
+) {
   val owner =
       remember(voteId) {
         object : ViewModelStoreOwner {
@@ -37,6 +42,7 @@ fun VoteDialog(voteId: String, createViewModel: (String) -> VoteViewModel, onDis
       viewModel::submitVote,
       viewModel::retryLoad,
       dismiss,
+      modifier,
   )
 }
 
@@ -48,10 +54,11 @@ internal fun VoteDialogContent(
     onSubmit: () -> Unit,
     onRetry: () -> Unit,
     onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
   Dialog(onDismissRequest = onDismiss) {
     Surface(
-        Modifier.fillMaxWidth().height(600.dp).testTag("vote_dialog"),
+        modifier.fillMaxWidth().heightIn(max = 600.dp).testTag("vote_dialog"),
         shape = MaterialTheme.shapes.large,
     ) {
       VoteScreenContent(state, onSelectOption, onSubmit, onRetry, onDismiss)
