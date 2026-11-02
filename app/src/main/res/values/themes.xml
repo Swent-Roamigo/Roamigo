@@ -1,5 +1,5 @@
 <resources>
-    <style name="Theme.SampleApp" parent="Theme.MaterialComponents.Light.DarkActionBar">
+    <style name="Theme.Roamigo" parent="Theme.MaterialComponents.Light.DarkActionBar">
         <item name="colorPrimary">@color/roamigo_slate</item>
         <item name="colorPrimaryVariant">@color/roamigo_slate</item>
         <item name="colorOnPrimary">@color/roamigo_paper</item>
