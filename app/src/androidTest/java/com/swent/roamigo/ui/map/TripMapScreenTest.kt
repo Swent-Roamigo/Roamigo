@@ -46,6 +46,15 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+/**
+ * UI tests for [TripMapScreen] and [TripMapContent].
+ *
+ * Until #144 lands, the permission and sharing checks use fakes: [RecordingLocationRepository]
+ * reports a fixed permission state and [RecordingActivityResultRegistry] records launches instead
+ * of showing the system dialog.
+ *
+ * TODO(#TBD): Replace these fakes with tests that go through the real permission flow.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
 class TripMapScreenTest {
