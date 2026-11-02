@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsSelected
@@ -17,6 +18,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onParent
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.trip.voting.VoteStatus
@@ -85,6 +87,10 @@ class VotesScreenTest {
     composeRule
         .onNodeWithTag("vote_count_${other.uid}_b", useUnmergedTree = true)
         .assertTextEquals("0 votes")
+    for (vote in listOf(live, other)) {
+      composeRule.onNodeWithText(vote.question).assertHasNoClickAction()
+      composeRule.onNodeWithText(vote.question).onParent().assertHasNoClickAction()
+    }
     composeRule.onNodeWithText("Vote").performClick()
     composeRule.onNodeWithText("Change vote").performClick()
     composeRule.runOnIdle { assertEquals(listOf(live.uid, other.uid), opened) }
@@ -142,11 +148,18 @@ class VotesScreenTest {
   }
 
   @Test
-  fun openingEachCardPassesItsOwnVoteId() {
+  fun openingEachVoteThroughItsActionOrClosedRowPassesItsOwnVoteId() {
     val opened = mutableListOf<String>()
-    content(VotesUiState.Ready(listOf(live, other), listOf(closed)), onOpenVote = opened::add)
-    composeRule.onNodeWithText(live.question).performClick()
-    composeRule.onNodeWithText(other.question).performClick()
+    content(
+        VotesUiState.Ready(
+            listOf(live, other),
+            listOf(closed),
+            liveSummaries = mapOf(other.uid to LiveVoteSummary(emptyMap(), true)),
+        ),
+        onOpenVote = opened::add,
+    )
+    composeRule.onNodeWithText("Vote").performClick()
+    composeRule.onNodeWithText("Change vote").performClick()
     composeRule.onNodeWithText(closed.question).performClick()
     composeRule.runOnIdle { assertEquals(listOf(live.uid, other.uid, closed.uid), opened) }
   }

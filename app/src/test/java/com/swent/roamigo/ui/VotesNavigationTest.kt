@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasAnySibling
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -235,7 +236,7 @@ class VotesNavigationTest {
       assertEquals(1, repository.activeObservers)
       assertEquals(1, repository.maximumObservers)
     }
-    composeRule.onNodeWithText("Where tomorrow?").performClick()
+    composeRule.onNode(hasText("Vote") and hasAnySibling(hasText("Where tomorrow?"))).performClick()
     dialogText("Park").assertIsDisplayed()
     dialogText("Beach").assertIsDisplayed()
   }
@@ -282,7 +283,7 @@ class VotesNavigationTest {
   fun expiredSessionRedirectsOpeningVoteToAuthentication() {
     openVotes()
     composeRule.runOnIdle { auth.signOut() }
-    composeRule.onNodeWithText(vote.question).performClick()
+    composeRule.onNodeWithText("Vote").performClick()
     composeRule
         .onNodeWithTag(com.swent.roamigo.ui.authentication.AuthenticationScreenTestTags.heading)
         .assertIsDisplayed()
