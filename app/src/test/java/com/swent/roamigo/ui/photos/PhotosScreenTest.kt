@@ -249,6 +249,29 @@ class PhotosScreenTest {
   }
 
   @Test
+  fun showsProgressInsteadOfTheEmptyStateWhileThePhotosAreLoading() {
+    show(PhotosUiState(galleryLoading = true))
+
+    composeRule.onNodeWithTag(C.Tag.photos_gallery_loading).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.photos_empty).assertDoesNotExist()
+  }
+
+  @Test
+  fun showsProgressBelowThePhotosWaitingWhileTheUploadedOnesAreLoading() {
+    show(PhotosUiState(photos = waiting(1), galleryLoading = true))
+
+    composeRule.onNodeWithTag(C.Tag.photos_item_prefix + "p0").assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.photos_gallery_loading).assertIsDisplayed()
+  }
+
+  @Test
+  fun showsNoProgressOnceThePhotosAreRead() {
+    show(PhotosUiState(uploaded = listOf(tripPhoto("a")), galleryLoading = false))
+
+    composeRule.onNodeWithTag(C.Tag.photos_gallery_loading).assertDoesNotExist()
+  }
+
+  @Test
   fun saysThePhotosCouldNotBeReadAndOffersARetry() {
     show(PhotosUiState(galleryFailed = true))
 

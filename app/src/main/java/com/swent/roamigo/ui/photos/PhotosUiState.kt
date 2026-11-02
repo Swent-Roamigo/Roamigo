@@ -23,6 +23,8 @@ enum class CameraStep {
  * @param isOnline whether the device can reach the internet.
  * @param photos the trip's photos saved on this device and not uploaded yet.
  * @param uploaded the latest photos of the trip that the server has, newest first.
+ * @param galleryLoading whether the first read of [uploaded] is still to come, so that an empty
+ *   list is not mistaken for a trip without photos.
  * @param galleryFailed whether [uploaded] could not be read.
  * @param viewing the uploaded photo shown full screen, if any.
  * @param currentUserId the signed-in user, to tell their photos from the others.
@@ -34,6 +36,7 @@ data class PhotosUiState(
     val isOnline: Boolean = true,
     val photos: List<PendingPhoto> = emptyList(),
     val uploaded: List<TripPhoto> = emptyList(),
+    val galleryLoading: Boolean = false,
     val galleryFailed: Boolean = false,
     val viewing: TripPhoto? = null,
     val currentUserId: String? = null,

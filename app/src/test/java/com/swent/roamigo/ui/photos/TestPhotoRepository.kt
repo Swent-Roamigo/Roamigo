@@ -30,6 +30,9 @@ class TestPhotoRepository(directory: File) : PhotoRepository {
   /** Thrown by [tripPhotos] instead of emitting, when set. */
   var galleryError: Exception? = null
 
+  /** Awaited by [tripPhotos] before it emits, when set. */
+  var galleryGate: CompletableDeferred<Unit>? = null
+
   /** How many times the gallery was observed. */
   var galleryObservations = 0
     private set
@@ -47,6 +50,7 @@ class TestPhotoRepository(directory: File) : PhotoRepository {
   override fun tripPhotos(tripId: String): Flow<List<TripPhoto>> = flow {
     galleryObservations++
     galleryError?.let { throw it }
+    galleryGate?.await()
     emitAll(uploaded)
   }
 

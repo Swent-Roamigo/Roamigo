@@ -358,6 +358,7 @@
     <string name="photos_uploaded_by_you">You · %1$s</string>
     <string name="photos_uploaded_by_member">A member · %1$s</string>
     <string name="photos_uploaded_description">Photo taken at %1$s</string>
+    <string name="photos_gallery_loading">Loading the trip’s photos…</string>
     <string name="photos_gallery_error">Could not load the trip’s photos.</string>
     <string name="photo_viewer_close">Close</string>
     <string name="camera_rationale_title">Take photos for the trip?</string>

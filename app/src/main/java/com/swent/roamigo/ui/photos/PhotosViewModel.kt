@@ -46,7 +46,11 @@ class PhotosViewModel(
       val viewingId: String? = null,
   )
 
-  private data class Gallery(val photos: List<TripPhoto> = emptyList(), val failed: Boolean = false)
+  private data class Gallery(
+      val photos: List<TripPhoto> = emptyList(),
+      val loading: Boolean = true,
+      val failed: Boolean = false,
+  )
 
   private val local = MutableStateFlow(Local())
   private val gallery = MutableStateFlow(Gallery())
@@ -73,6 +77,7 @@ class PhotosViewModel(
                 isOnline = online,
                 photos = photos,
                 uploaded = gallery.photos,
+                galleryLoading = gallery.loading,
                 galleryFailed = gallery.failed,
                 // A photo that is no longer in the gallery cannot stay open.
                 viewing = gallery.photos.firstOrNull { it.id == local.viewingId },
@@ -83,7 +88,7 @@ class PhotosViewModel(
                 saveFailed = local.saveFailed,
             )
           }
-          .stateIn(viewModelScope, SharingStarted.Eagerly, PhotosUiState())
+          .stateIn(viewModelScope, SharingStarted.Eagerly, PhotosUiState(galleryLoading = true))
 
   init {
     // Photos left by a user who signed out are only uploaded once something starts a round.
@@ -209,15 +214,17 @@ class PhotosViewModel(
 
   private fun observeGallery() {
     galleryJob?.cancel()
-    gallery.update { it.copy(failed = false) }
+    gallery.update { it.copy(loading = true, failed = false) }
     galleryJob = viewModelScope.launch {
       try {
-        repository.tripPhotos(tripId).collect { photos -> gallery.value = Gallery(photos) }
+        repository.tripPhotos(tripId).collect { photos ->
+          gallery.value = Gallery(photos, loading = false)
+        }
       } catch (e: CancellationException) {
         throw e
       } catch (_: Exception) {
         // The photos read before stay on the screen, with a way to try again.
-        gallery.update { it.copy(failed = true) }
+        gallery.update { it.copy(loading = false, failed = true) }
       }
     }
   }

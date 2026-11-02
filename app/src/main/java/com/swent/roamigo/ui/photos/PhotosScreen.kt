@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -183,6 +184,22 @@ private fun EmptyPhotos() {
 }
 
 @Composable
+private fun GalleryLoading() {
+  Column(
+      Modifier.testTag(C.Tag.photos_gallery_loading),
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.spacedBy(Spacing.small),
+  ) {
+    CircularProgressIndicator()
+    Text(
+        stringResource(R.string.photos_gallery_loading),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+  }
+}
+
+@Composable
 private fun PhotosContent(
     state: PhotosUiState,
     fileOf: (PendingPhoto) -> File,
@@ -192,7 +209,9 @@ private fun PhotosContent(
     modifier: Modifier = Modifier,
 ) {
   if (state.photos.isEmpty() && state.uploaded.isEmpty() && !state.galleryFailed) {
-    Box(modifier, contentAlignment = Alignment.Center) { EmptyPhotos() }
+    Box(modifier, contentAlignment = Alignment.Center) {
+      if (state.galleryLoading) GalleryLoading() else EmptyPhotos()
+    }
     return
   }
   LazyVerticalGrid(
@@ -204,6 +223,9 @@ private fun PhotosContent(
     items(state.photos, key = { "pending-${it.id}" }, span = { GridItemSpan(maxLineSpan) }) { photo
       ->
       PendingPhotoRow(photo, fileOf(photo), onRetryClick)
+    }
+    if (state.galleryLoading && state.uploaded.isEmpty()) {
+      item(key = "gallery-loading", span = { GridItemSpan(maxLineSpan) }) { GalleryLoading() }
     }
     if (state.galleryFailed) {
       item(key = "gallery-error", span = { GridItemSpan(maxLineSpan) }) {

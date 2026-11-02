@@ -482,6 +482,40 @@ class PhotosViewModelTest {
   }
 
   @Test
+  fun isLoadingTheGalleryUntilThePhotosAreRead() {
+    val gate = CompletableDeferred<Unit>()
+    repository.galleryGate = gate
+    viewModel = PhotosViewModel(repository, connectivity, "trip")
+
+    assertTrue(state.galleryLoading)
+
+    gate.complete(Unit)
+
+    assertFalse(state.galleryLoading)
+  }
+
+  @Test
+  fun stopsLoadingTheGalleryWhenThePhotosCouldNotBeRead() {
+    repository.galleryError = IllegalStateException("denied")
+    viewModel = PhotosViewModel(repository, connectivity, "trip")
+
+    assertFalse(state.galleryLoading)
+  }
+
+  @Test
+  fun loadsTheGalleryAgainOnRetry() {
+    repository.galleryError = IllegalStateException("denied")
+    viewModel = PhotosViewModel(repository, connectivity, "trip")
+    repository.galleryError = null
+    repository.galleryGate = CompletableDeferred()
+
+    viewModel.onGalleryRetry()
+
+    assertTrue(state.galleryLoading)
+    assertFalse(state.galleryFailed)
+  }
+
+  @Test
   fun followsNewUploadedPhotos() {
     repository.uploaded.value = listOf(tripPhoto("a"))
     repository.uploaded.value = listOf(tripPhoto("b"), tripPhoto("a"))

@@ -78,6 +78,7 @@ object C {
     const val photos_retry_prefix = "photos_retry_"
     const val photos_uploaded_title = "photos_uploaded_title"
     const val photos_uploaded_prefix = "photos_uploaded_"
+    const val photos_gallery_loading = "photos_gallery_loading"
     const val photos_gallery_error = "photos_gallery_error"
     const val photos_gallery_retry = "photos_gallery_retry"
 
