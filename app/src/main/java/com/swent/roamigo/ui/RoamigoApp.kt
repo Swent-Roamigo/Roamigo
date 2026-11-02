@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.ClearCredentialException
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -188,7 +189,15 @@ fun RoamigoApp(
       val connectivity =
           connectivityRepository ?: remember(context) { DefaultConnectivityRepository(context) }
       PhotosRoute(
-          viewModel = viewModel { PhotosViewModel(photoRepository, connectivity, tripId) },
+          viewModel =
+              viewModel {
+                PhotosViewModel(
+                    photoRepository,
+                    connectivity,
+                    tripId,
+                    savedStateHandle = createSavedStateHandle(),
+                )
+              },
           tripName = tripName,
           fileOf = photoRepository::fileOf,
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
