@@ -1,11 +1,15 @@
+// AI assistance was used for implementation support.
 package com.swent.roamigo.model.authentication
 
 import androidx.credentials.Credential
 import androidx.credentials.CustomCredential
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.Companion.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
 import com.google.firebase.Firebase
+import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.auth
 import kotlinx.coroutines.CancellationException
@@ -40,20 +44,23 @@ class AuthRepositoryFirebase(
         // Sign in with Firebase
         val user =
             auth.signInWithCredential(firebaseCred).await().user
-                ?: return Result.failure(
-                    IllegalStateException("Login failed : Could not retrieve user information")
-                )
+                ?: return Result.failure(AuthException.Unknown())
 
         Result.success(user.toAuthenticatedUser())
       } else {
-        Result.failure(IllegalStateException("Login failed: Credential is not of type Google ID"))
+        Result.failure(AuthException.InvalidCredential())
       }
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
-      Result.failure(
-          IllegalStateException("Login failed: ${e.localizedMessage ?: "Unexpected error."}")
-      )
+      val failure =
+          when (e) {
+            is FirebaseNetworkException -> AuthException.Network(e)
+            is FirebaseAuthInvalidCredentialsException,
+            is GoogleIdTokenParsingException -> AuthException.InvalidCredential(e)
+            else -> AuthException.Unknown(e)
+          }
+      Result.failure(failure)
     }
   }
 
@@ -75,7 +82,7 @@ class AuthRepositoryFirebase(
       Result.success(Unit)
     } catch (e: Exception) {
       Result.failure(
-          IllegalStateException("Logout failed: ${e.localizedMessage ?: "Unexpected error."}")
+          IllegalStateException("Logout failed: ${e.localizedMessage ?: "Unexpected error."}", e)
       )
     }
   }
