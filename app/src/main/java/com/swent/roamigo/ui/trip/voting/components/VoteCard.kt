@@ -47,7 +47,6 @@ fun VoteCard(vote: Vote, onClick: () -> Unit, summary: LiveVoteSummary? = null) 
 @Composable
 private fun LiveVoteCard(vote: Vote, onClick: () -> Unit, summary: LiveVoteSummary?) {
   Surface(
-      onClick = onClick,
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(22.dp),
       color = MaterialTheme.colorScheme.primary,
