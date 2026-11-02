@@ -1,3 +1,4 @@
+// AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.trip.history
 
 import androidx.compose.ui.test.assertCountEquals
@@ -11,6 +12,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import java.time.LocalDate
 import org.junit.Assert
 import org.junit.Rule
 import org.junit.Test
@@ -30,12 +32,14 @@ class TripHistoryScreenTest {
           id = "rome",
           name = "Summer in Italy",
           destinations = listOf("Rome", "Florence"),
-          dateRange = "5 Jun 2016 – 12 Jun 2016",
+          startDate = LocalDate.of(2016, 6, 5),
+          endDate = LocalDate.of(2016, 6, 12),
           travelerCount = 3,
       )
 
   private fun show(
       state: TripHistoryUiState,
+      onOpenTrip: (String) -> Unit = {},
       onBackClick: () -> Unit = {},
       onOpenWorldMapClick: () -> Unit = {},
       onTripsClick: () -> Unit = {},
@@ -48,6 +52,7 @@ class TripHistoryScreenTest {
       RoamigoTheme {
         TripHistoryScreen(
             uiState = state,
+            onOpenTrip = onOpenTrip,
             onBackClick = onBackClick,
             onOpenWorldMapClick = onOpenWorldMapClick,
             onTripsClick = onTripsClick,
@@ -69,12 +74,8 @@ class TripHistoryScreenTest {
             destinations = listOf("Paris"),
             travelerCount = 2,
         )
-    show(
-        TripHistoryUiState(
-            isLoading = false,
-            trips = listOf(rome, paris),
-        )
-    )
+
+    show(TripHistoryUiState.Success(listOf(rome, paris)))
 
     composeRule.onNodeWithText("2 completed trips").assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.trip_history_card_prefix + "rome").assertIsDisplayed()
@@ -87,7 +88,7 @@ class TripHistoryScreenTest {
 
   @Test
   fun displaysEmptyState() {
-    show(TripHistoryUiState(isLoading = false))
+    show(TripHistoryUiState.Success(emptyList()))
 
     composeRule.onNodeWithText("0 completed trips").assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.trip_history_empty).assertIsDisplayed()
@@ -96,24 +97,21 @@ class TripHistoryScreenTest {
 
   @Test
   fun loadingDoesNotDisplayEmptyState() {
-    show(TripHistoryUiState())
+    show(TripHistoryUiState.Loading)
 
     composeRule.onNodeWithTag(C.Tag.trip_history_loading).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.trip_history_empty).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.trip_history_world_map).assertDoesNotExist()
   }
 
   @Test
   fun errorDoesNotDisplayEmptyState() {
-    show(
-        TripHistoryUiState(
-            isLoading = false,
-            errorMessage = "Unable to load trip history.",
-        )
-    )
+    show(TripHistoryUiState.Error("Unable to load trip history."))
 
     composeRule.onNodeWithTag(C.Tag.trip_history_error).assertIsDisplayed()
     composeRule.onNodeWithText("Unable to load trip history.").assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.trip_history_empty).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.trip_history_world_map).assertDoesNotExist()
   }
 
   @Test
@@ -126,7 +124,7 @@ class TripHistoryScreenTest {
     var friendsClicks = 0
 
     show(
-        state = TripHistoryUiState(isLoading = false, trips = listOf(rome)),
+        state = TripHistoryUiState.Success(listOf(rome)),
         onBackClick = { backClicks++ },
         onOpenWorldMapClick = { worldMapClicks++ },
         onTripsClick = { tripsClicks++ },
@@ -151,6 +149,25 @@ class TripHistoryScreenTest {
   }
 
   @Test
+  fun clickingCompletedTripPassesCorrectId() {
+    val openedTripIds = mutableListOf<String>()
+    val paris = rome.copy(id = "paris", name = "Paris Trip")
+
+    show(
+        state = TripHistoryUiState.Success(listOf(rome, paris)),
+        onOpenTrip = { tripId -> openedTripIds.add(tripId) },
+    )
+
+    composeRule.onNodeWithTag(C.Tag.trip_history_card_prefix + "paris").performClick()
+
+    Assert.assertEquals(listOf("paris"), openedTripIds)
+
+    composeRule.onNodeWithTag(C.Tag.trip_history_card_prefix + "rome").performClick()
+
+    Assert.assertEquals(listOf("paris", "rome"), openedTripIds)
+  }
+
+  @Test
   fun worldMapButtonRemainsVisibleWithLongHistory() {
     val manyTrips =
         (1..30).map { index ->
@@ -160,24 +177,14 @@ class TripHistoryScreenTest {
           )
         }
 
-    show(
-        TripHistoryUiState(
-            isLoading = false,
-            trips = manyTrips,
-        )
-    )
+    show(TripHistoryUiState.Success(manyTrips))
 
     composeRule.onNodeWithTag(C.Tag.trip_history_world_map).assertIsDisplayed()
   }
 
   @Test
   fun displaysFallbackWhenDestinationIsMissing() {
-    show(
-        TripHistoryUiState(
-            isLoading = false,
-            trips = listOf(rome.copy(destinations = emptyList())),
-        )
-    )
+    show(TripHistoryUiState.Success(listOf(rome.copy(destinations = emptyList()))))
 
     composeRule.onNodeWithText("Destination unavailable").assertIsDisplayed()
   }
@@ -187,11 +194,8 @@ class TripHistoryScreenTest {
     composeRule.setContent {
       RoamigoTheme {
         TripHistoryScreen(
-            uiState =
-                TripHistoryUiState(
-                    isLoading = false,
-                    trips = listOf(rome),
-                )
+            uiState = TripHistoryUiState.Success(listOf(rome)),
+            onOpenTrip = {},
         )
       }
     }
@@ -213,15 +217,9 @@ class TripHistoryScreenTest {
 
   @Test
   fun blankErrorDisplaysFallbackMessage() {
-    show(
-        TripHistoryUiState(
-            isLoading = false,
-            errorMessage = "   ",
-        )
-    )
+    show(TripHistoryUiState.Error("   "))
 
     composeRule.onNodeWithTag(C.Tag.trip_history_error).assertIsDisplayed()
-
     composeRule.onNodeWithText("Unable to load trip history.").assertIsDisplayed()
   }
 
@@ -230,11 +228,7 @@ class TripHistoryScreenTest {
     var retryClicks = 0
 
     show(
-        state =
-            TripHistoryUiState(
-                isLoading = false,
-                errorMessage = "Unable to load trip history.",
-            ),
+        state = TripHistoryUiState.Error("Unable to load trip history."),
         onRetryClick = { retryClicks++ },
     )
 

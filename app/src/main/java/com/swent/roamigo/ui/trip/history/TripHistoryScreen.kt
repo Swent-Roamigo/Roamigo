@@ -32,10 +32,13 @@ import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.history.components.OpenWorldMapButton
 import com.swent.roamigo.ui.trip.history.components.TripHistoryCard
 import com.swent.roamigo.ui.trip.history.components.TripHistoryHeader
+import java.time.LocalDate
 
 @Composable
 fun TripHistoryScreen(
     uiState: TripHistoryUiState,
+    onOpenTrip: (String) -> Unit,
+    modifier: Modifier = Modifier,
     onBackClick: () -> Unit = rememberNotImplementedAction(),
     onOpenWorldMapClick: () -> Unit = rememberNotImplementedAction(),
     onTripsClick: () -> Unit = rememberNotImplementedAction(),
@@ -44,12 +47,14 @@ fun TripHistoryScreen(
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
     onRetryClick: () -> Unit = rememberNotImplementedAction(),
 ) {
+  val completedTrips = (uiState as? TripHistoryUiState.Success)?.trips
+
   Scaffold(
-      modifier = Modifier.testTag(C.Tag.trip_history_screen),
+      modifier = modifier.testTag(C.Tag.trip_history_screen),
       containerColor = MaterialTheme.colorScheme.background,
       bottomBar = {
         Column {
-          if (!uiState.isLoading && uiState.errorMessage == null && uiState.trips.isNotEmpty()) {
+          if (!completedTrips.isNullOrEmpty()) {
             OpenWorldMapButton(onClick = onOpenWorldMapClick)
           }
 
@@ -75,55 +80,53 @@ fun TripHistoryScreen(
       item {
         TripHistoryHeader(
             onBackClick = onBackClick,
-            completedTripCount =
-                if (!uiState.isLoading && uiState.errorMessage == null) {
-                  uiState.trips.size
-                } else {
-                  null
-                },
+            completedTripCount = completedTrips?.size,
         )
       }
 
-      when {
-        uiState.isLoading ->
-            item {
-              Box(
-                  modifier =
-                      Modifier.fillMaxWidth().height(120.dp).testTag(C.Tag.trip_history_loading),
-                  contentAlignment = Alignment.Center,
+      when (val state = uiState) {
+        TripHistoryUiState.Loading -> {
+          item {
+            Box(
+                modifier =
+                    Modifier.fillMaxWidth().height(120.dp).testTag(C.Tag.trip_history_loading),
+                contentAlignment = Alignment.Center,
+            ) {
+              CircularProgressIndicator()
+            }
+          }
+        }
+
+        is TripHistoryUiState.Error -> {
+          item {
+            Column(
+                modifier =
+                    Modifier.fillMaxWidth()
+                        .padding(vertical = Spacing.large)
+                        .testTag(C.Tag.trip_history_error),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(Spacing.medium),
+            ) {
+              Text(
+                  text =
+                      state.message.takeIf { it.isNotBlank() }
+                          ?: stringResource(R.string.trip_history_load_error),
+                  color = MaterialTheme.colorScheme.error,
+                  textAlign = TextAlign.Center,
+              )
+
+              Button(
+                  onClick = onRetryClick,
+                  modifier = Modifier.testTag(C.Tag.trip_history_retry),
               ) {
-                CircularProgressIndicator()
+                Text(stringResource(R.string.trip_history_retry))
               }
             }
+          }
+        }
 
-        uiState.errorMessage != null ->
-            item {
-              Column(
-                  modifier =
-                      Modifier.fillMaxWidth()
-                          .padding(vertical = Spacing.large)
-                          .testTag(C.Tag.trip_history_error),
-                  horizontalAlignment = Alignment.CenterHorizontally,
-                  verticalArrangement = Arrangement.spacedBy(Spacing.medium),
-              ) {
-                Text(
-                    text =
-                        uiState.errorMessage?.takeIf { it.isNotBlank() }
-                            ?: stringResource(R.string.trip_history_load_error),
-                    color = MaterialTheme.colorScheme.error,
-                    textAlign = TextAlign.Center,
-                )
-
-                Button(
-                    onClick = onRetryClick,
-                    modifier = Modifier.testTag(C.Tag.trip_history_retry),
-                ) {
-                  Text(stringResource(R.string.trip_history_retry))
-                }
-              }
-            }
-
-        uiState.trips.isEmpty() ->
+        is TripHistoryUiState.Success -> {
+          if (state.trips.isEmpty()) {
             item {
               Box(
                   modifier =
@@ -136,9 +139,17 @@ fun TripHistoryScreen(
                 )
               }
             }
-
-        else -> {
-          items(uiState.trips, key = { it.id }) { trip -> TripHistoryCard(trip) }
+          } else {
+            items(
+                items = state.trips,
+                key = { it.id },
+            ) { trip ->
+              TripHistoryCard(
+                  trip = trip,
+                  onClick = { onOpenTrip(trip.id) },
+              )
+            }
+          }
         }
       }
     }
@@ -151,19 +162,20 @@ private fun TripHistoryPreview() {
   RoamigoTheme {
     TripHistoryScreen(
         uiState =
-            TripHistoryUiState(
-                isLoading = false,
+            TripHistoryUiState.Success(
                 trips =
                     listOf(
                         TripHistoryItemUiModel(
                             id = "rome",
                             name = "Summer in Italy",
                             destinations = listOf("Rome", "Florence"),
-                            dateRange = "5 Jun 2016 – 12 Jun 2016",
+                            startDate = LocalDate.of(2016, 6, 5),
+                            endDate = LocalDate.of(2016, 6, 12),
                             travelerCount = 3,
                         ),
                     ),
             ),
+        onOpenTrip = {},
     )
   }
 }

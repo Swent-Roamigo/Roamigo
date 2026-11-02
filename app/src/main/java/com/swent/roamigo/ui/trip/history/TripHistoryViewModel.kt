@@ -10,8 +10,6 @@ import com.swent.roamigo.model.trip.isCompletedOn
 import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,7 +21,7 @@ class TripHistoryViewModel(
     private val clock: Clock = Clock.systemDefaultZone(),
 ) : ViewModel() {
 
-  private val _uiState = MutableStateFlow(TripHistoryUiState())
+  private val _uiState = MutableStateFlow<TripHistoryUiState>(TripHistoryUiState.Loading)
   val uiState = _uiState.asStateFlow()
   private var refreshJob: Job? = null
 
@@ -33,37 +31,34 @@ class TripHistoryViewModel(
 
   fun refresh() {
     refreshJob?.cancel()
-    refreshJob = viewModelScope.launch {
-      _uiState.value = TripHistoryUiState()
+    _uiState.value = TripHistoryUiState.Loading
 
+    refreshJob = viewModelScope.launch {
       try {
         val trips = tripRepository.getTrips()
         val today = LocalDate.now(clock)
-        val formatter = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH)
 
         val items =
             selectCompletedTrips(trips, today, clock.zone).map { trip ->
-              val start = trip.startDate.toDate().toInstant().atZone(clock.zone).toLocalDate()
-              val end = trip.endDate.toDate().toInstant().atZone(clock.zone).toLocalDate()
+              val startDate = trip.startDate.toDate().toInstant().atZone(clock.zone).toLocalDate()
+
+              val endDate = trip.endDate.toDate().toInstant().atZone(clock.zone).toLocalDate()
 
               TripHistoryItemUiModel(
                   id = trip.uid,
                   name = trip.name,
                   destinations = trip.destinations.map { it.name },
-                  dateRange = "${start.format(formatter)} – ${end.format(formatter)}",
+                  startDate = startDate,
+                  endDate = endDate,
                   travelerCount = trip.travelerCount,
               )
             }
 
-        _uiState.value = TripHistoryUiState(isLoading = false, trips = items)
+        _uiState.value = TripHistoryUiState.Success(items)
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
-        _uiState.value =
-            TripHistoryUiState(
-                isLoading = false,
-                errorMessage = "Unable to load trip history.",
-            )
+        _uiState.value = TripHistoryUiState.Error("Unable to load trip history.")
       }
     }
   }
