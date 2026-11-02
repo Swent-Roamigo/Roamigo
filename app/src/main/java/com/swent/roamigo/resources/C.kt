@@ -14,6 +14,7 @@ object C {
 
     const val profile_title = "profile_screen_title"
     const val profile_avatar = "profile_screen_avatar"
+    const val profile_photo = "profile_screen_photo"
     const val profile_name = "profile_screen_name"
     const val profile_email = "profile_screen_email"
     const val profile_friends_row = "profile_screen_friends_row"

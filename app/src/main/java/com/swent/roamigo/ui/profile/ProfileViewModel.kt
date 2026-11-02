@@ -6,24 +6,30 @@ import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import com.swent.roamigo.R
 import com.swent.roamigo.model.authentication.AuthRepository
+import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.users.User
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Everything the profile screen shows; [email] and [friendCount] are not part of [User]. */
+/**
+ * Everything the profile screen shows; [email] and [friendCount] are not part of [User]. [email] is
+ * null when the account has none.
+ */
 data class ProfileUiState(
     val user: User,
-    val email: String,
+    val email: String?,
     val friendCount: Int,
     val signedOut: Boolean = false,
     @StringRes val errorMessageRes: Int? = null,
 )
 
+/**
+ * Shows the signed-in account and signs out. The friend count is a placeholder until friends have a
+ * source.
+ */
 class ProfileViewModel(private val authRepository: AuthRepository) : ViewModel() {
-  // Placeholder until a repository provides the signed-in user.
-  private val _uiState =
-      MutableStateFlow(ProfileUiState(User("alex", "Alex", null), "alex@epfl.ch", 4))
+  private val _uiState = MutableStateFlow(authRepository.getCurrentUser().toProfileState())
   val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
 
   /** Ends the current session; navigation reacts only after successful sign-out. */
@@ -42,4 +48,21 @@ class ProfileViewModel(private val authRepository: AuthRepository) : ViewModel()
             },
         )
   }
+
+  private companion object {
+    const val FALLBACK_NAME = "Traveler"
+    const val PLACEHOLDER_FRIEND_COUNT = 4
+  }
+
+  private fun AuthenticatedUser?.toProfileState() =
+      ProfileUiState(
+          user =
+              User(
+                  uid = this?.uid.orEmpty(),
+                  displayName = this?.displayName?.takeIf { it.isNotBlank() } ?: FALLBACK_NAME,
+                  profilePictureUrl = this?.photoUrl,
+              ),
+          email = this?.email,
+          friendCount = PLACEHOLDER_FRIEND_COUNT,
+      )
 }
