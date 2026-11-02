@@ -3,6 +3,7 @@ package com.swent.roamigo.ui.photos
 
 import android.Manifest
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.provider.Settings
 import androidx.activity.ComponentActivity
@@ -19,8 +20,10 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.core.app.ActivityOptionsCompat
 import androidx.core.content.FileProvider
+import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.swent.roamigo.R
 import com.swent.roamigo.model.connectivity.FakeConnectivityRepository
 import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.photo.PhotoModule
@@ -39,6 +42,7 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowToast
 
 /** A screen that can only explain a refusal once, as the system does after the first one. */
 class RationaleActivity : ComponentActivity() {
@@ -50,6 +54,7 @@ private class FakeRegistry : ActivityResultRegistry() {
   val launched = mutableListOf<Pair<ActivityResultContract<*, *>, Any?>>()
   var permissionGranted = true
   var pictureTaken = true
+  var cameraInstalled = true
 
   @Suppress("UNCHECKED_CAST")
   override fun <I, O> onLaunch(
@@ -59,6 +64,9 @@ private class FakeRegistry : ActivityResultRegistry() {
       options: ActivityOptionsCompat?,
   ) {
     launched += contract to input
+    if (contract is ActivityResultContracts.TakePicture && !cameraInstalled) {
+      throw ActivityNotFoundException()
+    }
     when (contract) {
       is ActivityResultContracts.RequestPermission ->
           dispatchResult(requestCode, permissionGranted as O)
@@ -206,6 +214,57 @@ class PhotosRouteTest {
     val intent: Intent = shadowOf(composeRule.activity).nextStartedActivity
     assertEquals(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, intent.action)
     assertEquals("package:com.swent.roamigo", intent.data.toString())
+  }
+
+  @Test
+  fun takesThePhotoAfterTheCameraWasAllowedInSettings() {
+    registry.permissionGranted = false
+    show()
+    tap(C.Tag.photos_take_photo)
+    tap(C.Tag.camera_rationale_continue)
+    tap(C.Tag.camera_blocked_open_settings)
+    assertTrue(launched(ActivityResultContracts.TakePicture::class.java).isEmpty())
+
+    allowCamera()
+    // The app goes behind the settings and comes back.
+    val scenario = composeRule.activityRule.scenario
+    scenario.moveToState(Lifecycle.State.STARTED)
+    scenario.moveToState(Lifecycle.State.RESUMED)
+    composeRule.waitForIdle()
+
+    assertEquals(1, launched(ActivityResultContracts.TakePicture::class.java).size)
+  }
+
+  @Test
+  fun doesNotTakeAPhotoOnReturnWhenTheCameraIsStillRefused() {
+    registry.permissionGranted = false
+    show()
+    tap(C.Tag.photos_take_photo)
+    tap(C.Tag.camera_rationale_continue)
+    tap(C.Tag.camera_blocked_open_settings)
+
+    val scenario = composeRule.activityRule.scenario
+    scenario.moveToState(Lifecycle.State.STARTED)
+    scenario.moveToState(Lifecycle.State.RESUMED)
+    composeRule.waitForIdle()
+
+    assertTrue(launched(ActivityResultContracts.TakePicture::class.java).isEmpty())
+  }
+
+  @Test
+  fun tellsTheUserWhenThereIsNoCameraApp() {
+    allowCamera()
+    registry.cameraInstalled = false
+    show()
+
+    tap(C.Tag.photos_take_photo)
+
+    assertEquals(
+        composeRule.activity.getString(R.string.photos_no_camera),
+        ShadowToast.getTextOfLatestToast(),
+    )
+    composeRule.onNodeWithTag(C.Tag.photos_screen).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.photo_preview).assertDoesNotExist()
   }
 
   @Test

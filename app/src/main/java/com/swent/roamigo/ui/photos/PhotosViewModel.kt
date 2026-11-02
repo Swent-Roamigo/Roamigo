@@ -50,6 +50,9 @@ class PhotosViewModel(
 
   private var cleared = false
 
+  // Set while the user is in the app's settings, to resume the photo they asked for.
+  private var awaitingSettings = false
+
   val uiState: StateFlow<PhotosUiState> =
       combine(repository.pendingPhotos(tripId), connectivity.isOnline, local) {
               photos,
@@ -104,7 +107,24 @@ class PhotosViewModel(
 
   fun onOpenSettings() {
     showStep(CameraStep.NONE)
+    awaitingSettings = true
     _effects.trySend(PhotosEffect.OpenSettings)
+  }
+
+  /**
+   * The screen is back in front, e.g. after the user visited the app's settings. If the camera was
+   * allowed there, the photo they asked for is taken without asking again.
+   */
+  fun onScreenResumed(permissionGranted: Boolean) {
+    if (!awaitingSettings) return
+    awaitingSettings = false
+    if (permissionGranted) startCapture()
+  }
+
+  /** The camera could not be opened, e.g. because no camera app is installed. */
+  fun onCameraUnavailable() {
+    captureFile?.let(repository::discard)
+    captureFile = null
   }
 
   /** The camera closed. [taken] is false if the user cancelled. */

@@ -1,8 +1,10 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui.photos
 
+import android.os.Parcel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.connectivity.FakeConnectivityRepository
 import com.swent.roamigo.model.photo.pendingPhoto
 import kotlinx.coroutines.CompletableDeferred
@@ -24,7 +26,9 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import org.junit.runner.RunWith
 
+@RunWith(AndroidJUnit4::class)
 @OptIn(ExperimentalCoroutinesApi::class)
 class PhotosViewModelTest {
   @get:Rule val folder = TemporaryFolder()
@@ -394,6 +398,77 @@ class PhotosViewModelTest {
     PhotosViewModel(repository, connectivity, "trip", handle).onPictureTaken(false)
 
     assertEquals(listOf(file), repository.discarded)
+  }
+
+  @Test
+  fun takesThePhotoWhenBackFromSettingsWithTheCameraAllowed() {
+    viewModel.onOpenSettings()
+    val before = effects.size
+
+    viewModel.onScreenResumed(permissionGranted = true)
+
+    assertTrue(effects.size == before + 1 && effects.last() is PhotosEffect.LaunchCamera)
+  }
+
+  @Test
+  fun doesNothingWhenBackFromSettingsWithTheCameraStillRefused() {
+    viewModel.onOpenSettings()
+    val before = effects.size
+
+    viewModel.onScreenResumed(permissionGranted = false)
+
+    assertEquals(before, effects.size)
+  }
+
+  @Test
+  fun resumingForAnyOtherReasonDoesNotOpenTheCamera() {
+    viewModel.onScreenResumed(permissionGranted = true)
+
+    assertEquals(emptyList<PhotosEffect>(), effects)
+  }
+
+  @Test
+  fun backFromSettingsOpensTheCameraOnlyOnce() {
+    viewModel.onOpenSettings()
+    viewModel.onScreenResumed(permissionGranted = true)
+    val before = effects.size
+
+    viewModel.onScreenResumed(permissionGranted = true)
+
+    assertEquals(before, effects.size)
+  }
+
+  @Test
+  fun anUnavailableCameraDiscardsTheFileItWasGiven() {
+    viewModel.onTakePhotoClick(permissionGranted = true)
+    val file = (effects.last() as PhotosEffect.LaunchCamera).file
+
+    viewModel.onCameraUnavailable()
+    viewModel.onPictureTaken(true)
+
+    assertEquals(listOf(file), repository.discarded)
+    assertNull(state.preview)
+  }
+
+  @Test
+  fun aPictureTakenAfterTheProcessWasKilledIsShown() {
+    val handle = SavedStateHandle()
+    val first = PhotosViewModel(repository, connectivity, "trip", savedStateHandle = handle)
+    first.effects.onEach { effects += it }.launchIn(kotlinx.coroutines.CoroutineScope(dispatcher))
+    first.onTakePhotoClick(permissionGranted = true)
+    val file = (effects.last() as PhotosEffect.LaunchCamera).file
+    file.writeText("jpeg")
+
+    // What Android does on process death: the saved state goes through a Parcel and comes back.
+    val parcel = Parcel.obtain()
+    parcel.writeBundle(handle.savedStateProvider().saveState())
+    parcel.setDataPosition(0)
+    val restored = SavedStateHandle.createHandle(parcel.readBundle(javaClass.classLoader), null)
+    parcel.recycle()
+    val second = PhotosViewModel(repository, connectivity, "trip", savedStateHandle = restored)
+    second.onPictureTaken(true)
+
+    assertEquals(file, second.uiState.value.preview)
   }
 
   private fun clear() {

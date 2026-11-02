@@ -2,10 +2,12 @@
 package com.swent.roamigo.ui.photos
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -18,7 +20,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.swent.roamigo.R
 import com.swent.roamigo.model.photo.PendingPhoto
 import java.io.File
 
@@ -64,13 +69,19 @@ fun PhotosRoute(
         PhotosEffect.RequestCameraPermission ->
             permissionLauncher.launch(Manifest.permission.CAMERA)
         is PhotosEffect.LaunchCamera ->
-            cameraLauncher.launch(
-                FileProvider.getUriForFile(
-                    context,
-                    "${context.packageName}.fileprovider",
-                    effect.file,
-                )
-            )
+            try {
+              cameraLauncher.launch(
+                  FileProvider.getUriForFile(
+                      context,
+                      "${context.packageName}.fileprovider",
+                      effect.file,
+                  )
+              )
+            } catch (_: ActivityNotFoundException) {
+              // The camera is optional in the manifest, so a device may have no app to take photos.
+              viewModel.onCameraUnavailable()
+              Toast.makeText(context, R.string.photos_no_camera, Toast.LENGTH_LONG).show()
+            }
         PhotosEffect.OpenSettings ->
             context.startActivity(
                 Intent(
@@ -80,6 +91,13 @@ fun PhotosRoute(
             )
       }
     }
+  }
+
+  LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+    viewModel.onScreenResumed(
+        ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
+    )
   }
 
   BackHandler(enabled = state.preview != null) { viewModel.onPreviewClosed() }
