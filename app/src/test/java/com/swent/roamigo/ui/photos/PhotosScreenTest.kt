@@ -108,8 +108,26 @@ class PhotosScreenTest {
         )
     )
 
-    bannerText("Back online · uploading 2 photos")
+    bannerText("Back online · uploading 1 photo…")
     composeRule.onNodeWithTag(C.Tag.photos_progress).assertIsDisplayed()
+  }
+
+  @Test
+  fun doesNotCountFailedPhotosAsWaiting() {
+    show(
+        PhotosUiState(
+            photos = waiting(1, PhotoUploadStatus.FAILED) + waiting(1).map { it.copy(id = "z") }
+        )
+    )
+
+    bannerText("1 photo waiting to upload")
+  }
+
+  @Test
+  fun showsNoBannerWhenOnlyFailedPhotosRemain() {
+    show(PhotosUiState(photos = waiting(2, PhotoUploadStatus.FAILED)))
+
+    noBanner()
   }
 
   @Test

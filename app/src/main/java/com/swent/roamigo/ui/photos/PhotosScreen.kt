@@ -118,18 +118,25 @@ fun PhotosScreen(
   }
 }
 
-/** Tells whether the photos are waiting for a connection, being uploaded, or nothing is pending. */
+/**
+ * Tells whether the photos are waiting for a connection, being uploaded, or nothing is pending.
+ * Failed photos are not counted: the list shows them with their own retry.
+ */
 @Composable
 private fun PhotosBanner(state: PhotosUiState) {
-  val count = state.photos.size
-  val uploading = state.photos.any { it.status == PhotoUploadStatus.UPLOADING }
+  val pending = state.photos.filter { it.status != PhotoUploadStatus.FAILED }
+  val count = pending.size
+  val uploadingCount = pending.count { it.status == PhotoUploadStatus.UPLOADING }
+  val uploading = uploadingCount > 0
   val (text, color) =
       when {
         count == 0 && !state.isOnline -> stringResource(R.string.photos_offline_empty) to Warning
         count == 0 -> return
         !state.isOnline ->
             pluralStringResource(R.plurals.photos_waiting_offline, count, count) to Warning
-        uploading -> pluralStringResource(R.plurals.photos_uploading, count, count) to Success
+        uploading ->
+            pluralStringResource(R.plurals.photos_uploading, uploadingCount, uploadingCount) to
+                Success
         else -> pluralStringResource(R.plurals.photos_waiting_online, count, count) to Warning
       }
   Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.small)) {
