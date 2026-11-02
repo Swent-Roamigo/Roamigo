@@ -36,7 +36,7 @@ fun VotesList(
     }
     if (state.liveVotes.isNotEmpty()) {
       items(state.liveVotes, key = { it.uid }) { vote ->
-        VoteCard(vote, onClick = { onOpenVote(vote.uid) })
+        VoteCard(vote, onClick = { onOpenVote(vote.uid) }, summary = state.liveSummaries[vote.uid])
       }
     }
     if (state.closedVotes.isNotEmpty()) {

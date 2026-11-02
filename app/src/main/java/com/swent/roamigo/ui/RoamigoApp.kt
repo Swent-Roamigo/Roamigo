@@ -53,9 +53,11 @@ import com.swent.roamigo.ui.trip.details.TripDetailsRoute
 import com.swent.roamigo.ui.trip.history.TripHistoryRoute
 import com.swent.roamigo.ui.trip.voting.CreateVoteScreen
 import com.swent.roamigo.ui.trip.voting.CreateVoteViewModel
+import com.swent.roamigo.ui.trip.voting.VoteDialog
 import com.swent.roamigo.ui.trip.voting.VoteScreen
 import com.swent.roamigo.ui.trip.voting.VoteViewModel
 import com.swent.roamigo.ui.trip.voting.VotesScreen
+import com.swent.roamigo.ui.trip.voting.VotesUiState
 import com.swent.roamigo.ui.trip.voting.VotesViewModel
 import com.swent.roamigo.ui.trips.TripsRoute
 import kotlinx.coroutines.launch
@@ -133,10 +135,18 @@ fun RoamigoApp(
     composable(Route.VOTES) { entry ->
       val tripId = requireNotNull(entry.arguments?.getString("tripId"))
       val tripName = entry.arguments?.getString("tripName").orEmpty()
+      var selectedVoteId by rememberSaveable { mutableStateOf<String?>(null) }
+      val votesViewModel = viewModel {
+        VotesViewModel(voteRepository, tripId, authRepository.getCurrentUser()?.uid.orEmpty())
+      }
       VotesScreen(
-          viewModel = viewModel { VotesViewModel(voteRepository, tripId) },
+          viewModel = votesViewModel,
           tripName = tripName,
-          onOpenVote = { voteId -> navController.navigate(Route.vote(tripId, voteId)) },
+          onOpenVote = { voteId ->
+            val ready = votesViewModel.uiState.value as? VotesUiState.Ready
+            if (ready?.liveVotes?.any { it.uid == voteId } == true) selectedVoteId = voteId
+            else navController.navigate(Route.vote(tripId, voteId))
+          },
           onCreateVote = { navController.navigate(Route.newVote(tripId)) },
           onOverviewClick = {
             navController.popBackStack(
@@ -148,6 +158,18 @@ fun RoamigoApp(
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
           onFriendsClick = { navController.navigate(Route.FRIENDS) { launchSingleTop = true } },
       )
+      selectedVoteId?.let { voteId ->
+        val userId = authRepository.getCurrentUser()?.uid
+        if (userId == null) {
+          LaunchedEffect(Unit) {
+            navController.navigate(Route.AUTHENTICATION) { popUpTo(navController.graph.id) }
+          }
+        } else {
+          VoteDialog(voteId, { VoteViewModel(voteRepository, tripId, it, userId) }) {
+            selectedVoteId = null
+          }
+        }
+      }
     }
     composable(Route.VOTE) { entry ->
       val tripId = requireNotNull(entry.arguments?.getString("tripId"))

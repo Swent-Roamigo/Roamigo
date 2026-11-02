@@ -4,10 +4,16 @@ package com.swent.roamigo.ui.trip.voting
 import androidx.lifecycle.ViewModelStore
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
+import com.swent.roamigo.model.trip.voting.VoteBallot
 import com.swent.roamigo.model.trip.voting.VoteStatus
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
@@ -23,6 +29,7 @@ class VotesViewModelTest {
   private val dispatcher = StandardTestDispatcher()
   private val repository = InMemoryVoteRepository()
   private val store = ViewModelStore()
+  private val subscribers = CoroutineScope(dispatcher + SupervisorJob())
   private lateinit var viewModel: VotesViewModel
   private val first = interactionVote().copy(uid = "first", creationTime = Timestamp(1, 0))
   private val second = interactionVote().copy(uid = "second", creationTime = Timestamp(2, 0))
@@ -34,16 +41,96 @@ class VotesViewModelTest {
 
   @After
   fun tearDown() {
+    subscribers.cancel()
     store.clear()
     Dispatchers.resetMain()
   }
 
   private fun createViewModel(tripId: String = "trip") {
-    viewModel = VotesViewModel(repository, tripId)
+    viewModel = VotesViewModel(repository, tripId, "member")
+    subscribers.launch { viewModel.uiState.collect() }
     store.put("votes", viewModel)
   }
 
   private fun ready() = viewModel.uiState.value as VotesUiState.Ready
+
+  @Test
+  fun liveSummaryIncludesZeroCountsAndMovesBallotsWithoutRefresh() = runTest {
+    repository.snapshots.value = Result.success(listOf(first))
+    createViewModel()
+    runCurrent()
+    fun summary() = ready().liveSummaries.getValue(first.uid)
+    assertEquals(mapOf("a" to 0, "b" to 0), summary().counts)
+    assertFalse(summary().hasPersistedBallot)
+    repository.submitBallot(
+        "trip",
+        first.uid,
+        VoteBallot("other", "a", Timestamp(1, 0)),
+    )
+    runCurrent()
+    assertEquals(mapOf("a" to 1, "b" to 0), summary().counts)
+    assertFalse(summary().hasPersistedBallot)
+    val ballotModel = VoteViewModel(repository, "trip", first.uid, "member")
+    store.put("ballot", ballotModel)
+    runCurrent()
+    ballotModel.selectOption("a")
+    ballotModel.submitVote()
+    runCurrent()
+    assertEquals(mapOf("a" to 2, "b" to 0), summary().counts)
+    assertTrue(summary().hasPersistedBallot)
+    ballotModel.selectOption("b")
+    ballotModel.submitVote()
+    runCurrent()
+    assertEquals(mapOf("a" to 1, "b" to 1), summary().counts)
+    assertTrue(summary().hasPersistedBallot)
+  }
+
+  @Test
+  fun ballotObserversFollowOpenVoteSetAndStopWithLastSubscriber() = runTest {
+    repository.snapshots.value = Result.success(listOf(first, second))
+    createViewModel()
+    runCurrent()
+    assertEquals(mapOf(first.uid to 1, second.uid to 1), repository.activeBallotObservers)
+    repository.snapshots.value = Result.success(listOf(second.copy(status = VoteStatus.CLOSED)))
+    runCurrent()
+    assertTrue(repository.activeBallotObservers.values.all { it == 0 })
+    repository.snapshots.value = Result.success(listOf(first))
+    runCurrent()
+    assertEquals(1, repository.activeBallotObservers[first.uid])
+    subscribers.cancel()
+    runCurrent()
+    assertEquals(0, repository.activeObservers)
+    assertTrue(repository.activeBallotObservers.values.all { it == 0 })
+  }
+
+  @Test
+  fun noSubscribersMeansNoRepositoryListeners() = runTest {
+    viewModel = VotesViewModel(repository, "trip", "member")
+    store.put("votes", viewModel)
+    runCurrent()
+    assertEquals(0, repository.activeObservers)
+    assertTrue(repository.activeBallotObservers.isEmpty())
+  }
+
+  @Test
+  fun resubscribingRestoresFreshCountsWithoutOverlappingListeners() = runTest {
+    repository.snapshots.value = Result.success(listOf(first))
+    viewModel = VotesViewModel(repository, "trip", "member")
+    store.put("votes", viewModel)
+    val firstCollector = subscribers.launch { viewModel.uiState.collect() }
+    runCurrent()
+    firstCollector.cancel()
+    runCurrent()
+    assertEquals(0, repository.activeObservers)
+    assertEquals(0, repository.activeBallotObservers[first.uid])
+    repository.submitBallot("trip", first.uid, VoteBallot("member", "b", Timestamp(1, 0)))
+    subscribers.launch { viewModel.uiState.collect() }
+    runCurrent()
+    assertEquals(mapOf("a" to 0, "b" to 1), ready().liveSummaries.getValue(first.uid).counts)
+    assertEquals(1, repository.activeObservers)
+    assertEquals(1, repository.maximumObservers)
+    assertEquals(1, repository.activeBallotObservers[first.uid])
+  }
 
   @Test
   fun startsLoadingAndDoesNotSelectBeforeFirstSnapshot() = runTest {
@@ -230,6 +317,7 @@ class VotesViewModelTest {
     store.clear()
     runCurrent()
     assertEquals(0, repository.activeObservers)
+    assertTrue(repository.activeBallotObservers.values.all { it == 0 })
     assertEquals(VotesSyncState.SYNCED, ready().syncState)
   }
 

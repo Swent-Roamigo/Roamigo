@@ -297,4 +297,6 @@
         <item quantity="one">%1$d suggested place</item>
         <item quantity="other">%1$d suggested places</item>
     </plurals>
+    <string name="votes_cast_vote">Vote</string>
+    <string name="votes_change_vote">Change vote</string>
 </resources>
