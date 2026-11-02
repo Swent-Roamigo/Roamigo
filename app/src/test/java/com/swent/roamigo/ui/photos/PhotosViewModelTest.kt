@@ -1,11 +1,14 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui.photos
 
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.viewModelScope
 import com.swent.roamigo.model.connectivity.FakeConnectivityRepository
 import com.swent.roamigo.model.photo.pendingPhoto
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -334,6 +337,63 @@ class PhotosViewModelTest {
     clear()
 
     assertEquals(emptyList<java.io.File>(), repository.discarded)
+  }
+
+  @Test
+  fun aSaveStillFinishesWhenTheScreenIsLeftWhileWaiting() {
+    val file = takePicture()
+    repository.saveGate = CompletableDeferred()
+    viewModel.onSave()
+
+    clear()
+    viewModel.viewModelScope.cancel()
+    repository.saveGate?.complete(Unit)
+
+    assertEquals(listOf("trip" to file), repository.saved)
+    assertEquals(emptyList<java.io.File>(), repository.discarded)
+  }
+
+  @Test
+  fun aSaveThatFailsAfterTheScreenWasLeftDiscardsThePhoto() {
+    val file = takePicture()
+    repository.saveGate = CompletableDeferred()
+    repository.saveError = IllegalStateException("no space")
+    viewModel.onSave()
+
+    clear()
+    viewModel.viewModelScope.cancel()
+    repository.saveGate?.complete(Unit)
+
+    assertEquals(listOf(file), repository.discarded)
+  }
+
+  @Test
+  fun aPictureTakenAfterTheAppWasRecreatedIsShown() {
+    val handle = SavedStateHandle()
+    var model = PhotosViewModel(repository, connectivity, "trip", handle)
+    model.effects.onEach { effects += it }.launchIn(kotlinx.coroutines.CoroutineScope(dispatcher))
+    model.onTakePhotoClick(permissionGranted = true)
+    val file = (effects.last() as PhotosEffect.LaunchCamera).file
+    file.writeText("jpeg")
+
+    // Android killed the process while the camera was open: a new view model gets the same state.
+    model = PhotosViewModel(repository, connectivity, "trip", handle)
+    model.onPictureTaken(true)
+
+    assertEquals(file, model.uiState.value.preview)
+  }
+
+  @Test
+  fun aCancelledPictureAfterTheAppWasRecreatedDiscardsTheFile() {
+    val handle = SavedStateHandle()
+    val first = PhotosViewModel(repository, connectivity, "trip", handle)
+    first.effects.onEach { effects += it }.launchIn(kotlinx.coroutines.CoroutineScope(dispatcher))
+    first.onTakePhotoClick(permissionGranted = true)
+    val file = (effects.last() as PhotosEffect.LaunchCamera).file
+
+    PhotosViewModel(repository, connectivity, "trip", handle).onPictureTaken(false)
+
+    assertEquals(listOf(file), repository.discarded)
   }
 
   private fun clear() {

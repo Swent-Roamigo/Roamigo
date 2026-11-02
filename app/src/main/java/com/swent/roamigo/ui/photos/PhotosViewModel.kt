@@ -1,12 +1,13 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui.photos
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.swent.roamigo.model.connectivity.ConnectivityRepository
 import com.swent.roamigo.model.photo.PhotoRepository
 import java.io.File
-import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Takes photos for one trip and shows the ones waiting to be uploaded.
@@ -28,6 +30,7 @@ class PhotosViewModel(
     private val repository: PhotoRepository,
     connectivity: ConnectivityRepository,
     val tripId: String,
+    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
 ) : ViewModel() {
 
   private data class Local(
@@ -39,8 +42,13 @@ class PhotosViewModel(
 
   private val local = MutableStateFlow(Local())
 
-  // The file the camera is writing into, until it reports back.
-  private var captureFile: File? = null
+  // The file the camera is writing into, until it reports back. It is kept in the saved state
+  // because Android may kill the app while the camera is open.
+  private var captureFile: File?
+    get() = savedStateHandle.get<String>(CAPTURE_FILE_KEY)?.let(::File)
+    set(value) = savedStateHandle.set(CAPTURE_FILE_KEY, value?.path)
+
+  private var cleared = false
 
   val uiState: StateFlow<PhotosUiState> =
       combine(repository.pendingPhotos(tripId), connectivity.isOnline, local) {
@@ -114,14 +122,16 @@ class PhotosViewModel(
     if (current.saving) return
     local.update { it.copy(saving = true, saveFailed = false) }
     viewModelScope.launch {
-      try {
-        repository.savePhoto(tripId, file)
-        local.update { it.copy(preview = null, saving = false) }
-      } catch (e: CancellationException) {
-        throw e
-      } catch (_: Exception) {
-        // The photo stays in the preview, so the user can try again instead of losing it.
-        local.update { it.copy(saving = false, saveFailed = true) }
+      // Leaving the screen must not stop the save: the file is only safe once it is in the queue.
+      withContext(NonCancellable) {
+        try {
+          repository.savePhoto(tripId, file)
+          local.update { it.copy(preview = null, saving = false) }
+        } catch (_: Exception) {
+          // The photo stays in the preview so the user can try again, unless nobody is left to.
+          if (cleared) repository.discard(file)
+          else local.update { it.copy(saving = false, saveFailed = true) }
+        }
       }
     }
   }
@@ -141,6 +151,7 @@ class PhotosViewModel(
   }
 
   override fun onCleared() {
+    cleared = true
     captureFile?.let(repository::discard)
     // A photo being saved is the repository's now. Deleting it here could lose it.
     local.value.takeUnless { it.saving }?.preview?.let(repository::discard)
@@ -163,5 +174,9 @@ class PhotosViewModel(
     repository.discard(file)
     local.update { it.copy(preview = null, saveFailed = false) }
     return true
+  }
+
+  private companion object {
+    const val CAPTURE_FILE_KEY = "capture_file"
   }
 }
