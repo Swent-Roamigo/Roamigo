@@ -13,7 +13,8 @@ interface AuthRepository {
   /**
    * Signs in the user using a Google account through the Credential Manager API.
    *
-   * @return The authenticated account on success, or an exception on failure.
+   * @return The authenticated account on success, or an [AuthException] on failure. Coroutine
+   *   cancellation is thrown instead of returned as a failure.
    */
   suspend fun signInWithGoogle(credential: Credential): Result<AuthenticatedUser>
 

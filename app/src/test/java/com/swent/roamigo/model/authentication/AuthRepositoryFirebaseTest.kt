@@ -6,9 +6,12 @@ import android.os.Bundle
 import androidx.credentials.CustomCredential
 import com.google.android.gms.tasks.Tasks
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
+import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.AuthCredential
 import com.google.firebase.auth.AuthResult
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
@@ -68,7 +71,8 @@ class AuthRepositoryFirebaseTest {
 
   @Test
   fun unsupportedCredentialDoesNotContactFirebase() = runTest {
-    assertTrue(repository.signInWithGoogle(CustomCredential("unsupported", Bundle())).isFailure)
+    val result = repository.signInWithGoogle(CustomCredential("unsupported", Bundle()))
+    assertTrue(result.exceptionOrNull() is AuthException.InvalidCredential)
     verifyNoInteractions(auth)
   }
 
@@ -76,14 +80,49 @@ class AuthRepositoryFirebaseTest {
   fun missingFirebaseUserFailsSignIn() = runTest {
     `when`(auth.signInWithCredential(firebaseCredential))
         .thenReturn(Tasks.forResult(mock(AuthResult::class.java)))
-    assertTrue(repository.signInWithGoogle(credential()).isFailure)
+    assertTrue(repository.signInWithGoogle(credential()).exceptionOrNull() is AuthException.Unknown)
   }
 
   @Test
   fun firebaseFailureIsReturned() = runTest {
-    `when`(auth.signInWithCredential(firebaseCredential))
-        .thenReturn(Tasks.forException(IllegalStateException("offline")))
-    assertTrue(repository.signInWithGoogle(credential()).isFailure)
+    val failure = IllegalStateException("offline")
+    `when`(auth.signInWithCredential(firebaseCredential)).thenReturn(Tasks.forException(failure))
+    val result = repository.signInWithGoogle(credential())
+    assertTrue(result.exceptionOrNull() is AuthException.Unknown)
+    assertSame(failure, result.exceptionOrNull()?.cause)
+  }
+
+  @Test
+  fun firebaseNetworkFailureIsClassifiedAndPreservesCause() = runTest {
+    val failure = FirebaseNetworkException("offline")
+    `when`(auth.signInWithCredential(firebaseCredential)).thenReturn(Tasks.forException(failure))
+    val result = repository.signInWithGoogle(credential())
+    assertTrue(result.exceptionOrNull() is AuthException.Network)
+    assertSame(failure, result.exceptionOrNull()?.cause)
+  }
+
+  @Test
+  fun rejectedFirebaseCredentialIsClassifiedAndPreservesCause() = runTest {
+    val failure =
+        FirebaseAuthInvalidCredentialsException("ERROR_INVALID_CREDENTIAL", "invalid token")
+    `when`(auth.signInWithCredential(firebaseCredential)).thenReturn(Tasks.forException(failure))
+    val result = repository.signInWithGoogle(credential())
+    assertTrue(result.exceptionOrNull() is AuthException.InvalidCredential)
+    assertSame(failure, result.exceptionOrNull()?.cause)
+  }
+
+  @Test
+  fun malformedGoogleCredentialIsClassifiedWithoutContactingFirebase() = runTest {
+    val failure = GoogleIdTokenParsingException(IllegalArgumentException("invalid credential data"))
+    val parsingHelper =
+        object : GoogleSignInHelper by helper {
+          override fun extractIdTokenCredential(bundle: Bundle): GoogleIdTokenCredential =
+              throw failure
+        }
+    val result = AuthRepositoryFirebase(auth, parsingHelper).signInWithGoogle(credential())
+    assertTrue(result.exceptionOrNull() is AuthException.InvalidCredential)
+    assertSame(failure, result.exceptionOrNull()?.cause)
+    verifyNoInteractions(auth)
   }
 
   @Test
@@ -132,7 +171,10 @@ class AuthRepositoryFirebaseTest {
 
   @Test
   fun signOutFailureIsReturned() {
-    doThrow(IllegalStateException("failed")).`when`(auth).signOut()
-    assertTrue(repository.signOut().isFailure)
+    val failure = IllegalStateException("failed")
+    doThrow(failure).`when`(auth).signOut()
+    val result = repository.signOut()
+    assertTrue(result.isFailure)
+    assertSame(failure, result.exceptionOrNull()?.cause)
   }
 }
