@@ -16,6 +16,11 @@ class TripPhotoTest {
   }
 
   @Test
+  fun theImageBytesAreNotCompared() {
+    assertEquals(tripPhoto(image = byteArrayOf(1)), tripPhoto(image = byteArrayOf(9)))
+  }
+
+  @Test
   fun anyDifferenceMakesPhotosDifferent() {
     val base = tripPhoto(latitude = 1.0, longitude = 2.0)
 
@@ -24,7 +29,6 @@ class TripPhotoTest {
     assertNotEquals(base, tripPhoto(takenAtMillis = 2, latitude = 1.0, longitude = 2.0))
     assertNotEquals(base, tripPhoto(latitude = 9.0, longitude = 2.0))
     assertNotEquals(base, tripPhoto(latitude = 1.0, longitude = 9.0))
-    assertNotEquals(base, tripPhoto(latitude = 1.0, longitude = 2.0, image = byteArrayOf(9)))
   }
 
   @Test

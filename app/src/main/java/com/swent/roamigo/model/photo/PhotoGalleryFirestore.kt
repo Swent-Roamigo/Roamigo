@@ -6,6 +6,10 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.firestore
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -17,11 +21,18 @@ import kotlinx.coroutines.flow.callbackFlow
  * A photo uploaded from this device shows up at once, before the server confirms it, and the photos
  * read before stay available without a connection.
  *
+ * Snapshots are decoded on [dispatcher], not on the main thread, since each one copies up to
+ * [limit] images.
+ *
  * @param firestore looked up when the first trip is observed.
+ * @param dispatcher runs the listener. It must run its tasks one at a time, so that snapshots are
+ *   delivered in order.
  */
 class PhotoGalleryFirestore(
     private val firestore: () -> FirebaseFirestore = { Firebase.firestore },
     private val limit: Long = LIMIT,
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Default.limitedParallelism(1),
 ) : PhotoGallery {
 
   override fun observe(tripId: String): Flow<List<TripPhoto>> = callbackFlow {
@@ -32,7 +43,7 @@ class PhotoGalleryFirestore(
             .collection("photos")
             .orderBy(PhotoUploaderFirestore.TAKEN_AT, Query.Direction.DESCENDING)
             .limit(limit)
-            .addSnapshotListener { snapshot, error ->
+            .addSnapshotListener(dispatcher.asExecutor()) { snapshot, error ->
               if (error != null) {
                 close(error)
               } else if (snapshot != null) {

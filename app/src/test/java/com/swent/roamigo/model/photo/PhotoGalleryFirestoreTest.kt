@@ -11,12 +11,16 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
+import java.util.concurrent.Executor
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -37,6 +41,7 @@ class PhotoGalleryFirestoreTest {
   private val firestore = mock(FirebaseFirestore::class.java)
   private val registration = mock(ListenerRegistration::class.java)
   private var listener: EventListener<QuerySnapshot>? = null
+  private var listenerExecutor: Executor? = null
   private var requestedLimit = -1L
   private var lookups = 0
 
@@ -54,19 +59,25 @@ class PhotoGalleryFirestoreTest {
       requestedLimit = it.getArgument(0)
       limited
     }
-    `when`(limited.addSnapshotListener(any<EventListener<QuerySnapshot>>())).thenAnswer {
-      listener = it.getArgument(0)
-      registration
-    }
+    `when`(limited.addSnapshotListener(any<Executor>(), any<EventListener<QuerySnapshot>>()))
+        .thenAnswer {
+          listenerExecutor = it.getArgument(0)
+          listener = it.getArgument(1)
+          registration
+        }
   }
 
-  private fun gallery(limit: Long = PhotoGalleryFirestore.LIMIT) =
+  private fun gallery(
+      limit: Long = PhotoGalleryFirestore.LIMIT,
+      dispatcher: CoroutineDispatcher = UnconfinedTestDispatcher(),
+  ) =
       PhotoGalleryFirestore(
           {
             lookups++
             firestore
           },
           limit,
+          dispatcher,
       )
 
   private fun document(
@@ -105,6 +116,23 @@ class PhotoGalleryFirestoreTest {
     listener!!.onEvent(snapshot(document("a", takenAt = 5), document("b", takenAt = 3)), null)
 
     assertEquals(listOf(listOf("a", "b")), received.map { photos -> photos.map { it.id } })
+    job.cancel()
+  }
+
+  @Test
+  fun runsTheListenerOnTheGivenDispatcherInsteadOfTheCallingThread() = runTest {
+    val dispatcher = StandardTestDispatcher(testScheduler)
+    val job =
+        launch(UnconfinedTestDispatcher(testScheduler)) {
+          gallery(dispatcher = dispatcher).observe("t1").collect {}
+        }
+    var ran = false
+
+    listenerExecutor!!.execute { ran = true }
+    assertFalse(ran)
+    testScheduler.runCurrent()
+
+    assertTrue(ran)
     job.cancel()
   }
 

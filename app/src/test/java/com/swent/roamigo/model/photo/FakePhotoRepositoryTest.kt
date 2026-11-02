@@ -96,7 +96,7 @@ class FakePhotoRepositoryTest {
     val repository = repository()
 
     assertEquals(emptyList<TripPhoto>(), repository.tripPhotos("trip").first())
-    repository.uploaded.value = listOf(tripPhoto("a"))
+    repository.setUploaded(listOf(tripPhoto("a")))
 
     assertEquals(listOf("a"), repository.tripPhotos("trip").first().map { it.id })
   }

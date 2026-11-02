@@ -327,7 +327,7 @@ class PhotosRouteTest {
 
   @Test
   fun anUploadedPhotoOpensFullScreenAndTheCloseButtonGoesBack() {
-    repository.uploaded.value = listOf(tripPhoto("a"))
+    repository.setUploaded(listOf(tripPhoto("a")))
     show()
 
     tap(C.Tag.photos_uploaded_prefix + "a")
@@ -340,7 +340,7 @@ class PhotosRouteTest {
 
   @Test
   fun backClosesTheFullScreenPhoto() {
-    repository.uploaded.value = listOf(tripPhoto("a"))
+    repository.setUploaded(listOf(tripPhoto("a")))
     show()
     tap(C.Tag.photos_uploaded_prefix + "a")
 

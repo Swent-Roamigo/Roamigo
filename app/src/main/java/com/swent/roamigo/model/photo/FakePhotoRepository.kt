@@ -4,6 +4,7 @@ package com.swent.roamigo.model.photo
 import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 
 /**
@@ -22,14 +23,21 @@ class FakePhotoRepository(
   private val files = PhotoFileStore(directory)
   private val photos = MutableStateFlow(initialPhotos)
 
-  /** The photos that count as uploaded, newest first. Tests and previews can set them. */
-  val uploaded = MutableStateFlow<List<TripPhoto>>(emptyList())
+  private val _uploaded = MutableStateFlow<List<TripPhoto>>(emptyList())
+
+  /** The photos that count as uploaded, newest first. */
+  val uploaded: StateFlow<List<TripPhoto>> = _uploaded
+
+  /** Tests and previews set the photos that count as uploaded, newest first. */
+  fun setUploaded(photos: List<TripPhoto>) {
+    _uploaded.value = photos
+  }
 
   override fun pendingPhotos(tripId: String): Flow<List<PendingPhoto>> = photos.map { list ->
     list.filter { it.tripId == tripId && it.userId == userId }
   }
 
-  override fun tripPhotos(tripId: String): Flow<List<TripPhoto>> = uploaded
+  override fun tripPhotos(tripId: String): Flow<List<TripPhoto>> = _uploaded
 
   override fun newPhotoFile(): File = files.newFile()
 

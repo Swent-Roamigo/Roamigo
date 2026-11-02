@@ -19,15 +19,15 @@ class TripPhoto(
     val longitude: Double?,
     val image: ByteArray,
 ) {
-  // The bytes are compared by content, so that an unchanged photo is not shown again.
+  // The image is left out: the rules make a photo immutable once written, and comparing up to 50
+  // images byte by byte on every new state would be slow on the main thread.
   override fun equals(other: Any?): Boolean =
       other is TripPhoto &&
           id == other.id &&
           uploadedBy == other.uploadedBy &&
           takenAtMillis == other.takenAtMillis &&
           latitude == other.latitude &&
-          longitude == other.longitude &&
-          image.contentEquals(other.image)
+          longitude == other.longitude
 
-  override fun hashCode(): Int = 31 * id.hashCode() + image.contentHashCode()
+  override fun hashCode(): Int = 31 * id.hashCode() + takenAtMillis.hashCode()
 }
