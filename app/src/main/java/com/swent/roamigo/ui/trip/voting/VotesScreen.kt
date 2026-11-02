@@ -37,7 +37,7 @@ import com.swent.roamigo.ui.trip.components.TripTabs
 import com.swent.roamigo.ui.trip.voting.components.VoteErrorContent
 import com.swent.roamigo.ui.trip.voting.components.VotesList
 
-/** Collects trip-level state; the caller navigates to the existing individual vote flow. */
+/** Collects live trip summaries and forwards card actions to the trip route. */
 @Composable
 fun VotesScreen(
     viewModel: VotesViewModel,
@@ -49,6 +49,7 @@ fun VotesScreen(
     onTripsClick: () -> Unit = {},
     onFriendsClick: () -> Unit,
     onMapClick: () -> Unit = {},
+    onPhotosClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   VotesScreenContent(
@@ -62,6 +63,7 @@ fun VotesScreen(
       onTripsClick = onTripsClick,
       onFriendsClick = onFriendsClick,
       onMapClick = onMapClick,
+      onPhotosClick = onPhotosClick,
   )
 }
 
@@ -78,6 +80,7 @@ fun VotesScreenContent(
     onTripsClick: () -> Unit = {},
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
     onMapClick: () -> Unit = {},
+    onPhotosClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   Scaffold(
       containerColor = MaterialTheme.colorScheme.background,
@@ -85,7 +88,7 @@ fun VotesScreenContent(
         AppBottomBar(
             onTripsClick = onTripsClick,
             onMapClick = onMapClick,
-            onPhotosClick = rememberNotImplementedAction(),
+            onPhotosClick = onPhotosClick,
             onFriendsClick = onFriendsClick,
             tripsSelected = false,
         )

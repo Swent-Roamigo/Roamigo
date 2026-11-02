@@ -12,13 +12,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -26,21 +31,22 @@ import androidx.compose.ui.unit.sp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.voting.Vote
 import com.swent.roamigo.model.trip.voting.VoteStatus
+import com.swent.roamigo.ui.theme.Ink
 import com.swent.roamigo.ui.theme.Spacing
+import com.swent.roamigo.ui.trip.voting.LiveVoteSummary
 
-/** Opens a vote without observing ballots or inferring a final result in the trip list. */
+/** Renders the trip summary; ballot observation and interaction stay outside the card. */
 @Composable
-fun VoteCard(vote: Vote, onClick: () -> Unit) {
+fun VoteCard(vote: Vote, onClick: () -> Unit, summary: LiveVoteSummary? = null) {
   when (vote.status) {
-    VoteStatus.OPEN -> LiveVoteCard(vote, onClick)
+    VoteStatus.OPEN -> LiveVoteCard(vote, onClick, summary)
     VoteStatus.CLOSED -> ClosedVoteRow(vote, onClick)
   }
 }
 
 @Composable
-private fun LiveVoteCard(vote: Vote, onClick: () -> Unit) {
+private fun LiveVoteCard(vote: Vote, onClick: () -> Unit, summary: LiveVoteSummary?) {
   Surface(
-      onClick = onClick,
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(22.dp),
       color = MaterialTheme.colorScheme.primary,
@@ -63,15 +69,42 @@ private fun LiveVoteCard(vote: Vote, onClick: () -> Unit) {
           fontSize = 30.sp,
           lineHeight = 36.sp,
       )
-      vote.options.forEach {
+      vote.options.forEach { option ->
+        VoteCountRow(
+            option.name,
+            summary?.counts?.get(option.uid) ?: 0,
+            "vote_count_${vote.uid}_${option.uid}",
+        )
+      }
+      Button(
+          onClick = onClick,
+          shape = CircleShape,
+          colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Ink),
+      ) {
         Text(
-            it.name,
-            style = MaterialTheme.typography.bodyMedium,
-            fontSize = 13.sp,
-            lineHeight = 18.sp,
+            stringResource(
+                if (summary?.hasPersistedBallot == true) R.string.votes_change_vote
+                else R.string.votes_cast_vote
+            ),
         )
       }
     }
+  }
+}
+
+@Composable
+private fun VoteCountRow(name: String, count: Int, tag: String) {
+  Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+    Text(
+        name,
+        modifier = Modifier.weight(1f).padding(end = Spacing.small),
+        style = MaterialTheme.typography.bodyMedium,
+    )
+    Text(
+        pluralStringResource(R.plurals.vote_count, count, count),
+        modifier = Modifier.testTag(tag),
+        style = MaterialTheme.typography.bodyMedium,
+    )
   }
 }
 

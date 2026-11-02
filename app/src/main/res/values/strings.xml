@@ -129,6 +129,37 @@
     <string name="trip_map_load_error">Unable to load trip destinations. Please try again.</string>
     <string name="trip_map_retry">Retry</string>
 
+    <!-- Trip map -->
+    <string name="trip_map_trip_loading">Loading trip…</string>
+    <string name="trip_map_trip_load_error">Unable to load this trip. Please try again.</string>
+    <string name="trip_map_sharing_off_title">Location sharing is off</string>
+    <string name="trip_map_sharing_off_description">The rest of the app works. Turn it on so other trip members can see you on the map.</string>
+    <string name="trip_map_sharing_on_title">Location sharing is on</string>
+    <string name="trip_map_sharing_on_description">Trip members can see you on the map.</string>
+    <string name="trip_map_turn_on_sharing">Turn on sharing</string>
+    <string name="trip_map_pause_sharing">Pause sharing</string>
+    <string name="trip_map_offline">You are offline · saved plan only. Live locations, votes and new updates need internet.</string>
+    <string name="trip_map_freshness_live">live</string>
+    <plurals name="trip_map_freshness_seconds_ago">
+        <item quantity="one">%1$d s ago</item>
+        <item quantity="other">%1$d s ago</item>
+    </plurals>
+    <plurals name="trip_map_freshness_minutes_ago">
+        <item quantity="one">%1$d min ago</item>
+        <item quantity="other">%1$d min ago</item>
+    </plurals>
+    <string name="trip_map_member_marker_label">%1$s · %2$s</string>
+    <string name="trip_map_location_rationale_title">Share your location with the group?</string>
+    <string name="trip_map_location_rationale_description">Roamigo uses your location only while sharing is on. Only trip members can see it, and you can pause any time.</string>
+    <string name="trip_map_location_rationale_continue">Continue</string>
+    <string name="trip_map_location_denied_title">Location stays off</string>
+    <string name="trip_map_location_denied_description">The rest of the app works. You can turn sharing on any time from the map.</string>
+    <string name="trip_map_location_denied_got_it">Got it</string>
+    <string name="trip_map_location_blocked_title">Location is blocked</string>
+    <string name="trip_map_location_blocked_description">Turn it on in Settings › Permissions › Location to share with your group.</string>
+    <string name="trip_map_location_blocked_open_settings">Open Settings</string>
+    <string name="trip_map_location_not_now">Not now</string>
+
     <!-- Vote creation -->
     <string name="vote_new">New vote</string>
     <string name="vote_question">Question</string>
@@ -297,4 +328,49 @@
         <item quantity="one">%1$d suggested place</item>
         <item quantity="other">%1$d suggested places</item>
     </plurals>
+    <string name="votes_cast_vote">Vote</string>
+    <string name="votes_change_vote">Change vote</string>
+    <!-- Trip photos -->
+    <string name="photos_title">Trip photos</string>
+    <string name="photos_take_photo">Take a photo</string>
+    <string name="photos_no_camera">No camera app is available on this device.</string>
+    <string name="photos_offline_empty">You’re offline · photos you take are saved on this phone</string>
+    <plurals name="photos_waiting_offline">
+        <item quantity="one">%d photo saved on this phone · waiting for a connection</item>
+        <item quantity="other">%d photos saved on this phone · waiting for a connection</item>
+    </plurals>
+    <plurals name="photos_waiting_online">
+        <item quantity="one">%d photo waiting to upload</item>
+        <item quantity="other">%d photos waiting to upload</item>
+    </plurals>
+    <plurals name="photos_uploading">
+        <item quantity="one">Back online · uploading %d photo…</item>
+        <item quantity="other">Back online · uploading %d photos…</item>
+    </plurals>
+    <string name="photos_empty_title">No photos waiting to upload</string>
+    <string name="photos_empty_description">Photos you take are uploaded by themselves once you are online.</string>
+    <string name="photos_item_description">Photo taken at %1$s</string>
+    <string name="photos_status_waiting">%1$s · Waiting to upload</string>
+    <string name="photos_status_uploading">%1$s · Uploading…</string>
+    <string name="photos_status_failed">%1$s · Upload failed</string>
+    <string name="photos_retry">Retry</string>
+    <string name="camera_rationale_title">Take photos for the trip?</string>
+    <string name="camera_rationale_description">Roamigo uses the camera only while you take a photo. Photos are shared with trip members only.</string>
+    <string name="camera_rationale_continue">Continue</string>
+    <string name="camera_rationale_not_now">Not now</string>
+    <string name="camera_denied_title">Camera stays off</string>
+    <string name="camera_denied_description">You can allow the camera the next time you take a photo.</string>
+    <string name="camera_denied_got_it">Got it</string>
+    <string name="camera_blocked_title">Camera is blocked</string>
+    <string name="camera_blocked_description">Turn it on in Settings › Permissions › Camera to take photos.</string>
+    <string name="camera_blocked_open_settings">Open Settings</string>
+    <string name="photo_preview_description">The photo you just took</string>
+    <string name="photo_preview_cancel">Cancel</string>
+    <string name="photo_preview_offline">You’re offline · it will be saved on this phone</string>
+    <string name="photo_preview_note_online">Shared with the group once saved</string>
+    <string name="photo_preview_note_offline">It will upload when you’re back online</string>
+    <string name="photo_preview_save_online">Save to trip</string>
+    <string name="photo_preview_save_offline">Save on this phone</string>
+    <string name="photo_preview_retake">Retake</string>
+    <string name="photo_preview_save_failed">Could not save the photo. Try again.</string>
 </resources>

@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.ClearCredentialException
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -26,7 +27,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.authentication.AuthRepositoryFirebase
+import com.swent.roamigo.model.connectivity.ConnectivityRepository
+import com.swent.roamigo.model.connectivity.DefaultConnectivityRepository
 import com.swent.roamigo.model.destination.DestinationRepository
+import com.swent.roamigo.model.photo.FakePhotoRepository
+import com.swent.roamigo.model.photo.PhotoRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.voting.VoteRepository
@@ -42,6 +47,8 @@ import com.swent.roamigo.ui.map.TripOverviewMapRoute
 import com.swent.roamigo.ui.map.TripOverviewMapViewModel
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.permissions.PermissionsScreen
+import com.swent.roamigo.ui.photos.PhotosRoute
+import com.swent.roamigo.ui.photos.PhotosViewModel
 import com.swent.roamigo.ui.profile.ProfileScreen
 import com.swent.roamigo.ui.profile.ProfileViewModel
 import com.swent.roamigo.ui.trip.creation.CreateTripViewModel
@@ -53,9 +60,11 @@ import com.swent.roamigo.ui.trip.details.TripDetailsRoute
 import com.swent.roamigo.ui.trip.history.TripHistoryRoute
 import com.swent.roamigo.ui.trip.voting.CreateVoteScreen
 import com.swent.roamigo.ui.trip.voting.CreateVoteViewModel
+import com.swent.roamigo.ui.trip.voting.VoteDialog
 import com.swent.roamigo.ui.trip.voting.VoteScreen
 import com.swent.roamigo.ui.trip.voting.VoteViewModel
 import com.swent.roamigo.ui.trip.voting.VotesScreen
+import com.swent.roamigo.ui.trip.voting.VotesUiState
 import com.swent.roamigo.ui.trip.voting.VotesViewModel
 import com.swent.roamigo.ui.trips.TripsRoute
 import kotlinx.coroutines.launch
@@ -67,6 +76,8 @@ import kotlinx.coroutines.launch
  * and votes.
  *
  * @param voteRepository Shared backend for trip vote discovery, creation, and individual ballots.
+ * @param photoRepository Takes trip photos and keeps them until they are uploaded.
+ * @param connectivityRepository Tells whether the device is online; the device's own by default.
  */
 @Composable
 fun RoamigoApp(
@@ -77,6 +88,8 @@ fun RoamigoApp(
     authRepository: AuthRepository = remember { AuthRepositoryFirebase() },
     credentialManager: CredentialManager? = null,
     destinationRepository: DestinationRepository,
+    photoRepository: PhotoRepository = remember { FakePhotoRepository() },
+    connectivityRepository: ConnectivityRepository? = null,
 ) {
   val context = LocalContext.current
   val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }
@@ -133,10 +146,18 @@ fun RoamigoApp(
     composable(Route.VOTES) { entry ->
       val tripId = requireNotNull(entry.arguments?.getString("tripId"))
       val tripName = entry.arguments?.getString("tripName").orEmpty()
+      var selectedVoteId by rememberSaveable { mutableStateOf<String?>(null) }
+      val votesViewModel = viewModel {
+        VotesViewModel(voteRepository, tripId, authRepository.getCurrentUser()?.uid.orEmpty())
+      }
       VotesScreen(
-          viewModel = viewModel { VotesViewModel(voteRepository, tripId) },
+          viewModel = votesViewModel,
           tripName = tripName,
-          onOpenVote = { voteId -> navController.navigate(Route.vote(tripId, voteId)) },
+          onOpenVote = { voteId ->
+            val ready = votesViewModel.uiState.value as? VotesUiState.Ready
+            if (ready?.liveVotes?.any { it.uid == voteId } == true) selectedVoteId = voteId
+            else navController.navigate(Route.vote(tripId, voteId))
+          },
           onCreateVote = { navController.navigate(Route.newVote(tripId)) },
           onOverviewClick = {
             navController.popBackStack(
@@ -147,6 +168,39 @@ fun RoamigoApp(
           onMapClick = onMapClick,
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
           onFriendsClick = { navController.navigate(Route.FRIENDS) { launchSingleTop = true } },
+          onPhotosClick = { navController.navigate(Route.photos(tripId, tripName)) },
+      )
+      selectedVoteId?.let { voteId ->
+        val userId = authRepository.getCurrentUser()?.uid
+        if (userId == null) {
+          LaunchedEffect(Unit) {
+            navController.navigate(Route.AUTHENTICATION) { popUpTo(navController.graph.id) }
+          }
+        } else {
+          VoteDialog(voteId, { VoteViewModel(voteRepository, tripId, it, userId) }) {
+            selectedVoteId = null
+          }
+        }
+      }
+    }
+    composable(Route.PHOTOS) { entry ->
+      val tripId = requireNotNull(entry.arguments?.getString("tripId"))
+      val tripName = entry.arguments?.getString("tripName").orEmpty()
+      val connectivity =
+          connectivityRepository ?: remember(context) { DefaultConnectivityRepository(context) }
+      PhotosRoute(
+          viewModel =
+              viewModel {
+                PhotosViewModel(
+                    photoRepository,
+                    connectivity,
+                    tripId,
+                    savedStateHandle = createSavedStateHandle(),
+                )
+              },
+          tripName = tripName,
+          fileOf = photoRepository::fileOf,
+          onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
       )
     }
     composable(Route.VOTE) { entry ->
