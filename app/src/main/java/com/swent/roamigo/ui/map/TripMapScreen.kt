@@ -1,6 +1,11 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui.map
 
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,16 +24,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mapbox.maps.extension.compose.MapboxMap
@@ -43,10 +52,17 @@ import com.swent.roamigo.ui.theme.Spacing
  * Both ViewModels are scoped to [tripId], so that each trip gets its own. Opening the screen
  * neither requests a permission nor starts sharing the user's location.
  *
+ * Turning sharing on without the location permission goes through [LocationViewModel]'s permission
+ * flow: this screen renders its sheets and carries out its effects, showing the system permission
+ * dialog through the Activity Result API and opening the app's settings. The permission is checked
+ * again each time the screen resumes, e.g. after the user visited the settings.
+ *
  * @param tripId identifier of the trip to show. Must be the trip both factories were built for.
  * @param tripMapViewModelFactory creates the [TripMapViewModel] of the trip.
  * @param locationViewModelFactory creates the [LocationViewModel] of the trip.
  * @param modifier modifier applied to the screen.
+ * @param permissionChecker tells whether the location permission is granted, and whether the system
+ *   would ask for it again after a refusal.
  */
 @Composable
 fun TripMapScreen(
@@ -54,6 +70,7 @@ fun TripMapScreen(
     tripMapViewModelFactory: ViewModelProvider.Factory,
     locationViewModelFactory: ViewModelProvider.Factory,
     modifier: Modifier = Modifier,
+    permissionChecker: LocationPermissionChecker = rememberLocationPermissionChecker(),
 ) {
   val tripMapViewModel: TripMapViewModel =
       viewModel(key = "trip_map_$tripId", factory = tripMapViewModelFactory)
@@ -61,19 +78,51 @@ fun TripMapScreen(
       viewModel(key = "trip_map_location_$tripId", factory = locationViewModelFactory)
   val tripUiState by tripMapViewModel.uiState.collectAsStateWithLifecycle()
   val locationUiState by locationViewModel.uiState.collectAsStateWithLifecycle()
+  val context = LocalContext.current
+
+  val permissionLauncher =
+      rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+          results ->
+        // Asked after the answer: only then does the system tell a refusal it will repeat from one
+        // that is final.
+        locationViewModel.onPermissionResult(
+            granted = results.values.any { it },
+            shouldShowRationale = permissionChecker.shouldShowRationale(),
+        )
+      }
+
+  LaunchedEffect(locationViewModel) {
+    locationViewModel.effects.collect { effect ->
+      when (effect) {
+        LocationEffect.RequestPermission -> permissionLauncher.launch(LOCATION_PERMISSIONS)
+        LocationEffect.OpenSettings ->
+            context.startActivity(
+                Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.fromParts("package", context.packageName, null),
+                )
+            )
+      }
+    }
+  }
+
+  LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+    locationViewModel.onPermissionChecked(permissionChecker.isGranted())
+  }
 
   TripMapContent(
       uiState = tripUiState,
       isSharing = locationUiState.isSharing,
       onRetry = tripMapViewModel::retry,
-      onTurnOnSharing = {
-        // Should request location permission when not granted instead of ignoring the tap (#144).
-        if (locationUiState.permissionState == LocationPermissionState.Granted) {
-          locationViewModel.startSharing()
-        }
-      },
+      onTurnOnSharing = { locationViewModel.onTurnOnSharingClick(permissionChecker.isGranted()) },
       onPauseSharing = locationViewModel::stopSharing,
       modifier = modifier,
+  )
+  LocationPermissionSheet(
+      sheet = locationUiState.permissionSheet,
+      onContinue = { locationViewModel.onRationaleContinue(permissionChecker.isGranted()) },
+      onOpenSettings = locationViewModel::onOpenSettings,
+      onDismiss = locationViewModel::onPermissionSheetDismissed,
   )
 }
 
