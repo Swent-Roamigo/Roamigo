@@ -63,6 +63,7 @@ import com.swent.roamigo.ui.theme.Spacing
  * @param modifier modifier applied to the screen.
  * @param permissionChecker tells whether the location permission is granted, and whether the system
  *   would ask for it again after a refusal.
+ * @param startActivity starts the activity of an intent, such as the app's settings.
  */
 @Composable
 fun TripMapScreen(
@@ -71,6 +72,7 @@ fun TripMapScreen(
     locationViewModelFactory: ViewModelProvider.Factory,
     modifier: Modifier = Modifier,
     permissionChecker: LocationPermissionChecker = rememberLocationPermissionChecker(),
+    startActivity: (Intent) -> Unit = LocalContext.current::startActivity,
 ) {
   val tripMapViewModel: TripMapViewModel =
       viewModel(key = "trip_map_$tripId", factory = tripMapViewModelFactory)
@@ -96,7 +98,7 @@ fun TripMapScreen(
       when (effect) {
         LocationEffect.RequestPermission -> permissionLauncher.launch(LOCATION_PERMISSIONS)
         LocationEffect.OpenSettings ->
-            context.startActivity(
+            startActivity(
                 Intent(
                     Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                     Uri.fromParts("package", context.packageName, null),
