@@ -222,7 +222,12 @@ service cloud.firestore {
         allow read: if isMember(tripId);
         allow create: if isMember(tripId)
             && isValidNewVote(request.resource.data, tripId, voteId);
-        allow update, delete: if false;
+        allow update: if isMember(tripId)
+            && resource.data.createdByUserId == request.auth.uid
+            && resource.data.status == 'OPEN'
+            && request.resource.data.status == 'CLOSED'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+        allow delete: if false;
 
         match /ballots/{userId} {
           allow read: if isMember(tripId);

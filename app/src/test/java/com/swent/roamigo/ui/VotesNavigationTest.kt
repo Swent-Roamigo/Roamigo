@@ -139,6 +139,25 @@ class VotesNavigationTest {
   }
 
   @Test
+  fun creatorClosesFromCardAndListUpdatesWithoutRefresh() {
+    repository.snapshots.value = Result.success(listOf(vote.copy(createdByUserId = "member")))
+    openVotes()
+    composeRule.onNodeWithText("Close vote").assertIsDisplayed().performClick()
+    composeRule.onNodeWithText("Close this vote?").assertIsDisplayed()
+    composeRule.onNodeWithTag("vote_close_confirm").performClick()
+    composeRule.onNodeWithText("Close vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Back").performClick()
+    composeRule.onNodeWithText("$tripName · 0 open").assertIsDisplayed()
+    composeRule.onNodeWithText("Closed vote").assertIsDisplayed()
+    composeRule.onNodeWithText("Vote").assertDoesNotExist()
+    composeRule.runOnIdle {
+      assertEquals(VoteStatus.CLOSED, repository.snapshots.value.getOrThrow().single().status)
+      assertEquals(0, repository.activeBallotObservers[vote.uid])
+    }
+  }
+
+  @Test
   fun overviewTabFromVotesReturnsToSelectedTripAndBackReturnsToTrips() {
     openVotes()
 

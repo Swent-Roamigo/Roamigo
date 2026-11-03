@@ -74,6 +74,77 @@ class VoteViewModelTest {
   private fun ballot(optionId: String) = VoteBallot("member", optionId, Timestamp(1, 0))
 
   @Test
+  fun creatorCanCloseAndRepeatedActionsAreBlocked() = runTest {
+    repository.vote = interactionVote().copy(createdByUserId = "member")
+    createViewModel()
+    advanceUntilIdle()
+    assertTrue(ready().canClose)
+    repository.closeGate = CompletableDeferred()
+    viewModel.closeVote()
+    viewModel.closeVote()
+    viewModel.selectOption("a")
+    viewModel.submitVote()
+    assertTrue(ready().isClosing)
+    assertFalse(ready().canSubmit)
+    runCurrent()
+    assertEquals(1, repository.closeCalls)
+    repository.closeGate!!.complete(Unit)
+    advanceUntilIdle()
+    assertEquals(VoteUiState.Closed, viewModel.uiState.value)
+    assertEquals(VoteStatus.CLOSED, repository.vote?.status)
+    assertTrue(repository.calls.isEmpty())
+  }
+
+  @Test
+  fun nonCreatorCannotClose() = runTest {
+    repository.vote = interactionVote().copy(createdByUserId = "other")
+    createViewModel()
+    advanceUntilIdle()
+    assertFalse(ready().canClose)
+    viewModel.closeVote()
+    advanceUntilIdle()
+    assertEquals(0, repository.closeCalls)
+  }
+
+  @Test
+  fun failedCloseKeepsOpenVoteAndAllowsRetry() = runTest {
+    repository.vote = interactionVote().copy(createdByUserId = "member")
+    repository.closeFailure = IllegalStateException("offline")
+    createViewModel()
+    advanceUntilIdle()
+    viewModel.closeVote()
+    advanceUntilIdle()
+    assertEquals(VoteSubmissionState.Failed, ready().closingState)
+    assertEquals(VoteStatus.OPEN, ready().vote.status)
+    assertTrue(ready().canClose)
+    repository.closeFailure = null
+    viewModel.closeVote()
+    advanceUntilIdle()
+    assertEquals(VoteUiState.Closed, viewModel.uiState.value)
+  }
+
+  @Test
+  fun remoteCloseIsTerminalEvenDuringFailedWriteAndLateBallots() = runTest {
+    repository.vote = interactionVote().copy(createdByUserId = "member")
+    createViewModel()
+    advanceUntilIdle()
+    repository.closeGate = CompletableDeferred()
+    repository.closeFailure = IllegalStateException("already closed")
+    viewModel.closeVote()
+    runCurrent()
+    repository.vote = repository.vote!!.copy(status = VoteStatus.CLOSED)
+    runCurrent()
+    repository.ballots.value = listOf(ballot("a"))
+    repository.closeGate!!.complete(Unit)
+    advanceUntilIdle()
+    assertEquals(VoteUiState.Closed, viewModel.uiState.value)
+    viewModel.submitVote()
+    viewModel.closeVote()
+    assertTrue(repository.calls.isEmpty())
+    assertEquals(1, repository.closeCalls)
+  }
+
+  @Test
   fun voteRemovedBeforeSubmissionDoesNotWrite() = runTest {
     createViewModel()
     runCurrent()
@@ -625,7 +696,25 @@ class VoteViewModelTest {
 }
 
 internal class InteractionVoteRepository : VoteRepository {
-  var vote: Vote? = interactionVote()
+  private val votes = MutableStateFlow<List<Vote>>(listOf(interactionVote()))
+  var vote: Vote?
+    get() = votes.value.firstOrNull()
+    set(value) {
+      votes.value = listOfNotNull(value)
+    }
+
+  var closeFailure: Exception? = null
+  var closeGate: CompletableDeferred<Unit>? = null
+  var closeCalls = 0
+
+  override suspend fun closeVote(tripId: String, voteId: String) {
+    closeCalls++
+    closeGate?.await()
+    closeFailure?.let { throw it }
+    check(vote?.status == VoteStatus.OPEN)
+    vote = vote!!.copy(status = VoteStatus.CLOSED)
+  }
+
   var lookup: Pair<String, String>? = null
   var lookupCount = 0
   var activeObservers = 0
@@ -673,5 +762,5 @@ internal class InteractionVoteRepository : VoteRepository {
 
   override suspend fun getVotes(tripId: String): List<Vote> = error("Not used")
 
-  override fun observeVotes(tripId: String): Flow<List<Vote>> = error("Not used")
+  override fun observeVotes(tripId: String): Flow<List<Vote>> = votes
 }

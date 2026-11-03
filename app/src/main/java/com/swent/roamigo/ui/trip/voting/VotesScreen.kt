@@ -50,6 +50,8 @@ fun VotesScreen(
     onFriendsClick: () -> Unit,
     onMapClick: () -> Unit = {},
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
+    modifier: Modifier = Modifier,
+    onCloseVote: ((String) -> Unit)? = null,
 ) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   VotesScreenContent(
@@ -64,6 +66,8 @@ fun VotesScreen(
       onFriendsClick = onFriendsClick,
       onMapClick = onMapClick,
       onPhotosClick = onPhotosClick,
+      onCloseVote = onCloseVote,
+      modifier = modifier,
   )
 }
 
@@ -81,8 +85,11 @@ fun VotesScreenContent(
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
     onMapClick: () -> Unit = {},
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
+    modifier: Modifier = Modifier,
+    onCloseVote: ((String) -> Unit)? = null,
 ) {
   Scaffold(
+      modifier = modifier,
       containerColor = MaterialTheme.colorScheme.background,
       bottomBar = {
         AppBottomBar(
@@ -151,7 +158,7 @@ fun VotesScreenContent(
                 )
               }
           VotesUiState.Error -> VoteErrorContent(R.string.votes_load_error, onRetry)
-          is VotesUiState.Ready -> VotesList(state, onOpenVote, onRetry)
+          is VotesUiState.Ready -> VotesList(state, onOpenVote, onRetry, onCloseVote = onCloseVote)
         }
       }
       if (state is VotesUiState.Empty || state is VotesUiState.Ready) {

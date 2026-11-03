@@ -89,6 +89,7 @@ class VotesViewModel(
                                     LiveVoteSummary(
                                         vote.options.associate { it.uid to (counts[it.uid] ?: 0) },
                                         ballots.any { it.userId == userId },
+                                        isCreator = vote.createdByUserId == userId,
                                     )
                               }
                             }

@@ -6,6 +6,7 @@ import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.MetadataChanges
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -41,15 +42,21 @@ class VoteRepositoryFirestore(private val db: FirebaseFirestore) : VoteRepositor
     return if (snapshot.exists()) snapshot.toVote(tripId) else null
   }
 
+  override suspend fun closeVote(tripId: String, voteId: String) {
+    requireDocumentId(voteId)
+    votes(tripId).document(voteId).update("status", VoteStatus.CLOSED.name).await()
+  }
+
   override suspend fun getVotes(tripId: String): List<Vote> =
       votes(tripId).get().await().documents.map { it.toVote(tripId) }
 
   override fun observeVotes(tripId: String): Flow<List<Vote>> = callbackFlow {
     val registration =
-        votes(tripId).addSnapshotListener { snapshot, error ->
+        votes(tripId).addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
           if (error != null) {
             close(error)
           } else {
+            if (snapshot?.metadata?.hasPendingWrites() == true) return@addSnapshotListener
             val updates =
                 try {
                   requireNotNull(snapshot) { "Missing votes snapshot" }

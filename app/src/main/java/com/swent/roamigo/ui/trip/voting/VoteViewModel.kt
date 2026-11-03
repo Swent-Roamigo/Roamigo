@@ -14,6 +14,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -40,7 +42,7 @@ class VoteViewModel(
     when (val state = _uiState.value) {
       is VoteUiState.LoadError -> if (state.canRetry) loadVote()
       is VoteUiState.Ready -> {
-        if (state.syncState != VoteSyncState.Failed || state.isSubmitting) return
+        if (state.syncState != VoteSyncState.Failed || state.isSubmitting || state.isClosing) return
         observationJob?.cancel()
         updateReady { it.copy(syncState = VoteSyncState.Retrying) }
         observationJob = viewModelScope.launch { observeBallots(state.vote) }
@@ -75,27 +77,79 @@ class VoteViewModel(
     }
   }
 
-  private suspend fun observeBallots(vote: Vote) {
-    try {
-      // One continuous snapshot stream supplies both persisted selection and live counts.
-      voteRepository.observeBallots(tripId, voteId).collect { ballots ->
-        val persistedOptionId = ballots.firstOrNull { it.userId == userId }?.optionId
-        val countsByOption = ballots.groupingBy { it.optionId }.eachCount()
-        // Include zero-count options and ignore ballots for options absent from this vote.
-        val voteCounts = vote.options.associate { it.uid to (countsByOption[it.uid] ?: 0) }
-        _uiState.update { state ->
-          when (state) {
-            is VoteUiState.Ready -> state.withBallotSnapshot(persistedOptionId, voteCounts)
-            else -> VoteUiState.Ready(vote, persistedOptionId, voteCounts = voteCounts)
-          }
+  /** Closes only the creator's open vote, claiming the operation before launching the write. */
+  fun closeVote() {
+    val state = _uiState.value as? VoteUiState.Ready ?: return
+    if (!state.canClose) return
+    updateReady { it.copy(closingState = VoteSubmissionState.Submitting) }
+    viewModelScope.launch {
+      try {
+        voteRepository.closeVote(tripId, voteId)
+        _uiState.value = VoteUiState.Closed
+        observationJob?.cancel()
+      } catch (cancelled: CancellationException) {
+        updateReady { it.copy(closingState = VoteSubmissionState.Idle) }
+        throw cancelled
+      } catch (_: Exception) {
+        // A concurrent close (or an ambiguous write result) is confirmed by reading the backend.
+        val current =
+            try {
+              voteRepository.getVote(tripId, voteId)
+            } catch (cancelled: CancellationException) {
+              throw cancelled
+            } catch (_: Exception) {
+              null
+            }
+        if (current?.status == VoteStatus.CLOSED) {
+          _uiState.value = VoteUiState.Closed
+          observationJob?.cancel()
+        } else {
+          updateReady { it.copy(closingState = VoteSubmissionState.Failed) }
         }
       }
+    }
+  }
+
+  private suspend fun observeBallots(vote: Vote) {
+    try {
+      // Observe status alongside ballots so a remote close removes actions even without a write.
+      val votes =
+          voteRepository.observeVotes(tripId).onEach { snapshot ->
+            val current = snapshot.firstOrNull { it.uid == voteId }
+            if (current == null || current.status == VoteStatus.CLOSED) {
+              _uiState.value =
+                  if (current == null) VoteUiState.LoadError(VoteLoadError.NOT_FOUND)
+                  else VoteUiState.Closed
+              observationJob?.cancel()
+            }
+          }
+      combine(votes, voteRepository.observeBallots(tripId, voteId)) { _, ballots -> ballots }
+          .collect { ballots ->
+            val persistedOptionId = ballots.firstOrNull { it.userId == userId }?.optionId
+            val countsByOption = ballots.groupingBy { it.optionId }.eachCount()
+            // Include zero-count options and ignore ballots for options absent from this vote.
+            val voteCounts = vote.options.associate { it.uid to (countsByOption[it.uid] ?: 0) }
+            _uiState.update { state ->
+              when (state) {
+                is VoteUiState.Ready -> state.withBallotSnapshot(persistedOptionId, voteCounts)
+                VoteUiState.Loading ->
+                    VoteUiState.Ready(
+                        vote,
+                        persistedOptionId,
+                        isCreator = vote.createdByUserId == userId,
+                        voteCounts = voteCounts,
+                    )
+                else -> state
+              }
+            }
+          }
     } catch (cancelled: CancellationException) {
       throw cancelled
     } catch (_: Exception) {
       _uiState.update { state ->
         when (state) {
           is VoteUiState.Ready -> state.copy(syncState = VoteSyncState.Failed)
+          VoteUiState.Closed -> state
           else -> VoteUiState.LoadError(VoteLoadError.BALLOTS_FAILED)
         }
       }

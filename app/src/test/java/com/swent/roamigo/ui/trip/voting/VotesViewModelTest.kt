@@ -55,6 +55,20 @@ class VotesViewModelTest {
   private fun ready() = viewModel.uiState.value as VotesUiState.Ready
 
   @Test
+  fun closingMovesVoteToClosedAndStopsBallotObservationWithoutRefresh() = runTest {
+    repository.snapshots.value = Result.success(listOf(first))
+    createViewModel()
+    runCurrent()
+    assertEquals(listOf(first), ready().liveVotes)
+    repository.closeVote("trip", first.uid)
+    runCurrent()
+    assertTrue(ready().liveVotes.isEmpty())
+    assertEquals(listOf(first.copy(status = VoteStatus.CLOSED)), ready().closedVotes)
+    assertTrue(ready().liveSummaries.isEmpty())
+    assertEquals(0, repository.activeBallotObservers[first.uid])
+  }
+
+  @Test
   fun liveSummaryIncludesZeroCountsAndMovesBallotsWithoutRefresh() = runTest {
     repository.snapshots.value = Result.success(listOf(first))
     createViewModel()
