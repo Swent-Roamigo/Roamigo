@@ -29,7 +29,7 @@ private fun VoteDialogCreatorPreview() =
     VoteDialogPreview(previewDinnerState().copy(isCreator = true))
 
 @Preview(
-    name = "Close confirmation · Card only",
+    name = "Close confirmation · Above Votes list",
     showBackground = true,
     widthDp = 390,
     heightDp = 844,
@@ -48,16 +48,54 @@ private fun VoteDialogCloseConfirmationPreview() =
     heightDp = 844,
 )
 @Composable
-private fun VoteDialogCloseFromVotingPreview() {
-  RoamigoTheme {
-    VoteCloseConfirmation(
-        state = previewDinnerState().copy(isCreator = true),
-        onConfirm = {},
-        onRetry = {},
-        onCancel = {},
+private fun VoteDialogCloseFromVotingPreview() =
+    VoteDialogPreview(
+        previewDinnerState()
+            .copy(
+                isCreator = true,
+                persistedOptionId = "market",
+                selectedOptionId = "taberna",
+            ),
+        showInnerConfirmation = true,
     )
-  }
-}
+
+@Preview(
+    name = "Close confirmation · Closing above voting draft",
+    showBackground = true,
+    widthDp = 390,
+    heightDp = 844,
+)
+@Composable
+private fun VoteDialogClosingAboveDraftPreview() =
+    VoteDialogPreview(
+        previewDinnerState()
+            .copy(
+                isCreator = true,
+                persistedOptionId = "market",
+                selectedOptionId = "taberna",
+                closingState = VoteSubmissionState.Submitting,
+            ),
+        showInnerConfirmation = true,
+    )
+
+@Preview(
+    name = "Close confirmation · Failure above voting draft",
+    showBackground = true,
+    widthDp = 390,
+    heightDp = 844,
+)
+@Composable
+private fun VoteDialogCloseFailureAboveDraftPreview() =
+    VoteDialogPreview(
+        previewDinnerState()
+            .copy(
+                isCreator = true,
+                persistedOptionId = "market",
+                selectedOptionId = "taberna",
+                closingState = VoteSubmissionState.Failed,
+            ),
+        showInnerConfirmation = true,
+    )
 
 @Preview(name = "Vote dialog · Closing", showBackground = true, widthDp = 390, heightDp = 844)
 @Composable
@@ -87,9 +125,20 @@ private fun VoteDialogCloseFailedPreview() =
         confirmCloseOnOpen = true,
     )
 
-@Preview(name = "Vote dialog · CLOSED", showBackground = true, widthDp = 390, heightDp = 844)
+@Preview(
+    name = "Votes · CLOSED after closing",
+    showBackground = true,
+    widthDp = 390,
+    heightDp = 844,
+)
 @Composable
-private fun VoteDialogClosedPreview() = VoteDialogPreview(VoteUiState.Closed)
+private fun VoteDialogClosedPreview() =
+    VotesPreview(
+        VotesUiState.Ready(
+            liveVotes = emptyList(),
+            closedVotes = listOf(previewDinnerState().vote.copy(status = VoteStatus.CLOSED)),
+        )
+    )
 
 @Preview(
     name = "Vote dialog · Restored ballot",
@@ -168,8 +217,26 @@ internal fun previewDinnerState() =
 private fun VoteDialogPreview(
     state: VoteUiState,
     confirmCloseOnOpen: Boolean = false,
+    showInnerConfirmation: Boolean = false,
 ) {
   RoamigoTheme {
+    val dinner = previewDinnerState()
+    VotesPreview(
+        VotesUiState.Ready(
+            liveVotes = listOf(dinner.vote),
+            closedVotes = emptyList(),
+            liveSummaries =
+                mapOf(
+                    dinner.vote.uid to
+                        LiveVoteSummary(
+                            dinner.voteCounts,
+                            hasPersistedBallot =
+                                (state as? VoteUiState.Ready)?.hasPersistedBallot == true,
+                            isCreator = (state as? VoteUiState.Ready)?.isCreator == true,
+                        )
+                ),
+        )
+    )
     VoteDialogContent(
         state,
         onSelectOption = {},
@@ -179,5 +246,8 @@ private fun VoteDialogPreview(
         onCloseVote = {},
         confirmCloseOnOpen = confirmCloseOnOpen,
     )
+    if (showInnerConfirmation) {
+      VoteCloseConfirmation(state, onConfirm = {}, onRetry = {}, onCancel = {})
+    }
   }
 }
