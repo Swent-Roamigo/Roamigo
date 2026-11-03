@@ -20,13 +20,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.job
@@ -40,6 +43,10 @@ import kotlinx.coroutines.launch
  * locations are shown whatever the permission state, and age into stale, then hidden. While the
  * device is offline, the last shown locations stay on the map, marked stale, and everything resumes
  * on reconnection.
+ *
+ * The location permission is asked in context, only once the user turns sharing on, and always
+ * after the rationale sheet. The screen is told what to do through [effects]: this class holds the
+ * steps but no Android types.
  *
  * @property tripId identifier of the trip whose locations are managed.
  * @property currentUserId identifier of the signed-in user, used for their own position.
@@ -74,6 +81,15 @@ class LocationViewModel(
 
   /** State currently rendered by the trip map. */
   val uiState: StateFlow<LocationUiState> = _uiState.asStateFlow()
+
+  private val _effects = Channel<LocationEffect>(Channel.BUFFERED)
+
+  /** One-off requests to the screen, such as showing the system permission dialog. */
+  val effects: Flow<LocationEffect> = _effects.receiveAsFlow()
+
+  // Set from the user's Continue on the rationale until the system answers, so that only an answer
+  // to that request starts sharing or opens a refusal sheet.
+  private var permissionRequestPending = false
 
   // Last start or stop request. A start waits for it, so that a start reaches the repository after
   // the requests the user made before it.
@@ -122,19 +138,75 @@ class LocationViewModel(
   }
 
   /**
+   * The user wants to share their location. With the permission already granted, sharing starts at
+   * once. Otherwise the rationale sheet is shown first: the system dialog is only requested once
+   * the user continues from it, through [onRationaleContinue].
+   *
+   * @param permissionGranted whether the app currently holds a location permission.
+   */
+  fun onTurnOnSharingClick(permissionGranted: Boolean) {
+    if (permissionGranted) {
+      startSharingWithPermission()
+    } else {
+      showPermissionSheet(LocationPermissionSheet.Rationale)
+    }
+  }
+
+  /**
+   * The user continued from the rationale sheet. If the permission was granted meanwhile, sharing
+   * starts without asking. Otherwise the screen is asked to show the system dialog, whose answer
+   * goes to [onPermissionResult].
+   *
+   * @param permissionGranted whether the app currently holds a location permission.
+   */
+  fun onRationaleContinue(permissionGranted: Boolean) {
+    showPermissionSheet(LocationPermissionSheet.None)
+    if (permissionGranted) {
+      startSharingWithPermission()
+    } else {
+      permissionRequestPending = true
+      _effects.trySend(LocationEffect.RequestPermission)
+    }
+  }
+
+  /**
    * Updates the permission state after the user answers a permission request. Call only from the
    * permission request callback: rechecks that are not the result of a request go through
    * [onPermissionChecked]. A refusal is reported as [LocationPermissionState.Denied] while the app
    * may still ask again, and as [LocationPermissionState.Revoked] once the system no longer shows
-   * the request. Granting the permission does not start sharing: only [startSharing] does.
+   * the request.
+   *
+   * When the request followed [onRationaleContinue], a grant starts sharing, a refusal opens
+   * [LocationPermissionSheet.Denied], and a refusal the system will no longer ask about opens
+   * [LocationPermissionSheet.Blocked]. Any other result only updates the permission state: a grant
+   * then does not start sharing.
    *
    * @param granted whether the app now holds a location permission.
    * @param shouldShowRationale value of `shouldShowRequestPermissionRationale` after the request.
    */
   fun onPermissionResult(granted: Boolean, shouldShowRationale: Boolean) {
-    _uiState.update { state ->
-      state.copy(permissionState = nextPermissionState(granted, shouldShowRationale))
+    val permissionState = nextPermissionState(granted, shouldShowRationale)
+    _uiState.update { state -> state.copy(permissionState = permissionState) }
+    if (!permissionRequestPending) return
+    permissionRequestPending = false
+    when (permissionState) {
+      LocationPermissionState.Granted -> startSharing()
+      LocationPermissionState.Denied -> showPermissionSheet(LocationPermissionSheet.Denied)
+      LocationPermissionState.Revoked -> showPermissionSheet(LocationPermissionSheet.Blocked)
+      LocationPermissionState.NotRequested -> Unit
     }
+  }
+
+  /**
+   * Closes the open permission sheet without requesting anything, e.g. on "Not now", "Got it" or a
+   * swipe away.
+   */
+  fun onPermissionSheetDismissed() = showPermissionSheet(LocationPermissionSheet.None)
+
+  /** Closes the open permission sheet and asks the screen to open the app's settings. */
+  fun onOpenSettings() {
+    showPermissionSheet(LocationPermissionSheet.None)
+    _effects.trySend(LocationEffect.OpenSettings)
   }
 
   /**
@@ -210,6 +282,18 @@ class LocationViewModel(
         }
       }
     }
+  }
+
+  // The screen checked the permission just before calling, so the state is brought up to date
+  // first:
+  // a grant made outside the app would otherwise make startSharing refuse.
+  private fun startSharingWithPermission() {
+    onPermissionChecked(granted = true)
+    startSharing()
+  }
+
+  private fun showPermissionSheet(sheet: LocationPermissionSheet) {
+    _uiState.update { state -> state.copy(permissionSheet = sheet) }
   }
 
   private fun launchSharingRequest(

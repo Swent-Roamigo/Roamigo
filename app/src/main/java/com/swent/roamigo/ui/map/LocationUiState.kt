@@ -17,10 +17,34 @@ enum class LocationPermissionState {
   Revoked,
 }
 
+/** The sheet explaining the location permission, if one is open. */
+enum class LocationPermissionSheet {
+  None,
+
+  /** Why the location is needed, shown before the system asks. */
+  Rationale,
+
+  /** The user refused. Sharing stays off, and the system asks again next time. */
+  Denied,
+
+  /** The system no longer asks, so only the app's settings can allow the location. */
+  Blocked,
+}
+
+/** One-off requests to the trip map, which owns the Android parts: permission and settings. */
+sealed interface LocationEffect {
+  /** Show the system dialog asking for the location permission. */
+  data object RequestPermission : LocationEffect
+
+  /** Open the app's page in the system settings. */
+  data object OpenSettings : LocationEffect
+}
+
 /**
  * State rendered by the trip map for location sharing.
  *
  * @property permissionState current location permission state of the user.
+ * @property permissionSheet the sheet explaining the location permission, if one is open.
  * @property isSharing whether the user shares their location with the trip. Off by default.
  * @property myLocation last known position of the current user, or null if unknown.
  * @property isMyLocationStale whether [myLocation] is outdated, e.g. because the GPS signal was
@@ -35,6 +59,7 @@ enum class LocationPermissionState {
  */
 data class LocationUiState(
     val permissionState: LocationPermissionState = LocationPermissionState.NotRequested,
+    val permissionSheet: LocationPermissionSheet = LocationPermissionSheet.None,
     val isSharing: Boolean = false,
     val myLocation: MemberLocation? = null,
     val isMyLocationStale: Boolean = false,
