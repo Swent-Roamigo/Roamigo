@@ -1,15 +1,19 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.trip.voting
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,8 +28,14 @@ import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
+import com.swent.roamigo.ui.theme.Spacing
+import com.swent.roamigo.ui.trip.voting.components.VoteErrorContent
 
-/** A fresh interaction scope per opening: dismissal discards the draft and cancels observation. */
+/**
+ * A fresh interaction scope per opening: dismissal discards the draft and cancels observation.
+ * [confirmCloseOnOpen] selects the card's confirmation-only flow, dismissed on cancel or closure.
+ * Otherwise, cancelling a close confirmation returns to the existing voting draft.
+ */
 @Composable
 fun VoteDialog(
     voteId: String,
@@ -43,15 +53,15 @@ fun VoteDialog(
   DisposableEffect(owner) { onDispose { owner.viewModelStore.clear() } }
   val viewModel = viewModel(viewModelStoreOwner = owner) { createViewModel(voteId) }
   val state by viewModel.uiState.collectAsStateWithLifecycle()
-  val dismiss = {
-    if ((state as? VoteUiState.Ready)?.let { it.isSubmitting || it.isClosing } != true) onDismiss()
+  LaunchedEffect(state, confirmCloseOnOpen) {
+    if (confirmCloseOnOpen && state == VoteUiState.Closed) onDismiss()
   }
   VoteDialogContent(
       state,
       viewModel::selectOption,
       viewModel::submitVote,
       viewModel::retryLoad,
-      dismiss,
+      onDismiss,
       modifier,
       viewModel::closeVote,
       confirmCloseOnOpen,
@@ -70,44 +80,111 @@ internal fun VoteDialogContent(
     onCloseVote: () -> Unit = {},
     confirmCloseOnOpen: Boolean = false,
 ) {
-  var confirming by remember { mutableStateOf(confirmCloseOnOpen) }
+  var confirming by remember { mutableStateOf(false) }
   val ready = state as? VoteUiState.Ready
-  Dialog(onDismissRequest = onDismiss) {
-    Surface(
-        modifier.fillMaxWidth().heightIn(max = 600.dp).testTag("vote_dialog"),
-        shape = MaterialTheme.shapes.large,
-    ) {
-      VoteScreenContent(
-          state,
-          onSelectOption,
-          onSubmit,
-          onRetry,
-          onDismiss,
-          onCloseVote = { confirming = true },
-      )
+  val interactionLocked = ready?.let { it.isSubmitting || it.isClosing } == true
+  val dismiss = { if (!interactionLocked) onDismiss() }
+  if (confirmCloseOnOpen || (confirming && state != VoteUiState.Closed)) {
+    VoteCloseConfirmation(
+        state = state,
+        onConfirm = onCloseVote,
+        onRetry = onRetry,
+        onCancel = {
+          if (!interactionLocked) {
+            if (confirmCloseOnOpen) onDismiss() else confirming = false
+          }
+        },
+        modifier = modifier,
+    )
+  } else {
+    Dialog(onDismissRequest = dismiss) {
+      Surface(
+          modifier.fillMaxWidth().heightIn(max = 600.dp).testTag("vote_dialog"),
+          shape = MaterialTheme.shapes.large,
+      ) {
+        VoteScreenContent(
+            state,
+            onSelectOption,
+            onSubmit,
+            onRetry,
+            dismiss,
+            onCloseVote = { confirming = true },
+        )
+      }
     }
   }
-  if (confirming && ready?.canClose == true) {
-    AlertDialog(
-        onDismissRequest = { confirming = false },
-        title = { Text(stringResource(R.string.vote_close_title)) },
-        text = { Text(stringResource(R.string.vote_close_confirmation)) },
-        confirmButton = {
+}
+
+/** Shared confirmation presentation for card and in-dialog closing, including write recovery. */
+@Composable
+internal fun VoteCloseConfirmation(
+    state: VoteUiState,
+    onConfirm: () -> Unit,
+    onRetry: () -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+  val ready = state as? VoteUiState.Ready
+  val locked = ready?.let { it.isSubmitting || it.isClosing } == true
+  val cancel = { if (!locked) onCancel() }
+  AlertDialog(
+      modifier = modifier.testTag("vote_close_dialog"),
+      onDismissRequest = cancel,
+      title = { Text(stringResource(R.string.vote_close_title)) },
+      text = {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.medium)) {
+          when (state) {
+            VoteUiState.Loading -> {
+              CircularProgressIndicator()
+              Text(stringResource(R.string.vote_loading))
+            }
+            VoteUiState.Closed -> Text(stringResource(R.string.vote_closed))
+            is VoteUiState.LoadError ->
+                VoteErrorContent(
+                    if (state.reason == VoteLoadError.NOT_FOUND) R.string.vote_not_found
+                    else R.string.vote_load_error,
+                    onRetry = if (state.canRetry) onRetry else null,
+                )
+            is VoteUiState.Ready -> {
+              when {
+                state.isClosing -> Text(stringResource(R.string.vote_closing))
+                !state.isCreator -> Text(stringResource(R.string.vote_close_unavailable))
+                else -> {
+                  Text(stringResource(R.string.vote_close_confirmation))
+                  if (state.closingState == VoteSubmissionState.Failed) {
+                    VoteErrorContent(R.string.vote_close_error)
+                  }
+                  when (state.syncState) {
+                    VoteSyncState.Synced -> Unit
+                    VoteSyncState.Retrying -> Text(stringResource(R.string.vote_syncing))
+                    VoteSyncState.Failed ->
+                        VoteErrorContent(
+                            R.string.vote_ballots_error,
+                            onRetry,
+                            retryEnabled = !locked,
+                        )
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      confirmButton = {
+        if (ready?.isCreator == true && !ready.isClosing) {
           TextButton(
               modifier = Modifier.testTag("vote_close_confirm"),
-              onClick = {
-                confirming = false
-                onCloseVote()
-              },
+              enabled = ready.canClose,
+              onClick = onConfirm,
           ) {
             Text(stringResource(R.string.vote_close))
           }
-        },
-        dismissButton = {
-          TextButton(onClick = { confirming = false }) {
-            Text(stringResource(R.string.vote_close_cancel))
-          }
-        },
-    )
-  }
+        }
+      },
+      dismissButton = {
+        TextButton(enabled = !locked, onClick = cancel) {
+          Text(stringResource(R.string.vote_close_cancel))
+        }
+      },
+  )
 }

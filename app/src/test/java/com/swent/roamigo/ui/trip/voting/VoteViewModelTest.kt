@@ -96,6 +96,54 @@ class VoteViewModelTest {
   }
 
   @Test
+  fun failedCloseAndFailedReconciliationReadKeepVoteOpenForRetry() = runTest {
+    repository.vote = interactionVote().copy(createdByUserId = "member")
+    createViewModel()
+    advanceUntilIdle()
+    repository.closeFailure = IllegalStateException("write failed")
+    repository.loadFailure = IllegalStateException("offline")
+    viewModel.closeVote()
+    advanceUntilIdle()
+    assertEquals(VoteSubmissionState.Failed, ready().closingState)
+    assertTrue(ready().canClose)
+    repository.closeFailure = null
+    repository.loadFailure = null
+    viewModel.closeVote()
+    advanceUntilIdle()
+    assertEquals(VoteUiState.Closed, viewModel.uiState.value)
+  }
+
+  @Test
+  fun cancelledCloseRestoresInteractionsWithoutClosing() = runTest {
+    repository.vote = interactionVote().copy(createdByUserId = "member")
+    createViewModel()
+    advanceUntilIdle()
+    repository.closeFailure = kotlinx.coroutines.CancellationException("cancelled")
+    viewModel.closeVote()
+    advanceUntilIdle()
+    assertEquals(VoteSubmissionState.Idle, ready().closingState)
+    assertTrue(ready().canClose)
+    assertEquals(VoteStatus.OPEN, repository.vote?.status)
+  }
+
+  @Test
+  fun closingIsRejectedWhileBallotIsBeingSubmitted() = runTest {
+    repository.vote = interactionVote().copy(createdByUserId = "member")
+    createViewModel()
+    advanceUntilIdle()
+    repository.submitGate = CompletableDeferred()
+    viewModel.selectOption("a")
+    viewModel.submitVote()
+    viewModel.closeVote()
+    runCurrent()
+    assertEquals(0, repository.closeCalls)
+    assertFalse(ready().canClose)
+    repository.submitGate!!.complete(Unit)
+    advanceUntilIdle()
+    assertTrue(ready().canClose)
+  }
+
+  @Test
   fun nonCreatorCannotClose() = runTest {
     repository.vote = interactionVote().copy(createdByUserId = "other")
     createViewModel()
