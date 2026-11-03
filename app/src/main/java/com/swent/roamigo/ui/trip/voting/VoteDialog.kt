@@ -34,7 +34,8 @@ import com.swent.roamigo.ui.trip.voting.components.VoteErrorContent
 /**
  * A fresh interaction scope per opening: dismissal discards the draft and cancels observation.
  * [confirmCloseOnOpen] selects the card's confirmation-only flow, dismissed on cancel or closure.
- * Otherwise, cancelling a close confirmation returns to the existing voting draft.
+ * Otherwise, the voting dialog stays composed beneath confirmation, preserving the existing draft.
+ * Closing successfully dismisses the entire interaction from either entry point.
  */
 @Composable
 fun VoteDialog(
@@ -53,9 +54,6 @@ fun VoteDialog(
   DisposableEffect(owner) { onDispose { owner.viewModelStore.clear() } }
   val viewModel = viewModel(viewModelStoreOwner = owner) { createViewModel(voteId) }
   val state by viewModel.uiState.collectAsStateWithLifecycle()
-  LaunchedEffect(state, confirmCloseOnOpen) {
-    if (confirmCloseOnOpen && state == VoteUiState.Closed) onDismiss()
-  }
   VoteDialogContent(
       state,
       viewModel::selectOption,
@@ -83,20 +81,15 @@ internal fun VoteDialogContent(
   var confirming by remember { mutableStateOf(false) }
   val ready = state as? VoteUiState.Ready
   val interactionLocked = ready?.let { it.isSubmitting || it.isClosing } == true
-  val dismiss = { if (!interactionLocked) onDismiss() }
-  if (confirmCloseOnOpen || (confirming && state != VoteUiState.Closed)) {
-    VoteCloseConfirmation(
-        state = state,
-        onConfirm = onCloseVote,
-        onRetry = onRetry,
-        onCancel = {
-          if (!interactionLocked) {
-            if (confirmCloseOnOpen) onDismiss() else confirming = false
-          }
-        },
-        modifier = modifier,
-    )
-  } else {
+  val showConfirmation = confirmCloseOnOpen || confirming
+  LaunchedEffect(state, showConfirmation) {
+    if (showConfirmation && state == VoteUiState.Closed) onDismiss()
+  }
+  // Remove both windows immediately; the owner then tears down the interaction scope.
+  if (showConfirmation && state == VoteUiState.Closed) return
+
+  val dismiss = { if (!interactionLocked && !confirming) onDismiss() }
+  if (!confirmCloseOnOpen) {
     Dialog(onDismissRequest = dismiss) {
       Surface(
           modifier.fillMaxWidth().heightIn(max = 600.dp).testTag("vote_dialog"),
@@ -108,10 +101,28 @@ internal fun VoteDialogContent(
             onSubmit,
             onRetry,
             dismiss,
-            onCloseVote = { confirming = true },
+            // Close progress belongs exclusively to the confirmation above this dialog.
+            onCloseVote =
+                if (ready?.isClosing == true) null
+                else {
+                  { confirming = true }
+                },
         )
       }
     }
+  }
+  if (showConfirmation) {
+    VoteCloseConfirmation(
+        state = state,
+        onConfirm = onCloseVote,
+        onRetry = onRetry,
+        onCancel = {
+          if (!interactionLocked) {
+            if (confirmCloseOnOpen) onDismiss() else confirming = false
+          }
+        },
+        modifier = modifier,
+    )
   }
 }
 

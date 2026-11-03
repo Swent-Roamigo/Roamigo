@@ -37,6 +37,8 @@ import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import java.time.Instant
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -145,6 +147,7 @@ class VotesNavigationTest {
     composeRule.onNodeWithText("Close vote").performClick()
     composeRule.onNodeWithTag("vote_close_dialog").assertIsDisplayed()
     composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
+    composeRule.onNodeWithText("$tripName · 1 open").assertExists()
     composeRule.onNodeWithText("Cancel").performClick()
     composeRule.onNodeWithTag("vote_close_dialog").assertDoesNotExist()
     composeRule.onNodeWithText("$tripName · 1 open").assertIsDisplayed()
@@ -152,6 +155,7 @@ class VotesNavigationTest {
     composeRule.onNodeWithTag("vote_dialog").assertIsDisplayed()
     dialogText("Close vote").performClick()
     composeRule.onNodeWithTag("vote_close_dialog").assertIsDisplayed()
+    composeRule.onNodeWithTag("vote_dialog").assertExists()
     composeRule.onNodeWithText("Cancel").performClick()
     composeRule.onNodeWithTag("vote_dialog").assertIsDisplayed()
     dialogText("Market").performClick()
@@ -165,6 +169,49 @@ class VotesNavigationTest {
           VoteStatus.OPEN,
           repository.snapshots.value.getOrThrow().single().status,
       )
+    }
+  }
+
+  @Test
+  fun closingFromVotingWithAnUnsubmittedFirstChoiceReturnsToListWithoutABallot() =
+      closeUnsavedDraftFromVoting(persistFirstBallot = false)
+
+  @Test
+  fun closingFromChangeVotePreservesPreviousBallotAndReturnsToList() =
+      closeUnsavedDraftFromVoting(persistFirstBallot = true)
+
+  private fun closeUnsavedDraftFromVoting(persistFirstBallot: Boolean) {
+    repository.snapshots.value = Result.success(listOf(vote.copy(createdByUserId = "member")))
+    openVotes()
+    composeRule.onNodeWithText("Vote").performClick()
+    if (persistFirstBallot) {
+      dialogText("Market").performClick()
+      composeRule.onNodeWithText("Submit vote").performClick()
+      composeRule.onNodeWithText("Back").performClick()
+      composeRule.onNodeWithText("Change vote").performClick()
+    }
+    dialogText("Restaurant").performClick().assertIsSelected()
+    dialogText("Close vote").performClick()
+    composeRule.onNodeWithTag("vote_dialog").assertExists()
+    composeRule.onNodeWithTag("vote_close_dialog").assertIsDisplayed()
+    dialogText("Restaurant").assertIsSelected()
+    composeRule.onNodeWithTag("vote_close_confirm").performClick()
+    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
+    composeRule.onNodeWithTag("vote_close_dialog").assertDoesNotExist()
+    composeRule.onNodeWithText("This vote is closed.").assertDoesNotExist()
+    composeRule.onNodeWithText("$tripName · 0 open").assertIsDisplayed()
+    composeRule.onNodeWithText("Closed vote").assertIsDisplayed()
+    composeRule.runOnIdle {
+      val ballots = runBlocking { repository.observeBallots(tripId, vote.uid).first() }
+      if (persistFirstBallot) {
+        assertEquals("a", ballots.single().optionId)
+        assertEquals(1, repository.submissions.size)
+      } else {
+        assertTrue(ballots.isEmpty())
+        assertTrue(repository.submissions.isEmpty())
+      }
+      assertEquals(VoteStatus.CLOSED, repository.snapshots.value.getOrThrow().single().status)
+      assertEquals(0, repository.activeBallotObservers[vote.uid])
     }
   }
 

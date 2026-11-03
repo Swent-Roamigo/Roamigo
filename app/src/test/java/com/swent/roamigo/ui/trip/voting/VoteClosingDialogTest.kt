@@ -158,7 +158,9 @@ class VoteClosingDialogTest {
       RoamigoTheme { VoteDialogContent(creator().copy(selectedOptionId = "b"), {}, {}, {}, {}) }
     }
     composeRule.onNodeWithText("Close vote").performClick()
-    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
+    composeRule.onNodeWithTag("vote_dialog").assertExists()
+    composeRule.onNodeWithTag("vote_close_dialog").assertIsDisplayed()
+    composeRule.onNodeWithText("Restaurant").assertIsSelected()
     composeRule.onNodeWithText("Cancel").performClick()
     composeRule.onNodeWithTag("vote_dialog").assertIsDisplayed()
     composeRule.onNodeWithText("Update vote").assertIsEnabled()
@@ -198,6 +200,50 @@ class VoteClosingDialogTest {
     composeRule.onNodeWithText("Could not close the vote. Please try again.").assertIsDisplayed()
     composeRule.onNodeWithTag("vote_close_confirm").assertIsEnabled().performClick()
     composeRule.runOnIdle { assertEquals(2, closes) }
+  }
+
+  @Test
+  fun innerCloseKeepsVotingComposedAndLocksItUntilSuccess() {
+    var state: VoteUiState by mutableStateOf(creator().copy(selectedOptionId = "b"))
+    var submissions = 0
+    var dismissals = 0
+    composeRule.setContent {
+      RoamigoTheme {
+        VoteDialogContent(
+            state,
+            {},
+            { submissions++ },
+            {},
+            { dismissals++ },
+            onCloseVote = {
+              state =
+                  (state as VoteUiState.Ready).copy(closingState = VoteSubmissionState.Submitting)
+            },
+        )
+      }
+    }
+    composeRule.onNodeWithText("Close vote").performClick()
+    composeRule.onNodeWithTag("vote_dialog").assertExists()
+    composeRule.onNodeWithTag("vote_close_dialog").assertIsDisplayed()
+    composeRule.onNodeWithText("Restaurant").assertIsSelected()
+    composeRule.onNodeWithTag("vote_close_confirm").performClick()
+    composeRule.onNodeWithText("Closing vote…").assertIsDisplayed()
+    composeRule.onNodeWithText("Submitting vote…").assertDoesNotExist()
+    composeRule.onNodeWithTag("vote_dialog").assertExists()
+    composeRule.onNodeWithText("Update vote").assertIsNotEnabled().performClick()
+    composeRule.onNodeWithText("Restaurant").assertIsNotEnabled()
+    composeRule.onNodeWithText("Back").assertIsNotEnabled().performClick()
+    composeRule.onNodeWithText("Cancel").assertIsNotEnabled()
+    pressDialogBack()
+    composeRule.runOnIdle {
+      assertEquals(0, submissions)
+      assertEquals(0, dismissals)
+      state = VoteUiState.Closed
+    }
+    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
+    composeRule.onNodeWithTag("vote_close_dialog").assertDoesNotExist()
+    composeRule.onNodeWithText("This vote is closed.").assertDoesNotExist()
+    composeRule.runOnIdle { assertEquals(1, dismissals) }
   }
 
   @Test
@@ -314,10 +360,15 @@ class VoteClosingDialogTest {
   @Test
   fun remoteCloseDuringInDialogConfirmationRemovesAllVoteActions() {
     var state: VoteUiState by mutableStateOf(creator())
-    composeRule.setContent { RoamigoTheme { VoteDialogContent(state, {}, {}, {}, {}) } }
+    var dismissals = 0
+    composeRule.setContent {
+      RoamigoTheme { VoteDialogContent(state, {}, {}, {}, { dismissals++ }) }
+    }
     composeRule.onNodeWithText("Close vote").performClick()
     composeRule.runOnIdle { state = VoteUiState.Closed }
-    composeRule.onNodeWithText("This vote is closed.").assertIsDisplayed()
+    composeRule.onNodeWithText("This vote is closed.").assertDoesNotExist()
+    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
+    composeRule.runOnIdle { assertEquals(1, dismissals) }
     composeRule.onNodeWithTag("vote_close_dialog").assertDoesNotExist()
     composeRule.onNodeWithText("Close vote").assertDoesNotExist()
     composeRule.onNodeWithText("Update vote").assertDoesNotExist()

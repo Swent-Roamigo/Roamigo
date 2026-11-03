@@ -74,6 +74,40 @@ class VoteViewModelTest {
   private fun ballot(optionId: String) = VoteBallot("member", optionId, Timestamp(1, 0))
 
   @Test
+  fun closingWithAnUnsavedChangePreservesPreviousBallot() = runTest {
+    repository.vote = interactionVote().copy(createdByUserId = "member")
+    val original = ballot("a")
+    repository.submitBallot("trip", "vote", original)
+    createViewModel()
+    advanceUntilIdle()
+    viewModel.selectOption("b")
+    assertEquals("a", ready().persistedOptionId)
+    assertEquals("b", ready().selectedOptionId)
+    viewModel.closeVote()
+    advanceUntilIdle()
+    assertEquals(VoteUiState.Closed, viewModel.uiState.value)
+    assertEquals(listOf(original), repository.ballots.value)
+    assertEquals(original, repository.persisted["member"])
+    assertEquals(1, repository.calls.size)
+    assertEquals(1, repository.closeCalls)
+  }
+
+  @Test
+  fun closingWithAnUnsavedFirstSelectionDoesNotCreateABallot() = runTest {
+    repository.vote = interactionVote().copy(createdByUserId = "member")
+    createViewModel()
+    advanceUntilIdle()
+    viewModel.selectOption("b")
+    viewModel.closeVote()
+    advanceUntilIdle()
+    assertEquals(VoteUiState.Closed, viewModel.uiState.value)
+    assertTrue(repository.ballots.value.isEmpty())
+    assertTrue(repository.persisted.isEmpty())
+    assertTrue(repository.calls.isEmpty())
+    assertEquals(1, repository.closeCalls)
+  }
+
+  @Test
   fun creatorCanCloseAndRepeatedActionsAreBlocked() = runTest {
     repository.vote = interactionVote().copy(createdByUserId = "member")
     createViewModel()
