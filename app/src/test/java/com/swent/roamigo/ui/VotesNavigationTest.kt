@@ -139,15 +139,47 @@ class VotesNavigationTest {
   }
 
   @Test
+  fun cancellingCardCloseReturnsToListAndVoteStillOpensNormalDialog() {
+    repository.snapshots.value = Result.success(listOf(vote.copy(createdByUserId = "member")))
+    openVotes()
+    composeRule.onNodeWithText("Close vote").performClick()
+    composeRule.onNodeWithTag("vote_close_dialog").assertIsDisplayed()
+    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
+    composeRule.onNodeWithText("Cancel").performClick()
+    composeRule.onNodeWithTag("vote_close_dialog").assertDoesNotExist()
+    composeRule.onNodeWithText("$tripName · 1 open").assertIsDisplayed()
+    composeRule.onNodeWithText("Vote").performClick()
+    composeRule.onNodeWithTag("vote_dialog").assertIsDisplayed()
+    dialogText("Close vote").performClick()
+    composeRule.onNodeWithTag("vote_close_dialog").assertIsDisplayed()
+    composeRule.onNodeWithText("Cancel").performClick()
+    composeRule.onNodeWithTag("vote_dialog").assertIsDisplayed()
+    dialogText("Market").performClick()
+    composeRule.onNodeWithText("Submit vote").performClick()
+    composeRule.onNodeWithText("Back").performClick()
+    composeRule.onNodeWithText("Change vote").performClick()
+    composeRule.onNodeWithTag("vote_dialog").assertIsDisplayed()
+    composeRule.onNodeWithTag("vote_close_dialog").assertDoesNotExist()
+    composeRule.runOnIdle {
+      assertEquals(
+          VoteStatus.OPEN,
+          repository.snapshots.value.getOrThrow().single().status,
+      )
+    }
+  }
+
+  @Test
   fun creatorClosesFromCardAndListUpdatesWithoutRefresh() {
     repository.snapshots.value = Result.success(listOf(vote.copy(createdByUserId = "member")))
     openVotes()
     composeRule.onNodeWithText("Close vote").assertIsDisplayed().performClick()
     composeRule.onNodeWithText("Close this vote?").assertIsDisplayed()
+    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
     composeRule.onNodeWithTag("vote_close_confirm").performClick()
     composeRule.onNodeWithText("Close vote").assertDoesNotExist()
     composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
-    composeRule.onNodeWithText("Back").performClick()
+    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
+    composeRule.onNodeWithTag("vote_close_dialog").assertDoesNotExist()
     composeRule.onNodeWithText("$tripName · 0 open").assertIsDisplayed()
     composeRule.onNodeWithText("Closed vote").assertIsDisplayed()
     composeRule.onNodeWithText("Vote").assertDoesNotExist()

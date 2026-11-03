@@ -114,7 +114,7 @@ fun VoteScreenContent(
             VoteErrorContent(
                 R.string.vote_ballots_error,
                 onRetry,
-                retryEnabled = !state.isSubmitting,
+                retryEnabled = !state.isSubmitting && !state.isClosing,
             )
       }
       if (state.submissionState == VoteSubmissionState.Failed) {
@@ -136,7 +136,8 @@ fun VoteScreenContent(
     }
     VoteActions(
         canSubmit = ready?.canSubmit == true,
-        isSubmitting = ready?.let { it.isSubmitting || it.isClosing } == true,
+        isSubmitting = ready?.isSubmitting == true,
+        interactionLocked = ready?.isClosing == true,
         hasPersistedBallot = ready?.hasPersistedBallot == true,
         onSubmit = onSubmit,
         onBack = onBack,
