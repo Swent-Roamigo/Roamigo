@@ -4,7 +4,8 @@ package com.swent.roamigo.ui.map
 import androidx.compose.runtime.Composable
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
-import com.swent.roamigo.ui.components.PermissionSheet
+import com.swent.roamigo.ui.components.PermissionBottomSheet
+import com.swent.roamigo.ui.components.PermissionSheetContent
 
 /**
  * The location permission sheet matching [sheet], or nothing for [LocationPermissionSheet.None].
@@ -21,10 +22,33 @@ fun LocationPermissionSheet(
     onOpenSettings: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+  if (sheet == LocationPermissionSheet.None) return
+  PermissionBottomSheet(onDismiss = onDismiss) {
+    LocationPermissionSheetContent(
+        sheet = sheet,
+        onContinue = onContinue,
+        onOpenSettings = onOpenSettings,
+        onDismiss = onDismiss,
+    )
+  }
+}
+
+/**
+ * The content of the location permission sheet matching [sheet], without the bottom sheet around
+ * it, or nothing for [LocationPermissionSheet.None]. Its parameters are those of
+ * [LocationPermissionSheet].
+ */
+@Composable
+internal fun LocationPermissionSheetContent(
+    sheet: LocationPermissionSheet,
+    onContinue: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onDismiss: () -> Unit,
+) {
   when (sheet) {
     LocationPermissionSheet.None -> Unit
     LocationPermissionSheet.Rationale ->
-        PermissionSheet(
+        PermissionSheetContent(
             sheetTag = C.Tag.trip_map_share_location_sheet,
             title = R.string.trip_map_location_rationale_title,
             description = R.string.trip_map_location_rationale_description,
@@ -33,20 +57,20 @@ fun LocationPermissionSheet(
             onPrimary = onContinue,
             secondaryText = R.string.trip_map_location_not_now,
             secondaryTag = C.Tag.trip_map_share_location_not_now,
-            onDismiss = onDismiss,
+            onSecondary = onDismiss,
         )
     LocationPermissionSheet.Denied ->
-        PermissionSheet(
+        PermissionSheetContent(
             sheetTag = C.Tag.trip_map_location_denied_sheet,
             title = R.string.trip_map_location_denied_title,
             description = R.string.trip_map_location_denied_description,
             primaryText = R.string.trip_map_location_denied_got_it,
             primaryTag = C.Tag.trip_map_location_denied_got_it,
             onPrimary = onDismiss,
-            onDismiss = onDismiss,
+            onSecondary = onDismiss,
         )
     LocationPermissionSheet.Blocked ->
-        PermissionSheet(
+        PermissionSheetContent(
             sheetTag = C.Tag.trip_map_location_blocked_sheet,
             title = R.string.trip_map_location_blocked_title,
             description = R.string.trip_map_location_blocked_description,
@@ -55,7 +79,7 @@ fun LocationPermissionSheet(
             onPrimary = onOpenSettings,
             secondaryText = R.string.trip_map_location_not_now,
             secondaryTag = C.Tag.trip_map_location_blocked_not_now,
-            onDismiss = onDismiss,
+            onSecondary = onDismiss,
         )
   }
 }
