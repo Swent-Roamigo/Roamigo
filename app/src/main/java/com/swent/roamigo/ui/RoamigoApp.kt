@@ -141,6 +141,9 @@ fun RoamigoApp(
             navController.navigate(Route.TRIP_HISTORY) { launchSingleTop = true }
           },
           onOpenTrip = { tripId -> navController.navigate(Route.tripDetails(tripId)) },
+          onOpenTripPhotos = { tripId, tripName ->
+            navController.navigate(Route.photos(tripId, tripName))
+          },
       )
     }
     composable(Route.VOTES) { entry ->
@@ -195,7 +198,8 @@ fun RoamigoApp(
                     photoRepository,
                     connectivity,
                     tripId,
-                    savedStateHandle = createSavedStateHandle(),
+                    authRepository.getCurrentUser()?.uid,
+                    createSavedStateHandle(),
                 )
               },
           tripName = tripName,

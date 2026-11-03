@@ -6,7 +6,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.swent.roamigo.model.connectivity.ConnectivityRepository
 import com.swent.roamigo.model.photo.PhotoRepository
+import com.swent.roamigo.model.photo.TripPhoto
 import java.io.File
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -21,7 +24,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Takes photos for one trip and shows the ones waiting to be uploaded.
+ * Takes photos for one trip, shows the ones waiting to be uploaded, and the ones the trip already
+ * has.
  *
  * The camera permission is asked in context, only once the user wants to take a photo, and the
  * screen is told what to do through [effects]: this class holds the steps but no Android types.
@@ -30,6 +34,7 @@ class PhotosViewModel(
     private val repository: PhotoRepository,
     connectivity: ConnectivityRepository,
     val tripId: String,
+    private val currentUserId: String? = null,
     private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
 ) : ViewModel() {
 
@@ -38,9 +43,18 @@ class PhotosViewModel(
       val preview: File? = null,
       val saving: Boolean = false,
       val saveFailed: Boolean = false,
+      val viewingId: String? = null,
+  )
+
+  private data class Gallery(
+      val photos: List<TripPhoto> = emptyList(),
+      val loading: Boolean = true,
+      val failed: Boolean = false,
   )
 
   private val local = MutableStateFlow(Local())
+  private val gallery = MutableStateFlow(Gallery())
+  private var galleryJob: Job? = null
 
   // The file the camera is writing into, until it reports back. It is kept in the saved state
   // because Android may kill the app while the camera is open.
@@ -54,20 +68,27 @@ class PhotosViewModel(
   private var awaitingSettings = false
 
   val uiState: StateFlow<PhotosUiState> =
-      combine(repository.pendingPhotos(tripId), connectivity.isOnline, local) {
+      combine(repository.pendingPhotos(tripId), connectivity.isOnline, local, gallery) {
               photos,
               online,
-              local ->
+              local,
+              gallery ->
             PhotosUiState(
                 isOnline = online,
                 photos = photos,
+                uploaded = gallery.photos,
+                galleryLoading = gallery.loading,
+                galleryFailed = gallery.failed,
+                // A photo that is no longer in the gallery cannot stay open.
+                viewing = gallery.photos.firstOrNull { it.id == local.viewingId },
+                currentUserId = currentUserId,
                 cameraStep = local.cameraStep,
                 preview = local.preview,
                 saving = local.saving,
                 saveFailed = local.saveFailed,
             )
           }
-          .stateIn(viewModelScope, SharingStarted.Eagerly, PhotosUiState())
+          .stateIn(viewModelScope, SharingStarted.Eagerly, PhotosUiState(galleryLoading = true))
 
   init {
     // Photos left by a user who signed out are only uploaded once something starts a round.
@@ -76,6 +97,20 @@ class PhotosViewModel(
 
   private val _effects = Channel<PhotosEffect>(Channel.BUFFERED)
   val effects: Flow<PhotosEffect> = _effects.receiveAsFlow()
+
+  init {
+    observeGallery()
+  }
+
+  /** Reads the trip's photos again after they could not be read. */
+  fun onGalleryRetry() {
+    if (gallery.value.failed) observeGallery()
+  }
+
+  /** Opens an uploaded photo full screen. */
+  fun onPhotoClick(photoId: String) = local.update { it.copy(viewingId = photoId) }
+
+  fun onViewerClosed() = local.update { it.copy(viewingId = null) }
 
   /** The user wants a photo. [permissionGranted] tells whether the camera is already allowed. */
   fun onTakePhotoClick(permissionGranted: Boolean) {
@@ -175,6 +210,23 @@ class PhotosViewModel(
     captureFile?.let(repository::discard)
     // A photo being saved is the repository's now. Deleting it here could lose it.
     local.value.takeUnless { it.saving }?.preview?.let(repository::discard)
+  }
+
+  private fun observeGallery() {
+    galleryJob?.cancel()
+    gallery.update { it.copy(loading = true, failed = false) }
+    galleryJob = viewModelScope.launch {
+      try {
+        repository.tripPhotos(tripId).collect { photos ->
+          gallery.value = Gallery(photos, loading = false)
+        }
+      } catch (e: CancellationException) {
+        throw e
+      } catch (_: Exception) {
+        // The photos read before stay on the screen, with a way to try again.
+        gallery.update { it.copy(loading = false, failed = true) }
+      }
+    }
   }
 
   private fun showStep(step: CameraStep) = local.update { it.copy(cameraStep = step) }

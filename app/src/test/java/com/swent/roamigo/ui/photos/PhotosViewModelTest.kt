@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.connectivity.FakeConnectivityRepository
 import com.swent.roamigo.model.photo.pendingPhoto
+import com.swent.roamigo.model.photo.tripPhoto
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -374,14 +375,14 @@ class PhotosViewModelTest {
   @Test
   fun aPictureTakenAfterTheAppWasRecreatedIsShown() {
     val handle = SavedStateHandle()
-    var model = PhotosViewModel(repository, connectivity, "trip", handle)
+    var model = PhotosViewModel(repository, connectivity, "trip", savedStateHandle = handle)
     model.effects.onEach { effects += it }.launchIn(kotlinx.coroutines.CoroutineScope(dispatcher))
     model.onTakePhotoClick(permissionGranted = true)
     val file = (effects.last() as PhotosEffect.LaunchCamera).file
     file.writeText("jpeg")
 
     // Android killed the process while the camera was open: a new view model gets the same state.
-    model = PhotosViewModel(repository, connectivity, "trip", handle)
+    model = PhotosViewModel(repository, connectivity, "trip", savedStateHandle = handle)
     model.onPictureTaken(true)
 
     assertEquals(file, model.uiState.value.preview)
@@ -390,12 +391,13 @@ class PhotosViewModelTest {
   @Test
   fun aCancelledPictureAfterTheAppWasRecreatedDiscardsTheFile() {
     val handle = SavedStateHandle()
-    val first = PhotosViewModel(repository, connectivity, "trip", handle)
+    val first = PhotosViewModel(repository, connectivity, "trip", savedStateHandle = handle)
     first.effects.onEach { effects += it }.launchIn(kotlinx.coroutines.CoroutineScope(dispatcher))
     first.onTakePhotoClick(permissionGranted = true)
     val file = (effects.last() as PhotosEffect.LaunchCamera).file
 
-    PhotosViewModel(repository, connectivity, "trip", handle).onPictureTaken(false)
+    PhotosViewModel(repository, connectivity, "trip", savedStateHandle = handle)
+        .onPictureTaken(false)
 
     assertEquals(listOf(file), repository.discarded)
   }
@@ -469,6 +471,134 @@ class PhotosViewModelTest {
     second.onPictureTaken(true)
 
     assertEquals(file, second.uiState.value.preview)
+  }
+
+  @Test
+  fun showsThePhotosTheTripAlreadyHas() {
+    repository.uploaded.value = listOf(tripPhoto("a"), tripPhoto("b"))
+
+    assertEquals(listOf("a", "b"), state.uploaded.map { it.id })
+    assertFalse(state.galleryFailed)
+  }
+
+  @Test
+  fun isLoadingTheGalleryUntilThePhotosAreRead() {
+    val gate = CompletableDeferred<Unit>()
+    repository.galleryGate = gate
+    viewModel = PhotosViewModel(repository, connectivity, "trip")
+
+    assertTrue(state.galleryLoading)
+
+    gate.complete(Unit)
+
+    assertFalse(state.galleryLoading)
+  }
+
+  @Test
+  fun stopsLoadingTheGalleryWhenThePhotosCouldNotBeRead() {
+    repository.galleryError = IllegalStateException("denied")
+    viewModel = PhotosViewModel(repository, connectivity, "trip")
+
+    assertFalse(state.galleryLoading)
+  }
+
+  @Test
+  fun loadsTheGalleryAgainOnRetry() {
+    repository.galleryError = IllegalStateException("denied")
+    viewModel = PhotosViewModel(repository, connectivity, "trip")
+    repository.galleryError = null
+    repository.galleryGate = CompletableDeferred()
+
+    viewModel.onGalleryRetry()
+
+    assertTrue(state.galleryLoading)
+    assertFalse(state.galleryFailed)
+  }
+
+  @Test
+  fun followsNewUploadedPhotos() {
+    repository.uploaded.value = listOf(tripPhoto("a"))
+    repository.uploaded.value = listOf(tripPhoto("b"), tripPhoto("a"))
+
+    assertEquals(listOf("b", "a"), state.uploaded.map { it.id })
+  }
+
+  @Test
+  fun knowsTheSignedInUser() {
+    viewModel = PhotosViewModel(repository, connectivity, "trip", currentUserId = "me")
+
+    assertEquals("me", state.currentUserId)
+  }
+
+  @Test
+  fun reportsThatThePhotosCouldNotBeRead() {
+    repository.galleryError = IllegalStateException("denied")
+    viewModel = PhotosViewModel(repository, connectivity, "trip")
+
+    assertTrue(state.galleryFailed)
+    assertEquals(emptyList<Any>(), state.uploaded)
+  }
+
+  @Test
+  fun readsThePhotosAgainOnRetry() {
+    repository.galleryError = IllegalStateException("denied")
+    viewModel = PhotosViewModel(repository, connectivity, "trip")
+    repository.galleryError = null
+    repository.uploaded.value = listOf(tripPhoto("a"))
+    val before = repository.galleryObservations
+
+    viewModel.onGalleryRetry()
+
+    assertFalse(state.galleryFailed)
+    assertEquals(listOf("a"), state.uploaded.map { it.id })
+    assertEquals(before + 1, repository.galleryObservations)
+  }
+
+  @Test
+  fun doesNotReadThePhotosAgainWhenNothingFailed() {
+    val before = repository.galleryObservations
+
+    viewModel.onGalleryRetry()
+
+    assertEquals(before, repository.galleryObservations)
+  }
+
+  @Test
+  fun opensAnUploadedPhotoFullScreen() {
+    repository.uploaded.value = listOf(tripPhoto("a"), tripPhoto("b"))
+
+    viewModel.onPhotoClick("b")
+
+    assertEquals("b", state.viewing?.id)
+  }
+
+  @Test
+  fun closesTheViewer() {
+    repository.uploaded.value = listOf(tripPhoto("a"))
+    viewModel.onPhotoClick("a")
+
+    viewModel.onViewerClosed()
+
+    assertNull(state.viewing)
+  }
+
+  @Test
+  fun showsNothingForAPhotoThatIsNotInTheGallery() {
+    repository.uploaded.value = listOf(tripPhoto("a"))
+
+    viewModel.onPhotoClick("unknown")
+
+    assertNull(state.viewing)
+  }
+
+  @Test
+  fun theViewerClosesByItselfWhenItsPhotoDisappears() {
+    repository.uploaded.value = listOf(tripPhoto("a"), tripPhoto("b"))
+    viewModel.onPhotoClick("a")
+
+    repository.uploaded.value = listOf(tripPhoto("b"))
+
+    assertNull(state.viewing)
   }
 
   private fun clear() {
