@@ -16,6 +16,7 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.ViewModelStore
@@ -24,6 +25,7 @@ import com.google.firebase.Timestamp
 import com.swent.roamigo.model.trip.voting.VoteBallot
 import com.swent.roamigo.model.trip.voting.VoteOption
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import com.swent.roamigo.ui.trip.voting.components.VoteCard
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -34,6 +36,76 @@ class VoteScreenTest {
   @get:Rule val composeRule = createComposeRule()
 
   private fun loaded() = VoteUiState.Ready(vote = interactionVote())
+
+  @Test
+  fun liveCardCloseActionIsCreatorOnlyAndDisappearsWhenClosed() {
+    var creator by mutableStateOf(true)
+    var vote by mutableStateOf(interactionVote())
+    var requests = 0
+    composeRule.setContent {
+      RoamigoTheme {
+        VoteCard(
+            vote,
+            {},
+            LiveVoteSummary(emptyMap(), false, isCreator = creator),
+            onCloseVote = { requests++ },
+        )
+      }
+    }
+    composeRule.onNodeWithText("Close vote").assertIsDisplayed().performClick()
+    composeRule.runOnIdle {
+      assertEquals(1, requests)
+      creator = false
+    }
+    composeRule.onNodeWithText("Close vote").assertDoesNotExist()
+    composeRule.runOnIdle {
+      creator = true
+      vote = vote.copy(status = com.swent.roamigo.model.trip.voting.VoteStatus.CLOSED)
+    }
+    composeRule.onNodeWithText("Close vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Cast vote").assertDoesNotExist()
+  }
+
+  @Test
+  fun creatorConfirmsBeforeClosingAndVotingActionsDisappear() {
+    var state: VoteUiState by mutableStateOf(loaded().copy(isCreator = true))
+    var closes = 0
+    composeRule.setContent {
+      RoamigoTheme {
+        VoteDialogContent(
+            state,
+            {},
+            {},
+            {},
+            {},
+            onCloseVote = {
+              closes++
+              state = VoteUiState.Closed
+            },
+        )
+      }
+    }
+    composeRule.onNodeWithText("Close vote").assertIsDisplayed().performClick()
+    composeRule.onNodeWithText("Close this vote?").assertIsDisplayed()
+    composeRule.runOnIdle { assertEquals(0, closes) }
+    composeRule.onNodeWithText("Cancel").performClick()
+    composeRule.onNodeWithText("Close this vote?").assertDoesNotExist()
+    composeRule.onNodeWithText("Close vote").performClick()
+    // The confirmation is the active dialog; its button is the visible close action.
+    composeRule.onNodeWithTag("vote_close_confirm").performClick()
+    composeRule.onNodeWithText("Close vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Market").assertDoesNotExist()
+    composeRule.runOnIdle { assertEquals(1, closes) }
+  }
+
+  @Test
+  fun nonCreatorNeverSeesCloseAction() {
+    composeRule.setContent {
+      RoamigoTheme { VoteDialogContent(loaded(), {}, {}, {}, {}, onCloseVote = {}) }
+    }
+    composeRule.onNodeWithText("Close vote").assertDoesNotExist()
+  }
 
   @Test
   fun displaysQuestionOptionsAndSelectionEnablesSubmit() {

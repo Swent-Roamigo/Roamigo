@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -36,7 +37,7 @@ import com.swent.roamigo.ui.trip.voting.components.VoteOptionRow
 
 /** Standalone voting interaction; the caller owns the ViewModel and navigation. */
 @Composable
-fun VoteScreen(viewModel: VoteViewModel, onBack: () -> Unit) {
+fun VoteScreen(viewModel: VoteViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   VoteScreenContent(
       state,
@@ -44,6 +45,7 @@ fun VoteScreen(viewModel: VoteViewModel, onBack: () -> Unit) {
       viewModel::submitVote,
       viewModel::retryLoad,
       onBack,
+      modifier,
   )
 }
 
@@ -54,9 +56,12 @@ fun VoteScreenContent(
     onSubmit: () -> Unit,
     onRetry: () -> Unit,
     onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    onCloseVote: (() -> Unit)? = null,
 ) {
   Column(
-      Modifier.fillMaxSize()
+      modifier
+          .fillMaxSize()
           .background(MaterialTheme.colorScheme.background)
           .safeDrawingPadding()
           .padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium),
@@ -117,9 +122,21 @@ fun VoteScreenContent(
       }
     }
     val ready = state as? VoteUiState.Ready
+    if (ready?.isCreator == true && ready.vote.status == VoteStatus.OPEN && onCloseVote != null) {
+      if (ready.closingState == VoteSubmissionState.Failed) {
+        VoteErrorContent(R.string.vote_close_error)
+      }
+      TextButton(
+          onClick = onCloseVote,
+          enabled = ready.canClose,
+          modifier = Modifier.fillMaxWidth(),
+      ) {
+        Text(stringResource(if (ready.isClosing) R.string.vote_closing else R.string.vote_close))
+      }
+    }
     VoteActions(
         canSubmit = ready?.canSubmit == true,
-        isSubmitting = ready?.isSubmitting == true,
+        isSubmitting = ready?.let { it.isSubmitting || it.isClosing } == true,
         hasPersistedBallot = ready?.hasPersistedBallot == true,
         onSubmit = onSubmit,
         onBack = onBack,

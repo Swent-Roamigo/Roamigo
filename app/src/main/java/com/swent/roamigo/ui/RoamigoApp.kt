@@ -158,6 +158,7 @@ fun RoamigoApp(
       val tripId = requireNotNull(entry.arguments?.getString("tripId"))
       val tripName = entry.arguments?.getString("tripName").orEmpty()
       var selectedVoteId by rememberSaveable { mutableStateOf<String?>(null) }
+      var confirmVoteClose by rememberSaveable { mutableStateOf(false) }
       val votesViewModel = viewModel {
         VotesViewModel(voteRepository, tripId, authRepository.getCurrentUser()?.uid.orEmpty())
       }
@@ -165,9 +166,14 @@ fun RoamigoApp(
           viewModel = votesViewModel,
           tripName = tripName,
           onOpenVote = { voteId ->
+            confirmVoteClose = false
             val ready = votesViewModel.uiState.value as? VotesUiState.Ready
             if (ready?.liveVotes?.any { it.uid == voteId } == true) selectedVoteId = voteId
             else navController.navigate(Route.vote(tripId, voteId))
+          },
+          onCloseVote = { voteId ->
+            confirmVoteClose = true
+            selectedVoteId = voteId
           },
           onCreateVote = { navController.navigate(Route.newVote(tripId)) },
           onOverviewClick = {
@@ -188,7 +194,11 @@ fun RoamigoApp(
             navController.navigate(Route.AUTHENTICATION) { popUpTo(navController.graph.id) }
           }
         } else {
-          VoteDialog(voteId, { VoteViewModel(voteRepository, tripId, it, userId) }) {
+          VoteDialog(
+              voteId,
+              { VoteViewModel(voteRepository, tripId, it, userId) },
+              confirmCloseOnOpen = confirmVoteClose,
+          ) {
             selectedVoteId = null
           }
         }

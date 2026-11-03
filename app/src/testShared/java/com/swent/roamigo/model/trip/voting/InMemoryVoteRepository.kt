@@ -33,6 +33,17 @@ class InMemoryVoteRepository(initialVotes: List<Vote> = emptyList()) : VoteRepos
     snapshots.value = Result.success(snapshots.value.getOrThrow() + vote)
   }
 
+  override suspend fun closeVote(tripId: String, voteId: String) {
+    val vote = requireNotNull(getVote(tripId, voteId))
+    check(vote.status == VoteStatus.OPEN)
+    snapshots.value =
+        Result.success(
+            snapshots.value.getOrThrow().map {
+              if (it.tripId == tripId && it.uid == voteId) it.copy(status = VoteStatus.CLOSED) else it
+            }
+        )
+  }
+
   override suspend fun getVote(tripId: String, voteId: String): Vote? {
     lookups += tripId to voteId
     return getVotes(tripId).firstOrNull { it.uid == voteId }
@@ -52,6 +63,7 @@ class InMemoryVoteRepository(initialVotes: List<Vote> = emptyList()) : VoteRepos
       }
 
   override suspend fun submitBallot(tripId: String, voteId: String, ballot: VoteBallot) {
+    check(getVotes(tripId).firstOrNull { it.uid == voteId }?.status == VoteStatus.OPEN)
     submissions += Triple(tripId, voteId, ballot)
     val stream = ballotStream(tripId, voteId)
     stream.value = stream.value.filterNot { it.userId == ballot.userId } + ballot

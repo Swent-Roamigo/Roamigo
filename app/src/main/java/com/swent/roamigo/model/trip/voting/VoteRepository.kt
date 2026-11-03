@@ -31,6 +31,15 @@ interface VoteRepository {
   suspend fun getVote(tripId: String, voteId: String): Vote?
 
   /**
+   * Closes an OPEN vote by updating only its status. Firestore rules require the authenticated
+   * creator and reject already-closed votes, missing votes, and unauthorized writes.
+   *
+   * @throws IllegalArgumentException If either document ID is invalid.
+   * @throws FirebaseFirestoreException If closing fails.
+   */
+  suspend fun closeVote(tripId: String, voteId: String)
+
+  /**
    * Retrieves all votes for a trip, using the trip and document IDs from their paths.
    *
    * @param tripId ID of the trip to read.
@@ -42,8 +51,9 @@ interface VoteRepository {
 
   /**
    * Observes all votes in the specified trip, including the initial empty list and subsequent
-   * additions, updates, and removals. Each collector owns a listener removed when collection ends.
-   * Listener or mapping errors terminate collection without emitting partial data.
+   * additions, updates, and removals. Pending local writes are omitted until acknowledged so a
+   * rejected close cannot appear as persisted. Each collector owns a listener removed when
+   * collection ends. Listener or mapping errors terminate collection without emitting partial data.
    *
    * @param tripId ID of the trip whose vote subcollection is observed.
    * @return A cold flow of complete vote lists in unspecified order.
