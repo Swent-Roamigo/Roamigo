@@ -4,6 +4,10 @@ package com.swent.roamigo.ui.trips
 
 import androidx.lifecycle.ViewModel
 import com.google.firebase.Timestamp
+import com.swent.roamigo.model.destination.Destination
+import com.swent.roamigo.model.destination.DestinationKind
+import com.swent.roamigo.model.destination.DestinationPhoto
+import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
@@ -345,6 +349,37 @@ class TripsViewModelTest {
     assertEquals("Berlin weekend", state.otherTrips.single().name)
     assertEquals("30 Oct – 2 Nov", state.otherTrips.single().dateRange)
     assertEquals(2, state.otherTrips.single().memberCount)
+  }
+
+  @Test
+  fun photoLookupMatchesCoordinatesAndDoesNotBlockTripsOnFailure() = runTest {
+    val main = trip("lisbon", "Lisbon", "2026-10-08T00:00:00Z", "2026-10-10T23:00:00Z", TripStatus.ACTIVE)
+    val correct = Destination("correct", DestinationKind.CITY, "Lisbon", "Portugal", "PT", 38.7223, -9.1393, 1)
+    val wrong = correct.copy(stableId = "wrong", latitude = 40.0)
+    val photo = DestinationPhoto("https://example.com/photo.jpg", "Author", "https://example.com", "CC BY", null)
+    var fail = false
+    val destinations = object : DestinationRepository {
+      override suspend fun searchDestinations(query: String): List<Destination> {
+        if (fail) error("offline")
+        return listOf(wrong, correct)
+      }
+      override suspend fun findPhoto(destination: Destination): DestinationPhoto? {
+        assertEquals(correct, destination)
+        return photo
+      }
+    }
+    val vm = TripsViewModel(
+        FakeTripRepository(trips = listOf(main)), FakeUserRepository(currentUser = alex),
+        Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC), destinations,
+    )
+    advanceUntilIdle()
+    assertEquals(photo, vm.uiState.value.mainTripPhoto)
+    fail = true
+    vm.refresh()
+    advanceUntilIdle()
+    assertEquals("lisbon", vm.uiState.value.mainTrip?.id)
+    assertNull(vm.uiState.value.errorMessage)
+    assertNull(vm.uiState.value.mainTripPhoto)
   }
 
   @Test

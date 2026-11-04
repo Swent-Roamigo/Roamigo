@@ -134,6 +134,7 @@ fun RoamigoApp(
           onMapClick = onMapClick,
           tripRepository = tripRepository,
           userRepository = userRepository,
+          destinationRepository = destinationRepository,
           onNewTripClick = { navController.navigate(Route.NEW_TRIP) },
           onProfileClick = { navController.navigate(Route.PROFILE) },
           onFriendsClick = { navController.navigate(Route.FRIENDS) { launchSingleTop = true } },

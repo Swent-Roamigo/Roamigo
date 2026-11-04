@@ -1,6 +1,8 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.trips
 
+import com.swent.roamigo.model.destination.DestinationPhoto
+
 /**
  * Represents all presentation state required by the Trips Home screen.
  *
@@ -22,6 +24,7 @@ data class TripsUiState(
     val mainTrip: MainTripUiModel? = null,
     val nextActivity: ActivityCardUiModel? = null,
     val otherTrips: List<OtherTripUiModel> = emptyList(),
+    val mainTripPhoto: DestinationPhoto? = null,
 )
 
 /**

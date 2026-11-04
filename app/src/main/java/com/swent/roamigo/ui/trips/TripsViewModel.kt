@@ -4,6 +4,7 @@ package com.swent.roamigo.ui.trips
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.Trip
@@ -40,6 +41,7 @@ class TripsViewModel(
     private val tripRepository: TripRepository,
     private val userRepository: UserRepository,
     private val clock: Clock = Clock.systemDefaultZone(),
+    private val destinationRepository: DestinationRepository? = null,
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow(TripsUiState())
@@ -70,7 +72,26 @@ class TripsViewModel(
           )
 
       try {
-        _uiState.value = loadTripsState()
+        val (state, location) = loadTripsState()
+        _uiState.value = state
+        val tripId = state.mainTrip?.id
+        if (tripId != null && destinationRepository != null) {
+          try {
+            if (location != null) {
+              val destination = destinationRepository.searchDestinations(location.name)
+                  .filter { kotlin.math.abs(it.latitude - location.latitude) < 0.02 &&
+                      kotlin.math.abs(it.longitude - location.longitude) < 0.02 }
+                  .minByOrNull { kotlin.math.abs(it.latitude - location.latitude) +
+                      kotlin.math.abs(it.longitude - location.longitude) }
+              val photo = destination?.let { destinationRepository.findPhoto(it) }
+              _uiState.value = _uiState.value.copy(mainTripPhoto = photo)
+            }
+          } catch (cancelled: CancellationException) {
+            throw cancelled
+          } catch (_: Exception) {
+            // Photo lookup is optional and must not prevent the trip from being displayed.
+          }
+        }
       } catch (exception: CancellationException) {
         throw exception
       } catch (exception: Exception) {
@@ -92,7 +113,7 @@ class TripsViewModel(
    * @return the fully prepared state for the Trips Home screen.
    * @throws Exception if one of the repository operations fails.
    */
-  private suspend fun loadTripsState(): TripsUiState {
+  private suspend fun loadTripsState(): Pair<TripsUiState, com.swent.roamigo.model.TripLocation?> {
     val now = ZonedDateTime.now(clock)
 
     val currentUser = userRepository.getCurrentUser()
@@ -151,7 +172,7 @@ class TripsViewModel(
 
     val firstName = currentUser.displayName.trim().substringBefore(" ").ifBlank { "Traveler" }
 
-    return TripsUiState(
+    val state = TripsUiState(
         isLoading = false,
         errorMessage = null,
         greeting = greetingFor(now),
@@ -174,6 +195,7 @@ class TripsViewModel(
             },
         otherTrips = otherTripUiModels,
     )
+    return state to mainTrip?.destinations?.firstOrNull()
   }
 
   companion object {
@@ -193,6 +215,7 @@ class TripsViewModel(
         tripRepository: TripRepository,
         userRepository: UserRepository,
         clock: Clock = Clock.systemDefaultZone(),
+        destinationRepository: DestinationRepository? = null,
     ): ViewModelProvider.Factory =
         object : ViewModelProvider.Factory {
 
@@ -203,6 +226,7 @@ class TripsViewModel(
                   tripRepository = tripRepository,
                   userRepository = userRepository,
                   clock = clock,
+                  destinationRepository = destinationRepository,
               )
                   as T
             }
