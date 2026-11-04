@@ -5,21 +5,16 @@ package com.swent.roamigo.ui
 
 import android.os.Bundle
 import android.util.Log
-import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.ClearCredentialException
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -38,28 +33,20 @@ import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
-import com.swent.roamigo.ui.authentication.AuthenticationScreen
-import com.swent.roamigo.ui.authentication.AuthenticationViewModel
+import com.swent.roamigo.ui.authentication.AuthenticationRoute
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.friends.FriendsScreen
 import com.swent.roamigo.ui.friends.FriendsUiState
 import com.swent.roamigo.ui.map.TripOverviewMapRoute
-import com.swent.roamigo.ui.map.TripOverviewMapViewModel
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.permissions.PermissionsScreen
-import com.swent.roamigo.ui.profile.ProfileScreen
-import com.swent.roamigo.ui.profile.ProfileViewModel
+import com.swent.roamigo.ui.profile.ProfileRoute
 import com.swent.roamigo.ui.trip.TripRoute
-import com.swent.roamigo.ui.trip.creation.CreateTripViewModel
-import com.swent.roamigo.ui.trip.creation.DatesTravelersScreen
-import com.swent.roamigo.ui.trip.creation.DestinationScreen
-import com.swent.roamigo.ui.trip.creation.TripReadyScreen
-import com.swent.roamigo.ui.trip.creation.TripReadyViewModel
+import com.swent.roamigo.ui.trip.creation.CreateTripRoute
+import com.swent.roamigo.ui.trip.creation.TripReadyRoute
 import com.swent.roamigo.ui.trip.history.TripHistoryRoute
-import com.swent.roamigo.ui.trip.voting.CreateVoteScreen
-import com.swent.roamigo.ui.trip.voting.CreateVoteViewModel
-import com.swent.roamigo.ui.trip.voting.VoteScreen
-import com.swent.roamigo.ui.trip.voting.VoteViewModel
+import com.swent.roamigo.ui.trip.voting.CreateVoteRoute
+import com.swent.roamigo.ui.trip.voting.VoteRoute
 import com.swent.roamigo.ui.trips.TripsRoute
 import kotlinx.coroutines.launch
 
@@ -108,8 +95,8 @@ fun RoamigoApp(
       )
     }
     composable(Route.AUTHENTICATION) {
-      AuthenticationScreen(
-          authViewModel = viewModel { AuthenticationViewModel(authRepository) },
+      AuthenticationRoute(
+          authRepository = authRepository,
           credentialManager = credentialManager,
           onSignedIn = {
             // Back from trips must not return to authentication or permissions.
@@ -149,8 +136,11 @@ fun RoamigoApp(
           navController.navigate(Route.AUTHENTICATION) { popUpTo(navController.graph.id) }
         }
       } else {
-        VoteScreen(
-            viewModel = viewModel { VoteViewModel(voteRepository, tripId, voteId, userId) },
+        VoteRoute(
+            voteRepository = voteRepository,
+            tripId = tripId,
+            voteId = voteId,
+            currentUserId = userId,
             onBack = { navController.popBackStack() },
             readOnly = entry.arguments?.getString("readOnly") == "true",
         )
@@ -164,11 +154,10 @@ fun RoamigoApp(
           navController.navigate(Route.AUTHENTICATION) { popUpTo(navController.graph.id) }
         }
       } else {
-        val creationViewModel = viewModel { CreateVoteViewModel(voteRepository, tripId, userId) }
-        val state by creationViewModel.uiState.collectAsState()
-        BackHandler(enabled = state.isSubmitting) { /* Wait for the pending write. */ }
-        CreateVoteScreen(
-            viewModel = creationViewModel,
+        CreateVoteRoute(
+            voteRepository = voteRepository,
+            tripId = tripId,
+            currentUserId = userId,
             onBack = { navController.popBackStack() },
             onVoteCreated = { navController.popBackStack() },
         )
@@ -182,28 +171,23 @@ fun RoamigoApp(
       )
     }
     composable(Route.PROFILE) {
-      val profileViewModel = viewModel { ProfileViewModel(authRepository) }
-      val state by profileViewModel.uiState.collectAsState()
-      LaunchedEffect(state.signedOut) {
-        if (state.signedOut) {
-          scope.launch {
-            try {
-              manager.clearCredentialState(ClearCredentialStateRequest())
-            } catch (e: ClearCredentialException) {
-              // The repository session is already gone, so still return to authentication.
-              Log.w("RoamigoApp", "Could not clear credential state", e)
+      ProfileRoute(
+          authRepository = authRepository,
+          onSignedOut = {
+            scope.launch {
+              try {
+                manager.clearCredentialState(ClearCredentialStateRequest())
+              } catch (e: ClearCredentialException) {
+                // The repository session is already gone, so still return to authentication.
+                Log.w("RoamigoApp", "Could not clear credential state", e)
+              }
+              navController.navigate(Route.AUTHENTICATION) {
+                popUpTo(navController.graph.id)
+                launchSingleTop = true
+              }
             }
-            navController.navigate(Route.AUTHENTICATION) {
-              popUpTo(navController.graph.id)
-              launchSingleTop = true
-            }
-          }
-        }
-      }
-      ProfileScreen(
-          state,
+          },
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
-          onSignOutClick = profileViewModel::signOut,
           onMapClick = onMapClick,
           onFriendsClick = { navigateRoot(navController, Route.FRIENDS) },
       )
@@ -258,7 +242,6 @@ fun RoamigoApp(
 
     composable(Route.TRIP_READY) { entry ->
       val id = requireNotNull(entry.arguments?.getString("tripId"))
-      val readyViewModel = viewModel { TripReadyViewModel(tripRepository, id) }
       val photo by
           entry.savedStateHandle.getStateFlow<Bundle?>("ready_photo", null).collectAsState()
       val onInviteClick = rememberNotImplementedAction()
@@ -270,8 +253,9 @@ fun RoamigoApp(
         }
       }
       val onShareTripClick = rememberNotImplementedAction()
-      TripReadyScreen(
-          viewModel = readyViewModel,
+      TripReadyRoute(
+          tripRepository = tripRepository,
+          tripId = id,
           photo = photo,
           onInviteClick = onInviteClick,
           onSuggestClick = onSuggestClick,
@@ -282,74 +266,46 @@ fun RoamigoApp(
     }
 
     composable(Route.NEW_TRIP) { entry ->
-      val creationViewModel = viewModel {
-        CreateTripViewModel(
-            repository = tripRepository,
-            destinationRepository = destinationRepository,
-            savedStateHandle = entry.savedStateHandle,
-        )
-      }
-      val state by creationViewModel.uiState.collectAsState()
-      var datesStep by rememberSaveable { mutableStateOf(false) }
-      val back: () -> Unit = {
-        if (!state.isSubmitting) {
-          if (datesStep) datesStep = false else navController.popBackStack()
-        }
-      }
-      BackHandler(onBack = back)
-      LaunchedEffect(state.createdTripId) {
-        if (state.createdTripId != null) {
-          navController.getBackStackEntry(Route.TRIPS).savedStateHandle["trip_created"] = true
-          val first = state.selectedDestinations.firstOrNull()
-          val photo = first?.let { state.photosByDestinationId[it.stableId] }
-          navController.navigate(Route.tripReady(state.createdTripId!!)) {
-            popUpTo(Route.NEW_TRIP) { inclusive = true }
-            launchSingleTop = true
-          }
-          if (photo != null) {
-            navController.currentBackStackEntry
-                ?.savedStateHandle
-                ?.set(
-                    "ready_photo",
-                    Bundle().apply {
-                      putString("url", photo.imageUrl)
-                      putString("creator", photo.creator)
-                      putString("source", photo.sourceUrl)
-                      putString("license", photo.license)
-                      putString("licenseUrl", photo.licenseUrl)
-                      putString("title", photo.title)
-                      putString("credit", photo.credit)
-                    },
-                )
-          }
-        }
-      }
-      if (datesStep) {
-        DatesTravelersScreen(
-            createTripViewModel = creationViewModel,
-            onBack = back,
-            onClose = { if (!state.isSubmitting) navController.popBackStack() },
-            onCreateTrip = creationViewModel::createTrip,
-            onSignIn = {
-              navController.navigate(Route.AUTHENTICATION) {
-                popUpTo(Route.TRIPS) { inclusive = true }
-                launchSingleTop = true
-              }
-            },
-        )
-      } else {
-        DestinationScreen(
-            createTripViewModel = creationViewModel,
-            onBack = back,
-            onClose = { navController.popBackStack() },
-            onContinue = { datesStep = true },
-        )
-      }
+      CreateTripRoute(
+          tripRepository = tripRepository,
+          destinationRepository = destinationRepository,
+          savedStateHandle = entry.savedStateHandle,
+          onClose = { navController.popBackStack() },
+          onSignIn = {
+            navController.navigate(Route.AUTHENTICATION) {
+              popUpTo(Route.TRIPS) { inclusive = true }
+              launchSingleTop = true
+            }
+          },
+          onTripCreated = { tripId, photo ->
+            navController.getBackStackEntry(Route.TRIPS).savedStateHandle["trip_created"] = true
+            navController.navigate(Route.tripReady(tripId)) {
+              popUpTo(Route.NEW_TRIP) { inclusive = true }
+              launchSingleTop = true
+            }
+            if (photo != null) {
+              navController.currentBackStackEntry
+                  ?.savedStateHandle
+                  ?.set(
+                      "ready_photo",
+                      Bundle().apply {
+                        putString("url", photo.imageUrl)
+                        putString("creator", photo.creator)
+                        putString("source", photo.sourceUrl)
+                        putString("license", photo.license)
+                        putString("licenseUrl", photo.licenseUrl)
+                        putString("title", photo.title)
+                        putString("credit", photo.credit)
+                      },
+                  )
+            }
+          },
+      )
     }
 
     composable(Route.TRIP_OVERVIEW_MAP) {
       TripOverviewMapRoute(
-          viewModel = viewModel { TripOverviewMapViewModel(tripRepository) },
+          tripRepository = tripRepository,
           onMarkerClick = { tripId -> navController.navigate(Route.tripDetails(tripId)) },
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
           onMapClick = {},

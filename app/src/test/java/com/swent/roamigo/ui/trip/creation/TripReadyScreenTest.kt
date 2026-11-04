@@ -62,7 +62,7 @@ class TripReadyScreenTest {
 
   @Test
   fun summaryAndUnavailableActionsAreAccessible() {
-    rule.setContent { RoamigoTheme { TestTripReadyContent(ready(trip()), null) } }
+    rule.setContent { RoamigoTheme { TestTripReadyScreen(ready(trip()), null) } }
     rule
         .onNodeWithTag(TripReadyTestTags.TITLE)
         .assertIsDisplayed()
@@ -92,7 +92,7 @@ class TripReadyScreenTest {
               endDate = original.startDate,
           )
         }
-    rule.setContent { RoamigoTheme { TestTripReadyContent(ready(oneDayTrip), null) } }
+    rule.setContent { RoamigoTheme { TestTripReadyScreen(ready(oneDayTrip), null) } }
 
     rule.onNodeWithTag(TripReadyTestTags.SUMMARY).assertTextEquals("1 stop · 1 day")
   }
@@ -102,7 +102,7 @@ class TripReadyScreenTest {
     var invited = false
     rule.setContent {
       RoamigoTheme {
-        TripReadyContent(
+        TripReadyScreen(
             state = ready(trip()),
             photo = null,
             onRetry = {},
@@ -137,8 +137,7 @@ class TripReadyScreenTest {
             return delegate.getTrip(tripId)
           }
         }
-    val vm = TripReadyViewModel(repository, "trip")
-    rule.setContent { RoamigoTheme { TestTripReadyScreen(vm, null) } }
+    rule.setContent { RoamigoTheme { TestTripReadyRoute(repository, null) } }
     rule.onNodeWithTag(TripReadyTestTags.LOADING).assertExists()
     gate.complete(Unit)
     rule.waitUntil(5_000) {
@@ -173,7 +172,7 @@ class TripReadyScreenTest {
           putString("source", "https://example.com/photo")
           putString("licenseUrl", "https://example.com/license")
         }
-    rule.setContent { RoamigoTheme { TestTripReadyContent(ready(trip()), photo) } }
+    rule.setContent { RoamigoTheme { TestTripReadyScreen(ready(trip()), photo) } }
     rule.waitUntil(5_000) {
       rule.onAllNodesWithTag(TripReadyTestTags.PHOTO_CREDITS).fetchSemanticsNodes().isNotEmpty()
     }
@@ -195,7 +194,7 @@ class TripReadyScreenTest {
           )
           putString("license", "Public domain")
         }
-    rule.setContent { RoamigoTheme { TestTripReadyContent(ready(trip()), photo) } }
+    rule.setContent { RoamigoTheme { TestTripReadyScreen(ready(trip()), photo) } }
     rule.waitUntil(5_000) {
       rule.onAllNodesWithTag(TripReadyTestTags.PHOTO_CREDITS).fetchSemanticsNodes().isNotEmpty()
     }
@@ -215,20 +214,20 @@ class TripReadyScreenTest {
   @Test
   fun invalidPhotoUsesPlaceholderWithoutCredits() {
     val photo = Bundle().apply { putString("url", "android.resource://com.swent.roamigo/0") }
-    rule.setContent { RoamigoTheme { TestTripReadyContent(ready(trip()), photo) } }
+    rule.setContent { RoamigoTheme { TestTripReadyScreen(ready(trip()), photo) } }
     rule.waitForIdle()
     rule.onNodeWithTag(TripReadyTestTags.TITLE).assertTextEquals("Your trip is ready!")
     rule.onNodeWithTag(TripReadyTestTags.PHOTO_CREDITS).assertDoesNotExist()
   }
 
   @Composable
-  private fun TestTripReadyContent(
+  private fun TestTripReadyScreen(
       state: TripReadyState,
       photo: Bundle?,
       onRetry: () -> Unit = {},
   ) {
     val actions = rememberTripReadyTestActions()
-    TripReadyContent(
+    TripReadyScreen(
         state,
         photo,
         onRetry,
@@ -241,16 +240,17 @@ class TripReadyScreenTest {
   }
 
   @Composable
-  private fun TestTripReadyScreen(viewModel: TripReadyViewModel, photo: Bundle?) {
+  private fun TestTripReadyRoute(tripRepository: TripRepository, photo: Bundle?) {
     val actions = rememberTripReadyTestActions()
-    TripReadyScreen(
-        viewModel,
-        photo,
-        actions.onInviteClick,
-        actions.onSuggestClick,
-        actions.onShareLocationClick,
-        actions.onOpenItineraryClick,
-        actions.onShareTripClick,
+    TripReadyRoute(
+        tripRepository = tripRepository,
+        tripId = "trip",
+        photo = photo,
+        onInviteClick = actions.onInviteClick,
+        onSuggestClick = actions.onSuggestClick,
+        onShareLocationClick = actions.onShareLocationClick,
+        onOpenItineraryClick = actions.onOpenItineraryClick,
+        onShareTripClick = actions.onShareTripClick,
     )
   }
 

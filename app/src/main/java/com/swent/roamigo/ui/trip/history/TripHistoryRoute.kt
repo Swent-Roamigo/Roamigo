@@ -1,8 +1,9 @@
+// AI assistance was used for implementation support.
 package com.swent.roamigo.ui.trip.history
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
@@ -19,7 +20,7 @@ fun TripHistoryRoute(
   val historyViewModel: TripHistoryViewModel =
       viewModel(factory = TripHistoryViewModel.factory(tripRepository))
 
-  val historyState by historyViewModel.uiState.collectAsState()
+  val historyState by historyViewModel.uiState.collectAsStateWithLifecycle()
 
   TripHistoryScreen(
       uiState = historyState,

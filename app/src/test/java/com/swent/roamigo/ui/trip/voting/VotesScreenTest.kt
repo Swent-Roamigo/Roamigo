@@ -41,7 +41,7 @@ class VotesScreenTest {
   ) {
     composeRule.setContent {
       RoamigoTheme {
-        VotesScreenContent(
+        VotesScreen(
             state = state,
             tripName = "Lisbon & Porto",
             onOpenVote = onOpenVote,
@@ -68,7 +68,7 @@ class VotesScreenTest {
         )
     composeRule.setContent {
       RoamigoTheme {
-        VotesScreenContent(
+        VotesScreen(
             state,
             "Trip",
             {},
@@ -254,7 +254,7 @@ class VotesScreenTest {
     var state by mutableStateOf<VotesUiState>(VotesUiState.Empty)
     composeRule.setContent {
       RoamigoTheme {
-        VotesScreenContent(
+        VotesScreen(
             state = state,
             tripName = "Trip",
             onOpenVote = {},

@@ -73,7 +73,7 @@ class DatesTravelersScreenTest {
     composeRule.setContent {
       Box(Modifier.size(width = 390.dp, height = 480.dp)) {
         RoamigoTheme {
-          DatesTravelersScreen(
+          DatesTravelersRoute(
               createTripViewModel = viewModel,
               onBack = {},
               onClose = {},
@@ -234,7 +234,7 @@ class DatesTravelersScreenTest {
     val initialState = CreateTripUiState(visibleMonth = pastMonth)
     composeRule.setContent {
       RoamigoTheme {
-        DatesTravelersScreenContent(
+        DatesTravelersScreen(
             uiState = initialState,
             onBack = {},
             onClose = {},
@@ -283,7 +283,7 @@ class DatesTravelersScreenTest {
   private fun showScreen(viewModel: CreateTripViewModel, onCreateTrip: () -> Unit = {}) {
     composeRule.setContent {
       RoamigoTheme {
-        DatesTravelersScreen(
+        DatesTravelersRoute(
             createTripViewModel = viewModel,
             onBack = {},
             onClose = {},

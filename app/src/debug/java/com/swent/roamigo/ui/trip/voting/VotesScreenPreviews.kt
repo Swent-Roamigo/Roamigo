@@ -69,7 +69,7 @@ private fun VotesEmptyPreview() = VotesPreview(VotesUiState.Empty)
 @Composable
 internal fun VotesPreview(state: VotesUiState) {
   RoamigoTheme {
-    VotesScreenContent(
+    VotesScreen(
         state = state,
         tripName = "Lisbon & Porto",
         onOpenVote = {},

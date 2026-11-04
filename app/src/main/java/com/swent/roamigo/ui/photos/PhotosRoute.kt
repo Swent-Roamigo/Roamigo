@@ -15,6 +15,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.ActivityCompat
@@ -23,24 +24,41 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.createSavedStateHandle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
-import com.swent.roamigo.model.photo.PendingPhoto
+import com.swent.roamigo.model.connectivity.ConnectivityRepository
+import com.swent.roamigo.model.photo.PhotoRepository
 import java.io.File
 
 /**
- * Connects [PhotosViewModel] to the Android parts it cannot touch: the permission dialog, the
- * camera and the system settings.
+ * Obtains [PhotosViewModel] for [tripId] and connects it to the permission dialog, camera and
+ * system settings.
  *
- * @param fileOf the file holding a waiting photo, to show its thumbnail.
+ * @param tripId identifier of the trip whose photos are shown.
+ * @param currentUserId identifier of the signed-in user, or null when signed out.
+ * @param photoUri provides the content URI handed to the external camera for a capture file.
  */
 @Composable
 fun PhotosRoute(
-    viewModel: PhotosViewModel,
+    photoRepository: PhotoRepository,
+    connectivityRepository: ConnectivityRepository,
+    tripId: String,
     tripName: String,
-    fileOf: (PendingPhoto) -> File,
+    currentUserId: String?,
     modifier: Modifier = Modifier,
     readOnly: Boolean = false,
+    photoUri: (File) -> Uri = rememberPhotoUri(),
 ) {
+  val viewModel = viewModel {
+    PhotosViewModel(
+        repository = photoRepository,
+        connectivity = connectivityRepository,
+        tripId = tripId,
+        currentUserId = currentUserId,
+        savedStateHandle = createSavedStateHandle(),
+    )
+  }
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   val context = LocalContext.current
   val activity = LocalActivity.current
@@ -69,13 +87,7 @@ fun PhotosRoute(
             permissionLauncher.launch(Manifest.permission.CAMERA)
         is PhotosEffect.LaunchCamera ->
             try {
-              cameraLauncher.launch(
-                  FileProvider.getUriForFile(
-                      context,
-                      "${context.packageName}.fileprovider",
-                      effect.file,
-                  )
-              )
+              cameraLauncher.launch(photoUri(effect.file))
             } catch (_: ActivityNotFoundException) {
               // The camera is optional in the manifest, so a device may have no app to take photos.
               viewModel.onCameraUnavailable()
@@ -128,7 +140,7 @@ fun PhotosRoute(
     PhotosScreen(
         state = state,
         tripName = tripName,
-        fileOf = fileOf,
+        fileOf = photoRepository::fileOf,
         onTakePhotoClick = {
           viewModel.onTakePhotoClick(
               ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
@@ -148,4 +160,12 @@ fun PhotosRoute(
       onOpenSettings = viewModel::onOpenSettings,
       onDismiss = viewModel::onStepDismissed,
   )
+}
+
+@Composable
+private fun rememberPhotoUri(): (File) -> Uri {
+  val context = LocalContext.current
+  return remember(context) {
+    { file -> FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file) }
+  }
 }

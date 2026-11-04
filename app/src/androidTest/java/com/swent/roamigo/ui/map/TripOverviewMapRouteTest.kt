@@ -13,7 +13,6 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.Timestamp
@@ -78,7 +77,7 @@ class TripOverviewMapRouteTest {
     composeRule.setContent {
       RoamigoTheme {
         TripOverviewMapRoute(
-            viewModel = viewModel { TripOverviewMapViewModel(repository) },
+            tripRepository = repository,
             modifier = Modifier.testTag("trip_overview_route"),
             onMarkerClick = { clickedTripId = it },
             onTripsClick = { navigationActions += "trips" },
@@ -123,11 +122,7 @@ class TripOverviewMapRouteTest {
             return pendingRetry.await()
           }
         }
-    composeRule.setContent {
-      RoamigoTheme {
-        TripOverviewMapRoute(viewModel = viewModel { TripOverviewMapViewModel(repository) })
-      }
-    }
+    composeRule.setContent { RoamigoTheme { TripOverviewMapRoute(tripRepository = repository) } }
 
     composeRule.loadLocalMapStyle()
     waitForText(errorMessage)

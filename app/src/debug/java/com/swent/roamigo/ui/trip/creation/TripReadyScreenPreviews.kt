@@ -34,7 +34,7 @@ private fun TripReadyPreview() {
           createdAt = Timestamp(1791763200, 0),
       )
   RoamigoTheme {
-    TripReadyContent(
+    TripReadyScreen(
         state =
             TripReadyState.Ready(
                 trip,

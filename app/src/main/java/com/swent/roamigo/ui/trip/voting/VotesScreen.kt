@@ -27,27 +27,40 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
+import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.voting.components.VoteErrorContent
 import com.swent.roamigo.ui.trip.voting.components.VotesList
 
-/** Collects live trip summaries and forwards card actions to the trip route. */
+/** Connects [voteRepository] state and actions to [VotesScreen]. */
 @Composable
-fun VotesScreen(
-    viewModel: VotesViewModel,
+fun VotesRoute(
+    voteRepository: VoteRepository,
+    tripId: String,
+    currentUserId: String,
     tripName: String,
     onOpenVote: (String) -> Unit,
+    onOpenLiveVote: (String) -> Unit,
     onCreateVote: () -> Unit,
     modifier: Modifier = Modifier,
     onCloseVote: ((String) -> Unit)? = null,
     readOnly: Boolean = false,
 ) {
+  val viewModel = viewModel { VotesViewModel(voteRepository, tripId, currentUserId) }
   val state by viewModel.uiState.collectAsStateWithLifecycle()
-  VotesScreenContent(
+  VotesScreen(
       state = state,
       tripName = tripName,
-      onOpenVote = { id -> viewModel.selectVote(id)?.let(onOpenVote) },
+      onOpenVote = { id ->
+        viewModel.selectVote(id)?.let { voteId ->
+          val ready = viewModel.uiState.value as? VotesUiState.Ready
+          if (!readOnly && ready?.liveVotes?.any { it.uid == voteId } == true)
+              onOpenLiveVote(voteId)
+          else onOpenVote(voteId)
+        }
+      },
       onCreateVote = onCreateVote,
       onRetry = viewModel::retry,
       onCloseVote = onCloseVote,
@@ -58,7 +71,7 @@ fun VotesScreen(
 
 /** Stateless content of the Votes tab. */
 @Composable
-fun VotesScreenContent(
+fun VotesScreen(
     state: VotesUiState,
     tripName: String,
     onOpenVote: (String) -> Unit,
@@ -105,7 +118,13 @@ fun VotesScreenContent(
                 )
               }
           VotesUiState.Error -> VoteErrorContent(R.string.votes_load_error, onRetry)
-          is VotesUiState.Ready -> VotesList(state, onOpenVote, onRetry, onCloseVote = onCloseVote)
+          is VotesUiState.Ready ->
+              VotesList(
+                  state,
+                  onOpenVote,
+                  onRetry,
+                  onCloseVote = onCloseVote.takeUnless { readOnly },
+              )
         }
       }
       if (!readOnly && (state is VotesUiState.Empty || state is VotesUiState.Ready)) {

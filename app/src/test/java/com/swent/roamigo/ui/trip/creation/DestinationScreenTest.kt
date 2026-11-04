@@ -279,7 +279,7 @@ class DestinationScreenTest {
   private fun show(viewModel: CreateTripViewModel) {
     composeRule.setContent {
       RoamigoTheme {
-        DestinationScreen(
+        DestinationRoute(
             createTripViewModel = viewModel,
             onBack = {},
             onClose = {},

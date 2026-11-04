@@ -63,6 +63,7 @@ import androidx.credentials.CredentialManager
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
+import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.ui.theme.AuthErrorBody
 import com.swent.roamigo.ui.theme.AuthErrorBorder
 import com.swent.roamigo.ui.theme.AuthErrorSurface
@@ -71,14 +72,15 @@ import com.swent.roamigo.ui.theme.AuthNoticeBorder
 import com.swent.roamigo.ui.theme.AuthNoticeSurface
 import com.swent.roamigo.ui.theme.Spacing
 
-/** Connects authentication to its ViewModel and delegates successful sign-in to navigation. */
+/** Connects [authRepository] to [AuthenticationScreen] and forwards successful sign-in. */
 @Composable
-fun AuthenticationScreen(
+fun AuthenticationRoute(
+    authRepository: AuthRepository,
     onSignedIn: () -> Unit,
     modifier: Modifier = Modifier,
-    authViewModel: AuthenticationViewModel = viewModel(),
     credentialManager: CredentialManager? = null,
 ) {
+  val authViewModel = viewModel { AuthenticationViewModel(authRepository) }
   val context = LocalContext.current
   val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }
   val uiState by authViewModel.uiState.collectAsStateWithLifecycle()

@@ -18,6 +18,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,8 +29,11 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.swent.roamigo.R
+import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.InfoRow
@@ -37,6 +42,29 @@ import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.Ochre
 import com.swent.roamigo.ui.theme.Paper
 import com.swent.roamigo.ui.theme.Spacing
+
+/** Connects [authRepository] to [ProfileScreen] and forwards successful sign-out. */
+@Composable
+fun ProfileRoute(
+    authRepository: AuthRepository,
+    onSignedOut: () -> Unit,
+    modifier: Modifier = Modifier,
+    onTripsClick: () -> Unit = rememberNotImplementedAction(),
+    onFriendsClick: () -> Unit = rememberNotImplementedAction(),
+    onMapClick: () -> Unit = {},
+) {
+  val viewModel = viewModel { ProfileViewModel(authRepository) }
+  val state by viewModel.uiState.collectAsStateWithLifecycle()
+  LaunchedEffect(state.signedOut) { if (state.signedOut) onSignedOut() }
+  ProfileScreen(
+      state = state,
+      modifier = modifier,
+      onTripsClick = onTripsClick,
+      onFriendsClick = onFriendsClick,
+      onSignOutClick = viewModel::signOut,
+      onMapClick = onMapClick,
+  )
+}
 
 @Composable
 fun ProfileScreen(

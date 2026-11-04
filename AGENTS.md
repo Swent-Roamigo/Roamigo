@@ -33,6 +33,26 @@ Firebase Realtime Database handles frequently changing data such as live locatio
 Firebase Storage stores shared photos.
 Mapbox provides map and location visualization.
 
+### Compose routes and screens
+
+- Follow the `FeatureRoute -> FeatureScreen` naming convention.
+- `FeatureRoute` obtains the ViewModel, collects its UI state with
+  `collectAsStateWithLifecycle()`, and connects actions and navigation callbacks.
+- `FeatureScreen` renders UI state and emits callbacks. It must not receive
+  ViewModels, repositories, or navigation controllers.
+
+### ViewModel creation and dependencies
+
+- By default, Routes receive repository interfaces, destination arguments, and
+  navigation callbacks. They obtain ViewModels through `viewModel(...)`, using
+  a feature-owned factory or initializer.
+- Keep feature-specific ViewModel setup inside the feature and navigation
+  wiring in `RoamigoApp`.
+- For multi-step flows sharing one ViewModel, prefer a parent Route that obtains
+  the shared ViewModel and passes state and callbacks to the step UIs.
+- A Route may receive an existing ViewModel when sharing is intentional, or a
+  factory when the caller needs to control construction.
+
 ## Kotlin and code conventions
 
 Write idiomatic and readable Kotlin.
