@@ -74,6 +74,42 @@ class VoteViewModelTest {
   private fun ballot(optionId: String) = VoteBallot("member", optionId, Timestamp(1, 0))
 
   @Test
+  fun voteRemovedBeforeSubmissionDoesNotWrite() = runTest {
+    createViewModel()
+    runCurrent()
+    viewModel.selectOption("a")
+    repository.vote = null
+    viewModel.submitVote()
+    runCurrent()
+    assertEquals(VoteUiState.LoadError(VoteLoadError.NOT_FOUND), viewModel.uiState.value)
+    assertTrue(repository.calls.isEmpty())
+  }
+
+  @Test
+  fun voteClosedBeforeSubmissionDoesNotWrite() = runTest {
+    createViewModel()
+    runCurrent()
+    viewModel.selectOption("a")
+    repository.vote = repository.vote!!.copy(status = VoteStatus.CLOSED)
+    viewModel.submitVote()
+    runCurrent()
+    assertEquals(VoteUiState.Closed, viewModel.uiState.value)
+    assertTrue(repository.calls.isEmpty())
+  }
+
+  @Test
+  fun optionRemovedBeforeSubmissionDoesNotWrite() = runTest {
+    createViewModel()
+    runCurrent()
+    viewModel.selectOption("a")
+    repository.vote = repository.vote!!.copy(options = listOf(VoteOption("b", "Restaurant")))
+    viewModel.submitVote()
+    runCurrent()
+    assertEquals(VoteSubmissionState.Failed, ready().submissionState)
+    assertTrue(repository.calls.isEmpty())
+  }
+
+  @Test
   fun loadsQuestionOptionsAndNoInitialChoice() = runTest {
     createViewModel()
     assertEquals(VoteUiState.Loading, viewModel.uiState.value)

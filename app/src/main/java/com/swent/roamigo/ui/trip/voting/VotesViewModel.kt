@@ -7,19 +7,28 @@ import com.swent.roamigo.model.trip.voting.Vote
 import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.trip.voting.VoteStatus
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
  * Observes the votes belonging to one trip. The repository owns data access and listener cleanup;
- * the caller owns navigation to [VoteViewModel] for a selected vote.
+ * ballot summaries are collected only while the UI is subscribed. Drafts belong to [VoteViewModel].
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class VotesViewModel(
     private val voteRepository: VoteRepository,
     val tripId: String,
+    private val userId: String,
 ) : ViewModel() {
   private val _uiState = MutableStateFlow<VotesUiState>(VotesUiState.Loading)
   val uiState: StateFlow<VotesUiState> = _uiState.asStateFlow()
@@ -54,24 +63,47 @@ class VotesViewModel(
     observationJob = viewModelScope.launch {
       // Finish cancellation before registering another listener, including during a fast retry.
       previous?.join()
-      try {
-        voteRepository.observeVotes(tripId).collect { votes ->
-          val ordered =
-              votes.sortedWith(compareByDescending<Vote> { it.creationTime }.thenBy { it.uid })
-          _uiState.value =
-              if (ordered.isEmpty()) VotesUiState.Empty
-              else
-                  VotesUiState.Ready(
-                      liveVotes = ordered.filter { it.status == VoteStatus.OPEN },
-                      closedVotes = ordered.filter { it.status == VoteStatus.CLOSED },
-                  )
-        }
-      } catch (cancelled: CancellationException) {
-        throw cancelled
-      } catch (_: Exception) {
-        val latest = _uiState.value as? VotesUiState.Ready
-        _uiState.value = latest?.copy(syncState = VotesSyncState.FAILED) ?: VotesUiState.Error
-      }
+      _uiState.subscriptionCount
+          .map { it > 0 }
+          .distinctUntilChanged()
+          .collectLatest { active ->
+            if (!active) return@collectLatest
+            try {
+              voteRepository
+                  .observeVotes(tripId)
+                  .flatMapLatest { votes ->
+                    val ordered =
+                        votes.sortedWith(
+                            compareByDescending<Vote> { it.creationTime }.thenBy { it.uid }
+                        )
+                    val open = ordered.filter { it.status == VoteStatus.OPEN }
+                    val closed = ordered.filter { it.status == VoteStatus.CLOSED }
+                    if (ordered.isEmpty()) flowOf<VotesUiState>(VotesUiState.Empty)
+                    else if (open.isEmpty()) flowOf<VotesUiState>(VotesUiState.Ready(open, closed))
+                    else
+                        combine(
+                            open.map { vote ->
+                              voteRepository.observeBallots(tripId, vote.uid).map { ballots ->
+                                val counts = ballots.groupingBy { it.optionId }.eachCount()
+                                vote.uid to
+                                    LiveVoteSummary(
+                                        vote.options.associate { it.uid to (counts[it.uid] ?: 0) },
+                                        ballots.any { it.userId == userId },
+                                    )
+                              }
+                            }
+                        ) { summaries ->
+                          VotesUiState.Ready(open, closed, liveSummaries = summaries.toMap())
+                        }
+                  }
+                  .collect { _uiState.value = it }
+            } catch (cancelled: CancellationException) {
+              throw cancelled
+            } catch (_: Exception) {
+              val latest = _uiState.value as? VotesUiState.Ready
+              _uiState.value = latest?.copy(syncState = VotesSyncState.FAILED) ?: VotesUiState.Error
+            }
+          }
     }
   }
 }

@@ -27,11 +27,18 @@ import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.history.TripHistoryItemUiModel
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
-/** Displays a completed trip with its destinations, dates, and travelers. */
+/** Displays a clickable completed trip with its destinations, dates, and travelers. */
 @Composable
-internal fun TripHistoryCard(trip: TripHistoryItemUiModel) {
+internal fun TripHistoryCard(
+    trip: TripHistoryItemUiModel,
+    onClick: () -> Unit,
+) {
   Surface(
+      onClick = onClick,
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.trip_history_card_prefix + trip.id),
       shape = MaterialTheme.shapes.medium,
       color = MaterialTheme.colorScheme.surface,
@@ -74,7 +81,7 @@ internal fun TripHistoryCard(trip: TripHistoryItemUiModel) {
         )
         Text(
             text =
-                "${trip.dateRange} · " +
+                "${formatTripHistoryDateRange(trip.startDate, trip.endDate)} · " +
                     pluralStringResource(
                         R.plurals.trips_traveler_count,
                         trip.travelerCount,
@@ -98,3 +105,11 @@ internal fun TripHistoryCard(trip: TripHistoryItemUiModel) {
     }
   }
 }
+
+private val dateFormatter = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH)
+
+/** Formats the start and end dates of a completed trip for display. */
+internal fun formatTripHistoryDateRange(
+    startDate: LocalDate,
+    endDate: LocalDate,
+): String = "${startDate.format(dateFormatter)} – ${endDate.format(dateFormatter)}"

@@ -7,6 +7,7 @@ import java.io.File
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -25,6 +26,7 @@ class DefaultPhotoRepositoryTest {
   private val queue = InMemoryPhotoQueue()
   private val scheduler = FakePhotoScheduler()
   private val location = FakeLocationRepository()
+  private val gallery = MutableStateFlow<List<TripPhoto>>(emptyList())
   private var userId: String? = "u1"
   private lateinit var files: PhotoFileStore
   private lateinit var repository: DefaultPhotoRepository
@@ -37,6 +39,7 @@ class DefaultPhotoRepositoryTest {
             files = files,
             scheduler = scheduler,
             locationRepository = location,
+            gallery = { gallery },
             currentUserId = { userId },
             clock = { 1234L },
             locationTimeout = locationTimeout,
@@ -122,6 +125,7 @@ class DefaultPhotoRepositoryTest {
             files,
             scheduler,
             slow,
+            { gallery },
             { userId },
             { 1L },
             2.seconds,
@@ -220,5 +224,27 @@ class DefaultPhotoRepositoryTest {
 
     assertEquals(PhotoUploadStatus.WAITING, queue.current.single().status)
     assertEquals(1, scheduler.calls)
+  }
+
+  @Test
+  fun listsThePhotosTheServerHasThroughTheGallery() = runTest {
+    create()
+    val requested = mutableListOf<String>()
+    repository =
+        DefaultPhotoRepository(
+            queue,
+            files,
+            scheduler,
+            location,
+            { tripId ->
+              requested += tripId
+              gallery
+            },
+            { userId },
+        )
+    gallery.value = listOf(tripPhoto("a"), tripPhoto("b"))
+
+    assertEquals(listOf("a", "b"), repository.tripPhotos("trip").first().map { it.id })
+    assertEquals(listOf("trip"), requested)
   }
 }

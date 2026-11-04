@@ -13,8 +13,15 @@ import com.mapbox.maps.extension.compose.animation.viewport.rememberMapViewportS
 internal fun rememberTripDestinationsMapViewport(
     markers: List<TripMarkerUiState>
 ): MapViewportState {
+  return rememberTripMapViewportState(
+      tripMapViewportOf(markers.map { MapCoordinate(it.latitude, it.longitude) })
+  )
+}
+
+/** Remembers the map viewport and moves the camera to [viewport] whenever it changes. */
+@Composable
+internal fun rememberTripMapViewportState(viewport: TripMapViewport): MapViewportState {
   val mapViewportState = rememberMapViewportState()
-  val viewport = tripMapViewportOf(markers.map { MapCoordinate(it.latitude, it.longitude) })
 
   LaunchedEffect(viewport, mapViewportState) { mapViewportState.apply(viewport) }
 

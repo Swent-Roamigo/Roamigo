@@ -1,3 +1,4 @@
+// AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.trip.history
 
 import androidx.lifecycle.ViewModel
@@ -96,7 +97,19 @@ class TripHistoryViewModelTest {
   }
 
   @Test
-  fun viewModelLoadsAndFormatsRepositoryTrips() = runTest {
+  fun initialStateIsLoading() = runTest {
+    val viewModel = TripHistoryViewModel(FakeTripRepository(), clock)
+
+    Assert.assertEquals(
+        TripHistoryUiState.Loading,
+        viewModel.uiState.value,
+    )
+
+    advanceUntilIdle()
+  }
+
+  @Test
+  fun viewModelLoadsRepositoryTripsWithLocalDates() = runTest {
     val completed = trip("Lisbon", "2026-10-25T12:00:00Z")
     val viewModel =
         TripHistoryViewModel(
@@ -106,27 +119,26 @@ class TripHistoryViewModelTest {
 
     advanceUntilIdle()
 
-    val state = viewModel.uiState.value
-    Assert.assertEquals(false, state.isLoading)
-    Assert.assertNull(state.errorMessage)
+    val state = viewModel.uiState.value as TripHistoryUiState.Success
+
     Assert.assertEquals(1, state.trips.size)
 
     val item = state.trips.single()
     Assert.assertEquals("Lisbon", item.name)
     Assert.assertEquals(listOf("Lisbon"), item.destinations)
-    Assert.assertEquals("24 Oct 2026 – 25 Oct 2026", item.dateRange)
+    Assert.assertEquals(LocalDate.of(2026, 10, 24), item.startDate)
+    Assert.assertEquals(LocalDate.of(2026, 10, 25), item.endDate)
     Assert.assertEquals(2, item.travelerCount)
   }
 
   @Test
-  fun emptyRepositoryProducesEmptyState() = runTest {
+  fun emptyRepositoryProducesEmptySuccessState() = runTest {
     val viewModel = TripHistoryViewModel(FakeTripRepository(), clock)
 
     advanceUntilIdle()
 
-    Assert.assertEquals(false, viewModel.uiState.value.isLoading)
-    Assert.assertNull(viewModel.uiState.value.errorMessage)
-    Assert.assertTrue(viewModel.uiState.value.trips.isEmpty())
+    val state = viewModel.uiState.value as TripHistoryUiState.Success
+    Assert.assertTrue(state.trips.isEmpty())
   }
 
   @Test
@@ -136,12 +148,12 @@ class TripHistoryViewModelTest {
 
     advanceUntilIdle()
 
-    Assert.assertEquals(false, viewModel.uiState.value.isLoading)
+    val state = viewModel.uiState.value as TripHistoryUiState.Error
+
     Assert.assertEquals(
         "Unable to load trip history.",
-        viewModel.uiState.value.errorMessage,
+        state.message,
     )
-    Assert.assertTrue(viewModel.uiState.value.trips.isEmpty())
   }
 
   @Test
@@ -165,35 +177,22 @@ class TripHistoryViewModelTest {
 
     val viewModel = TripHistoryViewModel(repository, clock)
 
-    // Start the first request, which remains suspended.
     runCurrent()
     Assert.assertEquals(1, requestCount)
 
-    // A second refresh must cancel the previous one.
     viewModel.refresh()
     advanceUntilIdle()
 
     Assert.assertEquals(2, requestCount)
-    Assert.assertEquals(
-        listOf("new"),
-        viewModel.uiState.value.trips.map { it.name },
-    )
-    Assert.assertEquals(false, viewModel.uiState.value.isLoading)
-    Assert.assertNull(viewModel.uiState.value.errorMessage)
+
+    val state = viewModel.uiState.value as TripHistoryUiState.Success
+    Assert.assertEquals(listOf("new"), state.trips.map { it.name })
   }
 
   @Test
   fun ordersTripsWithSameEndSecondByNanoseconds() {
-    val earlier =
-        trip(
-            "earlier",
-            "2026-10-20T12:00:00.100Z",
-        )
-    val later =
-        trip(
-            "later",
-            "2026-10-20T12:00:00.900Z",
-        )
+    val earlier = trip("earlier", "2026-10-20T12:00:00.100Z")
+    val later = trip("later", "2026-10-20T12:00:00.900Z")
 
     val result =
         selectCompletedTrips(
@@ -207,12 +206,7 @@ class TripHistoryViewModelTest {
 
   @Test
   fun factoryCreatesViewModelAndLoadsTrips() = runTest {
-    val completedTrip =
-        trip(
-            "factory-trip",
-            "2026-10-25T12:00:00Z",
-        )
-
+    val completedTrip = trip("factory-trip", "2026-10-25T12:00:00Z")
     val factory =
         TripHistoryViewModel.factory(
             FakeTripRepository(trips = listOf(completedTrip)),
@@ -222,9 +216,11 @@ class TripHistoryViewModelTest {
     val viewModel = factory.create(TripHistoryViewModel::class.java)
     advanceUntilIdle()
 
+    val state = viewModel.uiState.value as TripHistoryUiState.Success
+
     Assert.assertEquals(
         listOf("factory-trip"),
-        viewModel.uiState.value.trips.map { it.name },
+        state.trips.map { it.name },
     )
   }
 
@@ -232,11 +228,7 @@ class TripHistoryViewModelTest {
   fun factoryRejectsUnexpectedViewModelClass() {
     class OtherViewModel : ViewModel()
 
-    TripHistoryViewModel.factory(
-            FakeTripRepository(),
-            clock,
-        )
-        .create(OtherViewModel::class.java)
+    TripHistoryViewModel.factory(FakeTripRepository(), clock).create(OtherViewModel::class.java)
   }
 
   @Test
@@ -257,18 +249,17 @@ class TripHistoryViewModelTest {
     val viewModel = TripHistoryViewModel(repository, clock)
     advanceUntilIdle()
 
-    Assert.assertEquals(
-        "Unable to load trip history.",
-        viewModel.uiState.value.errorMessage,
-    )
+    val error = viewModel.uiState.value as TripHistoryUiState.Error
+    Assert.assertEquals("Unable to load trip history.", error.message)
 
     viewModel.refresh()
     advanceUntilIdle()
 
-    Assert.assertNull(viewModel.uiState.value.errorMessage)
+    val success = viewModel.uiState.value as TripHistoryUiState.Success
+
     Assert.assertEquals(
         listOf("recovered"),
-        viewModel.uiState.value.trips.map { it.name },
+        success.trips.map { it.name },
     )
   }
 
