@@ -4,6 +4,8 @@ package com.swent.roamigo.model.trip
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -179,5 +181,55 @@ class TripFirestoreMappingTest {
         )
 
     assertEquals(activity, activityFromFirestore(activity.uid, activity.tripId, data))
+  }
+
+  @Test
+  fun validCountryCodesSurviveFirestoreRoundTrip() {
+    val withCountryCode =
+        trip.copy(destinations = listOf(TripLocation(38.7223, -9.1393, "Lisbon", "PT")))
+
+    val data = withCountryCode.toFirestoreData()
+    val savedLocation = (data["destinations"] as List<*>).single() as Map<*, *>
+
+    assertEquals("PT", savedLocation["countryCode"])
+    assertEquals(
+        withCountryCode,
+        tripFromFirestore(withCountryCode.uid, data),
+    )
+  }
+
+  @Test
+  fun missingCountryCodeIsNotWrittenAndCanBeRead() {
+    val data = trip.toFirestoreData()
+    val savedLocation = (data["destinations"] as List<*>).first() as Map<*, *>
+
+    assertFalse(savedLocation.containsKey("countryCode"))
+
+    val restoredTrip = tripFromFirestore(trip.uid, data)
+
+    assertNull(restoredTrip.destinations.first().countryCode)
+  }
+
+  @Test
+  fun malformedCountryCodesAreIgnoredWhenReadingFirestore() {
+    val location =
+        mapOf<String, Any?>(
+            "name" to "Lisbon",
+            "latitude" to 38.7223,
+            "longitude" to -9.1393,
+        )
+
+    val invalidValues: List<Any?> = listOf("", "pt", "PRT", "P1", 42, true, null)
+
+    invalidValues.forEach { invalidCode ->
+      val data =
+          trip.toFirestoreData() +
+              ("destinations" to listOf(location + ("countryCode" to invalidCode)))
+
+      val restoredTrip = tripFromFirestore(trip.uid, data)
+
+      assertEquals("Lisbon", restoredTrip.destinations.single().name)
+      assertNull(restoredTrip.destinations.single().countryCode)
+    }
   }
 }

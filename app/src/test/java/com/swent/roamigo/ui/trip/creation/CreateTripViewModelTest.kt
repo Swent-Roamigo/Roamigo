@@ -159,10 +159,10 @@ class CreateTripViewModelTest {
     assertEquals("Prague → Lisbon → Barcelona → Porto", draft.name)
     assertEquals(
         listOf(
-            TripLocation(50.0755, 14.4378, "Prague"),
-            TripLocation(38.7223, -9.1393, "Lisbon"),
-            TripLocation(41.3874, 2.1686, "Barcelona"),
-            TripLocation(41.1579, -8.6291, "Porto"),
+            TripLocation(50.0755, 14.4378, "Prague", "CZ"),
+            TripLocation(38.7223, -9.1393, "Lisbon", "PT"),
+            TripLocation(41.3874, 2.1686, "Barcelona", "ES"),
+            TripLocation(41.1579, -8.6291, "Porto", "PT"),
         ),
         draft.destinations,
     )
@@ -319,6 +319,29 @@ class CreateTripViewModelTest {
     assertNull(viewModel.uiState.value.creationError)
     assertNull(viewModel.uiState.value.createdTripId)
     assertFalse(viewModel.uiState.value.isSubmitting)
+  }
+
+  @Test
+  fun invalidGeoNamesCountryCodesAreOmittedFromTripDraft() = runTest {
+    listOf("", "pt", "PRT", "P1").forEach { code ->
+      val repository = RecordingRepository()
+      val viewModel =
+          createTestCreateTripViewModel(
+              repository,
+              destinationRepository = FakeDestinationRepository(),
+          )
+
+      viewModel.toggleDestination(sampleDestination("Lisbon").copy(countryCode = code))
+      viewModel.createTrip()
+      advanceUntilIdle()
+
+      val draft = repository.requests.single().second
+
+      assertNull(
+          "Invalid country code '$code' should be omitted",
+          draft.destinations.single().countryCode,
+      )
+    }
   }
 
   private class RecordingRepository(
