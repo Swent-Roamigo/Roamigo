@@ -41,6 +41,7 @@ class TripDetailsRouteTest {
               votedTripNames += tripName
             },
             onMapClick = { actions += "map" },
+            onTripMapClick = { actions += "tripMap" },
             onPhotosClick = { actions += "photos" },
         )
       }
@@ -52,8 +53,12 @@ class TripDetailsRouteTest {
     composeRule.onNodeWithText("Votes").performClick()
     composeRule.onNodeWithText("Open trip map").performClick()
     composeRule.onNodeWithText("Trips").performClick()
+    composeRule.onNodeWithText("Map").performClick()
     composeRule.onNodeWithText("Photos").performClick()
-    assertEquals(listOf("share", "invite", "itinerary", "votes", "map", "trips", "photos"), actions)
+    assertEquals(
+        listOf("share", "invite", "itinerary", "votes", "tripMap", "trips", "map", "photos"),
+        actions,
+    )
     assertEquals(listOf("Lisbon & Porto"), votedTripNames)
   }
 
@@ -78,6 +83,7 @@ class TripDetailsRouteTest {
             onTripsClick = {},
             onVotesClick = { votedTripNames += it },
             onMapClick = {},
+            onTripMapClick = {},
         )
       }
     }

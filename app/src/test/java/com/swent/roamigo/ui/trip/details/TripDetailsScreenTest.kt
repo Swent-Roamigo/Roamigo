@@ -80,6 +80,7 @@ class TripDetailsScreenTest {
             onItineraryClick = { actions += "itinerary" },
             onVotesClick = { actions += "votes" },
             onMapClick = { actions += "map" },
+            onTripMapClick = { actions += "tripMap" },
             onPhotosClick = { actions += "photos" },
         )
       }
@@ -94,7 +95,7 @@ class TripDetailsScreenTest {
     composeRule.onNodeWithText("Map").performClick()
     composeRule.onNodeWithText("Photos").performClick()
     org.junit.Assert.assertEquals(
-        listOf("share", "invite", "itinerary", "votes", "map", "trips", "map", "photos"),
+        listOf("share", "invite", "itinerary", "votes", "tripMap", "trips", "map", "photos"),
         actions,
     )
   }
@@ -115,7 +116,7 @@ class TripDetailsScreenTest {
               {},
               {},
               onShareClick = { shared = true },
-              onMapClick = { mapped = true },
+              onTripMapClick = { mapped = true },
           )
         }
       }
@@ -155,7 +156,7 @@ class TripDetailsScreenTest {
     composeRule.setContent {
       RoamigoTheme {
         Box(Modifier.height(350.dp)) {
-          TripDetailsScreen(readyState(), {}, {}, {}, onMapClick = { opened = true })
+          TripDetailsScreen(readyState(), {}, {}, {}, onTripMapClick = { opened = true })
         }
       }
     }
