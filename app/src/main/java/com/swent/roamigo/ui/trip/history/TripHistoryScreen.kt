@@ -21,18 +21,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
-import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.history.components.OpenWorldMapButton
 import com.swent.roamigo.ui.trip.history.components.TripHistoryCard
 import com.swent.roamigo.ui.trip.history.components.TripHistoryHeader
-import java.time.LocalDate
 
 @Composable
 fun TripHistoryScreen(
@@ -152,29 +149,5 @@ fun TripHistoryScreen(
         }
       }
     }
-  }
-}
-
-@Preview(showBackground = true, widthDp = 390, heightDp = 844)
-@Composable
-private fun TripHistoryPreview() {
-  RoamigoTheme {
-    TripHistoryScreen(
-        uiState =
-            TripHistoryUiState.Success(
-                trips =
-                    listOf(
-                        TripHistoryItemUiModel(
-                            id = "rome",
-                            name = "Summer in Italy",
-                            destinations = listOf("Rome", "Florence"),
-                            startDate = LocalDate.of(2016, 6, 5),
-                            endDate = LocalDate.of(2016, 6, 12),
-                            travelerCount = 3,
-                        )
-                    )
-            ),
-        onOpenTrip = {},
-    )
   }
 }

@@ -23,16 +23,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.swent.roamigo.R
-import com.swent.roamigo.ui.theme.RoamigoTheme
 
 internal object CreateTripScaffoldTestTags {
   const val PRIMARY_ACTION = "create_trip_primary_action"
@@ -153,23 +150,5 @@ private fun HeaderAction(
         fontSize = 24.sp,
         lineHeight = 24.sp,
     )
-  }
-}
-
-@Preview(showBackground = true, widthDp = 390, heightDp = 844)
-@Composable
-private fun CreateTripScaffoldPreview() {
-  RoamigoTheme {
-    CreateTripScaffold(
-        step = 1,
-        title = stringResource(R.string.create_trip_destination_title),
-        subtitle = stringResource(R.string.create_trip_destination_subtitle),
-        onBack = {},
-        onClose = {},
-        primaryActionLabel = pluralStringResource(R.plurals.create_trip_destination_continue, 2, 2),
-        onPrimaryAction = {},
-    ) {
-      Text(stringResource(R.string.preview_step_content), modifier = Modifier.padding(top = 8.dp))
-    }
   }
 }

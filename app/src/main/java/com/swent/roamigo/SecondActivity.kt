@@ -11,7 +11,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
-import androidx.compose.ui.tooling.preview.Preview
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 
@@ -35,10 +34,4 @@ class SecondActivity : ComponentActivity() {
 @Composable
 fun GreetingRobo(name: String, modifier: Modifier = Modifier) {
   Text(text = "Hello $name!", modifier = modifier.semantics { testTag = C.Tag.greeting_robo })
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview2() {
-  RoamigoTheme { GreetingRobo("Robolectric") }
 }
