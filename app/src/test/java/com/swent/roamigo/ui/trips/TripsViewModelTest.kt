@@ -4,11 +4,13 @@ package com.swent.roamigo.ui.trips
 
 import androidx.lifecycle.ViewModel
 import com.google.firebase.Timestamp
+import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.authentication.AuthenticatedUser
+import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.Destination
 import com.swent.roamigo.model.destination.DestinationKind
 import com.swent.roamigo.model.destination.DestinationPhoto
 import com.swent.roamigo.model.destination.DestinationRepository
-import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.FakeTripRepository
@@ -353,25 +355,48 @@ class TripsViewModelTest {
 
   @Test
   fun photoLookupMatchesCoordinatesAndDoesNotBlockTripsOnFailure() = runTest {
-    val main = trip("lisbon", "Lisbon", "2026-10-08T00:00:00Z", "2026-10-10T23:00:00Z", TripStatus.ACTIVE)
-    val correct = Destination("correct", DestinationKind.CITY, "Lisbon", "Portugal", "PT", 38.7223, -9.1393, 1)
+    val main =
+        trip("lisbon", "Lisbon", "2026-10-08T00:00:00Z", "2026-10-10T23:00:00Z", TripStatus.ACTIVE)
+    val correct =
+        Destination(
+            "correct",
+            DestinationKind.CITY,
+            "Lisbon",
+            "Portugal",
+            "PT",
+            38.7223,
+            -9.1393,
+            1,
+        )
     val wrong = correct.copy(stableId = "wrong", latitude = 40.0)
-    val photo = DestinationPhoto("https://example.com/photo.jpg", "Author", "https://example.com", "CC BY", null)
+    val photo =
+        DestinationPhoto(
+            "https://example.com/photo.jpg",
+            "Author",
+            "https://example.com",
+            "CC BY",
+            null,
+        )
     var fail = false
-    val destinations = object : DestinationRepository {
-      override suspend fun searchDestinations(query: String): List<Destination> {
-        if (fail) error("offline")
-        return listOf(wrong, correct)
-      }
-      override suspend fun findPhoto(destination: Destination): DestinationPhoto? {
-        assertEquals(correct, destination)
-        return photo
-      }
-    }
-    val vm = TripsViewModel(
-        FakeTripRepository(trips = listOf(main)), FakeUserRepository(currentUser = alex),
-        Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC), destinations,
-    )
+    val destinations =
+        object : DestinationRepository {
+          override suspend fun searchDestinations(query: String): List<Destination> {
+            if (fail) error("offline")
+            return listOf(wrong, correct)
+          }
+
+          override suspend fun findPhoto(destination: Destination): DestinationPhoto? {
+            assertEquals(correct, destination)
+            return photo
+          }
+        }
+    val vm =
+        TripsViewModel(
+            FakeTripRepository(trips = listOf(main)),
+            FakeUserRepository(currentUser = alex),
+            Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+            destinations,
+        )
     advanceUntilIdle()
     assertEquals(photo, vm.uiState.value.mainTripPhoto)
     fail = true
@@ -380,6 +405,37 @@ class TripsViewModelTest {
     assertEquals("lisbon", vm.uiState.value.mainTrip?.id)
     assertNull(vm.uiState.value.errorMessage)
     assertNull(vm.uiState.value.mainTripPhoto)
+  }
+
+  @Test
+  fun usesAuthenticatedAccountForGreetingAndPhotoInsteadOfPlaceholderUser() = runTest {
+    val account = AuthenticatedUser("user", "Marie Martin", null, "https://example.com/avatar.jpg")
+    val vm =
+        TripsViewModel(
+            tripRepository = FakeTripRepository(),
+            userRepository = FakeUserRepository(currentUser = alex),
+            clock = Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+            authRepository = FakeAuthRepository(account, initiallySignedIn = true),
+        )
+    advanceUntilIdle()
+    assertEquals("Marie", vm.uiState.value.currentUserName)
+    assertEquals("M", vm.uiState.value.currentUserInitial)
+    assertEquals(account.photoUrl, vm.uiState.value.currentUserPhotoUrl)
+  }
+
+  @Test
+  fun authenticatedAccountWithoutNameOrPhotoUsesTravelerFallback() = runTest {
+    val account = AuthenticatedUser("user", "  ", null, null)
+    val vm =
+        TripsViewModel(
+            tripRepository = FakeTripRepository(),
+            userRepository = FakeUserRepository(currentUser = alex),
+            authRepository = FakeAuthRepository(account, initiallySignedIn = true),
+        )
+    advanceUntilIdle()
+    assertEquals("Traveler", vm.uiState.value.currentUserName)
+    assertEquals("T", vm.uiState.value.currentUserInitial)
+    assertNull(vm.uiState.value.currentUserPhotoUrl)
   }
 
   @Test

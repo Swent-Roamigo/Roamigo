@@ -21,6 +21,7 @@ data class TripsUiState(
     val greeting: String = "",
     val currentUserName: String = "",
     val currentUserInitial: String = "",
+    val currentUserPhotoUrl: String? = null,
     val mainTrip: MainTripUiModel? = null,
     val nextActivity: ActivityCardUiModel? = null,
     val otherTrips: List<OtherTripUiModel> = emptyList(),

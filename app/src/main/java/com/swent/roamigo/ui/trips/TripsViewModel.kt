@@ -4,6 +4,7 @@ package com.swent.roamigo.ui.trips
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
@@ -11,6 +12,7 @@ import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.trip.isCompletedOn
+import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
 import java.time.Clock
 import java.time.LocalDate
@@ -42,6 +44,7 @@ class TripsViewModel(
     private val userRepository: UserRepository,
     private val clock: Clock = Clock.systemDefaultZone(),
     private val destinationRepository: DestinationRepository? = null,
+    private val authRepository: AuthRepository? = null,
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow(TripsUiState())
@@ -78,11 +81,17 @@ class TripsViewModel(
         if (tripId != null && destinationRepository != null) {
           try {
             if (location != null) {
-              val destination = destinationRepository.searchDestinations(location.name)
-                  .filter { kotlin.math.abs(it.latitude - location.latitude) < 0.02 &&
-                      kotlin.math.abs(it.longitude - location.longitude) < 0.02 }
-                  .minByOrNull { kotlin.math.abs(it.latitude - location.latitude) +
-                      kotlin.math.abs(it.longitude - location.longitude) }
+              val destination =
+                  destinationRepository
+                      .searchDestinations(location.name)
+                      .filter {
+                        kotlin.math.abs(it.latitude - location.latitude) < 0.02 &&
+                            kotlin.math.abs(it.longitude - location.longitude) < 0.02
+                      }
+                      .minByOrNull {
+                        kotlin.math.abs(it.latitude - location.latitude) +
+                            kotlin.math.abs(it.longitude - location.longitude)
+                      }
               val photo = destination?.let { destinationRepository.findPhoto(it) }
               _uiState.value = _uiState.value.copy(mainTripPhoto = photo)
             }
@@ -116,7 +125,13 @@ class TripsViewModel(
   private suspend fun loadTripsState(): Pair<TripsUiState, com.swent.roamigo.model.TripLocation?> {
     val now = ZonedDateTime.now(clock)
 
-    val currentUser = userRepository.getCurrentUser()
+    val currentUser =
+        if (authRepository != null) {
+          val account = authRepository.getCurrentUser()
+          User(account?.uid.orEmpty(), account?.displayName.orEmpty(), account?.photoUrl)
+        } else {
+          userRepository.getCurrentUser()
+        }
     val trips = tripRepository.getTrips()
 
     val mainTrip =
@@ -172,29 +187,31 @@ class TripsViewModel(
 
     val firstName = currentUser.displayName.trim().substringBefore(" ").ifBlank { "Traveler" }
 
-    val state = TripsUiState(
-        isLoading = false,
-        errorMessage = null,
-        greeting = greetingFor(now),
-        currentUserName = firstName,
-        currentUserInitial = firstName.take(1).uppercase(),
-        mainTrip =
-            mainTrip?.toMainTripUiModel(
-                activities = mainActivities,
-                memberInitials = memberInitials,
-                now = now,
-            ),
-        nextActivity =
-            if (mainTrip != null && nextActivity != null) {
-              nextActivity.toUiModel(
-                  trip = mainTrip,
-                  zoneId = now.zone,
-              )
-            } else {
-              null
-            },
-        otherTrips = otherTripUiModels,
-    )
+    val state =
+        TripsUiState(
+            isLoading = false,
+            errorMessage = null,
+            greeting = greetingFor(now),
+            currentUserName = firstName,
+            currentUserInitial = firstName.take(1).uppercase(),
+            currentUserPhotoUrl = currentUser.profilePictureUrl?.takeIf { it.isNotBlank() },
+            mainTrip =
+                mainTrip?.toMainTripUiModel(
+                    activities = mainActivities,
+                    memberInitials = memberInitials,
+                    now = now,
+                ),
+            nextActivity =
+                if (mainTrip != null && nextActivity != null) {
+                  nextActivity.toUiModel(
+                      trip = mainTrip,
+                      zoneId = now.zone,
+                  )
+                } else {
+                  null
+                },
+            otherTrips = otherTripUiModels,
+        )
     return state to mainTrip?.destinations?.firstOrNull()
   }
 
@@ -216,6 +233,7 @@ class TripsViewModel(
         userRepository: UserRepository,
         clock: Clock = Clock.systemDefaultZone(),
         destinationRepository: DestinationRepository? = null,
+        authRepository: AuthRepository? = null,
     ): ViewModelProvider.Factory =
         object : ViewModelProvider.Factory {
 
@@ -227,6 +245,7 @@ class TripsViewModel(
                   userRepository = userRepository,
                   clock = clock,
                   destinationRepository = destinationRepository,
+                  authRepository = authRepository,
               )
                   as T
             }

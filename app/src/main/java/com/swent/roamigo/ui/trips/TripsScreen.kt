@@ -35,6 +35,7 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
+import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.users.UserRepository
@@ -81,6 +82,7 @@ fun TripsRoute(
     tripRepository: TripRepository,
     userRepository: UserRepository,
     destinationRepository: DestinationRepository? = null,
+    authRepository: AuthRepository? = null,
     @DrawableRes mainTripImageRes: Int? = null,
     @DrawableRes nextActivityImageRes: Int? = null,
     onInviteClick: () -> Unit = rememberNotImplementedAction(),
@@ -105,6 +107,7 @@ fun TripsRoute(
                   userRepository = userRepository,
                   clock = clock,
                   destinationRepository = destinationRepository,
+                  authRepository = authRepository,
               )
       )
 
@@ -206,6 +209,7 @@ fun TripsScreen(
             greeting = uiState.greeting,
             userName = uiState.currentUserName,
             userInitial = uiState.currentUserInitial,
+            photoUrl = uiState.currentUserPhotoUrl,
             onProfileClick = onProfileClick,
         )
       }

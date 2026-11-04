@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
@@ -39,12 +40,11 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
-import com.swent.roamigo.model.destination.DestinationPhoto
-import com.swent.roamigo.ui.components.PhotoCreditsDialog
 import com.swent.roamigo.R
+import com.swent.roamigo.model.destination.DestinationPhoto
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.components.PhotoCreditsDialog
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.trips.MainTripUiModel
 
@@ -86,7 +86,10 @@ internal fun MainTripCard(
 
     if (imageLoaded && photo != null) {
       TextButton(onClick = { showCredits = true }, modifier = Modifier.align(Alignment.TopEnd)) {
-        Text(stringResource(R.string.trip_ready_photo_credit), color = MaterialTheme.colorScheme.onPrimary)
+        Text(
+            stringResource(R.string.trip_ready_photo_credit),
+            color = MaterialTheme.colorScheme.onPrimary,
+        )
       }
     }
     Column(
@@ -189,9 +192,14 @@ internal fun MainTripCard(
   }
   if (showCredits && photo != null && imageLoaded) {
     PhotoCreditsDialog(
-        title = photo.title, creator = photo.creator, credit = photo.credit,
-        license = photo.license, sourceUrl = photo.sourceUrl, licenseUrl = photo.licenseUrl,
-        closeLabel = stringResource(android.R.string.ok), onDismiss = { showCredits = false },
+        title = photo.title,
+        creator = photo.creator,
+        credit = photo.credit,
+        license = photo.license,
+        sourceUrl = photo.sourceUrl,
+        licenseUrl = photo.licenseUrl,
+        closeLabel = stringResource(android.R.string.ok),
+        onDismiss = { showCredits = false },
     )
   }
 }
