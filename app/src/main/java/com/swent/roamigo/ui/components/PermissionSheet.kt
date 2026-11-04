@@ -34,6 +34,7 @@ import com.swent.roamigo.ui.theme.Spacing
  * @param onPrimary called when the primary button is clicked.
  * @param onDismiss called when the user closes the sheet, by swiping it away, tapping outside it,
  *   or clicking the secondary button.
+ * @param modifier modifier applied to the sheet's content.
  * @param secondaryText label of the secondary button. The button is only shown when both
  *   [secondaryText] and [secondaryTag] are given.
  * @param secondaryTag test tag of the secondary button.
@@ -47,6 +48,7 @@ fun PermissionSheet(
     primaryTag: String,
     onPrimary: () -> Unit,
     onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
     @StringRes secondaryText: Int? = null,
     secondaryTag: String? = null,
 ) {
@@ -59,6 +61,7 @@ fun PermissionSheet(
         primaryTag = primaryTag,
         onPrimary = onPrimary,
         onSecondary = onDismiss,
+        modifier = modifier,
         secondaryText = secondaryText,
         secondaryTag = secondaryTag,
     )
@@ -69,13 +72,19 @@ fun PermissionSheet(
  * The fully expanded modal bottom sheet that holds a permission sheet's [content].
  *
  * @param onDismiss called when the user swipes the sheet away or taps outside it.
+ * @param modifier modifier applied to the bottom sheet.
  * @param content the sheet's content, usually a [PermissionSheetContent].
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PermissionBottomSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+fun PermissionBottomSheet(
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
   ModalBottomSheet(
       onDismissRequest = onDismiss,
+      modifier = modifier,
       sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
       containerColor = MaterialTheme.colorScheme.background,
       content = content,
