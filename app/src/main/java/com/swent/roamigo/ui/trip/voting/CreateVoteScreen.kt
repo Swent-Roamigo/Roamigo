@@ -38,13 +38,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.voting.VoteRepository
-import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.theme.Spacing
 
 /** Connects [voteRepository] to [CreateVoteScreen] for the current trip and member. */
@@ -186,20 +184,4 @@ private fun VoteTextField(
               unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
           ),
   )
-}
-
-@Preview(showBackground = true, widthDp = 390, heightDp = 844)
-@Composable
-private fun CreateVotePreview() {
-  RoamigoTheme {
-    CreateVoteScreen(
-        state = CreateVoteUiState(),
-        onQuestionChange = {},
-        onAddOption = {},
-        onOptionChange = { _, _ -> },
-        onRemoveOption = {},
-        onSubmit = {},
-        onBack = {},
-    )
-  }
 }

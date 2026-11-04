@@ -419,7 +419,7 @@ class VoteScreenTest {
   private fun previewContent(name: String) {
     // Render the actual private @Preview entry points without exposing test-only production APIs.
     val preview =
-        Class.forName("com.swent.roamigo.ui.trip.voting.VoteScreenKt")
+        Class.forName("com.swent.roamigo.ui.trip.voting.VoteScreenPreviewsKt")
             .getDeclaredComposableMethod(name)
     preview.asMethod().isAccessible = true
     composeRule.setContent { preview(currentComposer, null) }

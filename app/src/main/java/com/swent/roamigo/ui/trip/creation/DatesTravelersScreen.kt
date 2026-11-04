@@ -17,13 +17,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.TripCreationException
-import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.components.CalendarCard
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffold
 import com.swent.roamigo.ui.trip.creation.components.DateSummary
@@ -143,30 +141,6 @@ fun DatesTravelersScreen(
         }
       }
     }
-  }
-}
-
-@Preview(showBackground = true, widthDp = 390, heightDp = 844)
-@Composable
-private fun DatesTravelersScreenPreview() {
-  RoamigoTheme {
-    DatesTravelersScreen(
-        uiState =
-            CreateTripUiState(
-                startDate = LocalDate.of(2026, 10, 12),
-                endDate = LocalDate.of(2026, 10, 19),
-            ),
-        onBack = {},
-        onClose = {},
-        onCreateTrip = {},
-        onPreviousMonth = {},
-        onNextMonth = {},
-        onSelectDate = {},
-        onFlexibleDatesChange = {},
-        onTravelModeChange = {},
-        onDecrementTravelers = {},
-        onIncrementTravelers = {},
-    )
   }
 }
 
