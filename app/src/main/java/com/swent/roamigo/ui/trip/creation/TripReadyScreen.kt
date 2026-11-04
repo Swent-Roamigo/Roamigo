@@ -24,7 +24,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
+import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.ui.components.PhotoCreditsDialogTestTags
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.trip.creation.components.TripReadyCard
@@ -52,9 +54,11 @@ internal object TripReadyTestTags {
   const val LOCATION_CARD = "trip_ready_location"
 }
 
+/** Connects [tripRepository] to [TripReadyScreen] for the selected [tripId]. */
 @Composable
-fun TripReadyScreen(
-    viewModel: TripReadyViewModel,
+fun TripReadyRoute(
+    tripRepository: TripRepository,
+    tripId: String,
     photo: Bundle?,
     onInviteClick: () -> Unit,
     onSuggestClick: () -> Unit,
@@ -62,8 +66,9 @@ fun TripReadyScreen(
     onOpenItineraryClick: () -> Unit,
     onShareTripClick: () -> Unit,
 ) {
+  val viewModel = viewModel { TripReadyViewModel(tripRepository, tripId) }
   val state by viewModel.state.collectAsStateWithLifecycle()
-  TripReadyContent(
+  TripReadyScreen(
       state = state,
       photo = photo,
       onRetry = viewModel::retry,
@@ -75,8 +80,9 @@ fun TripReadyScreen(
   )
 }
 
+/** Renders [state] and forwards retry and trip actions to the caller. */
 @Composable
-internal fun TripReadyContent(
+internal fun TripReadyScreen(
     state: TripReadyState,
     photo: Bundle?,
     onRetry: () -> Unit,

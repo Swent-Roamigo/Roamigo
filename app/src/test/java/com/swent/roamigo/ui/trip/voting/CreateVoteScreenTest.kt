@@ -17,6 +17,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.lifecycle.viewmodel.compose.viewModel as composeViewModel
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import org.junit.Assert.assertEquals
@@ -31,9 +32,17 @@ class CreateVoteScreenTest {
 
   @Test
   fun enteringQuestionAndOptionsEnablesSubmissionAndEmptyAddedOptionDisablesIt() {
-    val viewModel = CreateVoteViewModel(FakeVoteRepository(), "trip", "member")
+    val repository = FakeVoteRepository()
     composeRule.setContent {
-      RoamigoTheme { CreateVoteScreen(viewModel, onBack = {}, onVoteCreated = {}) }
+      RoamigoTheme {
+        CreateVoteRoute(
+            voteRepository = repository,
+            tripId = "trip",
+            currentUserId = "member",
+            onBack = {},
+            onVoteCreated = {},
+        )
+      }
     }
     composeRule.onNodeWithTag("vote_submit").assertIsNotEnabled()
     composeRule.onNodeWithTag("vote_question").performTextInput("Dinner?")
@@ -59,10 +68,14 @@ class CreateVoteScreenTest {
     var cancelled = false
     var showScreen by mutableStateOf(true)
     composeRule.setContent {
+      // Let the Route retrieve this prefilled ViewModel from the test owner's store.
+      composeViewModel { viewModel }
       RoamigoTheme {
         if (showScreen) {
-          CreateVoteScreen(
-              viewModel,
+          CreateVoteRoute(
+              voteRepository = repository,
+              tripId = "trip",
+              currentUserId = "member",
               onBack = { cancelled = true },
               onVoteCreated = { successes += it },
           )
@@ -120,7 +133,16 @@ class CreateVoteScreenTest {
     viewModel.updateOption(0, "First")
     viewModel.updateOption(1, "Second")
     composeRule.setContent {
-      RoamigoTheme { CreateVoteScreen(viewModel, onBack = {}, onVoteCreated = {}) }
+      composeViewModel { viewModel }
+      RoamigoTheme {
+        CreateVoteRoute(
+            voteRepository = repository,
+            tripId = "trip",
+            currentUserId = "member",
+            onBack = {},
+            onVoteCreated = {},
+        )
+      }
     }
     for (index in 2..9) {
       composeRule.onNodeWithText("+ Add option").performScrollTo().assertIsEnabled().performClick()
@@ -142,7 +164,7 @@ class CreateVoteScreenTest {
 
   private fun content(state: CreateVoteUiState) {
     composeRule.setContent {
-      RoamigoTheme { CreateVoteScreenContent(state, {}, {}, { _, _ -> }, {}, {}, {}) }
+      RoamigoTheme { CreateVoteScreen(state, {}, {}, { _, _ -> }, {}, {}, {}) }
     }
   }
 }

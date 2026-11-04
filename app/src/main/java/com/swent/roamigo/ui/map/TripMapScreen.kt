@@ -47,10 +47,10 @@ import com.swent.roamigo.ui.components.InfoRow
 import com.swent.roamigo.ui.theme.Spacing
 
 /**
- * Shows the map of a trip, with its loading and error states and the location sharing controls.
+ * Connects the trip and location ViewModels to [TripMapScreen] using caller-provided factories.
  *
- * Both ViewModels are scoped to [tripId], so that each trip gets its own. Opening the screen
- * neither requests a permission nor starts sharing the user's location.
+ * Both ViewModels are scoped to [tripId], so that each trip gets its own. Opening the route neither
+ * requests a permission nor starts sharing the user's location.
  *
  * Turning sharing on without the location permission goes through [LocationViewModel]'s permission
  * flow: this screen renders its sheets and carries out its effects, showing the system permission
@@ -66,7 +66,7 @@ import com.swent.roamigo.ui.theme.Spacing
  * @param startActivity starts the activity of an intent, such as the app's settings.
  */
 @Composable
-fun TripMapScreen(
+fun TripMapRoute(
     tripId: String,
     tripMapViewModelFactory: ViewModelProvider.Factory,
     locationViewModelFactory: ViewModelProvider.Factory,
@@ -112,7 +112,7 @@ fun TripMapScreen(
     locationViewModel.onPermissionChecked(permissionChecker.isGranted())
   }
 
-  TripMapContent(
+  TripMapScreen(
       uiState = tripUiState,
       isSharing = locationUiState.isSharing,
       onRetry = tripMapViewModel::retry,
@@ -138,10 +138,10 @@ fun TripMapScreen(
  * @param onRetry called when the user asks to load the trip again after an error.
  * @param onTurnOnSharing called when the user asks to start sharing their location.
  * @param onPauseSharing called when the user asks to stop sharing their location.
- * @param modifier modifier applied to the content.
+ * @param modifier modifier applied to the screen.
  */
 @Composable
-fun TripMapContent(
+fun TripMapScreen(
     uiState: TripMapUiState,
     isSharing: Boolean,
     onRetry: () -> Unit,

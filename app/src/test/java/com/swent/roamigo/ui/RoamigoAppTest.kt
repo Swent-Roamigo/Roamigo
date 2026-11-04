@@ -28,6 +28,7 @@ import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.sampleDestination
 import com.swent.roamigo.model.destination.sampleDestinationRepository
+import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.TripDraft
@@ -72,6 +73,7 @@ class RoamigoAppTest {
             authRepository = authRepository,
             tripRepository = repository,
             credentialManager = credentialManager,
+            locationRepository = FakeLocationRepository(),
         )
       }
     }

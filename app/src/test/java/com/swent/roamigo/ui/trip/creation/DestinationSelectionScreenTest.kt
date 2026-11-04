@@ -43,7 +43,7 @@ class DestinationSelectionScreenTest {
 
     composeRule.setContent {
       RoamigoTheme {
-        DestinationScreen(
+        DestinationRoute(
             createTripViewModel = viewModel,
             onBack = {},
             onClose = {},
@@ -84,7 +84,7 @@ class DestinationSelectionScreenTest {
 
     composeRule.setContent {
       RoamigoTheme {
-        DestinationScreen(
+        DestinationRoute(
             createTripViewModel = viewModel,
             onBack = {},
             onClose = {},
@@ -106,7 +106,7 @@ class DestinationSelectionScreenTest {
 
     composeRule.setContent {
       RoamigoTheme {
-        DestinationScreen(
+        DestinationRoute(
             createTripViewModel = viewModel,
             onBack = {},
             onClose = {},
@@ -157,7 +157,7 @@ class DestinationSelectionScreenTest {
 
     composeRule.setContent {
       RoamigoTheme {
-        DestinationScreen(
+        DestinationRoute(
             createTripViewModel = viewModel,
             onBack = {},
             onClose = {},

@@ -28,6 +28,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.trip.voting.VoteBallot
@@ -130,7 +131,7 @@ class VoteScreenTest {
     var submissions = 0
     composeRule.setContent {
       RoamigoTheme {
-        VoteScreenContent(
+        VoteScreen(
             state,
             { state = state.copy(selectedOptionId = it) },
             { submissions++ },
@@ -176,7 +177,18 @@ class VoteScreenTest {
       store.put("vote", viewModel)
     }
     try {
-      composeRule.setContent { RoamigoTheme { VoteScreen(viewModel, {}) } }
+      composeRule.setContent {
+        RoamigoTheme {
+          val state by viewModel.uiState.collectAsStateWithLifecycle()
+          VoteScreen(
+              state,
+              viewModel::selectOption,
+              viewModel::submitVote,
+              viewModel::retryLoad,
+              {},
+          )
+        }
+      }
       composeRule.onNodeWithText("Market").assertIsSelected()
       assertCount("Market", "1 vote")
       assertCount("Restaurant", "0 votes")
@@ -242,7 +254,7 @@ class VoteScreenTest {
     var retries = 0
     composeRule.setContent {
       RoamigoTheme {
-        VoteScreenContent(
+        VoteScreen(
             VoteUiState.LoadError(VoteLoadError.BALLOTS_FAILED),
             {},
             {},
@@ -361,7 +373,7 @@ class VoteScreenTest {
         mutableStateOf(
             loaded().copy(selectedOptionId = "b", voteCounts = mapOf("a" to 1, "b" to 0))
         )
-    composeRule.setContent { RoamigoTheme { VoteScreenContent(state, {}, {}, {}, {}) } }
+    composeRule.setContent { RoamigoTheme { VoteScreen(state, {}, {}, {}, {}) } }
     assertCount("Market", "1 vote")
     assertCount("Restaurant", "0 votes")
     composeRule.runOnIdle { state = state.copy(voteCounts = mapOf("a" to 0, "b" to 2)) }
@@ -418,6 +430,6 @@ class VoteScreenTest {
   }
 
   private fun content(state: VoteUiState) {
-    composeRule.setContent { RoamigoTheme { VoteScreenContent(state, {}, {}, {}, {}) } }
+    composeRule.setContent { RoamigoTheme { VoteScreen(state, {}, {}, {}, {}) } }
   }
 }

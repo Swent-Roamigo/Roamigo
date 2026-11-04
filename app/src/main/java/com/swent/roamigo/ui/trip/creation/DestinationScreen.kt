@@ -35,15 +35,16 @@ import com.swent.roamigo.ui.trip.creation.components.DestinationScreenTestTags
 import com.swent.roamigo.ui.trip.creation.components.DestinationSearchBar
 import com.swent.roamigo.ui.trip.creation.components.SelectedDestinations
 
+/** Connects the creation flow's shared [CreateTripViewModel] to [DestinationScreen]. */
 @Composable
-fun DestinationScreen(
+fun DestinationRoute(
     createTripViewModel: CreateTripViewModel,
     onBack: () -> Unit,
     onClose: () -> Unit,
     onContinue: () -> Unit,
 ) {
   val uiState by createTripViewModel.uiState.collectAsStateWithLifecycle()
-  DestinationScreenContent(
+  DestinationScreen(
       uiState = uiState,
       onBack = onBack,
       onClose = onClose,
@@ -56,8 +57,9 @@ fun DestinationScreen(
   )
 }
 
+/** Renders destination selection from [uiState] and forwards user actions. */
 @Composable
-fun DestinationScreenContent(
+fun DestinationScreen(
     uiState: CreateTripUiState,
     onBack: () -> Unit,
     onClose: () -> Unit,
@@ -174,7 +176,7 @@ private const val DESTINATION_GRID_COLUMNS = 2
 @Composable
 private fun DestinationScreenPreview() {
   RoamigoTheme {
-    DestinationScreenContent(
+    DestinationScreen(
         uiState = CreateTripUiState(),
         onBack = {},
         onClose = {},

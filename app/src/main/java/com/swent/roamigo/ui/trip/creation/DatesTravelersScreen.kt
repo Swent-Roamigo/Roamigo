@@ -31,8 +31,9 @@ import com.swent.roamigo.ui.trip.creation.components.TravelersCounter
 import com.swent.roamigo.ui.trip.creation.components.TripTypeSelector
 import java.time.LocalDate
 
+/** Connects the creation flow's shared [CreateTripViewModel] to [DatesTravelersScreen]. */
 @Composable
-fun DatesTravelersScreen(
+fun DatesTravelersRoute(
     createTripViewModel: CreateTripViewModel,
     onBack: () -> Unit,
     onClose: () -> Unit,
@@ -40,7 +41,7 @@ fun DatesTravelersScreen(
     onSignIn: () -> Unit = {},
 ) {
   val uiState by createTripViewModel.uiState.collectAsStateWithLifecycle()
-  DatesTravelersScreenContent(
+  DatesTravelersScreen(
       uiState = uiState,
       onBack = onBack,
       onClose = onClose,
@@ -56,8 +57,9 @@ fun DatesTravelersScreen(
   )
 }
 
+/** Renders date and traveler selection from [uiState] and forwards user actions. */
 @Composable
-fun DatesTravelersScreenContent(
+fun DatesTravelersScreen(
     uiState: CreateTripUiState,
     onBack: () -> Unit,
     onClose: () -> Unit,
@@ -148,7 +150,7 @@ fun DatesTravelersScreenContent(
 @Composable
 private fun DatesTravelersScreenPreview() {
   RoamigoTheme {
-    DatesTravelersScreenContent(
+    DatesTravelersScreen(
         uiState =
             CreateTripUiState(
                 startDate = LocalDate.of(2026, 10, 12),

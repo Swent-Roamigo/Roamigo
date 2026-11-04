@@ -41,7 +41,7 @@ class TripMapScreenPreviews {
   @Composable
   private fun TripMapPreview(uiState: TripMapUiState, isSharing: Boolean) {
     RoamigoTheme {
-      TripMapContent(
+      TripMapScreen(
           uiState = uiState,
           isSharing = isSharing,
           onRetry = {},

@@ -171,7 +171,7 @@ class LocationPermissionSheetPreviews {
   private fun TripMapBackground(overlay: @Composable BoxScope.() -> Unit) {
     RoamigoTheme {
       Box(modifier = Modifier.fillMaxSize()) {
-        TripMapContent(
+        TripMapScreen(
             uiState = previewTripMapLoadedState,
             isSharing = false,
             onRetry = {},

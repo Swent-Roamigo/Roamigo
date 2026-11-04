@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mapbox.geojson.Point
 import com.mapbox.maps.ViewAnnotationAnchor
 import com.mapbox.maps.extension.compose.MapboxMap
@@ -29,21 +30,23 @@ import com.mapbox.maps.viewannotation.annotationAnchor
 import com.mapbox.maps.viewannotation.geometry
 import com.mapbox.maps.viewannotation.viewAnnotationOptions
 import com.swent.roamigo.R
+import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.Spacing
 
-/** Connects [viewModel] state and retry actions to [TripOverviewMapScreen]. */
+/** Connects [tripRepository] to [TripOverviewMapScreen] through its ViewModel. */
 @Composable
 fun TripOverviewMapRoute(
-    viewModel: TripOverviewMapViewModel,
+    tripRepository: TripRepository,
     modifier: Modifier = Modifier,
     onMarkerClick: (String) -> Unit = rememberNotImplementedAction(),
     onTripsClick: () -> Unit = {},
     onMapClick: () -> Unit = {},
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
 ) {
+  val viewModel = viewModel { TripOverviewMapViewModel(tripRepository) }
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
   TripOverviewMapScreen(

@@ -93,7 +93,7 @@ internal fun VoteDialogContent(
         modifier.fillMaxWidth().heightIn(max = 600.dp).testTag("vote_dialog"),
         shape = MaterialTheme.shapes.large,
     ) {
-      VoteScreenContent(state, onSelectOption, onSubmit, onRetry, dismiss)
+      VoteScreen(state, onSelectOption, onSubmit, onRetry, dismiss)
     }
   }
 }

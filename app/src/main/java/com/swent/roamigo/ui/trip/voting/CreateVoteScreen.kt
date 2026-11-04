@@ -1,6 +1,7 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.trip.voting
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -40,23 +41,29 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
+import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.theme.Spacing
 
-/** Standalone creation flow; the caller owns the ViewModel and navigation. */
+/** Connects [voteRepository] to [CreateVoteScreen] for the current trip and member. */
 @Composable
-fun CreateVoteScreen(
-    viewModel: CreateVoteViewModel,
+fun CreateVoteRoute(
+    voteRepository: VoteRepository,
+    tripId: String,
+    currentUserId: String,
     onBack: () -> Unit,
     onVoteCreated: (String) -> Unit,
 ) {
+  val viewModel = viewModel { CreateVoteViewModel(voteRepository, tripId, currentUserId) }
   val state by viewModel.uiState.collectAsStateWithLifecycle()
+  BackHandler(enabled = state.isSubmitting) { /* Wait for the pending write. */ }
   val currentOnVoteCreated by rememberUpdatedState(onVoteCreated)
   LaunchedEffect(state.pendingVoteCreatedId) {
     viewModel.consumeVoteCreated()?.let { currentOnVoteCreated(it) }
   }
-  CreateVoteScreenContent(
+  CreateVoteScreen(
       state = state,
       onQuestionChange = viewModel::updateQuestion,
       onAddOption = viewModel::addOption,
@@ -67,8 +74,9 @@ fun CreateVoteScreen(
   )
 }
 
+/** Renders the vote draft from [state] and forwards editing and submission actions. */
 @Composable
-fun CreateVoteScreenContent(
+fun CreateVoteScreen(
     state: CreateVoteUiState,
     onQuestionChange: (String) -> Unit,
     onAddOption: () -> Unit,
@@ -184,7 +192,7 @@ private fun VoteTextField(
 @Composable
 private fun CreateVotePreview() {
   RoamigoTheme {
-    CreateVoteScreenContent(
+    CreateVoteScreen(
         state = CreateVoteUiState(),
         onQuestionChange = {},
         onAddOption = {},

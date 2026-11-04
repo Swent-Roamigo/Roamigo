@@ -61,7 +61,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * UI tests for [TripMapScreen] and [TripMapContent].
+ * UI tests for [TripMapRoute] and [TripMapScreen].
  *
  * The permission flow runs for real, but the system stays out of it:
  * [FakeLocationPermissionChecker] answers the permission checks, [RecordingActivityResultRegistry]
@@ -559,7 +559,7 @@ class TripMapScreenTest {
     isSharing.value = sharing
     composeRule.setContent {
       RoamigoTheme {
-        TripMapContent(
+        TripMapScreen(
             uiState = uiState.value,
             isSharing = isSharing.value,
             onRetry = onRetry,
@@ -604,7 +604,7 @@ class TripMapScreenTest {
       CompositionLocalProvider(LocalActivityResultRegistryOwner provides registryOwner) {
         RoamigoTheme {
           if (recordStartedIntents) {
-            TripMapScreen(
+            TripMapRoute(
                 tripId = TRIP_ID,
                 tripMapViewModelFactory = tripMapViewModelFactory,
                 locationViewModelFactory = locationViewModelFactory,
@@ -612,8 +612,8 @@ class TripMapScreenTest {
                 startActivity = { intent -> startedIntents += intent },
             )
           } else {
-            // Leaves the intents to the screen's default, which starts them from its context.
-            TripMapScreen(
+            // Leaves the intents to the route's default, which starts them from its context.
+            TripMapRoute(
                 tripId = TRIP_ID,
                 tripMapViewModelFactory = tripMapViewModelFactory,
                 locationViewModelFactory = locationViewModelFactory,

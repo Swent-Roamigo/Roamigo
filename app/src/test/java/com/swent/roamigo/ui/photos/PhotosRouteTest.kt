@@ -5,6 +5,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.net.Uri
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
@@ -19,7 +20,6 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.core.app.ActivityOptionsCompat
-import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -87,14 +87,7 @@ class PhotosRouteTest {
 
   @Before
   fun setUp() {
-    // FileProvider remembers the folder it serves per process, but every test has its own.
-    FileProvider::class
-        .java
-        .getDeclaredField("sCache")
-        .apply { isAccessible = true }
-        .let { (it.get(null) as MutableMap<*, *>).clear() }
     val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-    // The FileProvider only serves files inside the app's photo folder.
     repository = FakePhotoRepository(File(context.filesDir, PhotoModule.PHOTO_DIRECTORY))
   }
 
@@ -108,7 +101,6 @@ class PhotosRouteTest {
         object : ActivityResultRegistryOwner {
           override val activityResultRegistry = registry
         }
-    val viewModel = PhotosViewModel(repository, connectivity, "trip")
     composeRule.setContent {
       RoamigoTheme {
         CompositionLocalProvider(
@@ -116,9 +108,15 @@ class PhotosRouteTest {
             LocalActivity provides (activity ?: composeRule.activity),
         ) {
           PhotosRoute(
-              viewModel = viewModel,
+              photoRepository = repository,
+              connectivityRepository = connectivity,
+              tripId = "trip",
               tripName = "Lisbon",
-              fileOf = repository::fileOf,
+              currentUserId = null,
+              // Keep camera-flow tests independent of the host filesystem's path separators.
+              photoUri = { file ->
+                Uri.parse("content://com.swent.roamigo.fileprovider/${file.name}")
+              },
           )
         }
       }

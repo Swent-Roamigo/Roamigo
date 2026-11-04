@@ -23,10 +23,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.Timestamp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.voting.Vote
 import com.swent.roamigo.model.trip.voting.VoteOption
+import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.trip.voting.VoteStatus
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.theme.Spacing
@@ -34,16 +36,20 @@ import com.swent.roamigo.ui.trip.voting.components.VoteActions
 import com.swent.roamigo.ui.trip.voting.components.VoteErrorContent
 import com.swent.roamigo.ui.trip.voting.components.VoteOptionRow
 
-/** Standalone voting interaction; the caller owns the ViewModel and navigation. */
+/** Connects [voteRepository] to [VoteScreen] for the selected trip, vote, and member. */
 @Composable
-fun VoteScreen(
-    viewModel: VoteViewModel,
+fun VoteRoute(
+    voteRepository: VoteRepository,
+    tripId: String,
+    voteId: String,
+    currentUserId: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     readOnly: Boolean = false,
 ) {
+  val viewModel = viewModel { VoteViewModel(voteRepository, tripId, voteId, currentUserId) }
   val state by viewModel.uiState.collectAsStateWithLifecycle()
-  VoteScreenContent(
+  VoteScreen(
       state,
       viewModel::selectOption,
       viewModel::submitVote,
@@ -54,8 +60,9 @@ fun VoteScreen(
   )
 }
 
+/** Renders [state] and forwards selection, submission, retry, and back actions. */
 @Composable
-fun VoteScreenContent(
+fun VoteScreen(
     state: VoteUiState,
     onSelectOption: (String) -> Unit,
     onSubmit: () -> Unit,
@@ -202,7 +209,7 @@ private fun VoteInteractionPreview(
       )
 
   RoamigoTheme {
-    VoteScreenContent(
+    VoteScreen(
         state =
             VoteUiState.Ready(
                 vote = vote,
