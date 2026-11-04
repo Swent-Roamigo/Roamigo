@@ -20,6 +20,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onParent
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.trip.voting.VoteStatus
 import com.swent.roamigo.ui.isNotImplemented
@@ -58,6 +59,55 @@ class VotesScreenTest {
         )
       }
     }
+  }
+
+  @Test
+  fun multipleCreatorCardsCloseOnlyTheirOwnVoteAndCancelLeavesListUnchanged() {
+    var selected by mutableStateOf<String?>(null)
+    val requested = mutableListOf<String>()
+    val state =
+        VotesUiState.Ready(
+            listOf(live, other),
+            emptyList(),
+            liveSummaries =
+                mapOf(
+                    live.uid to LiveVoteSummary(emptyMap(), false, true),
+                    other.uid to LiveVoteSummary(emptyMap(), true, true),
+                ),
+        )
+    composeRule.setContent {
+      RoamigoTheme {
+        VotesScreenContent(
+            state,
+            "Trip",
+            {},
+            {},
+            {},
+            onCloseVote = {
+              requested += it
+              selected = it
+            },
+        )
+        selected?.let {
+          VoteCloseDialogContent(
+              VoteUiState.Ready(if (it == live.uid) live else other, isCreator = true),
+              {},
+              {},
+              { selected = null },
+          )
+        }
+      }
+    }
+    composeRule.onNodeWithTag("close_vote_${other.uid}").performScrollTo().performClick()
+    composeRule.onNodeWithTag("vote_close_dialog").assertIsDisplayed()
+    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
+    composeRule.onNodeWithText("Cancel").performClick()
+    composeRule.onNodeWithTag("close_vote_${live.uid}").performScrollTo().performClick()
+    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
+    composeRule.onNodeWithText("Cancel").performClick()
+    composeRule.runOnIdle { assertEquals(listOf(other.uid, live.uid), requested) }
+    composeRule.onNodeWithTag("vote_close_dialog").assertDoesNotExist()
+    composeRule.onNodeWithTag("close_vote_${live.uid}").assertIsDisplayed()
   }
 
   @Test

@@ -6,6 +6,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -42,8 +44,8 @@ import com.swent.roamigo.ui.trip.voting.LiveVoteSummary
 fun VoteCard(
     vote: Vote,
     onClick: () -> Unit,
-    summary: LiveVoteSummary? = null,
     modifier: Modifier = Modifier,
+    summary: LiveVoteSummary? = null,
     onCloseVote: (() -> Unit)? = null,
 ) {
   when (vote.status) {
@@ -52,6 +54,7 @@ fun VoteCard(
   }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LiveVoteCard(
     vote: Vote,
@@ -90,9 +93,13 @@ private fun LiveVoteCard(
             "vote_count_${vote.uid}_${option.uid}",
         )
       }
-      Row(horizontalArrangement = Arrangement.spacedBy(Spacing.small)) {
+      FlowRow(
+          horizontalArrangement = Arrangement.spacedBy(Spacing.small),
+          verticalArrangement = Arrangement.spacedBy(Spacing.small),
+      ) {
         Button(
             onClick = onClick,
+            modifier = Modifier.heightIn(min = 48.dp).testTag("vote_action_${vote.uid}"),
             shape = CircleShape,
             colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Ink),
         ) {
@@ -106,6 +113,7 @@ private fun LiveVoteCard(
         if (summary?.isCreator == true && onCloseVote != null) {
           OutlinedButton(
               onClick = onCloseVote,
+              modifier = Modifier.heightIn(min = 48.dp).testTag("close_vote_${vote.uid}"),
               shape = CircleShape,
               border = BorderStroke(1.dp, MaterialTheme.colorScheme.onPrimary),
               colors =

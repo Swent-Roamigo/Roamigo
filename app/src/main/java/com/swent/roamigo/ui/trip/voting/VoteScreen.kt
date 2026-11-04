@@ -15,7 +15,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -57,7 +56,6 @@ fun VoteScreenContent(
     onRetry: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    onCloseVote: (() -> Unit)? = null,
 ) {
   Column(
       modifier
@@ -114,7 +112,7 @@ fun VoteScreenContent(
             VoteErrorContent(
                 R.string.vote_ballots_error,
                 onRetry,
-                retryEnabled = !state.isSubmitting && !state.isClosing,
+                retryEnabled = !state.isSubmitting,
             )
       }
       if (state.submissionState == VoteSubmissionState.Failed) {
@@ -122,22 +120,9 @@ fun VoteScreenContent(
       }
     }
     val ready = state as? VoteUiState.Ready
-    if (ready?.isCreator == true && ready.vote.status == VoteStatus.OPEN && onCloseVote != null) {
-      if (ready.closingState == VoteSubmissionState.Failed) {
-        VoteErrorContent(R.string.vote_close_error)
-      }
-      TextButton(
-          onClick = onCloseVote,
-          enabled = ready.canClose,
-          modifier = Modifier.fillMaxWidth(),
-      ) {
-        Text(stringResource(if (ready.isClosing) R.string.vote_closing else R.string.vote_close))
-      }
-    }
     VoteActions(
         canSubmit = ready?.canSubmit == true,
         isSubmitting = ready?.isSubmitting == true,
-        interactionLocked = ready?.isClosing == true,
         hasPersistedBallot = ready?.hasPersistedBallot == true,
         onSubmit = onSubmit,
         onBack = onBack,

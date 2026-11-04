@@ -59,16 +59,16 @@ class VoteViewModel(
       val vote =
           try {
             voteRepository.getVote(tripId, voteId)
+                ?: run {
+                  _uiState.value = VoteUiState.LoadError(VoteLoadError.NOT_FOUND)
+                  return@launch
+                }
           } catch (cancelled: CancellationException) {
             throw cancelled
           } catch (_: Exception) {
             _uiState.value = VoteUiState.LoadError(VoteLoadError.VOTE_FAILED)
             return@launch
           }
-      if (vote == null) {
-        _uiState.value = VoteUiState.LoadError(VoteLoadError.NOT_FOUND)
-        return@launch
-      }
       if (vote.status == VoteStatus.CLOSED) {
         _uiState.value = VoteUiState.Closed
         return@launch
@@ -114,8 +114,7 @@ class VoteViewModel(
     try {
       // Observe status alongside ballots so a remote close removes actions even without a write.
       val votes =
-          voteRepository.observeVotes(tripId).onEach { snapshot ->
-            val current = snapshot.firstOrNull { it.uid == voteId }
+          voteRepository.observeVote(tripId, voteId).onEach { current ->
             if (current == null || current.status == VoteStatus.CLOSED) {
               _uiState.value =
                   if (current == null) VoteUiState.LoadError(VoteLoadError.NOT_FOUND)

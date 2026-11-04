@@ -15,9 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -31,28 +29,15 @@ import com.swent.roamigo.R
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.voting.components.VoteErrorContent
 
-/**
- * A fresh interaction scope per opening: dismissal discards the draft and cancels observation.
- * [confirmCloseOnOpen] selects the card's confirmation-only flow, dismissed on cancel or closure.
- * Otherwise, the voting dialog stays composed beneath confirmation, preserving the existing draft.
- * Closing successfully dismisses the entire interaction from either entry point.
- */
+/** A fresh ballot interaction scope per opening. Dismissal discards the draft. */
 @Composable
 fun VoteDialog(
     voteId: String,
     createViewModel: (String) -> VoteViewModel,
-    modifier: Modifier = Modifier,
-    confirmCloseOnOpen: Boolean = false,
     onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-  val owner =
-      remember(voteId) {
-        object : ViewModelStoreOwner {
-          override val viewModelStore = ViewModelStore()
-        }
-      }
-  DisposableEffect(owner) { onDispose { owner.viewModelStore.clear() } }
-  val viewModel = viewModel(viewModelStoreOwner = owner) { createViewModel(voteId) }
+  val viewModel = rememberVoteViewModel(voteId, createViewModel)
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   VoteDialogContent(
       state,
@@ -61,12 +46,37 @@ fun VoteDialog(
       viewModel::retryLoad,
       onDismiss,
       modifier,
-      viewModel::closeVote,
-      confirmCloseOnOpen,
   )
 }
 
-/** Stateless dialog presentation; [VoteDialog] supplies the interaction state and callbacks. */
+/** The card opens only this confirmation over the Votes list. */
+@Composable
+fun VoteCloseDialog(
+    voteId: String,
+    createViewModel: (String) -> VoteViewModel,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+  val viewModel = rememberVoteViewModel(voteId, createViewModel)
+  val state by viewModel.uiState.collectAsStateWithLifecycle()
+  VoteCloseDialogContent(state, viewModel::closeVote, viewModel::retryLoad, onDismiss, modifier)
+}
+
+@Composable
+private fun rememberVoteViewModel(
+    voteId: String,
+    createViewModel: (String) -> VoteViewModel,
+): VoteViewModel {
+  val owner =
+      remember(voteId) {
+        object : ViewModelStoreOwner {
+          override val viewModelStore = ViewModelStore()
+        }
+      }
+  DisposableEffect(owner) { onDispose { owner.viewModelStore.clear() } }
+  return viewModel(viewModelStoreOwner = owner) { createViewModel(voteId) }
+}
+
 @Composable
 internal fun VoteDialogContent(
     state: VoteUiState,
@@ -75,58 +85,33 @@ internal fun VoteDialogContent(
     onRetry: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
-    onCloseVote: () -> Unit = {},
-    confirmCloseOnOpen: Boolean = false,
 ) {
-  var confirming by remember { mutableStateOf(false) }
-  val ready = state as? VoteUiState.Ready
-  val interactionLocked = ready?.let { it.isSubmitting || it.isClosing } == true
-  val showConfirmation = confirmCloseOnOpen || confirming
-  LaunchedEffect(state, showConfirmation) {
-    if (showConfirmation && state == VoteUiState.Closed) onDismiss()
-  }
-  // Remove both windows immediately; the owner then tears down the interaction scope.
-  if (showConfirmation && state == VoteUiState.Closed) return
-
-  val dismiss = { if (!interactionLocked && !confirming) onDismiss() }
-  if (!confirmCloseOnOpen) {
-    Dialog(onDismissRequest = dismiss) {
-      Surface(
-          modifier.fillMaxWidth().heightIn(max = 600.dp).testTag("vote_dialog"),
-          shape = MaterialTheme.shapes.large,
-      ) {
-        VoteScreenContent(
-            state,
-            onSelectOption,
-            onSubmit,
-            onRetry,
-            dismiss,
-            // Close progress belongs exclusively to the confirmation above this dialog.
-            onCloseVote =
-                if (ready?.isClosing == true) null
-                else {
-                  { confirming = true }
-                },
-        )
-      }
+  val locked = (state as? VoteUiState.Ready)?.isSubmitting == true
+  val dismiss = { if (!locked) onDismiss() }
+  Dialog(onDismissRequest = dismiss) {
+    Surface(
+        modifier.fillMaxWidth().heightIn(max = 600.dp).testTag("vote_dialog"),
+        shape = MaterialTheme.shapes.large,
+    ) {
+      VoteScreenContent(state, onSelectOption, onSubmit, onRetry, dismiss)
     }
-  }
-  if (showConfirmation) {
-    VoteCloseConfirmation(
-        state = state,
-        onConfirm = onCloseVote,
-        onRetry = onRetry,
-        onCancel = {
-          if (!interactionLocked) {
-            if (confirmCloseOnOpen) onDismiss() else confirming = false
-          }
-        },
-        modifier = modifier,
-    )
   }
 }
 
-/** Shared confirmation presentation for card and in-dialog closing, including write recovery. */
+@Composable
+internal fun VoteCloseDialogContent(
+    state: VoteUiState,
+    onConfirm: () -> Unit,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+  LaunchedEffect(state) { if (state == VoteUiState.Closed) onDismiss() }
+  if (state == VoteUiState.Closed) return
+  VoteCloseConfirmation(state, onConfirm, onRetry, onDismiss, modifier)
+}
+
+/** Card-only confirmation presentation, including transaction recovery. */
 @Composable
 internal fun VoteCloseConfirmation(
     state: VoteUiState,

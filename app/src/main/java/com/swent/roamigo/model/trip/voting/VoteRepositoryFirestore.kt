@@ -6,7 +6,6 @@ import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
-import com.google.firebase.firestore.MetadataChanges
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -42,9 +41,42 @@ class VoteRepositoryFirestore(private val db: FirebaseFirestore) : VoteRepositor
     return if (snapshot.exists()) snapshot.toVote(tripId) else null
   }
 
+  override fun observeVote(tripId: String, voteId: String): Flow<Vote?> = callbackFlow {
+    requireDocumentId(voteId)
+    val registration =
+        votes(tripId).document(voteId).addSnapshotListener { snapshot, error ->
+          if (error != null) close(error)
+          else {
+            try {
+              val document = requireNotNull(snapshot) { "Missing vote snapshot" }
+              trySend(if (document.exists()) document.toVote(tripId) else null)
+            } catch (failure: Exception) {
+              close(failure)
+            }
+          }
+        }
+    awaitClose { registration.remove() }
+  }
+
   override suspend fun closeVote(tripId: String, voteId: String) {
     requireDocumentId(voteId)
-    votes(tripId).document(voteId).update("status", VoteStatus.CLOSED.name).await()
+    val document = votes(tripId).document(voteId)
+    db.runTransaction { transaction ->
+          val snapshot = transaction.get(document)
+          if (!snapshot.exists())
+              throw FirebaseFirestoreException(
+                  "Vote not found",
+                  FirebaseFirestoreException.Code.NOT_FOUND,
+              )
+          if (snapshot.getString("status") != VoteStatus.OPEN.name)
+              throw FirebaseFirestoreException(
+                  "Vote is not open",
+                  FirebaseFirestoreException.Code.FAILED_PRECONDITION,
+              )
+          transaction.update(document, "status", VoteStatus.CLOSED.name)
+          Unit
+        }
+        .await()
   }
 
   override suspend fun getVotes(tripId: String): List<Vote> =
@@ -52,11 +84,10 @@ class VoteRepositoryFirestore(private val db: FirebaseFirestore) : VoteRepositor
 
   override fun observeVotes(tripId: String): Flow<List<Vote>> = callbackFlow {
     val registration =
-        votes(tripId).addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
+        votes(tripId).addSnapshotListener { snapshot, error ->
           if (error != null) {
             close(error)
           } else {
-            if (snapshot?.metadata?.hasPendingWrites() == true) return@addSnapshotListener
             val updates =
                 try {
                   requireNotNull(snapshot) { "Missing votes snapshot" }

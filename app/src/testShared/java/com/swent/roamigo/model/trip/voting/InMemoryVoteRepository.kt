@@ -3,6 +3,8 @@ package com.swent.roamigo.model.trip.voting
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
 
 /** Shared test backend with trip isolation and controllable realtime snapshots/failures. */
@@ -15,8 +17,12 @@ class InMemoryVoteRepository(initialVotes: List<Vote> = emptyList()) : VoteRepos
     private set
   var maximumObservers = 0
     private set
+  val ballotObserverStarts = mutableMapOf<String, Int>()
   val activeBallotObservers = mutableMapOf<String, Int>()
   private val ballots = mutableMapOf<Pair<String, String>, MutableStateFlow<List<VoteBallot>>>()
+
+  override fun observeVote(tripId: String, voteId: String): Flow<Vote?> =
+      snapshots.map { result -> result.getOrThrow().firstOrNull { it.tripId == tripId && it.uid == voteId } }.distinctUntilChanged()
 
   override fun observeVotes(tripId: String): Flow<List<Vote>> = flow {
     observedTrips += tripId
@@ -54,6 +60,7 @@ class InMemoryVoteRepository(initialVotes: List<Vote> = emptyList()) : VoteRepos
 
   override fun observeBallots(tripId: String, voteId: String): Flow<List<VoteBallot>> =
       flow {
+        ballotObserverStarts[voteId] = (ballotObserverStarts[voteId] ?: 0) + 1
         activeBallotObservers[voteId] = (activeBallotObservers[voteId] ?: 0) + 1
         try {
           ballotStream(tripId, voteId).collect { emit(it) }

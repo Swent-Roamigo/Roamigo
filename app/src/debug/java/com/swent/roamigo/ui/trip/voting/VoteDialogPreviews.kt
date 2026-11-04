@@ -41,62 +41,6 @@ private fun VoteDialogCloseConfirmationPreview() =
         confirmCloseOnOpen = true,
     )
 
-@Preview(
-    name = "Close confirmation · From voting dialog",
-    showBackground = true,
-    widthDp = 390,
-    heightDp = 844,
-)
-@Composable
-private fun VoteDialogCloseFromVotingPreview() =
-    VoteDialogPreview(
-        previewDinnerState()
-            .copy(
-                isCreator = true,
-                persistedOptionId = "market",
-                selectedOptionId = "taberna",
-            ),
-        showInnerConfirmation = true,
-    )
-
-@Preview(
-    name = "Close confirmation · Closing above voting draft",
-    showBackground = true,
-    widthDp = 390,
-    heightDp = 844,
-)
-@Composable
-private fun VoteDialogClosingAboveDraftPreview() =
-    VoteDialogPreview(
-        previewDinnerState()
-            .copy(
-                isCreator = true,
-                persistedOptionId = "market",
-                selectedOptionId = "taberna",
-                closingState = VoteSubmissionState.Submitting,
-            ),
-        showInnerConfirmation = true,
-    )
-
-@Preview(
-    name = "Close confirmation · Failure above voting draft",
-    showBackground = true,
-    widthDp = 390,
-    heightDp = 844,
-)
-@Composable
-private fun VoteDialogCloseFailureAboveDraftPreview() =
-    VoteDialogPreview(
-        previewDinnerState()
-            .copy(
-                isCreator = true,
-                persistedOptionId = "market",
-                selectedOptionId = "taberna",
-                closingState = VoteSubmissionState.Failed,
-            ),
-        showInnerConfirmation = true,
-    )
-
 @Preview(name = "Vote dialog · Closing", showBackground = true, widthDp = 390, heightDp = 844)
 @Composable
 private fun VoteDialogClosingPreview() =
@@ -217,7 +161,6 @@ internal fun previewDinnerState() =
 private fun VoteDialogPreview(
     state: VoteUiState,
     confirmCloseOnOpen: Boolean = false,
-    showInnerConfirmation: Boolean = false,
 ) {
   RoamigoTheme {
     val dinner = previewDinnerState()
@@ -237,17 +180,10 @@ private fun VoteDialogPreview(
                 ),
         )
     )
-    VoteDialogContent(
-        state,
-        onSelectOption = {},
-        onSubmit = {},
-        onRetry = {},
-        onDismiss = {},
-        onCloseVote = {},
-        confirmCloseOnOpen = confirmCloseOnOpen,
-    )
-    if (showInnerConfirmation) {
-      VoteCloseConfirmation(state, onConfirm = {}, onRetry = {}, onCancel = {})
+    if (confirmCloseOnOpen) {
+      VoteCloseDialogContent(state, onConfirm = {}, onRetry = {}, onDismiss = {})
+    } else {
+      VoteDialogContent(state, onSelectOption = {}, onSubmit = {}, onRetry = {}, onDismiss = {})
     }
   }
 }

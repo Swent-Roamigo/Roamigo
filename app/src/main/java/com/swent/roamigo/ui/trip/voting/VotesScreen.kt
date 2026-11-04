@@ -44,13 +44,13 @@ fun VotesScreen(
     tripName: String,
     onOpenVote: (String) -> Unit,
     onCreateVote: () -> Unit,
+    onFriendsClick: () -> Unit,
+    modifier: Modifier = Modifier,
     onOverviewClick: () -> Unit = {},
     onItineraryClick: () -> Unit = rememberNotImplementedAction(),
     onTripsClick: () -> Unit = {},
-    onFriendsClick: () -> Unit,
     onMapClick: () -> Unit = {},
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
-    modifier: Modifier = Modifier,
     onCloseVote: ((String) -> Unit)? = null,
 ) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -79,13 +79,13 @@ fun VotesScreenContent(
     onOpenVote: (String) -> Unit,
     onCreateVote: () -> Unit,
     onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
     onOverviewClick: () -> Unit = {},
     onItineraryClick: () -> Unit = rememberNotImplementedAction(),
     onTripsClick: () -> Unit = {},
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
     onMapClick: () -> Unit = {},
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
-    modifier: Modifier = Modifier,
     onCloseVote: ((String) -> Unit)? = null,
 ) {
   Scaffold(

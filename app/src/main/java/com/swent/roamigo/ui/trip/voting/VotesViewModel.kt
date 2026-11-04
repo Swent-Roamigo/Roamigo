@@ -71,6 +71,7 @@ class VotesViewModel(
             try {
               voteRepository
                   .observeVotes(tripId)
+                  .distinctUntilChanged()
                   .flatMapLatest { votes ->
                     val ordered =
                         votes.sortedWith(

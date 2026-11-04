@@ -11,9 +11,7 @@ import com.google.firebase.firestore.EventListener
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
-import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.QuerySnapshot
-import com.google.firebase.firestore.SnapshotMetadata
 import com.google.firebase.firestore.Transaction
 import java.util.concurrent.Executor
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -80,20 +78,120 @@ class VoteRepositoryFirestoreTest {
   }
 
   @Test
-  fun closeUpdatesOnlyStatusAndPropagatesFailure() = runTest {
-    doReturn(successfulTask<Void>(null)).`when`(voteDocument).update("status", "CLOSED")
-    repository.closeVote("trip-1", "vote-1")
-    verify(voteDocument).update("status", "CLOSED")
-    verify(voteDocument, never()).set(any())
-    val error =
-        FirebaseFirestoreException("denied", FirebaseFirestoreException.Code.PERMISSION_DENIED)
-    doReturn(failedTask<Void>(error)).`when`(voteDocument).update("status", "CLOSED")
-    try {
-      repository.closeVote("trip-1", "vote-1")
-      fail("Expected failure")
-    } catch (actual: FirebaseFirestoreException) {
-      assertSame(error, actual)
+  fun observeSelectedDocumentEmitsStatusAndDeletionAndCleansUp() = runTest {
+    val registration = mock(ListenerRegistration::class.java)
+    `when`(voteDocument.addSnapshotListener(any<EventListener<DocumentSnapshot>>()))
+        .thenReturn(registration)
+    val changes = mutableListOf<Vote?>()
+    val job = launch { repository.observeVote("trip-1", "vote-1").collect { changes += it } }
+    runCurrent()
+    val listener = capturedDocumentListener()
+    listener.onEvent(document(vote.uid, voteData), null)
+    runCurrent()
+    listener.onEvent(document(vote.uid, voteData + ("status" to "CLOSED")), null)
+    runCurrent()
+    listener.onEvent(mock(DocumentSnapshot::class.java), null)
+    runCurrent()
+    assertEquals(listOf(vote, vote.copy(status = VoteStatus.CLOSED), null), changes)
+    verify(votes, never()).addSnapshotListener(any<EventListener<QuerySnapshot>>())
+    job.cancel()
+    runCurrent()
+    verify(registration).remove()
+  }
+
+  @Test
+  fun selectedDocumentPropagatesOwnListenerAndMappingErrors() = runTest {
+    for (malformed in listOf(false, true)) {
+      reset(voteDocument)
+      val registration = mock(ListenerRegistration::class.java)
+      `when`(voteDocument.addSnapshotListener(any<EventListener<DocumentSnapshot>>()))
+          .thenReturn(registration)
+      val result = async { runCatching { repository.observeVote("trip-1", "vote-1").first() } }
+      runCurrent()
+      val listener = capturedDocumentListener()
+      val failure =
+          FirebaseFirestoreException("denied", FirebaseFirestoreException.Code.PERMISSION_DENIED)
+      if (malformed) listener.onEvent(document(vote.uid, emptyMap()), null)
+      else listener.onEvent(null, failure)
+      val error = result.await().exceptionOrNull()
+      if (malformed) assertTrue(error is IllegalArgumentException) else assertSame(failure, error)
+      verify(registration).remove()
     }
+  }
+
+  @Test
+  fun selectedDocumentRejectsInvalidIdsAndRegistrationFailure() = runTest {
+    assertTrue(
+        runCatching { repository.observeVote("trip-1", "bad/id").first() }.exceptionOrNull()
+            is IllegalArgumentException
+    )
+    val failure = IllegalStateException("registration failed")
+    `when`(voteDocument.addSnapshotListener(any<EventListener<DocumentSnapshot>>()))
+        .thenThrow(failure)
+    val actual = runCatching {
+      repository.observeVote("trip-1", "vote-1").first()
+    }
+        .exceptionOrNull()
+    assertTrue(actual is IllegalStateException)
+    assertEquals(failure.message, actual?.message)
+  }
+
+  @Suppress("UNCHECKED_CAST")
+  private fun capturedDocumentListener(): EventListener<DocumentSnapshot> {
+    val captor =
+        ArgumentCaptor.forClass(EventListener::class.java)
+            as ArgumentCaptor<EventListener<DocumentSnapshot>>
+    verify(voteDocument).addSnapshotListener(captor.capture())
+    return captor.value
+  }
+
+  @Test
+  fun closeTransactionReadsThenUpdatesOnlyStatus() = runTest {
+    val transaction = mock(Transaction::class.java)
+    val snapshot = document(vote.uid, voteData)
+    `when`(snapshot.getString("status")).thenReturn("OPEN")
+    `when`(transaction.get(voteDocument)).thenReturn(snapshot)
+    stubTransaction(transaction)
+    repository.closeVote("trip-1", "vote-1")
+    val order = inOrder(transaction)
+    order.verify(transaction).get(voteDocument)
+    order.verify(transaction).update(voteDocument, "status", "CLOSED")
+    verifyNoMoreInteractions(transaction)
+    verify(voteDocument, never()).update(anyString(), any())
+  }
+
+  @Test
+  fun closeRejectsMissingAndAlreadyClosedWithoutWriting() = runTest {
+    val transaction = mock(Transaction::class.java)
+    val snapshot = mock(DocumentSnapshot::class.java)
+    `when`(transaction.get(voteDocument)).thenReturn(snapshot)
+    stubTransaction(transaction)
+    for ((exists, status, code) in
+        listOf(
+            Triple(false, null, FirebaseFirestoreException.Code.NOT_FOUND),
+            Triple(true, "CLOSED", FirebaseFirestoreException.Code.FAILED_PRECONDITION),
+        )) {
+      `when`(snapshot.exists()).thenReturn(exists)
+      `when`(snapshot.getString("status")).thenReturn(status)
+      val failure = runCatching { repository.closeVote("trip-1", "vote-1") }.exceptionOrNull()
+      assertEquals(code, (failure as FirebaseFirestoreException).code)
+    }
+    verify(transaction, never()).update(eq(voteDocument), anyString(), any())
+  }
+
+  @Test
+  fun closeOfflineFailurePropagatesAndCanRetryOnline() = runTest {
+    val offline = FirebaseFirestoreException("offline", FirebaseFirestoreException.Code.UNAVAILABLE)
+    doReturn(failedTask<Unit>(offline)).`when`(db).runTransaction(any<Transaction.Function<Unit>>())
+    assertSame(offline, runCatching { repository.closeVote("trip-1", "vote-1") }.exceptionOrNull())
+    verifyNoInteractions(voteDocument)
+    val transaction = mock(Transaction::class.java)
+    val snapshot = document(vote.uid, voteData)
+    `when`(snapshot.getString("status")).thenReturn("OPEN")
+    `when`(transaction.get(voteDocument)).thenReturn(snapshot)
+    stubTransaction(transaction)
+    repository.closeVote("trip-1", "vote-1")
+    verify(transaction).update(voteDocument, "status", "CLOSED")
   }
 
   @Test
@@ -468,40 +566,10 @@ class VoteRepositoryFirestoreTest {
   }
 
   @Test
-  fun observeVotesWaitsForAcknowledgementBeforePublishingClose() = runTest {
-    val registration = mock(ListenerRegistration::class.java)
-    `when`(
-            votes.addSnapshotListener(
-                eq(MetadataChanges.INCLUDE),
-                any<EventListener<QuerySnapshot>>(),
-            )
-        )
-        .thenReturn(registration)
-    val changes = mutableListOf<List<Vote>>()
-    val collection = launch { repository.observeVotes("trip-1").collect { changes.add(it) } }
-    runCurrent()
-    val listener = capturedListener(votes)
-    listener.onEvent(query(document(vote.uid, voteData)), null)
-    runCurrent()
-    val pending = query(document(vote.uid, voteData + ("status" to "CLOSED")))
-    val metadata = mock(SnapshotMetadata::class.java)
-    `when`(metadata.hasPendingWrites()).thenReturn(true)
-    `when`(pending.metadata).thenReturn(metadata)
-    listener.onEvent(pending, null)
-    runCurrent()
-    assertEquals(listOf(listOf(vote)), changes)
-    listener.onEvent(query(document(vote.uid, voteData + ("status" to "CLOSED"))), null)
-    runCurrent()
-    assertEquals(VoteStatus.CLOSED, changes.last().single().status)
-    collection.cancel()
-  }
-
-  @Test
   fun observeVotesEmitsInitialAdditionsUpdatesAndRemovalsAndCleansUp() = runTest {
     val registration = mock(ListenerRegistration::class.java)
     `when`(
             votes.addSnapshotListener(
-                eq(MetadataChanges.INCLUDE),
                 any<EventListener<QuerySnapshot>>(),
             )
         )
@@ -543,14 +611,12 @@ class VoteRepositoryFirestoreTest {
     val otherRegistration = mock(ListenerRegistration::class.java)
     `when`(
             votes.addSnapshotListener(
-                eq(MetadataChanges.INCLUDE),
                 any<EventListener<QuerySnapshot>>(),
             )
         )
         .thenReturn(registration)
     `when`(
             otherVotes.addSnapshotListener(
-                eq(MetadataChanges.INCLUDE),
                 any<EventListener<QuerySnapshot>>(),
             )
         )
@@ -586,7 +652,6 @@ class VoteRepositoryFirestoreTest {
     val registration = mock(ListenerRegistration::class.java)
     `when`(
             votes.addSnapshotListener(
-                eq(MetadataChanges.INCLUDE),
                 any<EventListener<QuerySnapshot>>(),
             )
         )
@@ -603,7 +668,6 @@ class VoteRepositoryFirestoreTest {
     val registration = mock(ListenerRegistration::class.java)
     `when`(
             votes.addSnapshotListener(
-                eq(MetadataChanges.INCLUDE),
                 any<EventListener<QuerySnapshot>>(),
             )
         )
@@ -625,7 +689,6 @@ class VoteRepositoryFirestoreTest {
       val registration = mock(ListenerRegistration::class.java)
       `when`(
               votes.addSnapshotListener(
-                  eq(MetadataChanges.INCLUDE),
                   any<EventListener<QuerySnapshot>>(),
               )
           )
@@ -643,7 +706,6 @@ class VoteRepositoryFirestoreTest {
     val error = IllegalStateException("Unable to register")
     `when`(
             votes.addSnapshotListener(
-                eq(MetadataChanges.INCLUDE),
                 any<EventListener<QuerySnapshot>>(),
             )
         )
@@ -774,8 +836,7 @@ class VoteRepositoryFirestoreTest {
     val captor =
         ArgumentCaptor.forClass(EventListener::class.java)
             as ArgumentCaptor<EventListener<QuerySnapshot>>
-    if (collection == ballots) verify(collection).addSnapshotListener(captor.capture())
-    else verify(collection).addSnapshotListener(eq(MetadataChanges.INCLUDE), captor.capture())
+    verify(collection).addSnapshotListener(captor.capture())
     return captor.value
   }
 
