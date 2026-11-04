@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -54,6 +55,8 @@ class RoamigoAppMapNavigationTest {
       createAndroidComposeRule<ComponentActivity>(effectContext = UnconfinedTestDispatcher())
 
   private lateinit var navController: NavHostController
+  private val authRepository =
+      FakeAuthRepository(AuthenticatedUser("alex", "Alex", null, null), initiallySignedIn = true)
   private val now = Instant.now().epochSecond
   private val mainTrip =
       Trip(
@@ -89,8 +92,6 @@ class RoamigoAppMapNavigationTest {
 
           override suspend fun findPhoto(destination: Destination): DestinationPhoto? = null
         }
-    val authRepository =
-        FakeAuthRepository(AuthenticatedUser("alex", "Alex", null, null), initiallySignedIn = true)
     val tripRepository = FakeTripRepository(trips = listOf(mainTrip, otherTrip))
     composeRule.setContent {
       navController = rememberNavController()
@@ -176,6 +177,20 @@ class RoamigoAppMapNavigationTest {
     pressBack()
     waitForRoute(Route.TRIP_DETAILS)
     composeRule.runOnIdle { assertEquals(detailsEntryId, navController.currentBackStackEntry?.id) }
+  }
+
+  @Test
+  fun expiredSessionRedirectsTheTripMapToAuthentication() {
+    openMainTripDetails()
+    composeRule.runOnIdle { authRepository.signOut() }
+
+    composeRule
+        .onNodeWithText(composeRule.activity.getString(R.string.trip_details_map))
+        .performClick()
+
+    waitForRoute(Route.AUTHENTICATION)
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_banner).assertDoesNotExist()
+    composeRule.runOnIdle { assertNull(navController.previousBackStackEntry) }
   }
 
   @Test
