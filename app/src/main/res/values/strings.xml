@@ -16,6 +16,8 @@
     <string name="auth_sign_in_cancelled">Sign-in cancelled</string>
     <string name="auth_no_credentials">No Google credentials available. Try signing in again.</string>
     <string name="auth_credentials_failed">Unable to access your Google account. Please try again.</string>
+    <string name="auth_network_error">We couldn’t sign you in with Google. Check your connection and try again.</string>
+    <string name="auth_invalid_credential">We couldn’t verify your Google sign-in. Please sign in again.</string>
     <string name="auth_terms">By continuing you agree to the Terms and Privacy Policy.</string>
     <string name="auth_error_title">Sign-in didn’t work</string>
     <string name="auth_error_description">We couldn’t sign you in with Google. Please try again.</string>
