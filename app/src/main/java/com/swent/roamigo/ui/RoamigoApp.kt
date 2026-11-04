@@ -65,6 +65,7 @@ import com.swent.roamigo.ui.trip.details.TripDetailsRoute
 import com.swent.roamigo.ui.trip.history.TripHistoryRoute
 import com.swent.roamigo.ui.trip.voting.CreateVoteScreen
 import com.swent.roamigo.ui.trip.voting.CreateVoteViewModel
+import com.swent.roamigo.ui.trip.voting.VoteCloseDialog
 import com.swent.roamigo.ui.trip.voting.VoteDialog
 import com.swent.roamigo.ui.trip.voting.VoteScreen
 import com.swent.roamigo.ui.trip.voting.VoteViewModel
@@ -194,12 +195,18 @@ fun RoamigoApp(
             navController.navigate(Route.AUTHENTICATION) { popUpTo(navController.graph.id) }
           }
         } else {
-          VoteDialog(
-              voteId,
-              { VoteViewModel(voteRepository, tripId, it, userId) },
-              confirmCloseOnOpen = confirmVoteClose,
-          ) {
-            selectedVoteId = null
+          if (confirmVoteClose) {
+            VoteCloseDialog(
+                voteId,
+                { VoteViewModel(voteRepository, tripId, it, userId) },
+                onDismiss = { selectedVoteId = null },
+            )
+          } else {
+            VoteDialog(
+                voteId,
+                { VoteViewModel(voteRepository, tripId, it, userId) },
+                onDismiss = { selectedVoteId = null },
+            )
           }
         }
       }

@@ -16,7 +16,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -74,15 +77,34 @@ class VoteViewModelTest {
   private fun ballot(optionId: String) = VoteBallot("member", optionId, Timestamp(1, 0))
 
   @Test
-  fun closingWithAnUnsavedChangePreservesPreviousBallot() = runTest {
+  fun selectedVoteIgnoresUnrelatedVotesAndCollectionErrorsWhileDraftAndBallotsStayLive() = runTest {
+    createViewModel()
+    runCurrent()
+    viewModel.selectOption("b")
+    val emissions = repository.selectedVoteEmissions
+    repository.addUnrelatedVote(
+        interactionVote().copy(uid = "unrelated", status = VoteStatus.CLOSED)
+    )
+    runCurrent()
+    assertEquals(emissions, repository.selectedVoteEmissions)
+    assertEquals("b", ready().selectedOptionId)
+    assertEquals(0, repository.collectionObservations)
+    repository.ballots.value = listOf(ballot("a"))
+    runCurrent()
+    assertEquals("a", ready().persistedOptionId)
+    assertEquals("b", ready().selectedOptionId)
+    assertEquals(1, ready().voteCounts["a"])
+    assertEquals("trip" to "vote", repository.selectedObservation)
+  }
+
+  @Test
+  fun closingFinalizesPersistedBallotWithoutSubmitting() = runTest {
     repository.vote = interactionVote().copy(createdByUserId = "member")
     val original = ballot("a")
     repository.submitBallot("trip", "vote", original)
     createViewModel()
     advanceUntilIdle()
-    viewModel.selectOption("b")
     assertEquals("a", ready().persistedOptionId)
-    assertEquals("b", ready().selectedOptionId)
     viewModel.closeVote()
     advanceUntilIdle()
     assertEquals(VoteUiState.Closed, viewModel.uiState.value)
@@ -93,11 +115,10 @@ class VoteViewModelTest {
   }
 
   @Test
-  fun closingWithAnUnsavedFirstSelectionDoesNotCreateABallot() = runTest {
+  fun closingWithoutABallotDoesNotCreateOne() = runTest {
     repository.vote = interactionVote().copy(createdByUserId = "member")
     createViewModel()
     advanceUntilIdle()
-    viewModel.selectOption("b")
     viewModel.closeVote()
     advanceUntilIdle()
     assertEquals(VoteUiState.Closed, viewModel.uiState.value)
@@ -779,6 +800,14 @@ class VoteViewModelTest {
 
 internal class InteractionVoteRepository : VoteRepository {
   private val votes = MutableStateFlow<List<Vote>>(listOf(interactionVote()))
+  var selectedVoteEmissions = 0
+  var collectionObservations = 0
+  var selectedObservation: Pair<String, String>? = null
+
+  fun addUnrelatedVote(vote: Vote) {
+    votes.value = votes.value + vote
+  }
+
   var vote: Vote?
     get() = votes.value.firstOrNull()
     set(value) {
@@ -844,5 +873,17 @@ internal class InteractionVoteRepository : VoteRepository {
 
   override suspend fun getVotes(tripId: String): List<Vote> = error("Not used")
 
-  override fun observeVotes(tripId: String): Flow<List<Vote>> = votes
+  override fun observeVote(tripId: String, voteId: String): Flow<Vote?> =
+      votes
+          .map { snapshot -> snapshot.firstOrNull { it.uid == voteId } }
+          .distinctUntilChanged()
+          .onEach {
+            selectedObservation = tripId to voteId
+            selectedVoteEmissions++
+          }
+
+  override fun observeVotes(tripId: String): Flow<List<Vote>> {
+    collectionObservations++
+    error("Malformed unrelated vote: selected interaction must not observe the collection")
+  }
 }

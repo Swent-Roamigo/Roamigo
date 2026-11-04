@@ -26,15 +26,14 @@ fun VoteActions(
     hasPersistedBallot: Boolean,
     onSubmit: () -> Unit,
     onBack: () -> Unit,
-    showSubmit: Boolean = true,
     modifier: Modifier = Modifier,
-    interactionLocked: Boolean = false,
+    showSubmit: Boolean = true,
 ) {
   Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.large)) {
     if (showSubmit)
         Button(
             onClick = onSubmit,
-            enabled = canSubmit && !interactionLocked,
+            enabled = canSubmit,
             modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
         ) {
           if (isSubmitting) {
@@ -53,7 +52,7 @@ fun VoteActions(
         }
     OutlinedButton(
         onClick = onBack,
-        enabled = !isSubmitting && !interactionLocked,
+        enabled = !isSubmitting,
         modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
     ) {
       Text(stringResource(R.string.vote_back))

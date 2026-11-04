@@ -35,6 +35,15 @@ private fun LiveVoteCreatorPreview() =
         LiveVoteSummary(dinnerPreview.voteCounts, hasPersistedBallot = true, isCreator = true)
     )
 
+@Preview(
+    name = "Creator · Narrow · Large font",
+    showBackground = true,
+    widthDp = 280,
+    fontScale = 1.5f,
+)
+@Composable
+private fun NarrowCreatorCardPreview() = LiveVoteCreatorPreview()
+
 @Preview(name = "Vote card · CLOSED", showBackground = true, widthDp = 390)
 @Composable
 private fun ClosedVoteCardPreview() {
