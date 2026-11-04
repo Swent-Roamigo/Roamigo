@@ -3,11 +3,13 @@ package com.swent.roamigo.model.country
 
 import com.swent.roamigo.model.TripLocation
 import java.io.IOException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.fail
 import org.junit.Test
 
 class CachedCountryCodeResolverTest {
@@ -212,6 +214,88 @@ class CachedCountryCodeResolverTest {
     assertEquals("PT", first.await())
     assertEquals("PT", second.await())
     assertEquals(1, requests)
+  }
+
+  @Test
+  fun cancellationDuringCacheReadIsPropagated() = runTest {
+    val cache =
+        object : CountryCodeCache {
+          override suspend fun get(
+              latitude: Double,
+              longitude: Double,
+          ): String? {
+            throw CancellationException("Cache read cancelled")
+          }
+
+          override suspend fun put(
+              latitude: Double,
+              longitude: Double,
+              countryCode: String,
+          ) {
+            error("Cache write should not happen")
+          }
+        }
+
+    val resolver =
+        CachedCountryCodeResolver(
+            CountryCodeLookup { _, _ -> error("GeoNames should not be called") },
+            cache,
+        )
+
+    try {
+      resolver.resolve(lisbon)
+      fail("Expected cancellation")
+    } catch (e: CancellationException) {
+      assertEquals("Cache read cancelled", e.message)
+    }
+  }
+
+  @Test
+  fun cancellationDuringGeoNamesLookupIsPropagated() = runTest {
+    val resolver =
+        CachedCountryCodeResolver(
+            CountryCodeLookup { _, _ -> throw CancellationException("Lookup cancelled") },
+            MemoryCache(),
+        )
+
+    try {
+      resolver.resolve(lisbon)
+      fail("Expected cancellation")
+    } catch (e: CancellationException) {
+      assertEquals("Lookup cancelled", e.message)
+    }
+  }
+
+  @Test
+  fun cancellationDuringCacheWriteIsPropagated() = runTest {
+    val cache =
+        object : CountryCodeCache {
+          override suspend fun get(
+              latitude: Double,
+              longitude: Double,
+          ): String? = null
+
+          override suspend fun put(
+              latitude: Double,
+              longitude: Double,
+              countryCode: String,
+          ) {
+            throw CancellationException("Cache write cancelled")
+          }
+        }
+
+    val resolver =
+        CachedCountryCodeResolver(
+            CountryCodeLookup { _, _ -> "PT" },
+            cache,
+        )
+
+    try {
+      resolver.resolve(lisbon)
+      fail("Expected cancellation")
+    } catch (e: CancellationException) {
+      assertEquals("Cache write cancelled", e.message)
+    }
   }
 
   private class MemoryCache : CountryCodeCache {
