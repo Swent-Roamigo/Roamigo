@@ -30,6 +30,7 @@ object C {
     const val trips_navigation_photos = "trips_navigation_photos"
     const val trips_navigation_friends = "trips_navigation_friends"
     const val trips_profile_avatar = "trips_profile_avatar"
+    const val trips_profile_photo = "trips_profile_photo"
 
     const val friends_screen = "friends_screen"
     const val friends_friend_row = "friends_friend_row"
