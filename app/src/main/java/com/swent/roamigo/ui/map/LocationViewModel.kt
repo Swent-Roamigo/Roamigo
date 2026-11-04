@@ -26,7 +26,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -317,25 +316,34 @@ class LocationViewModel(
         }
       }
 
+  // A try block rather than the catch operator: static analysis resolves that operator to its
+  // deprecated SharedFlow overload. Only the repository throws LocationSharingException here.
   private suspend fun observeMemberLocations() {
-    locationRepository
-        .observeMemberLocations(tripId)
-        .catch { exception ->
-          if (exception !is LocationSharingException) throw exception
-          _uiState.update { state -> state.copy(observationErrorMessage = exception.message) }
-        }
-        .collectLatest { locations ->
-          // A successful read shows the error of an earlier observation is over. A sharing error
-          // is left as is, since only a new sharing request answers it.
-          _uiState.update { state -> state.copy(observationErrorMessage = null) }
-          // Locations age without new emissions, so they are re-evaluated until none is visible.
-          // A new emission cancels this loop and starts over with the fresh list.
-          while (true) {
-            val visibleLocations = showMemberLocations(locations)
-            if (visibleLocations.isEmpty()) break
-            delay(STALENESS_CHECK_INTERVAL)
-          }
-        }
+    var lastLocations: List<MemberLocation>? = null
+    try {
+      locationRepository.observeMemberLocations(tripId).collectLatest { locations ->
+        lastLocations = locations
+        // A successful read shows the error of an earlier observation is over. A sharing error
+        // is left as is, since only a new sharing request answers it.
+        _uiState.update { state -> state.copy(observationErrorMessage = null) }
+        // A new emission cancels this and starts over with the fresh list.
+        showMemberLocationsUntilHidden(locations)
+      }
+    } catch (exception: LocationSharingException) {
+      _uiState.update { state -> state.copy(observationErrorMessage = exception.message) }
+      // The failure cancelled the aging of the last read locations, which must still go stale and
+      // then hidden.
+      lastLocations?.let { showMemberLocationsUntilHidden(it) }
+    }
+  }
+
+  // Locations age without new emissions, so they are re-evaluated until none is visible.
+  private suspend fun showMemberLocationsUntilHidden(locations: List<MemberLocation>) {
+    while (true) {
+      val visibleLocations = showMemberLocations(locations)
+      if (visibleLocations.isEmpty()) break
+      delay(STALENESS_CHECK_INTERVAL)
+    }
   }
 
   /**
