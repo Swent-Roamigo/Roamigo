@@ -37,6 +37,8 @@ service cloud.firestore {
           && math.abs(destination.latitude) <= 90
           && destination.longitude is number
           && math.abs(destination.longitude) <= 180
+          // Missing countryCode is allowed for legacy trips.
+          // Explicit null is rejected; the Kotlin serializer omits absent codes.
           && (!('countryCode' in destination)
               || (destination.countryCode is string
                   && destination.countryCode.matches('^[A-Z]{2}$')));

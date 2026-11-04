@@ -21,6 +21,7 @@ import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.TripCreationException
 import com.swent.roamigo.model.trip.TripDraft
 import com.swent.roamigo.model.trip.TripRepository
+import com.swent.roamigo.model.validCountryCodeOrNull
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
@@ -211,7 +212,7 @@ class CreateTripViewModel(
                     latitude = destination.latitude,
                     longitude = destination.longitude,
                     name = destination.name,
-                    countryCode = destination.countryCode.takeIf { it.matches(Regex("[A-Z]{2}")) },
+                    countryCode = destination.countryCode.validCountryCodeOrNull(),
                 )
               },
           startDate = startDate.atStartOfDay(zone).toInstant(),

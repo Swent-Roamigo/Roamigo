@@ -321,6 +321,29 @@ class CreateTripViewModelTest {
     assertFalse(viewModel.uiState.value.isSubmitting)
   }
 
+  @Test
+  fun invalidGeoNamesCountryCodesAreOmittedFromTripDraft() = runTest {
+    listOf("", "pt", "PRT", "P1").forEach { code ->
+      val repository = RecordingRepository()
+      val viewModel =
+          createTestCreateTripViewModel(
+              repository,
+              destinationRepository = FakeDestinationRepository(),
+          )
+
+      viewModel.toggleDestination(sampleDestination("Lisbon").copy(countryCode = code))
+      viewModel.createTrip()
+      advanceUntilIdle()
+
+      val draft = repository.requests.single().second
+
+      assertNull(
+          "Invalid country code '$code' should be omitted",
+          draft.destinations.single().countryCode,
+      )
+    }
+  }
+
   private class RecordingRepository(
       private val delegate: TripRepository = FakeTripRepository(currentUserId = "owner")
   ) : TripRepository by delegate {
