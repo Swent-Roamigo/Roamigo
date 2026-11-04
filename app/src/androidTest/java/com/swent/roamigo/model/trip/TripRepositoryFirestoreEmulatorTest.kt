@@ -378,7 +378,7 @@ class TripRepositoryFirestoreEmulatorTest {
         alice.voteRepository.getVote(tripId, vote.uid),
     )
     assertEquals(listOf(vote.copy(status = VoteStatus.CLOSED)), observed.await())
-    assertPermissionDenied { alice.voteRepository.closeVote(tripId, vote.uid) }
+    assertFailedPrecondition { alice.voteRepository.closeVote(tripId, vote.uid) }
     assertPermissionDenied { voteDocument(alice).update("status", "OPEN").await() }
   }
 
@@ -738,6 +738,15 @@ class TripRepositoryFirestoreEmulatorTest {
 
   private fun ownerMemberData(userId: String) =
       TripMember(userId, TripMemberRole.OWNER, Timestamp.now()).toFirestoreData()
+
+  private suspend fun assertFailedPrecondition(block: suspend () -> Unit) {
+    val error = runCatching { block() }.exceptionOrNull()
+    assertTrue(
+        error.toString(),
+        error is FirebaseFirestoreException &&
+            error.code == FirebaseFirestoreException.Code.FAILED_PRECONDITION,
+    )
+  }
 
   private suspend fun assertPermissionDenied(block: suspend () -> Unit) {
     val error = runCatching { block() }.exceptionOrNull()
