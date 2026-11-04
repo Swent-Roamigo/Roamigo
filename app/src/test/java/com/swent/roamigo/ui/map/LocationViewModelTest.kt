@@ -964,17 +964,68 @@ class LocationViewModelTest {
   }
 
   @Test
-  fun turnOnSharing_withPermission_startsSharingWithoutSheetOrRequest() = runLocationTest {
-    val viewModel = createViewModel(hasPermission = true)
-    val effects = collectEffects(viewModel)
+  fun turnOnSharing_withPermission_showsRationaleThenContinueSharesWithoutRequest() =
+      runLocationTest {
+        val viewModel = createViewModel(hasPermission = true)
+        val effects = collectEffects(viewModel)
 
-    viewModel.onTurnOnSharingClick(permissionGranted = true)
+        viewModel.onTurnOnSharingClick(permissionGranted = true)
+        runCurrent()
+
+        assertEquals(LocationPermissionSheet.Rationale, viewModel.uiState.value.permissionSheet)
+        assertFalse(viewModel.uiState.value.isSharing)
+        assertTrue(repository.startSharingCalls.isEmpty())
+
+        viewModel.onRationaleContinue(permissionGranted = true)
+        runCurrent()
+
+        assertEquals(LocationPermissionSheet.None, viewModel.uiState.value.permissionSheet)
+        assertTrue(viewModel.uiState.value.isSharing)
+        assertEquals(listOf(TRIP_ID), repository.startSharingCalls)
+        assertTrue(effects.isEmpty())
+      }
+
+  @Test
+  fun turnOnSharing_whileRevoked_showsBlockedWithoutRequesting() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = false)
+    val effects = collectEffects(viewModel)
+    viewModel.onTurnOnSharingClick(permissionGranted = false)
+    viewModel.onRationaleContinue(permissionGranted = false)
+    viewModel.onPermissionResult(granted = false, shouldShowRationale = false)
+    viewModel.onPermissionSheetDismissed()
+
+    viewModel.onTurnOnSharingClick(permissionGranted = false)
+    runCurrent()
+
+    assertEquals(LocationPermissionSheet.Blocked, viewModel.uiState.value.permissionSheet)
+    // Only the first request, made before the permanent refusal.
+    assertEquals(listOf<LocationEffect>(LocationEffect.RequestPermission), effects)
+    assertTrue(repository.startSharingCalls.isEmpty())
+
+    // No request is pending: a later result must not open a sheet nor start sharing.
+    viewModel.onPermissionSheetDismissed()
+    repository.hasPermission = true
+    viewModel.onPermissionResult(granted = true, shouldShowRationale = false)
     runCurrent()
 
     assertEquals(LocationPermissionSheet.None, viewModel.uiState.value.permissionSheet)
-    assertTrue(viewModel.uiState.value.isSharing)
-    assertEquals(listOf(TRIP_ID), repository.startSharingCalls)
-    assertTrue(effects.isEmpty())
+    assertTrue(repository.startSharingCalls.isEmpty())
+  }
+
+  @Test
+  fun turnOnSharing_afterRevokedThenGrantedOnRecheck_showsRationale() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = false)
+    viewModel.assertTransitions(DENIED_WITHOUT_RATIONALE to Revoked)
+
+    // The user allowed the permission in the settings, noticed when the screen resumes.
+    repository.hasPermission = true
+    viewModel.onPermissionChecked(granted = true)
+    viewModel.onTurnOnSharingClick(permissionGranted = true)
+    runCurrent()
+
+    assertEquals(Granted, viewModel.uiState.value.permissionState)
+    assertEquals(LocationPermissionSheet.Rationale, viewModel.uiState.value.permissionSheet)
+    assertTrue(repository.startSharingCalls.isEmpty())
   }
 
   @Test

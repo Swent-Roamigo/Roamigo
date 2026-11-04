@@ -257,12 +257,17 @@ class TripMapScreenTest {
   }
 
   @Test
-  fun turnOnWithGrantedPermissionStartsSharingAndPauseStopsIt() {
+  fun turnOnWithGrantedPermissionShowsRationaleThenContinueStartsSharingAndPauseStopsIt() {
     permissionChecker.granted = true
     val locationRepository = RecordingLocationRepository(hasPermission = true)
     setScreen(FakeTripRepository(trips = listOf(trip)), locationRepository)
 
     composeRule.onNodeWithText(turnOnSharingLabel).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_share_location_sheet).assertIsDisplayed()
+    composeRule.runOnIdle { assertEquals(0, locationRepository.startSharingCalls.get()) }
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_share_location_continue).performClick()
 
     waitForText(pauseSharingLabel)
     composeRule.onNodeWithText(sharingOnTitle).assertIsDisplayed()
@@ -442,7 +447,7 @@ class TripMapScreenTest {
   }
 
   @Test
-  fun permissionGrantedOutsideTheAppLetsTurnOnStartSharingAtOnce() {
+  fun permissionGrantedOutsideTheAppShowsRationaleThenContinueStartsSharing() {
     val locationRepository = RecordingLocationRepository()
     setScreen(FakeTripRepository(trips = listOf(trip)), locationRepository)
     composeRule.onNodeWithTag(C.Tag.trip_map_map).assertIsDisplayed()
@@ -454,6 +459,8 @@ class TripMapScreenTest {
     composeRule.waitForIdle()
 
     composeRule.onNodeWithText(turnOnSharingLabel).performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_map_share_location_sheet).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_share_location_continue).performClick()
 
     waitForText(pauseSharingLabel)
     composeRule.onNodeWithText(sharingOnTitle).assertIsDisplayed()
@@ -462,6 +469,49 @@ class TripMapScreenTest {
       assertTrue(registry.launchedInputs.isEmpty())
       assertEquals(1, locationRepository.startSharingCalls.get())
     }
+  }
+
+  @Test
+  fun turnOnAfterPermanentRefusalShowsBlockedSheetAndLaunchesNothing() {
+    val locationRepository = RecordingLocationRepository()
+    setScreen(FakeTripRepository(trips = listOf(trip)), locationRepository)
+    requestPermissionThroughRationale()
+    permissionChecker.shouldShowRationale = false
+    answerPermissionRequest(fine = false, coarse = false)
+    composeRule.onNodeWithTag(C.Tag.trip_map_location_blocked_not_now).performClick()
+    assertNoPermissionSheet()
+
+    composeRule.onNodeWithText(turnOnSharingLabel).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_location_blocked_sheet).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_share_location_sheet).assertDoesNotExist()
+    composeRule.runOnIdle {
+      // Only the first request, made before the permanent refusal.
+      assertEquals(1, registry.launchedInputs.size)
+      assertEquals(0, locationRepository.startSharingCalls.get())
+    }
+  }
+
+  @Test
+  fun permissionGrantedInSettingsAfterPermanentRefusalShowsRationaleAgain() {
+    val locationRepository = RecordingLocationRepository()
+    setScreen(FakeTripRepository(trips = listOf(trip)), locationRepository)
+    requestPermissionThroughRationale()
+    permissionChecker.shouldShowRationale = false
+    answerPermissionRequest(fine = false, coarse = false)
+    composeRule.onNodeWithTag(C.Tag.trip_map_location_blocked_not_now).performClick()
+
+    // Allowed in the settings, then seen when the screen resumes.
+    permissionChecker.granted = true
+    composeRule.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
+    composeRule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+    composeRule.waitForIdle()
+
+    composeRule.onNodeWithText(turnOnSharingLabel).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_share_location_sheet).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_location_blocked_sheet).assertDoesNotExist()
+    composeRule.runOnIdle { assertEquals(1, registry.launchedInputs.size) }
   }
 
   /** Taps Turn on and Continue, so that the screen launches the permission request. */
