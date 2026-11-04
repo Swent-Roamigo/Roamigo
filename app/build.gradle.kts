@@ -210,6 +210,7 @@ dependencies {
   testImplementation(libs.kotlinx.coroutines.test)
   globalTestImplementation(libs.androidx.junit)
   globalTestImplementation(libs.androidx.espresso.core)
+  androidTestImplementation(libs.androidx.espresso.intents)
 
   // ------------- Mapbox ------------------
   implementation(libs.mapbox.maps)

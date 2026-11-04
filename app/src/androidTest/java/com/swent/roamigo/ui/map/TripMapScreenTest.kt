@@ -2,6 +2,8 @@
 package com.swent.roamigo.ui.map
 
 import android.Manifest
+import android.app.Activity
+import android.app.Instrumentation
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
@@ -22,6 +24,11 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.core.app.ActivityOptionsCompat
 import androidx.lifecycle.Lifecycle
+import androidx.test.espresso.intent.Intents
+import androidx.test.espresso.intent.Intents.intended
+import androidx.test.espresso.intent.Intents.intending
+import androidx.test.espresso.intent.matcher.IntentMatchers.hasAction
+import androidx.test.espresso.intent.matcher.IntentMatchers.hasData
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.Timestamp
@@ -46,6 +53,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import org.hamcrest.Matchers.allOf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -58,7 +66,8 @@ import org.junit.runner.RunWith
  * The permission flow runs for real, but the system stays out of it:
  * [FakeLocationPermissionChecker] answers the permission checks, [RecordingActivityResultRegistry]
  * records the permission requests and answers them on demand instead of showing the system dialog,
- * and the started intents are recorded instead of leaving the app.
+ * and the started intents are recorded instead of leaving the app, or stubbed through Espresso
+ * Intents when the screen starts them itself.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
@@ -401,6 +410,60 @@ class TripMapScreenTest {
     assertEquals(0, locationRepository.startSharingCalls.get())
   }
 
+  @Test
+  fun openSettingsWithTheDefaultStarterOpensTheAppDetailsSettings() {
+    Intents.init()
+    try {
+      // Answered at once, so that the settings never open over the test.
+      intending(hasAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS))
+          .respondWith(Instrumentation.ActivityResult(Activity.RESULT_OK, null))
+      setScreen(
+          FakeTripRepository(trips = listOf(trip)),
+          RecordingLocationRepository(),
+          recordStartedIntents = false,
+      )
+      requestPermissionThroughRationale()
+      permissionChecker.shouldShowRationale = false
+      answerPermissionRequest(fine = false, coarse = false)
+
+      composeRule.onNodeWithTag(C.Tag.trip_map_location_blocked_open_settings).performClick()
+      composeRule.waitForIdle()
+
+      intended(
+          allOf(
+              hasAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS),
+              hasData(Uri.fromParts("package", targetContext.packageName, null)),
+          )
+      )
+      assertNoPermissionSheet()
+    } finally {
+      Intents.release()
+    }
+  }
+
+  @Test
+  fun permissionGrantedOutsideTheAppLetsTurnOnStartSharingAtOnce() {
+    val locationRepository = RecordingLocationRepository()
+    setScreen(FakeTripRepository(trips = listOf(trip)), locationRepository)
+    composeRule.onNodeWithTag(C.Tag.trip_map_map).assertIsDisplayed()
+
+    // Granted outside the app, e.g. in the settings, then seen when the screen resumes.
+    permissionChecker.granted = true
+    composeRule.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
+    composeRule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+    composeRule.waitForIdle()
+
+    composeRule.onNodeWithText(turnOnSharingLabel).performClick()
+
+    waitForText(pauseSharingLabel)
+    composeRule.onNodeWithText(sharingOnTitle).assertIsDisplayed()
+    assertNoPermissionSheet()
+    composeRule.runOnIdle {
+      assertTrue(registry.launchedInputs.isEmpty())
+      assertEquals(1, locationRepository.startSharingCalls.get())
+    }
+  }
+
   /** Taps Turn on and Continue, so that the screen launches the permission request. */
   private fun requestPermissionThroughRationale() {
     composeRule.onNodeWithText(turnOnSharingLabel).performClick()
@@ -468,32 +531,45 @@ class TripMapScreenTest {
       tripRepository: TripRepository,
       locationRepository: LocationRepository,
       activityResultRegistry: ActivityResultRegistry = registry,
+      recordStartedIntents: Boolean = true,
   ) {
     val registryOwner =
         object : ActivityResultRegistryOwner {
           override val activityResultRegistry = activityResultRegistry
         }
+    val tripMapViewModelFactory =
+        TripMapViewModel.factory(
+            tripId = TRIP_ID,
+            tripRepository = tripRepository,
+            userRepository = FakeUserRepository(User(USER_ID, "Alex", null)),
+        )
+    val locationViewModelFactory =
+        LocationViewModel.factory(
+            tripId = TRIP_ID,
+            currentUserId = USER_ID,
+            locationRepository = locationRepository,
+            connectivityRepository = AlwaysOnlineConnectivityRepository,
+        )
     composeRule.setContent {
       CompositionLocalProvider(LocalActivityResultRegistryOwner provides registryOwner) {
         RoamigoTheme {
-          TripMapScreen(
-              tripId = TRIP_ID,
-              tripMapViewModelFactory =
-                  TripMapViewModel.factory(
-                      tripId = TRIP_ID,
-                      tripRepository = tripRepository,
-                      userRepository = FakeUserRepository(User(USER_ID, "Alex", null)),
-                  ),
-              locationViewModelFactory =
-                  LocationViewModel.factory(
-                      tripId = TRIP_ID,
-                      currentUserId = USER_ID,
-                      locationRepository = locationRepository,
-                      connectivityRepository = AlwaysOnlineConnectivityRepository,
-                  ),
-              permissionChecker = permissionChecker,
-              startActivity = { intent -> startedIntents += intent },
-          )
+          if (recordStartedIntents) {
+            TripMapScreen(
+                tripId = TRIP_ID,
+                tripMapViewModelFactory = tripMapViewModelFactory,
+                locationViewModelFactory = locationViewModelFactory,
+                permissionChecker = permissionChecker,
+                startActivity = { intent -> startedIntents += intent },
+            )
+          } else {
+            // Leaves the intents to the screen's default, which starts them from its context.
+            TripMapScreen(
+                tripId = TRIP_ID,
+                tripMapViewModelFactory = tripMapViewModelFactory,
+                locationViewModelFactory = locationViewModelFactory,
+                permissionChecker = permissionChecker,
+            )
+          }
         }
       }
     }
