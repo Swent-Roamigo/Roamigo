@@ -513,6 +513,46 @@ class TripRepositoryFirestoreEmulatorTest {
     }
   }
 
+  @Test
+  fun createTrip_withCountryCodesPersistsThem() = runBlocking {
+    val withCountryCodes =
+        draft.copy(
+            destinations =
+                listOf(
+                    TripLocation(38.7223, -9.1393, "Lisbon", "PT"),
+                    TripLocation(41.3874, 2.1686, "Barcelona", "ES"),
+                ),
+        )
+
+    alice.repository.createTrip(tripId, withCountryCodes)
+
+    assertEquals(
+        withCountryCodes.destinations,
+        alice.repository.getTrip(tripId)?.destinations,
+    )
+  }
+
+  @Test
+  fun directWriteWithInvalidCountryCodeIsDenied() = runBlocking {
+    val lisbon =
+        mapOf(
+            "name" to "Lisbon",
+            "latitude" to 38.7223,
+            "longitude" to -9.1393,
+        )
+
+    val invalidCodes = listOf("", "pt", "PRT", "P1", 42, null)
+
+    invalidCodes.forEach { code ->
+      assertPermissionDenied {
+        writeTripDirectly(
+            alice,
+            destinations = listOf(lisbon + ("countryCode" to code)),
+        )
+      }
+    }
+  }
+
   private class User(
       val userId: String,
       val db: FirebaseFirestore,

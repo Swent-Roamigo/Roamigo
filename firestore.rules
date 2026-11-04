@@ -29,14 +29,17 @@ service cloud.firestore {
     // destination is checked against the 1000-expression limit of a single request.
     function isValidDestination(destination) {
       return destination is map
-          && destination.keys().size() == 3
           && destination.keys().hasAll(['name', 'latitude', 'longitude'])
+          && destination.keys().hasOnly(['name', 'latitude', 'longitude', 'countryCode'])
           && destination.name is string
           && destination.name.trim().size() > 0
           && destination.latitude is number
           && math.abs(destination.latitude) <= 90
           && destination.longitude is number
-          && math.abs(destination.longitude) <= 180;
+          && math.abs(destination.longitude) <= 180
+          && (!('countryCode' in destination)
+              || (destination.countryCode is string
+                  && destination.countryCode.matches('^[A-Z]{2}$')));
     }
 
     // Rules have no loops, so each index up to MAX_DESTINATIONS (model/trip/Trip.kt) is checked.

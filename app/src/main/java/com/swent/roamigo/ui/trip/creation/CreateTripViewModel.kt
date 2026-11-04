@@ -206,7 +206,14 @@ class CreateTripViewModel(
       TripDraft(
           name = selectedDestinations.joinToString(" → ") { it.name },
           destinations =
-              selectedDestinations.map { TripLocation(it.latitude, it.longitude, it.name) },
+              selectedDestinations.map { destination ->
+                TripLocation(
+                    latitude = destination.latitude,
+                    longitude = destination.longitude,
+                    name = destination.name,
+                    countryCode = destination.countryCode.takeIf { it.matches(Regex("[A-Z]{2}")) },
+                )
+              },
           startDate = startDate.atStartOfDay(zone).toInstant(),
           endDate = endDate.atStartOfDay(zone).toInstant(),
           flexibleDates = flexibleDates,

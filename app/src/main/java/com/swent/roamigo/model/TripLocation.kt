@@ -6,6 +6,7 @@ data class TripLocation(
     val latitude: Double,
     val longitude: Double,
     val name: String,
+    val countryCode: String? = null,
 )
 
 // firestore.rules cannot import these values, so its destination check repeats them.
