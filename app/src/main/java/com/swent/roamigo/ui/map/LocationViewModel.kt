@@ -44,9 +44,10 @@ import kotlinx.coroutines.launch
  * device is offline, the last shown locations stay on the map, marked stale, and everything resumes
  * on reconnection.
  *
- * The location permission is asked in context, only once the user turns sharing on, and always
- * after the rationale sheet. The screen is told what to do through [effects]: this class holds the
- * steps but no Android types.
+ * Turning sharing on always shows the rationale sheet first, and the location permission is asked
+ * in context, only once the user continues from it. Once the system no longer shows the request,
+ * turning sharing on opens the blocked sheet instead and asks nothing. The screen is told what to
+ * do through [effects]: this class holds the steps but no Android types.
  *
  * @property tripId identifier of the trip whose locations are managed.
  * @property currentUserId identifier of the signed-in user, used for their own position.
@@ -138,18 +139,23 @@ class LocationViewModel(
   }
 
   /**
-   * The user wants to share their location. With the permission already granted, sharing starts at
-   * once. Otherwise the rationale sheet is shown first: the system dialog is only requested once
+   * The user wants to share their location. The rationale sheet is always shown first, even when
+   * the permission is already granted: sharing starts, or the system dialog is requested, only once
    * the user continues from it, through [onRationaleContinue].
+   *
+   * While the permission is [LocationPermissionState.Revoked] and still not granted, the system no
+   * longer shows the request, so [LocationPermissionSheet.Blocked] is shown directly instead and
+   * nothing is requested. A grant noticed by [onPermissionChecked] leaves that state, so the
+   * rationale is shown again once the user allowed the permission in the settings.
    *
    * @param permissionGranted whether the app currently holds a location permission.
    */
   fun onTurnOnSharingClick(permissionGranted: Boolean) {
-    if (permissionGranted) {
-      startSharingWithPermission()
-    } else {
-      showPermissionSheet(LocationPermissionSheet.Rationale)
-    }
+    val revoked = _uiState.value.permissionState == LocationPermissionState.Revoked
+    showPermissionSheet(
+        if (!permissionGranted && revoked) LocationPermissionSheet.Blocked
+        else LocationPermissionSheet.Rationale
+    )
   }
 
   /**
@@ -162,7 +168,10 @@ class LocationViewModel(
   fun onRationaleContinue(permissionGranted: Boolean) {
     showPermissionSheet(LocationPermissionSheet.None)
     if (permissionGranted) {
-      startSharingWithPermission()
+      // The state may lag behind a grant made outside the app, which would make startSharing
+      // refuse.
+      onPermissionChecked(granted = true)
+      startSharing()
     } else {
       permissionRequestPending = true
       _effects.trySend(LocationEffect.RequestPermission)
@@ -282,14 +291,6 @@ class LocationViewModel(
         }
       }
     }
-  }
-
-  // The screen checked the permission just before calling, so the state is brought up to date
-  // first:
-  // a grant made outside the app would otherwise make startSharing refuse.
-  private fun startSharingWithPermission() {
-    onPermissionChecked(granted = true)
-    startSharing()
   }
 
   private fun showPermissionSheet(sheet: LocationPermissionSheet) {
