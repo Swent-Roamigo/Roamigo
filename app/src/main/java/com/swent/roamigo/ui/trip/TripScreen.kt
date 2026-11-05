@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -28,6 +29,8 @@ import androidx.compose.ui.res.stringResource
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
+import com.swent.roamigo.ui.theme.Spacing
+import com.swent.roamigo.ui.trip.components.EndedTripBanner
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import java.time.LocalDate
@@ -63,6 +66,7 @@ internal fun TripScreen(
     onFriendsClick: () -> Unit,
     modifier: Modifier = Modifier,
     onAddClick: (() -> Unit)? = null,
+    showEndedBanner: Boolean = false,
     content: @Composable () -> Unit,
 ) {
   Column(modifier.fillMaxSize().safeDrawingPadding()) {
@@ -119,6 +123,11 @@ internal fun TripScreen(
           Text(stringResource(R.string.trip_map_pause_sharing))
         }
       }
+    }
+    if (showEndedBanner) {
+      EndedTripBanner(
+          Modifier.padding(horizontal = Spacing.screenPadding, vertical = Spacing.small)
+      )
     }
     SecondaryTabRow(selectedTabIndex = selectedTab.ordinal) {
       TripSection.entries.forEach { section ->

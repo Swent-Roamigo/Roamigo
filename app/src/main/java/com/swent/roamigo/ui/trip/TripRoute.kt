@@ -161,6 +161,7 @@ internal fun TripRoute(
       },
       onPauseSharing = { locationModel?.stopSharing() },
       onAddClick = if (readOnly) null else ({ showAdd = true }),
+      showEndedBanner = readOnly && loaded?.trip != null,
       onTripsClick = onTripsClick,
       onMapClick = onMapClick,
       onFriendsClick = onFriendsClick,
