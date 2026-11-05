@@ -174,9 +174,9 @@
     <string name="trip_map_location_denied_title">Location stays off</string>
     <string name="trip_map_location_denied_description">The rest of the app works. You can turn sharing on any time from the map.</string>
     <string name="trip_map_location_denied_got_it">Got it</string>
-    <string name="trip_map_location_blocked_title">Location is blocked</string>
-    <string name="trip_map_location_blocked_description">Turn it on in Settings › Permissions › Location to share with your group.</string>
-    <string name="trip_map_location_blocked_open_settings">Open Settings</string>
+    <string name="trip_map_location_blocked_title">Location is off for Roamigo</string>
+    <string name="trip_map_location_blocked_description">Your phone blocks location for Roamigo, so the group can\'t see you on the map. You can still see them.\n\nSettings › Roamigo › Location › While using</string>
+    <string name="trip_map_location_blocked_open_settings">Open settings</string>
     <string name="trip_map_location_not_now">Not now</string>
 
     <!-- Vote creation -->
