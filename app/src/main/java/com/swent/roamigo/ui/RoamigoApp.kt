@@ -36,8 +36,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
@@ -358,7 +358,10 @@ fun RoamigoApp(
                               R.string.trip_photo_summary,
                               pluralStringResource(R.plurals.trip_photo_count, count, count),
                               pluralStringResource(
-                                  R.plurals.trip_person_count, memberCount, memberCount),
+                                  R.plurals.trip_person_count,
+                                  memberCount,
+                                  memberCount,
+                              ),
                           )
                         } ?: stringResource(R.string.photos_title)
                   }
