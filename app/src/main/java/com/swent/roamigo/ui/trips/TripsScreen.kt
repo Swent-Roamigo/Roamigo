@@ -241,9 +241,7 @@ fun TripsScreen(
           }
         } else {
           uiState.errorMessage?.let { errorMessage ->
-            item {
-              TripsLoadError(message = errorMessage, onRetryClick = onRetryClick)
-            }
+            item { TripsLoadError(message = errorMessage, onRetryClick = onRetryClick) }
           }
 
           uiState.refreshError?.let { messageRes ->
