@@ -5,14 +5,18 @@ import androidx.lifecycle.ViewModelStore
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.model.trip.voting.VoteBallot
+import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.trip.voting.VoteStatus
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -53,6 +57,46 @@ class VotesViewModelTest {
   }
 
   private fun ready() = viewModel.uiState.value as VotesUiState.Ready
+
+  @Test
+  fun identicalCollectionSnapshotsKeepAllBallotListenersAndRealtimeCounts() = runTest {
+    val repeat = CompletableDeferred<Unit>()
+    val source =
+        object : VoteRepository by repository {
+          override fun observeVotes(tripId: String) = flow {
+            emit(listOf(first, second))
+            repeat.await()
+            emit(listOf(first.copy(), second.copy()))
+            awaitCancellation()
+          }
+        }
+    viewModel = VotesViewModel(source, "trip", "member")
+    store.put("votes", viewModel)
+    subscribers.launch { viewModel.uiState.collect() }
+    runCurrent()
+    assertEquals(mapOf(first.uid to 1, second.uid to 1), repository.ballotObserverStarts)
+    repeat.complete(Unit)
+    runCurrent()
+    assertEquals(mapOf(first.uid to 1, second.uid to 1), repository.ballotObserverStarts)
+    repository.snapshots.value = Result.success(listOf(first, second))
+    repository.submitBallot("trip", first.uid, VoteBallot("member", "a", Timestamp(1, 0)))
+    runCurrent()
+    assertEquals(1, ready().liveSummaries.getValue(first.uid).counts["a"])
+  }
+
+  @Test
+  fun closingMovesVoteToClosedAndStopsBallotObservationWithoutRefresh() = runTest {
+    repository.snapshots.value = Result.success(listOf(first))
+    createViewModel()
+    runCurrent()
+    assertEquals(listOf(first), ready().liveVotes)
+    repository.closeVote("trip", first.uid)
+    runCurrent()
+    assertTrue(ready().liveVotes.isEmpty())
+    assertEquals(listOf(first.copy(status = VoteStatus.CLOSED)), ready().closedVotes)
+    assertTrue(ready().liveSummaries.isEmpty())
+    assertEquals(0, repository.activeBallotObservers[first.uid])
+  }
 
   @Test
   fun liveSummaryIncludesZeroCountsAndMovesBallotsWithoutRefresh() = runTest {

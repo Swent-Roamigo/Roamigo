@@ -4,12 +4,18 @@ package com.swent.roamigo.ui.trips
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.swent.roamigo.R
+import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.authentication.AuthRepository
+import com.swent.roamigo.model.destination.DestinationPhoto
+import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.trip.isCompletedOn
+import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
 import java.time.Clock
 import java.time.LocalDate
@@ -40,11 +46,19 @@ class TripsViewModel(
     private val tripRepository: TripRepository,
     private val userRepository: UserRepository,
     private val clock: Clock = Clock.systemDefaultZone(),
+    private val destinationRepository: DestinationRepository? = null,
+    private val authRepository: AuthRepository? = null,
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow(TripsUiState())
 
   private var refreshJob: Job? = null
+  private var hasLoadedTrips = false
+
+  // Only cache successful lookups for the featured trip, scoped to this ViewModel's lifetime.
+  private data class PhotoKey(val tripId: String, val location: TripLocation)
+
+  private var cachedPhoto: Pair<PhotoKey, DestinationPhoto>? = null
 
   /** State currently rendered by the Trips Home screen. */
   val uiState: StateFlow<TripsUiState> = _uiState.asStateFlow()
@@ -65,23 +79,89 @@ class TripsViewModel(
     refreshJob = viewModelScope.launch {
       _uiState.value =
           _uiState.value.copy(
-              isLoading = true,
+              isLoading = !hasLoadedTrips,
+              isRefreshing = hasLoadedTrips,
               errorMessage = null,
+              refreshError = null,
           )
 
       try {
-        _uiState.value = loadTripsState()
+        val currentUser = loadCurrentUser()
+        val now = ZonedDateTime.now(clock)
+        val firstName = currentUser.displayName.trim().substringBefore(" ").ifBlank { "Traveler" }
+        _uiState.value =
+            _uiState.value.copy(
+                greeting = greetingFor(now),
+                currentUserName = firstName,
+                currentUserInitial = firstName.take(1).uppercase(),
+                currentUserPhotoUrl = currentUser.profilePictureUrl?.takeIf { it.isNotBlank() },
+            )
+        val (state, location) = loadTripsState(now)
+        hasLoadedTrips = true
+        loadFeaturedPhoto(state, location)
       } catch (exception: CancellationException) {
         throw exception
       } catch (exception: Exception) {
         _uiState.value =
-            TripsUiState(
-                isLoading = false,
-                errorMessage = "Unable to load trips.",
-            )
+            if (hasLoadedTrips) {
+              _uiState.value.copy(
+                  isRefreshing = false,
+                  refreshError = R.string.trips_refresh_error,
+              )
+            } else {
+              _uiState.value.copy(isLoading = false, errorMessage = R.string.trips_load_error)
+            }
       }
     }
   }
+
+  /** Marks a failed image as eligible for lookup on the next refresh. */
+  fun onPhotoLoadError(photo: DestinationPhoto) {
+    if (cachedPhoto?.second == photo) cachedPhoto = null
+  }
+
+  private suspend fun loadFeaturedPhoto(state: TripsUiState, location: TripLocation?) {
+    val tripId = state.mainTrip?.id
+    val key = if (tripId != null && location != null) PhotoKey(tripId, location) else null
+    val previousPhoto = cachedPhoto?.takeIf { it.first == key }?.second
+    if (previousPhoto == null) cachedPhoto = null
+    _uiState.value = state.copy(mainTripPhoto = previousPhoto)
+    if (key == null || previousPhoto != null || destinationRepository == null) return
+
+    try {
+      val destination =
+          destinationRepository
+              .searchDestinations(key.location.name)
+              .filter {
+                (key.location.countryCode == null || it.countryCode == key.location.countryCode) &&
+                    kotlin.math.abs(it.latitude - key.location.latitude) < 0.02 &&
+                    kotlin.math.abs(it.longitude - key.location.longitude) < 0.02
+              }
+              .minByOrNull {
+                kotlin.math.abs(it.latitude - key.location.latitude) +
+                    kotlin.math.abs(it.longitude - key.location.longitude)
+              }
+      val photo = destination?.let { destinationRepository.findPhoto(it) }
+      if (photo != null) cachedPhoto = key to photo
+      _uiState.value =
+          _uiState.value.copy(
+              mainTripPhoto = photo,
+              mainTripPhotoAttempt = _uiState.value.mainTripPhotoAttempt + 1,
+          )
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (_: Exception) {
+      // Photo lookup is optional and must not prevent the trip from being displayed.
+    }
+  }
+
+  private suspend fun loadCurrentUser(): User =
+      if (authRepository != null) {
+        val account = authRepository.getCurrentUser()
+        User(account?.uid.orEmpty(), account?.displayName.orEmpty(), account?.photoUrl)
+      } else {
+        userRepository.getCurrentUser()
+      }
 
   /**
    * Retrieves domain data and converts it into presentation state.
@@ -92,10 +172,7 @@ class TripsViewModel(
    * @return the fully prepared state for the Trips Home screen.
    * @throws Exception if one of the repository operations fails.
    */
-  private suspend fun loadTripsState(): TripsUiState {
-    val now = ZonedDateTime.now(clock)
-
-    val currentUser = userRepository.getCurrentUser()
+  private suspend fun loadTripsState(now: ZonedDateTime): Pair<TripsUiState, TripLocation?> {
     val trips = tripRepository.getTrips()
 
     val mainTrip =
@@ -149,31 +226,30 @@ class TripsViewModel(
       )
     }
 
-    val firstName = currentUser.displayName.trim().substringBefore(" ").ifBlank { "Traveler" }
-
-    return TripsUiState(
-        isLoading = false,
-        errorMessage = null,
-        greeting = greetingFor(now),
-        currentUserName = firstName,
-        currentUserInitial = firstName.take(1).uppercase(),
-        mainTrip =
-            mainTrip?.toMainTripUiModel(
-                activities = mainActivities,
-                memberInitials = memberInitials,
-                now = now,
-            ),
-        nextActivity =
-            if (mainTrip != null && nextActivity != null) {
-              nextActivity.toUiModel(
-                  trip = mainTrip,
-                  zoneId = now.zone,
-              )
-            } else {
-              null
-            },
-        otherTrips = otherTripUiModels,
-    )
+    val state =
+        _uiState.value.copy(
+            isLoading = false,
+            isRefreshing = false,
+            errorMessage = null,
+            refreshError = null,
+            mainTrip =
+                mainTrip?.toMainTripUiModel(
+                    activities = mainActivities,
+                    memberInitials = memberInitials,
+                    now = now,
+                ),
+            nextActivity =
+                if (mainTrip != null && nextActivity != null) {
+                  nextActivity.toUiModel(
+                      trip = mainTrip,
+                      zoneId = now.zone,
+                  )
+                } else {
+                  null
+                },
+            otherTrips = otherTripUiModels,
+        )
+    return state to mainTrip?.destinations?.firstOrNull()
   }
 
   companion object {
@@ -193,6 +269,8 @@ class TripsViewModel(
         tripRepository: TripRepository,
         userRepository: UserRepository,
         clock: Clock = Clock.systemDefaultZone(),
+        destinationRepository: DestinationRepository? = null,
+        authRepository: AuthRepository? = null,
     ): ViewModelProvider.Factory =
         object : ViewModelProvider.Factory {
 
@@ -203,6 +281,8 @@ class TripsViewModel(
                   tripRepository = tripRepository,
                   userRepository = userRepository,
                   clock = clock,
+                  destinationRepository = destinationRepository,
+                  authRepository = authRepository,
               )
                   as T
             }

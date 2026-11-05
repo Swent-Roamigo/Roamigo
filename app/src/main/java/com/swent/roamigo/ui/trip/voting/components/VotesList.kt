@@ -23,9 +23,11 @@ fun VotesList(
     state: VotesUiState.Ready,
     onOpenVote: (String) -> Unit,
     onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+    onCloseVote: ((String) -> Unit)? = null,
 ) {
   LazyColumn(
-      Modifier.fillMaxSize(),
+      modifier.fillMaxSize(),
       contentPadding = PaddingValues(bottom = Spacing.small),
       verticalArrangement = Arrangement.spacedBy(Spacing.large),
   ) {
@@ -36,7 +38,12 @@ fun VotesList(
     }
     if (state.liveVotes.isNotEmpty()) {
       items(state.liveVotes, key = { it.uid }) { vote ->
-        VoteCard(vote, onClick = { onOpenVote(vote.uid) }, summary = state.liveSummaries[vote.uid])
+        VoteCard(
+            vote,
+            onClick = { onOpenVote(vote.uid) },
+            summary = state.liveSummaries[vote.uid],
+            onCloseVote = onCloseVote?.let { close -> { close(vote.uid) } },
+        )
       }
     }
     if (state.closedVotes.isNotEmpty()) {

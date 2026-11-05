@@ -45,6 +45,8 @@ class MainActivity : ComponentActivity() {
               voteRepository = voteRepository,
               destinationRepository = remember { OnlineDestinationRepository() },
               photoRepository = remember { (application as RoamigoApplication).photos.repository },
+              locationRepository =
+                  remember { (application as RoamigoApplication).locationRepository },
           )
         }
       }

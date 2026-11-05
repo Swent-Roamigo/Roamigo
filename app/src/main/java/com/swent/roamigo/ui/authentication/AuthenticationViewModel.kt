@@ -13,6 +13,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.swent.roamigo.R
+import com.swent.roamigo.model.authentication.AuthException
 import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.authentication.AuthRepositoryFirebase
 import kotlinx.coroutines.CancellationException
@@ -66,12 +67,23 @@ class AuthenticationViewModel(private val repository: AuthRepository = AuthRepos
       } catch (e: CancellationException) {
         _uiState.update { it.copy(isLoading = false) }
         throw e
+      } catch (e: AuthException) {
+        Log.w("AuthenticationViewModel", "Repository sign-in failed", e)
+        showFeedback(repositoryErrorMessage(e))
       } catch (e: Exception) {
         Log.w("AuthenticationViewModel", "Unexpected sign-in failure", e)
         showFeedback(R.string.auth_sign_in_failed)
       }
     }
   }
+
+  @StringRes
+  private fun repositoryErrorMessage(failure: AuthException): Int =
+      when (failure) {
+        is AuthException.Network -> R.string.auth_network_error
+        is AuthException.InvalidCredential -> R.string.auth_invalid_credential
+        is AuthException.Unknown -> R.string.auth_sign_in_failed
+      }
 
   private fun showFeedback(@StringRes messageRes: Int) {
     _uiState.value = AuthenticationUiState(errorMessageRes = messageRes)

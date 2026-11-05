@@ -12,6 +12,7 @@ import androidx.credentials.exceptions.GetCredentialUnknownException
 import androidx.credentials.exceptions.NoCredentialException
 import androidx.test.core.app.ApplicationProvider
 import com.swent.roamigo.R
+import com.swent.roamigo.model.authentication.AuthException
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import kotlinx.coroutines.CancellationException
@@ -84,20 +85,35 @@ class AuthenticationViewModelStateTest {
       }
 
   @Test
-  fun repositoryFailureStopsLoadingAndRetrySucceeds() =
+  fun repositoryFailuresSelectMessagesAndClearFeedbackOnRetry() =
       runTest(dispatcher) {
-        repository.failure = IllegalStateException("Technical details")
-        val viewModel = AuthenticationViewModel(repository)
-        viewModel.signIn(context, manager)
-        advanceUntilIdle()
-        assertEquals(
-            AuthenticationUiState(errorMessageRes = R.string.auth_sign_in_failed),
-            viewModel.uiState.value,
-        )
-        repository.failure = null
-        viewModel.signIn(context, manager)
-        advanceUntilIdle()
-        assertEquals(AuthenticationUiState(user = user), viewModel.uiState.value)
+        val cause = IllegalStateException("Technical details")
+        listOf(
+                AuthException.Network(cause) to R.string.auth_network_error,
+                AuthException.InvalidCredential(cause) to R.string.auth_invalid_credential,
+                AuthException.Unknown(cause) to R.string.auth_sign_in_failed,
+                cause to R.string.auth_sign_in_failed,
+            )
+            .forEach { (failure, message) ->
+              val failingRepository = FakeAuthRepository(user).apply { this.failure = failure }
+              val viewModel = AuthenticationViewModel(failingRepository)
+              viewModel.signIn(context, manager)
+              advanceUntilIdle()
+              assertEquals(
+                  AuthenticationUiState(errorMessageRes = message),
+                  viewModel.uiState.value,
+              )
+
+              failingRepository.failure = null
+              manager.pending = CompletableDeferred()
+              viewModel.signIn(context, manager)
+              assertEquals(AuthenticationUiState(isLoading = true), viewModel.uiState.value)
+              advanceUntilIdle()
+              manager.pending!!.complete(manager.response)
+              advanceUntilIdle()
+              assertEquals(AuthenticationUiState(user = user), viewModel.uiState.value)
+              manager.pending = null
+            }
       }
 
   @Test

@@ -26,9 +26,10 @@ fun VoteActions(
     hasPersistedBallot: Boolean,
     onSubmit: () -> Unit,
     onBack: () -> Unit,
+    modifier: Modifier = Modifier,
     showSubmit: Boolean = true,
 ) {
-  Column(verticalArrangement = Arrangement.spacedBy(Spacing.large)) {
+  Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.large)) {
     if (showSubmit)
         Button(
             onClick = onSubmit,

@@ -16,6 +16,8 @@
     <string name="auth_sign_in_cancelled">Sign-in cancelled</string>
     <string name="auth_no_credentials">No Google credentials available. Try signing in again.</string>
     <string name="auth_credentials_failed">Unable to access your Google account. Please try again.</string>
+    <string name="auth_network_error">We couldn’t sign you in with Google. Check your connection and try again.</string>
+    <string name="auth_invalid_credential">We couldn’t verify your Google sign-in. Please sign in again.</string>
     <string name="auth_terms">By continuing you agree to the Terms and Privacy Policy.</string>
     <string name="auth_error_title">Sign-in didn’t work</string>
     <string name="auth_error_description">We couldn’t sign you in with Google. Please try again.</string>
@@ -97,6 +99,10 @@
     <string name="trips_next_up">Next up</string>
     <string name="trips_other_trips">Other trips</string>
     <string name="trips_new_trip">New trip</string>
+    <string name="trips_retry">Retry</string>
+    <string name="trips_load_error">Unable to load trips.</string>
+    <string name="trips_refresh_error">Unable to refresh trips.</string>
+    <string name="trips_empty">No upcoming trips yet. Create a trip to get started.</string>
     <string name="trips_invite">Invite</string>
     <string name="trips_confirmed">Confirmed</string>
     <string name="trips_shared">Shared</string>
@@ -380,4 +386,11 @@
     <string name="photo_preview_save_offline">Save on this phone</string>
     <string name="photo_preview_retake">Retake</string>
     <string name="photo_preview_save_failed">Could not save the photo. Try again.</string>
+    <string name="vote_close">Close vote</string>
+    <string name="vote_closing">Closing vote…</string>
+    <string name="vote_close_title">Close this vote?</string>
+    <string name="vote_close_confirmation">Closing is permanent. Members will no longer be able to vote or change their vote.</string>
+    <string name="vote_close_cancel">Cancel</string>
+    <string name="vote_close_error">Could not close the vote. Please try again.</string>
+    <string name="vote_close_unavailable">Only the creator can close an open vote.</string>
 </resources>

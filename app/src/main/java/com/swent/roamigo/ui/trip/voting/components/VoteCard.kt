@@ -1,10 +1,13 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.trip.voting.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -15,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,17 +41,30 @@ import com.swent.roamigo.ui.trip.voting.LiveVoteSummary
 
 /** Renders the trip summary; ballot observation and interaction stay outside the card. */
 @Composable
-fun VoteCard(vote: Vote, onClick: () -> Unit, summary: LiveVoteSummary? = null) {
+fun VoteCard(
+    vote: Vote,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    summary: LiveVoteSummary? = null,
+    onCloseVote: (() -> Unit)? = null,
+) {
   when (vote.status) {
-    VoteStatus.OPEN -> LiveVoteCard(vote, onClick, summary)
-    VoteStatus.CLOSED -> ClosedVoteRow(vote, onClick)
+    VoteStatus.OPEN -> LiveVoteCard(vote, onClick, summary, modifier, onCloseVote)
+    VoteStatus.CLOSED -> ClosedVoteRow(vote, onClick, modifier)
   }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun LiveVoteCard(vote: Vote, onClick: () -> Unit, summary: LiveVoteSummary?) {
+private fun LiveVoteCard(
+    vote: Vote,
+    onClick: () -> Unit,
+    summary: LiveVoteSummary?,
+    modifier: Modifier,
+    onCloseVote: (() -> Unit)?,
+) {
   Surface(
-      modifier = Modifier.fillMaxWidth(),
+      modifier = modifier.fillMaxWidth(),
       shape = RoundedCornerShape(22.dp),
       color = MaterialTheme.colorScheme.primary,
       contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -76,17 +93,37 @@ private fun LiveVoteCard(vote: Vote, onClick: () -> Unit, summary: LiveVoteSumma
             "vote_count_${vote.uid}_${option.uid}",
         )
       }
-      Button(
-          onClick = onClick,
-          shape = CircleShape,
-          colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Ink),
+      FlowRow(
+          horizontalArrangement = Arrangement.spacedBy(Spacing.small),
+          verticalArrangement = Arrangement.spacedBy(Spacing.small),
       ) {
-        Text(
-            stringResource(
-                if (summary?.hasPersistedBallot == true) R.string.votes_change_vote
-                else R.string.votes_cast_vote
-            ),
-        )
+        Button(
+            onClick = onClick,
+            modifier = Modifier.heightIn(min = 48.dp).testTag("vote_action_${vote.uid}"),
+            shape = CircleShape,
+            colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Ink),
+        ) {
+          Text(
+              stringResource(
+                  if (summary?.hasPersistedBallot == true) R.string.votes_change_vote
+                  else R.string.votes_cast_vote
+              ),
+          )
+        }
+        if (summary?.isCreator == true && onCloseVote != null) {
+          OutlinedButton(
+              onClick = onCloseVote,
+              modifier = Modifier.heightIn(min = 48.dp).testTag("close_vote_${vote.uid}"),
+              shape = CircleShape,
+              border = BorderStroke(1.dp, MaterialTheme.colorScheme.onPrimary),
+              colors =
+                  ButtonDefaults.outlinedButtonColors(
+                      contentColor = MaterialTheme.colorScheme.onPrimary
+                  ),
+          ) {
+            Text(stringResource(R.string.vote_close))
+          }
+        }
       }
     }
   }
@@ -109,10 +146,10 @@ private fun VoteCountRow(name: String, count: Int, tag: String) {
 }
 
 @Composable
-private fun ClosedVoteRow(vote: Vote, onClick: () -> Unit) {
+private fun ClosedVoteRow(vote: Vote, onClick: () -> Unit, modifier: Modifier) {
   Surface(
       onClick = onClick,
-      modifier = Modifier.fillMaxWidth(),
+      modifier = modifier.fillMaxWidth(),
       color = MaterialTheme.colorScheme.surface,
   ) {
     Row(

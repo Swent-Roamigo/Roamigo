@@ -23,10 +23,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
@@ -34,8 +41,11 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.swent.roamigo.R
+import com.swent.roamigo.model.destination.DestinationPhoto
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.components.PhotoCreditsDialog
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.trips.MainTripUiModel
 
@@ -44,27 +54,52 @@ import com.swent.roamigo.ui.trips.MainTripUiModel
 internal fun MainTripCard(
     trip: MainTripUiModel,
     @DrawableRes imageRes: Int?,
+    photo: DestinationPhoto? = null,
     onInviteClick: () -> Unit,
     onOpenTrip: () -> Unit,
+    photoAttempt: Int = 0,
+    onPhotoLoadError: (DestinationPhoto) -> Unit = {},
 ) {
+  var imageLoaded by remember(photo?.imageUrl, photoAttempt) { mutableStateOf(false) }
+  var showCredits by remember(photo?.imageUrl) { mutableStateOf(false) }
   Box(
       modifier =
           Modifier.fillMaxWidth()
               .height(190.dp)
               .clip(MaterialTheme.shapes.large)
               .clickable(onClick = onOpenTrip)
-              .semantics { testTag = C.Tag.trips_main_trip_card },
+              .semantics { testTag = C.Tag.trips_main_trip_card }
   ) {
-    TripImage(
-        imageRes = imageRes,
-        modifier = Modifier.fillMaxSize(),
-    )
+    TripImage(imageRes = imageRes, modifier = Modifier.fillMaxSize())
+    if (photo != null) {
+      key(photoAttempt) {
+        AsyncImage(
+            model = photo.imageUrl,
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+            onSuccess = { imageLoaded = true },
+            onError = {
+              imageLoaded = false
+              onPhotoLoadError(photo)
+            },
+        )
+      }
+    }
 
     Box(
         modifier =
             Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.28f))
     )
 
+    if (imageLoaded && photo != null) {
+      TextButton(onClick = { showCredits = true }, modifier = Modifier.align(Alignment.TopEnd)) {
+        Text(
+            stringResource(R.string.trip_ready_photo_credit),
+            color = MaterialTheme.colorScheme.onPrimary,
+        )
+      }
+    }
     Column(
         modifier = Modifier.fillMaxSize().padding(18.dp),
         verticalArrangement = Arrangement.SpaceBetween,
@@ -162,6 +197,18 @@ internal fun MainTripCard(
         }
       }
     }
+  }
+  if (showCredits && photo != null && imageLoaded) {
+    PhotoCreditsDialog(
+        title = photo.title,
+        creator = photo.creator,
+        credit = photo.credit,
+        license = photo.license,
+        sourceUrl = photo.sourceUrl,
+        licenseUrl = photo.licenseUrl,
+        closeLabel = stringResource(android.R.string.ok),
+        onDismiss = { showCredits = false },
+    )
   }
 }
 
