@@ -1,6 +1,7 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui.photos
 
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -25,7 +26,7 @@ class PhotosScreenTest {
 
   private val taps = mutableListOf<String>()
 
-  private fun show(state: PhotosUiState) {
+  private fun show(state: PhotosUiState, readOnly: Boolean = false) {
     composeRule.setContent {
       RoamigoTheme {
         PhotosScreen(
@@ -36,6 +37,7 @@ class PhotosScreenTest {
             onRetryClick = { taps += "retry $it" },
             onPhotoClick = { taps += "photo $it" },
             onGalleryRetryClick = { taps += "gallery retry" },
+            readOnly = readOnly,
         )
       }
     }
@@ -272,6 +274,24 @@ class PhotosScreenTest {
 
     composeRule.onNodeWithTag(C.Tag.photos_gallery_error).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.photos_uploaded_prefix + "a").assertIsDisplayed()
+  }
+
+  @Test
+  fun readOnlyKeepsUploadedPhotosBrowsableAndHidesDeviceMutations() {
+    show(
+        PhotosUiState(
+            photos = waiting(1),
+            uploaded = listOf(tripPhoto("archive")),
+        ),
+        readOnly = true,
+    )
+
+    noBanner()
+    composeRule.onNodeWithTag(C.Tag.photos_item_prefix + "p0").assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.photos_take_photo).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.photos_uploaded_prefix + "archive").assertIsDisplayed().performClick()
+
+    assertEquals(listOf("photo archive"), taps)
   }
 
   @Test
