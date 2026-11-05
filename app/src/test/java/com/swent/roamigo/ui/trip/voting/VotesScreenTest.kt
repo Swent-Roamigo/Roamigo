@@ -142,7 +142,6 @@ class VotesScreenTest {
     content(VotesUiState.Loading)
     composeRule.onNodeWithText("New vote").assertDoesNotExist()
     composeRule.onNodeWithText("Loading votes…").assertIsDisplayed()
-    composeRule.onNodeWithText("Lisbon & Porto").assertIsDisplayed()
     composeRule
         .onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate))
         .assertIsDisplayed()
@@ -178,7 +177,6 @@ class VotesScreenTest {
   fun multipleVotesRenderWithLiveLabelsAndCompactDecidedRows() {
     content(VotesUiState.Ready(listOf(live, other), listOf(closed)))
     composeRule.onNodeWithText("New vote").assertIsDisplayed()
-    composeRule.onNodeWithText("Lisbon & Porto · 2 open").assertIsDisplayed()
     composeRule.onNodeWithText("Live").assertDoesNotExist()
     composeRule.onAllNodesWithText("Live vote").assertCountEquals(2)
     composeRule.onNodeWithText(live.question).assertIsDisplayed()
@@ -208,7 +206,6 @@ class VotesScreenTest {
   @Test
   fun closedOnlySnapshotDoesNotShowLiveSectionOrInventResults() {
     content(VotesUiState.Ready(emptyList(), listOf(closed)))
-    composeRule.onNodeWithText("Lisbon & Porto · 0 open").assertIsDisplayed()
     composeRule.onNodeWithText("Live").assertDoesNotExist()
     composeRule.onNodeWithText("Decided").assertIsDisplayed()
     composeRule.onNodeWithText(closed.question).assertIsDisplayed()
@@ -219,7 +216,6 @@ class VotesScreenTest {
   @Test
   fun liveOnlySnapshotShowsOptionsAndOmitsDecidedSection() {
     content(VotesUiState.Ready(listOf(live), emptyList()))
-    composeRule.onNodeWithText("Lisbon & Porto · 1 open").assertIsDisplayed()
     composeRule.onNodeWithText("Market").assertIsDisplayed()
     composeRule.onNodeWithText("Restaurant").assertIsDisplayed()
     composeRule.onNodeWithText("Decided").assertDoesNotExist()

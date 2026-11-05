@@ -79,25 +79,6 @@ fun VotesScreenContent(
             .padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium),
         verticalArrangement = Arrangement.spacedBy(Spacing.large),
     ) {
-      Column(verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)) {
-        Text(stringResource(R.string.votes_title), style = MaterialTheme.typography.headlineLarge)
-        val ready = state as? VotesUiState.Ready
-        Text(
-            if (ready != null)
-                stringResource(
-                    R.string.votes_trip_summary,
-                    tripName,
-                    pluralStringResource(
-                        R.plurals.votes_open_count,
-                        ready.liveVotes.size,
-                        ready.liveVotes.size,
-                    ),
-                )
-            else tripName,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
       Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
         when (state) {
           VotesUiState.Loading ->

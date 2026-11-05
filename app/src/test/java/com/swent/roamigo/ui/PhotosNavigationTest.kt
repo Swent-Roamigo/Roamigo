@@ -104,7 +104,6 @@ class PhotosNavigationTest {
     openPhotos()
 
     composeRule.onNodeWithTag(C.Tag.photos_screen).assertIsDisplayed()
-    composeRule.onNodeWithTag(C.Tag.photos_title).assertTextEquals("Trip photos")
     composeRule.onNodeWithText(tripName).assertIsDisplayed()
     composeRule.runOnIdle {
       assertEquals(Route.TRIP_DETAILS, navController.currentBackStackEntry?.destination?.route)

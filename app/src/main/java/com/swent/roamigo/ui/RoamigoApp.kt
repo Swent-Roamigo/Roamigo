@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
@@ -65,6 +66,7 @@ import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.ui.authentication.AuthenticationScreen
 import com.swent.roamigo.ui.authentication.AuthenticationViewModel
+import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.friends.FriendsScreen
@@ -364,8 +366,11 @@ fun RoamigoApp(
           }
           val share = rememberNotImplementedAction()
           if (tab == TripSection.Detail) {
-            TextButton(onClick = share, modifier = Modifier.markNotImplemented(share)) {
-              Text(stringResource(R.string.trip_details_share))
+            IconButton(onClick = share, modifier = Modifier.markNotImplemented(share)) {
+              Icon(
+                  painter = painterResource(R.drawable.ic_trip_details_share),
+                  contentDescription = stringResource(R.string.trip_details_share),
+              )
             }
           }
           if (tab != TripSection.Map && locationModel != null && locationState?.isSharing == true) {
@@ -454,6 +459,12 @@ fun RoamigoApp(
             }
           }
         }
+        AppBottomBar(
+            onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
+            onMapClick = onMapClick,
+            onFriendsClick = { navigateRoot(navController, Route.FRIENDS) },
+            tripsSelected = false,
+        )
       }
     }
 

@@ -81,18 +81,6 @@ fun PhotosScreen(
             .padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium),
         verticalArrangement = Arrangement.spacedBy(Spacing.large),
     ) {
-      Column(verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)) {
-        Text(
-            stringResource(R.string.photos_title),
-            modifier = Modifier.testTag(C.Tag.photos_title),
-            style = MaterialTheme.typography.headlineLarge,
-        )
-        Text(
-            tripName,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
       if (!readOnly) PhotosBanner(state)
       PhotosContent(
           if (readOnly) state.copy(photos = emptyList()) else state,

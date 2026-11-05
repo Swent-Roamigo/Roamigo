@@ -57,9 +57,7 @@ class PhotosScreenTest {
   fun showsTheTitleAndTheTripName() {
     show(PhotosUiState())
 
-    composeRule.onNodeWithTag(C.Tag.photos_title).assertTextEquals("Trip photos")
     composeRule.onNodeWithTag(C.Tag.photos_screen).assertIsDisplayed()
-    composeRule.onNodeWithText("Lisbon & Porto").assertIsDisplayed()
   }
 
   @Test
