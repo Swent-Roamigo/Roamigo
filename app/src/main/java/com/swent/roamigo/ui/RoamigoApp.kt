@@ -298,6 +298,7 @@ fun RoamigoApp(
       val tripState by tripModel.uiState.collectAsState()
       val loaded = tripState as? TripMapUiState.Loaded
       val zone = ZoneId.systemDefault()
+      // Keep trip actions read-only until the trip has loaded and its end date is known.
       val readOnly = fromHistory || loaded?.trip?.isCompletedOn(LocalDate.now(zone), zone) != false
       var hasOpenedMap by rememberSaveable { mutableStateOf(false) }
       if (tab == TripSection.Map && !readOnly) SideEffect { hasOpenedMap = true }
