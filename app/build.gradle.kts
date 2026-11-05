@@ -35,7 +35,7 @@ android {
         providers
             .gradleProperty("GEONAMES_USERNAME")
             .orElse(providers.environmentVariable("GEONAMES_USERNAME"))
-            .orElse("cdunoyer")
+            .orElse("")
             .get()
     buildConfigField("String", "GEONAMES_USERNAME", "\"$geonamesUsername\"")
 
