@@ -211,8 +211,10 @@ class RoamigoAppMapNavigationTest {
   }
 
   @Test
-  fun tripsTabOnMapReturnsToRootInsteadOfThePreviousTripDetails() {
+  fun tripsTabOnGlobalMapReturnsToTripsRoot() {
     openMainTripDetails()
+    pressBack()
+    waitForRoute(Route.TRIPS)
     openMap()
 
     composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
