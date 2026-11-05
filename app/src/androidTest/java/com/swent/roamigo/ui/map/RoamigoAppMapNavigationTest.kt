@@ -35,6 +35,7 @@ import com.swent.roamigo.ui.theme.RoamigoTheme
 import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.Assert.assertEquals
@@ -94,6 +95,8 @@ class RoamigoAppMapNavigationTest {
           status = TripStatus.COMPLETED,
       )
 
+  private val locationRepository = TestLocationRepository()
+
   @Before
   fun setUp() {
     val destinationRepository =
@@ -112,7 +115,7 @@ class RoamigoAppMapNavigationTest {
             authRepository = authRepository,
             destinationRepository = destinationRepository,
             navController = navController,
-            locationRepository = IdleLocationRepository,
+            locationRepository = locationRepository,
         )
       }
     }
@@ -203,6 +206,26 @@ class RoamigoAppMapNavigationTest {
     pressBack()
     waitForRoute(Route.TRIPS)
     composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).assertIsSelected()
+  }
+
+  @Test
+  fun sharingCanBePausedAfterSwitchingFromMapToVotes() {
+    openMainTripDetails()
+    composeRule
+        .onNodeWithText(composeRule.activity.getString(R.string.trip_details_map))
+        .performClick()
+    waitForTag(C.Tag.trip_map_sharing_banner)
+    val pause = composeRule.activity.getString(R.string.trip_map_pause_sharing)
+    composeRule.runOnIdle { locationRepository.sharing.value = true }
+    composeRule.onNodeWithText(pause).assertIsDisplayed()
+
+    composeRule.onNodeWithText("Votes").performClick()
+    composeRule.onNodeWithText(pause).performClick()
+
+    composeRule.waitUntil(timeoutMillis = MAP_TEST_TIMEOUT_MILLIS) {
+      locationRepository.stoppedTrip.value == mainTrip.uid
+    }
+    composeRule.onNodeWithText(pause).assertDoesNotExist()
   }
 
   @Test
@@ -324,14 +347,20 @@ class RoamigoAppMapNavigationTest {
   }
 
   // Keeps the trip map away from the device location and the Realtime Database.
-  private object IdleLocationRepository : LocationRepository {
+  private class TestLocationRepository : LocationRepository {
+    val sharing = MutableStateFlow(false)
+    val stoppedTrip = MutableStateFlow<String?>(null)
+
     override fun hasLocationPermission(): Boolean = false
 
     override suspend fun getCurrentLocation(): DeviceLocation? = null
 
     override suspend fun startSharing(tripId: String) = Unit
 
-    override suspend fun stopSharing(tripId: String) = Unit
+    override suspend fun stopSharing(tripId: String) {
+      sharing.value = false
+      stoppedTrip.value = tripId
+    }
 
     override suspend fun stopAllSharing() = Unit
 
@@ -340,6 +369,6 @@ class RoamigoAppMapNavigationTest {
     override fun observeMemberLocations(tripId: String): Flow<List<MemberLocation>> =
         flowOf(emptyList())
 
-    override fun isSharing(tripId: String): Flow<Boolean> = flowOf(false)
+    override fun isSharing(tripId: String): Flow<Boolean> = sharing
   }
 }
