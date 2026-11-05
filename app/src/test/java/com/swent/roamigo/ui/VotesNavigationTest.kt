@@ -397,6 +397,18 @@ class VotesNavigationTest {
   }
 
   @Test
+  fun expiredSessionRedirectsSwitchingTripTabsToAuthentication() {
+    openVotes()
+    composeRule.runOnIdle { auth.signOut() }
+    composeRule.onNodeWithText("Photos").performClick()
+
+    composeRule
+        .onNodeWithTag(com.swent.roamigo.ui.authentication.AuthenticationScreenTestTags.heading)
+        .assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.photos_screen).assertDoesNotExist()
+  }
+
+  @Test
   fun expiredSessionRedirectsCreatingVoteToAuthentication() {
     openVotes()
     composeRule.runOnIdle { auth.signOut() }
