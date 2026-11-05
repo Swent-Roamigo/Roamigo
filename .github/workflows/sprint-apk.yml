@@ -55,7 +55,15 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       - name: Build APK and run checks
-        run: bash ./gradlew ktfmtCheck assembleDebug lintDebug check --build-cache
+        env:
+          MAPBOX_ACCESS_TOKEN: ${{ secrets.MAPBOX_ACCESS_TOKEN }}
+          GEONAMES_USERNAME: cdunoyer
+        run: |
+          if [ -z "$MAPBOX_ACCESS_TOKEN" ]; then
+            echo "::error::Set MAPBOX_ACCESS_TOKEN to the Mapbox public access token used by the app maps."
+            exit 1
+          fi
+          bash ./gradlew ktfmtCheck assembleDebug lintDebug check --build-cache
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
