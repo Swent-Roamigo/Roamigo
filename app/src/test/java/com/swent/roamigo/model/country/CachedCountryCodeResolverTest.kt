@@ -6,6 +6,7 @@ import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -296,6 +297,45 @@ class CachedCountryCodeResolverTest {
     } catch (e: CancellationException) {
       assertEquals("Cache write cancelled", e.message)
     }
+  }
+
+  @Test
+  fun concurrentFailedLookupsShareResultAndLaterCallRetries() = runTest {
+    val started = CompletableDeferred<Unit>()
+    val release = CompletableDeferred<Unit>()
+    var requests = 0
+
+    val resolver =
+        CachedCountryCodeResolver(
+            CountryCodeLookup { _, _ ->
+              requests++
+              if (requests == 1) {
+                started.complete(Unit)
+                release.await()
+                null
+              } else {
+                "PT"
+              }
+            },
+            MemoryCache(),
+        )
+
+    val first = async { resolver.resolve(lisbon) }
+    started.await()
+
+    val second = async { resolver.resolve(lisbon.copy(name = "Lisboa")) }
+
+    // Ensure the second caller is waiting before releasing the first.
+    runCurrent()
+    release.complete(Unit)
+
+    assertNull(first.await())
+    assertNull(second.await())
+    assertEquals(1, requests)
+
+    // A later independent call is allowed to retry.
+    assertEquals("PT", resolver.resolve(lisbon))
+    assertEquals(2, requests)
   }
 
   private class MemoryCache : CountryCodeCache {
