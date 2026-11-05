@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.markNotImplemented
+import com.swent.roamigo.ui.trips.MainTripBadge
 import com.swent.roamigo.ui.trips.MainTripUiModel
 
 /** Displays the featured trip, its details, and invite action. */
@@ -75,7 +76,13 @@ internal fun MainTripCard(
             color = MaterialTheme.colorScheme.secondaryContainer,
         ) {
           Text(
-              text = badge,
+              text =
+                  when (badge) {
+                    MainTripBadge.InProgress -> stringResource(R.string.trips_in_progress)
+                    MainTripBadge.StartsToday -> stringResource(R.string.trips_starts_today)
+                    is MainTripBadge.StartsIn ->
+                        pluralStringResource(R.plurals.trips_starts_in_days, badge.days, badge.days)
+                  },
               modifier =
                   Modifier.padding(
                       horizontal = 10.dp,

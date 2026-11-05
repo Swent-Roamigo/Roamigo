@@ -96,6 +96,12 @@
     <string name="trips_title">Your trips</string>
     <string name="trips_next_up">Next up</string>
     <string name="trips_other_trips">Other trips</string>
+    <string name="trips_in_progress">In progress</string>
+    <string name="trips_starts_today">Starts today</string>
+    <plurals name="trips_starts_in_days">
+        <item quantity="one">Starts in %1$d day</item>
+        <item quantity="other">Starts in %1$d days</item>
+    </plurals>
     <string name="trips_new_trip">New trip</string>
     <string name="trips_invite">Invite</string>
     <string name="trips_confirmed">Confirmed</string>

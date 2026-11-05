@@ -216,8 +216,8 @@ class TripsViewModel(
 /**
  * Selects the trip that should be highlighted on the Trips Home screen.
  *
- * An active trip takes priority. When no active trip exists, the closest eligible planned trip is
- * selected.
+ * An active trip takes priority, followed by an ongoing planned trip and then the closest upcoming
+ * planned trip. Planned trips remain eligible through their last calendar day.
  *
  * @param trips the trips available to the current user.
  * @param now the current date and time used to determine trip eligibility.
@@ -238,13 +238,19 @@ internal fun selectMainTrip(
     return activeTrip
   }
 
-  return trips
+  val plannedTrips =
+      trips.filter { trip ->
+        trip.status == TripStatus.PLANNED && !trip.isCompletedOn(now.toLocalDate(), now.zone)
+      }
+
+  return plannedTrips
       .filter { trip ->
         val tripStartDate = trip.startDate.toDate().toInstant().atZone(now.zone).toLocalDate()
 
-        trip.status == TripStatus.PLANNED && !tripStartDate.isBefore(now.toLocalDate())
+        tripStartDate.isBefore(now.toLocalDate())
       }
-      .minByOrNull { trip -> trip.startDate.seconds }
+      .maxByOrNull { trip -> trip.startDate.seconds }
+      ?: plannedTrips.minByOrNull { trip -> trip.startDate.seconds }
 }
 
 /**
@@ -268,7 +274,7 @@ internal fun selectNextActivity(
         .minByOrNull { activity -> activity.startTime.seconds }
 
 /**
- * Selects the upcoming planned trips that are not currently highlighted.
+ * Selects the remaining ongoing and upcoming trips that are not currently highlighted.
  *
  * The returned trips are ordered chronologically by start date.
  *
@@ -284,11 +290,9 @@ internal fun selectOtherTrips(
 ): List<Trip> =
     trips
         .filter { trip ->
-          val tripStartDate = trip.startDate.toDate().toInstant().atZone(now.zone).toLocalDate()
-
           trip.uid != mainTrip?.uid &&
-              trip.status == TripStatus.PLANNED &&
-              !tripStartDate.isBefore(now.toLocalDate())
+              trip.status != TripStatus.COMPLETED &&
+              !trip.isCompletedOn(now.toLocalDate(), now.zone)
         }
         .sortedBy { trip -> trip.startDate.seconds }
 
@@ -322,7 +326,7 @@ private fun Trip.toMainTripUiModel(
 
   val badge =
       when (status) {
-        TripStatus.ACTIVE -> "In progress"
+        TripStatus.ACTIVE -> MainTripBadge.InProgress
 
         TripStatus.PLANNED -> {
           val daysUntilStart =
@@ -331,10 +335,10 @@ private fun Trip.toMainTripUiModel(
                   start.toLocalDate(),
               )
 
-          when (daysUntilStart) {
-            0L -> "Starts today"
-            1L -> "Starts in 1 day"
-            else -> "Starts in $daysUntilStart days"
+          when {
+            daysUntilStart < 0 -> MainTripBadge.InProgress
+            daysUntilStart == 0L -> MainTripBadge.StartsToday
+            else -> MainTripBadge.StartsIn(daysUntilStart.toInt())
           }
         }
 
