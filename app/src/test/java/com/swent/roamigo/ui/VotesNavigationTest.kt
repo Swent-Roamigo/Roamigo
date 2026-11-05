@@ -3,6 +3,7 @@ package com.swent.roamigo.ui
 
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
@@ -72,7 +73,7 @@ class VotesNavigationTest {
       )
   private lateinit var navController: NavHostController
 
-  private fun openVotes() {
+  private fun openVotes(historical: Boolean = false) {
     val now = Instant.now().epochSecond
     val trip =
         Trip(
@@ -81,13 +82,13 @@ class VotesNavigationTest {
             null,
             listOf(TripLocation(38.7, -9.1, "Lisbon")),
             Timestamp(now - 3600, 0),
-            Timestamp(now + 86400, 0),
+            Timestamp(if (historical) now - 60 else now + 86400, 0),
             false,
             TravelMode.GROUP,
             2,
             "owner",
             listOf("owner", "member"),
-            TripStatus.ACTIVE,
+            if (historical) TripStatus.COMPLETED else TripStatus.ACTIVE,
             Timestamp(now - 7200, 0),
         )
     composeRule.setContent {
@@ -115,11 +116,40 @@ class VotesNavigationTest {
         )
       }
     }
+    if (historical) {
+      composeRule.onNodeWithTag(C.Tag.trips_history_button).performClick()
+      val cardTag = C.Tag.trip_history_card_prefix + tripId
+      composeRule.waitUntil {
+        composeRule.onAllNodesWithTag(cardTag).fetchSemanticsNodes().isNotEmpty()
+      }
+      composeRule.onNodeWithTag(cardTag).performClick()
+      composeRule.onNodeWithText("Votes").performClick()
+      composeRule.onNodeWithText(vote.question).assertIsDisplayed()
+      return
+    }
     composeRule.waitUntil {
       composeRule.onAllNodesWithTag(C.Tag.trips_main_trip_card).fetchSemanticsNodes().isNotEmpty()
     }
     composeRule.onNodeWithTag(C.Tag.trips_main_trip_card).performClick()
     composeRule.onNodeWithText("Votes").performClick()
+    composeRule.onNodeWithText(vote.question).assertIsDisplayed()
+  }
+
+  @Test
+  fun historicalTripLetsMembersReadAnOpenVoteWithoutSubmitting() {
+    openVotes(historical = true)
+
+    composeRule.onNodeWithText("New vote").assertDoesNotExist()
+    composeRule.onNodeWithText(vote.question).performClick()
+
+    composeRule.onNodeWithText("Market", substring = true).assertIsNotEnabled()
+    composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
+    composeRule.runOnIdle {
+      val entry = navController.currentBackStackEntry
+      assertEquals(Route.VOTE, entry?.destination?.route)
+      assertEquals(tripId, entry?.arguments?.getString("tripId"))
+    }
+    composeRule.onNodeWithText("Back").performClick()
     composeRule.onNodeWithText(vote.question).assertIsDisplayed()
   }
 
