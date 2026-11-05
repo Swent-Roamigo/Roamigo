@@ -190,14 +190,14 @@ class VotesNavigationTest {
   }
 
   @Test
-  fun overviewTabFromVotesReturnsToSelectedTripAndBackReturnsToTrips() {
+  fun detailTabFromVotesReturnsToSelectedTripAndBackReturnsToTrips() {
     openVotes()
 
-    composeRule.onNodeWithText("Overview").performClick()
+    composeRule.onNodeWithText("Detail").performClick()
 
     composeRule.onNodeWithTag("trip_details_screen").assertIsDisplayed()
     composeRule.onNodeWithText(tripName).assertIsDisplayed()
-    composeRule.onNodeWithText("Details").assertIsSelected()
+    composeRule.onNodeWithText("Detail").assertIsSelected()
     composeRule.runOnIdle {
       assertEquals(Route.TRIP_DETAILS, navController.currentBackStackEntry?.destination?.route)
       assertEquals(tripId, navController.currentBackStackEntry?.arguments?.getString("tripId"))
@@ -220,7 +220,7 @@ class VotesNavigationTest {
     dialogText("Market").performClick()
     composeRule.onNodeWithText("Submit vote").performClick()
     composeRule.runOnIdle {
-      assertEquals(Route.VOTES, navController.currentBackStackEntry?.destination?.route)
+      assertEquals(Route.TRIP_DETAILS, navController.currentBackStackEntry?.destination?.route)
       assertEquals(listOf(tripId to vote.uid, tripId to vote.uid), repository.lookups)
       val submission = repository.submissions.single()
       assertEquals(tripId, submission.first)
@@ -239,7 +239,7 @@ class VotesNavigationTest {
     assertCounts(0, 1)
     composeRule.onNodeWithText("Change vote").assertIsDisplayed()
     composeRule.runOnIdle { assertEquals(1, repository.activeBallotObservers[vote.uid]) }
-    composeRule.onNodeWithText("Trips").performClick()
+    composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
     composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
     composeRule.runOnIdle { assertEquals(0, repository.activeObservers) }
   }
@@ -281,7 +281,7 @@ class VotesNavigationTest {
     composeRule.onNodeWithText("Where tomorrow?").assertIsDisplayed()
     composeRule.onNodeWithText("$tripName · 2 open").assertIsDisplayed()
     composeRule.runOnIdle {
-      assertEquals(Route.VOTES, navController.currentBackStackEntry?.destination?.route)
+      assertEquals(Route.TRIP_DETAILS, navController.currentBackStackEntry?.destination?.route)
       assertEquals(tripId, repository.snapshots.value.getOrThrow().last().tripId)
       assertEquals(listOf(tripId, tripId), repository.observedTrips)
       assertEquals(1, repository.activeObservers)
@@ -319,7 +319,7 @@ class VotesNavigationTest {
   @Test
   fun selectingAnotherTripObservesItsVotesAndReleasesPreviousListener() {
     openVotes()
-    composeRule.onNodeWithText("Trips").performClick()
+    composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
     composeRule.onNodeWithText("Other trip").performScrollTo().performClick()
     composeRule.onNodeWithText("Votes").performClick()
     composeRule.onNodeWithText("Other trip vote?").assertIsDisplayed()
@@ -372,27 +372,10 @@ class VotesNavigationTest {
   }
 
   @Test
-  fun friendsTabFromVotesOpensFriendsAndBackReturnsToVotes() {
-    // Start from the Votes screen.
+  fun backFromMembersRestoresVotes() {
     openVotes()
-
-    // Navigate to Friends.
-    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
-
-    composeRule.onNodeWithTag(C.Tag.friends_screen).assertIsDisplayed()
-    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).assertIsSelected()
-
-    composeRule.runOnIdle {
-      assertEquals(Route.FRIENDS, navController.currentBackStackEntry?.destination?.route)
-    }
-
-    // Android Back should return to Votes.
+    composeRule.onNodeWithText("Members").performClick()
     composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
-
-    composeRule.onNodeWithText("$tripName · 1 open").assertIsDisplayed()
-
-    composeRule.runOnIdle {
-      assertEquals(Route.VOTES, navController.currentBackStackEntry?.destination?.route)
-    }
+    composeRule.onNodeWithText(vote.question).assertIsDisplayed()
   }
 }

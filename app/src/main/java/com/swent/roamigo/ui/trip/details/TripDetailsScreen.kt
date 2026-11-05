@@ -3,7 +3,6 @@ package com.swent.roamigo.ui.trip.details
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,27 +10,20 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -51,7 +43,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.TripRepository
-import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.Spacing
@@ -65,12 +56,8 @@ fun TripDetailsRoute(
     tripId: String,
     tripRepository: TripRepository,
     onBack: () -> Unit,
-    onTripsClick: () -> Unit,
-    onShareClick: () -> Unit = rememberNotImplementedAction(),
-    onInviteClick: () -> Unit = rememberNotImplementedAction(),
-    onItineraryClick: () -> Unit = rememberNotImplementedAction(),
+    onMembersClick: () -> Unit = rememberNotImplementedAction(),
     onVotesClick: (String) -> Unit,
-    onMapClick: () -> Unit,
     onTripMapClick: () -> Unit,
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
 ) {
@@ -80,40 +67,25 @@ fun TripDetailsRoute(
       state,
       onRetry = model::refresh,
       onBack = onBack,
-      onTripsClick = onTripsClick,
-      onShareClick = onShareClick,
-      onInviteClick = onInviteClick,
-      onItineraryClick = onItineraryClick,
+      onMembersClick = onMembersClick,
       onVotesClick = { state.details?.let { onVotesClick(it.name) } },
-      onMapClick = onMapClick,
       onTripMapClick = onTripMapClick,
       onPhotosClick = onPhotosClick,
   )
 }
 
-/**
- * Renders trip details and delegates navigation without depending on Firebase or Mapbox.
- *
- * [onMapClick] is the bottom bar's map tab, while [onTripMapClick] opens this trip's own map.
- */
+/** Renders trip details and delegates navigation without depending on Firebase or Mapbox. */
 @Composable
 fun TripDetailsScreen(
     state: TripDetailsUiState,
     onRetry: () -> Unit,
     onBack: () -> Unit,
-    onTripsClick: () -> Unit = {},
-    onShareClick: () -> Unit = rememberNotImplementedAction(),
-    onInviteClick: () -> Unit = rememberNotImplementedAction(),
-    onItineraryClick: () -> Unit = rememberNotImplementedAction(),
+    onMembersClick: () -> Unit = rememberNotImplementedAction(),
     onVotesClick: () -> Unit = {},
-    onMapClick: () -> Unit = {},
     onTripMapClick: () -> Unit = rememberNotImplementedAction(),
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
 ) {
-  Scaffold(
-      modifier = Modifier.testTag("trip_details_screen"),
-      bottomBar = { AppBottomBar(onTripsClick, onMapClick, onPhotosClick) },
-  ) { padding ->
+  Scaffold(modifier = Modifier.testTag("trip_details_screen")) { padding ->
     when {
       state.isLoading ->
           Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
@@ -141,11 +113,10 @@ fun TripDetailsScreen(
           TripDetailsContent(
               details = state.details,
               modifier = Modifier.fillMaxSize().padding(padding),
-              onShareClick = onShareClick,
-              onInviteClick = onInviteClick,
-              onItineraryClick = onItineraryClick,
+              onMembersClick = onMembersClick,
               onVotesClick = onVotesClick,
               onTripMapClick = onTripMapClick,
+              onPhotosClick = onPhotosClick,
           )
     }
   }
@@ -156,11 +127,10 @@ fun TripDetailsScreen(
 private fun TripDetailsContent(
     details: TripDetails,
     modifier: Modifier,
-    onShareClick: () -> Unit,
-    onInviteClick: () -> Unit,
-    onItineraryClick: () -> Unit,
+    onMembersClick: () -> Unit,
     onVotesClick: () -> Unit,
     onTripMapClick: () -> Unit,
+    onPhotosClick: () -> Unit,
 ) {
   Column(
       modifier.padding(
@@ -195,23 +165,7 @@ private fun TripDetailsContent(
               color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
         }
-        Box(
-            modifier =
-                Modifier.size(40.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-          IconButton(onClick = onShareClick, modifier = Modifier.markNotImplemented(onShareClick)) {
-            Icon(
-                painterResource(R.drawable.ic_trip_details_share),
-                stringResource(R.string.trip_details_share),
-                Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.onSurface,
-            )
-          }
-        }
       }
-      TripDetailsTabs(onItineraryClick, onVotesClick)
       TripDetailsSummaryCard(
           R.drawable.ic_trip_details_members,
           stringResource(R.string.trip_details_members),
@@ -220,17 +174,8 @@ private fun TripDetailsContent(
               details.memberCount,
               details.memberCount,
           ),
-      ) {
-        // A full touch target surrounds the small Figma badge.
-        Box(
-            Modifier.size(48.dp)
-                .markNotImplemented(onInviteClick)
-                .clickable(role = Role.Button, onClick = onInviteClick),
-            contentAlignment = Alignment.CenterEnd,
-        ) {
-          TripDetailsBadge(stringResource(R.string.trip_details_invite))
-        }
-      }
+          onClick = onMembersClick,
+      ) {}
       TripDetailsSummaryCard(
           R.drawable.ic_trip_details_places,
           stringResource(R.string.trip_details_places),
@@ -245,17 +190,13 @@ private fun TripDetailsContent(
       TripDetailsSummaryCard(
           R.drawable.ic_trip_details_check,
           stringResource(R.string.trip_details_live_votes),
-          stringResource(R.string.trip_details_unavailable),
-      ) {
-        TripDetailsBadge(stringResource(R.string.trip_details_unavailable_count))
-      }
+          onClick = onVotesClick,
+      ) {}
       TripDetailsSummaryCard(
           R.drawable.ic_trip_details_photos,
           stringResource(R.string.trip_details_photos),
-          stringResource(R.string.trip_details_unavailable),
-      ) {
-        TripDetailsBadge(stringResource(R.string.trip_details_unavailable_count))
-      }
+          onClick = onPhotosClick,
+      ) {}
     }
     OutlinedButton(
         onClick = onTripMapClick,
@@ -274,56 +215,20 @@ private fun TripDetailsContent(
 }
 
 @Composable
-private fun TripDetailsTabs(onItineraryClick: () -> Unit, onVotesClick: () -> Unit) {
-  SecondaryTabRow(
-      selectedTabIndex = 0,
-      modifier = Modifier.height(42.dp),
-      containerColor = MaterialTheme.colorScheme.background,
-      indicator = {
-        TabRowDefaults.SecondaryIndicator(
-            Modifier.tabIndicatorOffset(0),
-            height = 2.dp,
-            color = MaterialTheme.colorScheme.primary,
-        )
-      },
-      divider = { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) },
-  ) {
-    val labels =
-        listOf(
-            R.string.trip_details_tab,
-            R.string.trip_details_itinerary,
-            R.string.trip_details_votes,
-        )
-    val actions = listOf({}, onItineraryClick, onVotesClick)
-    labels.forEachIndexed { index, label ->
-      Tab(
-          selected = index == 0,
-          onClick = actions[index],
-          modifier = Modifier.height(42.dp).markNotImplemented(actions[index]),
-          text = {
-            Text(
-                stringResource(label),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (index == 0) FontWeight.SemiBold else FontWeight.Medium,
-                color =
-                    if (index == 0) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-          },
-      )
-    }
-  }
-}
-
-@Composable
 private fun TripDetailsSummaryCard(
     @DrawableRes icon: Int,
     title: String,
-    subtitle: String,
+    subtitle: String? = null,
+    onClick: (() -> Unit)? = null,
     trailingContent: @Composable () -> Unit,
 ) {
   Surface(
-      modifier = Modifier.fillMaxWidth(),
+      modifier =
+          Modifier.fillMaxWidth()
+              .then(
+                  if (onClick == null) Modifier
+                  else Modifier.clickable(role = Role.Button, onClick = onClick)
+              ),
       shape = MaterialTheme.shapes.small,
       color = MaterialTheme.colorScheme.surfaceVariant,
   ) {
@@ -342,11 +247,13 @@ private fun TripDetailsSummaryCard(
       }
       Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text(title, style = MaterialTheme.typography.titleSmall.copy(lineHeight = 20.sp))
-        Text(
-            subtitle,
-            style = MaterialTheme.typography.bodySmall.copy(lineHeight = 16.sp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        if (subtitle != null) {
+          Text(
+              subtitle,
+              style = MaterialTheme.typography.bodySmall.copy(lineHeight = 16.sp),
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
       }
       trailingContent()
     }

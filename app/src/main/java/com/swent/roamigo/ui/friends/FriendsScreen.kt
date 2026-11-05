@@ -74,7 +74,6 @@ fun FriendsScreen(
         AppBottomBar(
             onTripsClick = onTripsClick,
             onMapClick = onMapClick,
-            onPhotosClick = onPhotosClick,
             tripsSelected = false,
             onFriendsClick = {},
             friendsSelected = true,
@@ -84,9 +83,7 @@ fun FriendsScreen(
   ) { innerPadding ->
     Column(
         modifier =
-            Modifier.fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = Spacing.screenPadding),
+            Modifier.fillMaxSize().padding(innerPadding).padding(horizontal = Spacing.screenPadding)
     ) {
       FriendsHeader()
 

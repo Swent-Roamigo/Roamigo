@@ -5,12 +5,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
-import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.hasText
@@ -23,13 +20,11 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.trip.voting.VoteStatus
-import com.swent.roamigo.ui.isNotImplemented
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.shadows.ShadowToast
 
 @RunWith(AndroidJUnit4::class)
 class VotesScreenTest {
@@ -43,8 +38,6 @@ class VotesScreenTest {
       onOpenVote: (String) -> Unit = {},
       onRetry: () -> Unit = {},
       onCreateVote: () -> Unit = {},
-      onTripsClick: () -> Unit = {},
-      onOverviewClick: () -> Unit = {},
   ) {
     composeRule.setContent {
       RoamigoTheme {
@@ -54,8 +47,6 @@ class VotesScreenTest {
             onOpenVote = onOpenVote,
             onCreateVote = onCreateVote,
             onRetry = onRetry,
-            onTripsClick = onTripsClick,
-            onOverviewClick = onOverviewClick,
         )
       }
     }
@@ -283,41 +274,5 @@ class VotesScreenTest {
     composeRule.runOnIdle { state = VotesUiState.Ready(emptyList(), listOf(closed)) }
     composeRule.onNodeWithText(live.question).assertDoesNotExist()
     composeRule.onNodeWithText(closed.question).assertIsDisplayed()
-  }
-
-  @Test
-  fun votesTabIsSelectedAndNavigationInvokesCallbacks() {
-    var backs = 0
-    var overviewClicks = 0
-    content(VotesUiState.Empty, onTripsClick = { backs++ }, onOverviewClick = { overviewClicks++ })
-    composeRule
-        .onNode(hasText("Votes") and androidx.compose.ui.test.isSelectable())
-        .assertIsSelected()
-    composeRule
-        .onNodeWithText("Overview")
-        .assertIsEnabled()
-        .assert(isNotImplemented.not())
-        .performClick()
-    composeRule.runOnIdle {
-      assertEquals(1, overviewClicks)
-      assertEquals(0, backs)
-    }
-
-    ShadowToast.reset()
-    composeRule
-        .onNodeWithText("Itinerary")
-        .assertIsEnabled()
-        .assert(isNotImplemented)
-        .performClick()
-    composeRule.runOnIdle {
-      assertEquals("Not implemented yet", ShadowToast.getTextOfLatestToast())
-    }
-    composeRule
-        .onNode(hasText("Votes") and androidx.compose.ui.test.isSelectable())
-        .assertIsSelected()
-        .assert(isNotImplemented.not())
-
-    composeRule.onNodeWithText("Trips").performClick()
-    composeRule.runOnIdle { assertEquals(1, backs) }
   }
 }

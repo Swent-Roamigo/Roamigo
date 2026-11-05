@@ -23,7 +23,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
-import org.robolectric.shadows.ShadowToast
 
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w800dp-h1600dp")
@@ -73,45 +72,15 @@ class TripReadyScreenTest {
     rule
         .onNodeWithTag(TripReadyTestTags.LOCATION, useUnmergedTree = true)
         .assertTextEquals("Share your location (optional)")
-    listOf(
-            TripReadyTestTags.INVITE_CARD,
-            TripReadyTestTags.SUGGEST_CARD,
-            TripReadyTestTags.LOCATION_CARD,
-        )
-        .forEach { tag ->
-          rule
-              .onNodeWithTag(tag)
-              .performScrollTo()
-              .assertHasClickAction()
-              .assert(isNotImplemented)
-              .performClick()
-          assertEquals(
-              RuntimeEnvironment.getApplication().getString(R.string.feature_not_implemented),
-              ShadowToast.getTextOfLatestToast(),
-          )
-        }
+    rule.onNodeWithTag(TripReadyTestTags.INVITE_CARD).assertDoesNotExist()
+    rule.onNodeWithTag(TripReadyTestTags.SUGGEST_CARD).assertDoesNotExist()
+    rule.onNodeWithTag(TripReadyTestTags.SHARE).assertDoesNotExist()
+    rule.onNodeWithTag(TripReadyTestTags.LOCATION_CARD).performScrollTo().assertHasClickAction()
     rule
         .onNodeWithTag(TripReadyTestTags.ITINERARY)
         .performScrollTo()
-        .assertTextEquals("Open itinerary")
+        .assertTextEquals("Open trip detail")
         .assertHasClickAction()
-        .assert(isNotImplemented)
-        .performClick()
-    assertEquals(
-        RuntimeEnvironment.getApplication().getString(R.string.feature_not_implemented),
-        ShadowToast.getTextOfLatestToast(),
-    )
-    rule
-        .onNodeWithTag(TripReadyTestTags.SHARE)
-        .performScrollTo()
-        .assertTextEquals("Share trip")
-        .assertHasClickAction()
-        .assert(isNotImplemented)
-        .performClick()
-    assertEquals(
-        RuntimeEnvironment.getApplication().getString(R.string.feature_not_implemented),
-        ShadowToast.getTextOfLatestToast(),
-    )
   }
 
   @Test

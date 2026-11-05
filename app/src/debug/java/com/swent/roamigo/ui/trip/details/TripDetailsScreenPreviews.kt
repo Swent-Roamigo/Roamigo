@@ -41,5 +41,5 @@ private fun TripDetailsUnavailablePreview() =
 
 @Composable
 private fun TripDetailsPreview(state: TripDetailsUiState) {
-  RoamigoTheme { TripDetailsScreen(state = state, onRetry = {}, onBack = {}, onTripsClick = {}) }
+  RoamigoTheme { TripDetailsScreen(state = state, onRetry = {}, onBack = {}) }
 }

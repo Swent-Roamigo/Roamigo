@@ -41,6 +41,7 @@ fun PhotosRoute(
     fileOf: (PendingPhoto) -> File,
     onTripsClick: () -> Unit,
     modifier: Modifier = Modifier,
+    readOnly: Boolean = false,
 ) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   val context = LocalContext.current
@@ -140,6 +141,7 @@ fun PhotosRoute(
         onPhotoClick = viewModel::onPhotoClick,
         onGalleryRetryClick = viewModel::onGalleryRetry,
         onTripsClick = onTripsClick,
+        readOnly = readOnly,
         modifier = modifier,
     )
   }

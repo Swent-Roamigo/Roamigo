@@ -29,11 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.roamigo.R
-import com.swent.roamigo.ui.components.AppBottomBar
-import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.Spacing
-import com.swent.roamigo.ui.trip.components.TripTab
-import com.swent.roamigo.ui.trip.components.TripTabs
 import com.swent.roamigo.ui.trip.voting.components.VoteErrorContent
 import com.swent.roamigo.ui.trip.voting.components.VotesList
 
@@ -44,14 +40,9 @@ fun VotesScreen(
     tripName: String,
     onOpenVote: (String) -> Unit,
     onCreateVote: () -> Unit,
-    onFriendsClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onOverviewClick: () -> Unit = {},
-    onItineraryClick: () -> Unit = rememberNotImplementedAction(),
-    onTripsClick: () -> Unit = {},
-    onMapClick: () -> Unit = {},
-    onPhotosClick: () -> Unit = rememberNotImplementedAction(),
     onCloseVote: ((String) -> Unit)? = null,
+    readOnly: Boolean = false,
 ) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   VotesScreenContent(
@@ -60,18 +51,13 @@ fun VotesScreen(
       onOpenVote = { id -> viewModel.selectVote(id)?.let(onOpenVote) },
       onCreateVote = onCreateVote,
       onRetry = viewModel::retry,
-      onOverviewClick = onOverviewClick,
-      onItineraryClick = onItineraryClick,
-      onTripsClick = onTripsClick,
-      onFriendsClick = onFriendsClick,
-      onMapClick = onMapClick,
-      onPhotosClick = onPhotosClick,
       onCloseVote = onCloseVote,
+      readOnly = readOnly,
       modifier = modifier,
   )
 }
 
-/** Stateless Votes tab. Overview and Itinerary await their own trip destinations. */
+/** Stateless content of the Votes tab. */
 @Composable
 fun VotesScreenContent(
     state: VotesUiState,
@@ -80,26 +66,12 @@ fun VotesScreenContent(
     onCreateVote: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
-    onOverviewClick: () -> Unit = {},
-    onItineraryClick: () -> Unit = rememberNotImplementedAction(),
-    onTripsClick: () -> Unit = {},
-    onFriendsClick: () -> Unit = rememberNotImplementedAction(),
-    onMapClick: () -> Unit = {},
-    onPhotosClick: () -> Unit = rememberNotImplementedAction(),
     onCloseVote: ((String) -> Unit)? = null,
+    readOnly: Boolean = false,
 ) {
   Scaffold(
       modifier = modifier,
       containerColor = MaterialTheme.colorScheme.background,
-      bottomBar = {
-        AppBottomBar(
-            onTripsClick = onTripsClick,
-            onMapClick = onMapClick,
-            onPhotosClick = onPhotosClick,
-            onFriendsClick = onFriendsClick,
-            tripsSelected = false,
-        )
-      },
   ) { padding ->
     Column(
         Modifier.fillMaxSize()
@@ -126,11 +98,6 @@ fun VotesScreenContent(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
-      TripTabs(
-          selectedTab = TripTab.VOTES,
-          onOverviewClick = onOverviewClick,
-          onItineraryClick = onItineraryClick,
-      )
       Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
         when (state) {
           VotesUiState.Loading ->
@@ -161,7 +128,7 @@ fun VotesScreenContent(
           is VotesUiState.Ready -> VotesList(state, onOpenVote, onRetry, onCloseVote = onCloseVote)
         }
       }
-      if (state is VotesUiState.Empty || state is VotesUiState.Ready) {
+      if (!readOnly && (state is VotesUiState.Empty || state is VotesUiState.Ready)) {
         Button(
             onClick = onCreateVote,
             modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),

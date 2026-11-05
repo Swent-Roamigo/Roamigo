@@ -115,52 +115,35 @@ class RoamigoAppMapNavigationTest {
   }
 
   @Test
-  fun mapTabFromFriendsOpensMapAndBackReturnsToFriends() {
+  fun mapTabFromFriendsOpensMapAndBackReturnsToTrips() {
     composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
     waitForTag(C.Tag.friends_screen)
-    assertMapOpensAndBackReturnsTo(Route.FRIENDS)
+    assertMapOpensAndBackReturnsTo(Route.TRIPS)
   }
 
   @Test
-  fun mapTabFromProfileOpensMapAndBackReturnsToProfile() {
+  fun mapTabFromProfileOpensMapAndBackReturnsToTrips() {
     composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
     waitForTag(C.Tag.profile_title)
-    assertMapOpensAndBackReturnsTo(Route.PROFILE)
+    assertMapOpensAndBackReturnsTo(Route.TRIPS)
   }
 
   @Test
-  fun mapTabFromHistoryOpensMapAndBackReturnsToHistory() {
+  fun mapTabFromHistoryOpensMapAndBackReturnsToTrips() {
     composeRule.onNodeWithTag(C.Tag.trips_history_button).performClick()
     waitForTag(C.Tag.trip_history_screen)
-    assertMapOpensAndBackReturnsTo(Route.TRIP_HISTORY)
+    assertMapOpensAndBackReturnsTo(Route.TRIPS)
   }
 
   @Test
-  fun mapTabFromTripDetailsOpensMapAndBackReturnsToDetails() {
+  fun mapCardOpensThatTripsMapAndBackReturnsToTrips() {
     openMainTripDetails()
-    assertMapOpensAndBackReturnsTo(Route.TRIP_DETAILS)
-  }
-
-  @Test
-  fun mapTabFromVotesOpensMapAndBackReturnsToVotes() {
-    openMainTripDetails()
-    composeRule
-        .onNodeWithText(composeRule.activity.getString(R.string.trip_details_votes))
-        .performClick()
-    waitForRoute(Route.VOTES)
-    assertMapOpensAndBackReturnsTo(Route.VOTES)
-  }
-
-  @Test
-  fun mapCardFromTripDetailsOpensThatTripsMapAndBackReturnsToDetails() {
-    openMainTripDetails()
-    val detailsEntryId = composeRule.runOnIdle { navController.currentBackStackEntry?.id }
 
     composeRule
         .onNodeWithText(composeRule.activity.getString(R.string.trip_details_map))
         .performClick()
 
-    waitForRoute(Route.TRIP_MAP)
+    waitForRoute(Route.TRIP_DETAILS)
     composeRule.runOnIdle {
       assertEquals(
           mainTrip.uid,
@@ -175,8 +158,7 @@ class RoamigoAppMapNavigationTest {
     composeRule.onNodeWithTag(C.Tag.trip_map_error).assertDoesNotExist()
 
     pressBack()
-    waitForRoute(Route.TRIP_DETAILS)
-    composeRule.runOnIdle { assertEquals(detailsEntryId, navController.currentBackStackEntry?.id) }
+    waitForRoute(Route.TRIPS)
   }
 
   @Test
@@ -209,9 +191,8 @@ class RoamigoAppMapNavigationTest {
       )
     }
     pressBack()
-    waitForRoute(Route.TRIP_OVERVIEW_MAP)
-    composeRule.loadLocalMapStyle()
-    composeRule.onNodeWithTag(C.Tag.trips_navigation_map).assertIsSelected()
+    waitForRoute(Route.TRIPS)
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).assertIsSelected()
   }
 
   @Test
@@ -244,7 +225,7 @@ class RoamigoAppMapNavigationTest {
   }
 
   @Test
-  fun friendsTabOnMapOpensFriendsAndBackRestoresTheMap() {
+  fun friendsTabOnMapOpensFriendsAndBackReturnsToTrips() {
     openMap()
 
     composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
@@ -253,9 +234,8 @@ class RoamigoAppMapNavigationTest {
     composeRule.onNodeWithTag(C.Tag.friends_screen).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).assertIsSelected()
     pressBack()
-    waitForRoute(Route.TRIP_OVERVIEW_MAP)
-    composeRule.loadLocalMapStyle()
-    composeRule.onNodeWithTag(C.Tag.trips_navigation_map).assertIsSelected()
+    waitForRoute(Route.TRIPS)
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).assertIsSelected()
   }
 
   private fun openMainTripDetails() {
@@ -272,11 +252,9 @@ class RoamigoAppMapNavigationTest {
   }
 
   private fun assertMapOpensAndBackReturnsTo(originRoute: String) {
-    val originEntryId = composeRule.runOnIdle { navController.currentBackStackEntry?.id }
     openMap()
     pressBack()
     waitForRoute(originRoute)
-    composeRule.runOnIdle { assertEquals(originEntryId, navController.currentBackStackEntry?.id) }
   }
 
   private fun pressBack() {

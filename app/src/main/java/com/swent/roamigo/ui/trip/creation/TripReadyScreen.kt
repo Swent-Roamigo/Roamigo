@@ -12,7 +12,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -163,18 +162,6 @@ private fun TripReadySuccessContent(
           onClick = null,
       )
       TripReadyCard(
-          title = stringResource(R.string.trip_ready_invite),
-          detail = stringResource(R.string.trip_ready_invite_detail),
-          tag = "invite",
-          onClick = onInviteClick,
-      )
-      TripReadyCard(
-          title = stringResource(R.string.trip_ready_suggest),
-          detail = stringResource(R.string.trip_ready_suggest_detail),
-          tag = "suggest",
-          onClick = onSuggestClick,
-      )
-      TripReadyCard(
           title = stringResource(R.string.trip_ready_location),
           detail = stringResource(R.string.trip_ready_location_detail),
           tag = "location",
@@ -188,15 +175,6 @@ private fun TripReadySuccessContent(
               },
       ) {
         Text(stringResource(R.string.trip_ready_itinerary))
-      }
-      OutlinedButton(
-          onClick = onShareTripClick,
-          modifier =
-              Modifier.fillMaxWidth().markNotImplemented(onShareTripClick).semantics {
-                testTag = TripReadyTestTags.SHARE
-              },
-      ) {
-        Text(stringResource(R.string.trip_ready_share))
       }
     }
   }

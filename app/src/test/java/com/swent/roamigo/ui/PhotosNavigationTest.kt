@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -42,7 +43,7 @@ class PhotosNavigationTest {
   private val connectivity = FakeConnectivityRepository()
   private lateinit var navController: NavHostController
 
-  private fun openPhotos(fromTripsHome: Boolean = false) {
+  private fun openPhotos() {
     val now = Instant.now().epochSecond
     val trip =
         Trip(
@@ -66,7 +67,18 @@ class PhotosNavigationTest {
         RoamigoApp(
             voteRepository = InMemoryVoteRepository(emptyList()),
             destinationRepository = sampleDestinationRepository(),
-            tripRepository = FakeTripRepository(trips = listOf(trip)),
+            tripRepository =
+                FakeTripRepository(
+                    trips =
+                        listOf(
+                            trip.copy(
+                                uid = "other",
+                                name = "Other trip",
+                                endDate = Timestamp(now + 3600, 0),
+                            ),
+                            trip,
+                        )
+                ),
             authRepository =
                 FakeAuthRepository(
                     AuthenticatedUser("member", "Member", null, null),
@@ -81,13 +93,10 @@ class PhotosNavigationTest {
     composeRule.waitUntil {
       composeRule.onAllNodesWithTag(C.Tag.trips_main_trip_card).fetchSemanticsNodes().isNotEmpty()
     }
-    // The tab of the trips home leads to the main trip; the one of its votes leads to its own.
-    if (!fromTripsHome) {
-      composeRule.onNodeWithTag(C.Tag.trips_main_trip_card).performClick()
-      // A trip opens its details; Photos is reached from its Votes tab.
-      composeRule.onNodeWithText("Votes").performClick()
-    }
-    composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).performClick()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).assertDoesNotExist()
+    composeRule.onNodeWithText(tripName).performScrollTo().performClick()
+    composeRule.onNodeWithText("Votes").performClick()
+    composeRule.onNodeWithText("Photos").performClick()
   }
 
   @Test
@@ -96,22 +105,10 @@ class PhotosNavigationTest {
 
     composeRule.onNodeWithTag(C.Tag.photos_screen).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.photos_title).assertTextEquals("Trip photos")
+    composeRule.onNodeWithText(tripName).assertIsDisplayed()
     composeRule.runOnIdle {
-      assertEquals(Route.PHOTOS, navController.currentBackStackEntry?.destination?.route)
+      assertEquals(Route.TRIP_DETAILS, navController.currentBackStackEntry?.destination?.route)
       assertEquals(tripId, navController.currentBackStackEntry?.arguments?.getString("tripId"))
-      assertEquals(tripName, navController.currentBackStackEntry?.arguments?.getString("tripName"))
-    }
-  }
-
-  @Test
-  fun thePhotosTabOfTheTripsHomeOpensThePhotosOfTheMainTrip() {
-    openPhotos(fromTripsHome = true)
-
-    composeRule.onNodeWithTag(C.Tag.photos_screen).assertIsDisplayed()
-    composeRule.runOnIdle {
-      assertEquals(Route.PHOTOS, navController.currentBackStackEntry?.destination?.route)
-      assertEquals(tripId, navController.currentBackStackEntry?.arguments?.getString("tripId"))
-      assertEquals(tripName, navController.currentBackStackEntry?.arguments?.getString("tripName"))
     }
   }
 
@@ -124,10 +121,10 @@ class PhotosNavigationTest {
   }
 
   @Test
-  fun theTripsTabGoesBackToTheTrips() {
+  fun backFromPhotosReturnsDirectlyToTrips() {
     openPhotos()
 
-    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
+    composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
 
     composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
   }

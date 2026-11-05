@@ -115,7 +115,6 @@ class ProfileScreenTest {
     listOf(
             C.Tag.trips_navigation_trips,
             C.Tag.trips_navigation_map,
-            C.Tag.trips_navigation_photos,
             C.Tag.trips_navigation_friends,
         )
         .forEach { composeRule.onNodeWithTag(it).assertIsDisplayed() }

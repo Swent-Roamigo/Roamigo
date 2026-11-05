@@ -7,11 +7,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -34,14 +31,14 @@ class TripDetailsScreenTest {
 
   @Test
   @Config(qualifiers = "en-rUS-w390dp-h844dp-xhdpi")
-  fun rendersRealSummariesAndUnavailableFeatures() {
-    composeRule.setContent { RoamigoTheme { TripDetailsScreen(readyState(), {}, {}, {}) } }
+  fun rendersRealSummariesAndLinkedFeatures() {
+    composeRule.setContent { RoamigoTheme { TripDetailsScreen(readyState(), {}, {}) } }
     composeRule.onNodeWithText("Lisbon & Porto").assertIsDisplayed()
     composeRule.onNodeWithText("1 member").assertIsDisplayed()
     composeRule.onNodeWithText("4 suggested places").assertIsDisplayed()
     composeRule.onNodeWithText("4").assertIsDisplayed()
     composeRule.onNodeWithText("12 – 19 Oct · 3 travelers").assertIsDisplayed()
-    composeRule.onAllNodesWithText("—").assertCountEquals(2)
+    composeRule.onNodeWithText("Not available yet").assertDoesNotExist()
     composeRule.onNodeWithText("Trip photos").performScrollTo().assertIsDisplayed()
   }
 
@@ -54,7 +51,6 @@ class TripDetailsScreenTest {
             state.value,
             onRetry = { state.value = readyState() },
             onBack = {},
-            onTripsClick = {},
         )
       }
     }
@@ -74,35 +70,26 @@ class TripDetailsScreenTest {
             readyState(),
             {},
             {},
-            onTripsClick = { actions += "trips" },
-            onShareClick = { actions += "share" },
-            onInviteClick = { actions += "invite" },
-            onItineraryClick = { actions += "itinerary" },
+            onMembersClick = { actions += "invite" },
             onVotesClick = { actions += "votes" },
-            onMapClick = { actions += "map" },
             onTripMapClick = { actions += "tripMap" },
             onPhotosClick = { actions += "photos" },
         )
       }
     }
-    composeRule.onNodeWithText("Details").performClick()
-    composeRule.onNodeWithContentDescription("Share trip").performClick()
-    composeRule.onNodeWithText("Invite").performClick()
-    composeRule.onNodeWithText("Itinerary").performClick()
-    composeRule.onNodeWithText("Votes").performClick()
+    composeRule.onNodeWithText("Members").performScrollTo().performClick()
+    composeRule.onNodeWithText("Live votes").performScrollTo().performClick()
     composeRule.onNodeWithText("Open trip map").performClick()
-    composeRule.onNodeWithText("Trips").performClick()
-    composeRule.onNodeWithText("Map").performClick()
-    composeRule.onNodeWithText("Photos").performClick()
+    composeRule.onNodeWithText("Trip photos").performScrollTo().performClick()
     org.junit.Assert.assertEquals(
-        listOf("share", "invite", "itinerary", "votes", "tripMap", "trips", "map", "photos"),
+        listOf("invite", "votes", "tripMap", "photos"),
         actions,
     )
   }
 
   @Test
-  fun longNamesAndLargeTextKeepShareAndMapActionsReachable() {
-    var shared = false
+  fun longNamesAndLargeTextKeepPhotoAndMapActionsReachable() {
+
     var mapped = false
     val name = "Lisbon, Porto and the Atlantic coast with friends"
     val state = readyState().let { it.copy(details = it.details!!.copy(name = name)) }
@@ -115,17 +102,14 @@ class TripDetailsScreenTest {
               {},
               {},
               {},
-              onShareClick = { shared = true },
               onTripMapClick = { mapped = true },
           )
         }
       }
     }
     composeRule.onNodeWithText(name).assertIsDisplayed()
-    composeRule.onNodeWithContentDescription("Share trip").assertIsDisplayed().performClick()
     composeRule.onNodeWithText("Open trip map").assertIsDisplayed().performClick()
     composeRule.onNodeWithText("Trip photos").performScrollTo().assertIsDisplayed()
-    assertTrue(shared)
     assertTrue(mapped)
   }
 
@@ -156,7 +140,7 @@ class TripDetailsScreenTest {
     composeRule.setContent {
       RoamigoTheme {
         Box(Modifier.height(350.dp)) {
-          TripDetailsScreen(readyState(), {}, {}, {}, onTripMapClick = { opened = true })
+          TripDetailsScreen(readyState(), {}, {}, onTripMapClick = { opened = true })
         }
       }
     }

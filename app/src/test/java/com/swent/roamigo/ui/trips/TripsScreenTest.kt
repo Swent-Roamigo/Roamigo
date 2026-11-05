@@ -186,7 +186,6 @@ class TripsScreenTest {
     var newTripClicks = 0
     var tripsClicks = 0
     var mapClicks = 0
-    var photosClicks = 0
 
     composeTestRule.setContent {
       MaterialTheme {
@@ -195,7 +194,6 @@ class TripsScreenTest {
             onNewTripClick = { newTripClicks++ },
             onTripsClick = { tripsClicks++ },
             onMapClick = { mapClicks++ },
-            onPhotosClick = { photosClicks++ },
         )
       }
     }
@@ -206,12 +204,11 @@ class TripsScreenTest {
 
     composeTestRule.onNodeWithTag(C.Tag.trips_navigation_map).performClick()
 
-    composeTestRule.onNodeWithTag(C.Tag.trips_navigation_photos).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.trips_navigation_photos).assertDoesNotExist()
 
     assertEquals(1, newTripClicks)
     assertEquals(1, tripsClicks)
     assertEquals(1, mapClicks)
-    assertEquals(1, photosClicks)
   }
 
   @Test

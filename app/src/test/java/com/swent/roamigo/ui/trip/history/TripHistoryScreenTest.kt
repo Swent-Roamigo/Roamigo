@@ -120,7 +120,6 @@ class TripHistoryScreenTest {
     var worldMapClicks = 0
     var tripsClicks = 0
     var mapClicks = 0
-    var photosClicks = 0
     var friendsClicks = 0
 
     show(
@@ -129,7 +128,6 @@ class TripHistoryScreenTest {
         onOpenWorldMapClick = { worldMapClicks++ },
         onTripsClick = { tripsClicks++ },
         onMapClick = { mapClicks++ },
-        onPhotosClick = { photosClicks++ },
         onFriendsClick = { friendsClicks++ },
     )
 
@@ -137,14 +135,13 @@ class TripHistoryScreenTest {
     composeRule.onNodeWithTag(C.Tag.trip_history_world_map).performClick()
     composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
     composeRule.onNodeWithTag(C.Tag.trips_navigation_map).performClick()
-    composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).performClick()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
 
     Assert.assertEquals(1, backClicks)
     Assert.assertEquals(1, worldMapClicks)
     Assert.assertEquals(1, tripsClicks)
     Assert.assertEquals(1, mapClicks)
-    Assert.assertEquals(1, photosClicks)
     Assert.assertEquals(1, friendsClicks)
   }
 

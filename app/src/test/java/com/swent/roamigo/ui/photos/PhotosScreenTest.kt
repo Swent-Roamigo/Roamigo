@@ -2,7 +2,6 @@
 package com.swent.roamigo.ui.photos
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -188,17 +187,6 @@ class PhotosScreenTest {
     composeRule.onNodeWithTag(C.Tag.photos_take_photo).performClick()
 
     assertEquals(listOf("take"), taps)
-  }
-
-  @Test
-  fun highlightsThePhotosTabAndLeadsBackToTrips() {
-    show(PhotosUiState())
-
-    composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).assertIsSelected()
-    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
-    composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).performClick()
-
-    assertEquals(listOf("trips"), taps)
   }
 
   @Test

@@ -47,14 +47,12 @@ fun ProfileScreen(
     onSignOutClick: () -> Unit = {},
     onMapClick: () -> Unit = {},
 ) {
-  val notImplemented = rememberNotImplementedAction()
   Scaffold(
       modifier = modifier,
       bottomBar = {
         AppBottomBar(
             onTripsClick = onTripsClick,
             onMapClick = onMapClick,
-            onPhotosClick = notImplemented,
             tripsSelected = false,
             onFriendsClick = onFriendsClick,
         )

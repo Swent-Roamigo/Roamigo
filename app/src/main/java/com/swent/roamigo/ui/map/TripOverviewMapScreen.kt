@@ -54,7 +54,6 @@ fun TripOverviewMapRoute(
       onRetry = viewModel::loadTrips,
       onTripsClick = onTripsClick,
       onMapClick = onMapClick,
-      onPhotosClick = onPhotosClick,
       onFriendsClick = onFriendsClick,
   )
 }
@@ -77,7 +76,6 @@ fun TripOverviewMapScreen(
         AppBottomBar(
             onTripsClick = onTripsClick,
             onMapClick = onMapClick,
-            onPhotosClick = onPhotosClick,
             onFriendsClick = onFriendsClick,
             tripsSelected = false,
             mapSelected = true,
