@@ -2,15 +2,25 @@
 
 package com.swent.roamigo.ui.trips
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
+import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
@@ -19,6 +29,7 @@ import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripMember
 import com.swent.roamigo.model.trip.TripMemberRole
+import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
@@ -108,10 +119,7 @@ class TripsScreenTest {
     val tripRepository =
         FakeTripRepository(
             trips = listOf(mainTrip, otherTrip),
-            activitiesByTripId =
-                mapOf(
-                    mainTrip.uid to listOf(nextActivity),
-                ),
+            activitiesByTripId = mapOf(mainTrip.uid to listOf(nextActivity)),
             membersByTripId =
                 mapOf(
                     mainTrip.uid to
@@ -183,10 +191,7 @@ class TripsScreenTest {
     composeTestRule.setContent {
       MaterialTheme {
         TripsScreen(
-            uiState =
-                TripsUiState(
-                    isLoading = false,
-                ),
+            uiState = TripsUiState(isLoading = false),
             onNewTripClick = { newTripClicks++ },
             onTripsClick = { tripsClicks++ },
             onMapClick = { mapClicks++ },
@@ -271,7 +276,7 @@ class TripsScreenTest {
             uiState =
                 TripsUiState(
                     isLoading = false,
-                    errorMessage = "Unable to load trips.",
+                    errorMessage = R.string.trips_load_error,
                 )
         )
       }
@@ -286,13 +291,7 @@ class TripsScreenTest {
 
   @Test
   fun loadingStateDoesNotDisplayTripCards() {
-    composeTestRule.setContent {
-      MaterialTheme {
-        TripsScreen(
-            uiState = TripsUiState(),
-        )
-      }
-    }
+    composeTestRule.setContent { MaterialTheme { TripsScreen(uiState = TripsUiState()) } }
 
     composeTestRule.onNodeWithText("Your trips").assertIsDisplayed()
 
@@ -314,7 +313,7 @@ class TripsScreenTest {
       }
     }
 
-    composeTestRule.onNodeWithText("Other trips").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Other trips").assertDoesNotExist()
 
     composeTestRule.onNodeWithTag(C.Tag.trips_history_button).assertIsDisplayed().performClick()
 
@@ -331,7 +330,7 @@ class TripsScreenTest {
             uiState =
                 TripsUiState(
                     isLoading = false,
-                    errorMessage = "Unable to load trips.",
+                    errorMessage = R.string.trips_load_error,
                 ),
             onHistoryClick = { historyClicks++ },
         )
@@ -343,6 +342,27 @@ class TripsScreenTest {
     composeTestRule.onNodeWithText("Other trips").assertDoesNotExist()
 
     assertEquals(1, historyClicks)
+  }
+
+  @Test
+  fun featuredTripWithoutOtherTripsHidesHeadingButKeepsHistory() {
+    var clicks = 0
+    composeTestRule.setContent {
+      MaterialTheme {
+        TripsScreen(
+            uiState =
+                TripsUiState(
+                    isLoading = false,
+                    mainTrip =
+                        MainTripUiModel("one", "Lisbon", "8–10 Oct", 3, 0, emptyList(), null),
+                ),
+            onHistoryClick = { clicks++ },
+        )
+      }
+    }
+    composeTestRule.onNodeWithText("Other trips").assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.trips_history_button).assertIsDisplayed().performClick()
+    assertEquals(1, clicks)
   }
 
   @Test
@@ -362,7 +382,7 @@ class TripsScreenTest {
                                 name = "Paris trip",
                                 dateRange = "10 – 15 Nov",
                                 memberCount = 2,
-                            ),
+                            )
                         ),
                 ),
             onHistoryClick = { historyClicks++ },
@@ -376,6 +396,166 @@ class TripsScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.trips_history_button).assertIsDisplayed().performClick()
 
     assertEquals(1, historyClicks)
+  }
+
+  @Test
+  fun emptyStateIsShownOnlyAfterSuccessfulEmptyLoadAndHistoryStillWorks() {
+    var historyClicks = 0
+    composeTestRule.setContent {
+      MaterialTheme {
+        TripsScreen(TripsUiState(isLoading = false), onHistoryClick = { historyClicks++ })
+      }
+    }
+    composeTestRule.onNodeWithTag(C.Tag.trips_empty).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText("No upcoming trips yet. Create a trip to get started.")
+        .assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.trips_history_button).performClick()
+    assertEquals(1, historyClicks)
+  }
+
+  @Test
+  fun loadingAndErrorDoNotMisleadUserWithEmptyState() {
+    var state by androidx.compose.runtime.mutableStateOf(TripsUiState(isLoading = true))
+    composeTestRule.setContent { MaterialTheme { TripsScreen(state) } }
+    composeTestRule.onNodeWithTag(C.Tag.trips_empty).assertDoesNotExist()
+    composeTestRule.runOnIdle {
+      state = TripsUiState(isLoading = false, errorMessage = R.string.trips_load_error)
+    }
+    composeTestRule.onNodeWithText("Unable to load trips.").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.trips_empty).assertDoesNotExist()
+  }
+
+  @Test
+  fun retryReloadsTripsAfterRepositoryRecovers() {
+    val main =
+        trip(
+            "retry",
+            "Lisbon",
+            Instant.parse("2026-10-08T00:00:00Z"),
+            Instant.parse("2026-10-10T23:00:00Z"),
+            TripStatus.ACTIVE,
+            "alex",
+        )
+    val delegate = FakeTripRepository(trips = listOf(main))
+    var failed = true
+    val repository =
+        object : TripRepository by delegate {
+          override suspend fun getTrips(): List<Trip> {
+            if (failed) throw IllegalStateException("offline")
+            return delegate.getTrips()
+          }
+        }
+    composeTestRule.setContent {
+      MaterialTheme {
+        TripsRoute(
+            repository,
+            FakeUserRepository(User("alex", "Alex", null)),
+            clock = Clock.fixed(Instant.parse("2026-10-08T12:00:00Z"), ZoneOffset.UTC),
+        )
+      }
+    }
+    composeTestRule.waitUntil(5_000) {
+      composeTestRule.onAllNodesWithTag(C.Tag.trips_retry).fetchSemanticsNodes().isNotEmpty()
+    }
+    composeTestRule.runOnIdle { failed = false }
+    composeTestRule.onNodeWithTag(C.Tag.trips_retry).performClick()
+    composeTestRule.waitUntil(5_000) {
+      composeTestRule
+          .onAllNodesWithTag(C.Tag.trips_main_trip_card)
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    composeTestRule.onNodeWithText("Lisbon").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.trips_retry).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.trips_empty).assertDoesNotExist()
+  }
+
+  @Test
+  fun newTripRemainsVisibleWhileLongListScrollsOnShortScreen() {
+    var clicks = 0
+    val trips = (0 until 20).map { OtherTripUiModel("trip-$it", "Trip $it", "10 Nov", 1) }
+    composeTestRule.setContent {
+      MaterialTheme {
+        Box(Modifier.height(420.dp)) {
+          TripsScreen(
+              TripsUiState(isLoading = false, otherTrips = trips),
+              onNewTripClick = { clicks++ },
+          )
+        }
+      }
+    }
+    composeTestRule.onNodeWithTag(C.Tag.trips_new_trip_button).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.trips_list).performScrollToIndex(21)
+    composeTestRule.onNodeWithText("Trip 19").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.trips_new_trip_button).assertIsDisplayed().performClick()
+    assertEquals(1, clicks)
+    composeTestRule.onNodeWithTag(C.Tag.trips_empty).assertDoesNotExist()
+  }
+
+  @Test
+  fun swipeDownReloadsTripsAndRemovesDeletedTrip() {
+    val main =
+        trip(
+            "deleted",
+            "Lisbon",
+            Instant.parse("2026-10-08T00:00:00Z"),
+            Instant.parse("2026-10-10T23:00:00Z"),
+            TripStatus.ACTIVE,
+            "alex",
+        )
+    val delegate = FakeTripRepository(trips = listOf(main))
+    var trips = listOf(main)
+    val repository =
+        object : TripRepository by delegate {
+          override suspend fun getTrips() = trips
+        }
+    composeTestRule.setContent {
+      MaterialTheme {
+        TripsRoute(
+            repository,
+            FakeUserRepository(User("alex", "Alex", null)),
+            clock = Clock.fixed(Instant.parse("2026-10-08T12:00:00Z"), ZoneOffset.UTC),
+        )
+      }
+    }
+    composeTestRule.waitUntil(5_000) {
+      composeTestRule
+          .onAllNodesWithTag(C.Tag.trips_main_trip_card)
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    composeTestRule.runOnIdle { trips = emptyList() }
+    composeTestRule.onNodeWithTag(C.Tag.trips_list).performTouchInput { swipeDown() }
+    composeTestRule.waitUntil(5_000) {
+      composeTestRule.onAllNodesWithTag(C.Tag.trips_empty).fetchSemanticsNodes().isNotEmpty()
+    }
+    composeTestRule.onNodeWithTag(C.Tag.trips_main_trip_card).assertDoesNotExist()
+    composeTestRule.onNodeWithText("Other trips").assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.trips_history_button).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.trips_new_trip_button).assertIsDisplayed()
+  }
+
+  @Test
+  fun refreshFailureKeepsVisibleTripAndOffersRetry() {
+    var retryClicks = 0
+    val main = MainTripUiModel("id", "Lisbon", "8 Oct", 1, 0, emptyList(), null)
+    composeTestRule.setContent {
+      MaterialTheme {
+        TripsScreen(
+            TripsUiState(
+                isLoading = false,
+                refreshError = R.string.trips_refresh_error,
+                mainTrip = main,
+            ),
+            onRetryClick = { retryClicks++ },
+        )
+      }
+    }
+    composeTestRule.onNodeWithText("Lisbon").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Unable to refresh trips.").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.trips_retry).performClick()
+    assertEquals(1, retryClicks)
   }
 
   private fun trip(

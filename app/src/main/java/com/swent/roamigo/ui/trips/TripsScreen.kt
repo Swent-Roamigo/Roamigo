@@ -4,6 +4,7 @@ package com.swent.roamigo.ui.trips
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,10 +20,13 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -35,6 +39,9 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
+import com.swent.roamigo.model.authentication.AuthRepository
+import com.swent.roamigo.model.destination.DestinationPhoto
+import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.resources.C
@@ -79,6 +86,8 @@ import java.time.Clock
 fun TripsRoute(
     tripRepository: TripRepository,
     userRepository: UserRepository,
+    destinationRepository: DestinationRepository? = null,
+    authRepository: AuthRepository? = null,
     @DrawableRes mainTripImageRes: Int? = null,
     @DrawableRes nextActivityImageRes: Int? = null,
     onInviteClick: () -> Unit = rememberNotImplementedAction(),
@@ -102,6 +111,8 @@ fun TripsRoute(
                   tripRepository = tripRepository,
                   userRepository = userRepository,
                   clock = clock,
+                  destinationRepository = destinationRepository,
+                  authRepository = authRepository,
               )
       )
 
@@ -127,6 +138,8 @@ fun TripsRoute(
       onProfileClick = onProfileClick,
       onHistoryClick = onHistoryClick,
       onOpenTrip = onOpenTrip,
+      onRetryClick = viewModel::refresh,
+      onPhotoLoadError = viewModel::onPhotoLoadError,
   )
 }
 
@@ -151,7 +164,9 @@ fun TripsRoute(
  * @param onProfileClick invoked when the user selects their profile avatar.
  * @param onHistoryClick invoked when the user opens Trip History.
  * @param onOpenTrip opens the selected trip's details.
+ * @param onRetryClick retries loading trips after an error.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TripsScreen(
     uiState: TripsUiState,
@@ -167,6 +182,8 @@ fun TripsScreen(
     onProfileClick: () -> Unit = rememberNotImplementedAction(),
     onHistoryClick: () -> Unit = rememberNotImplementedAction(),
     onOpenTrip: (String) -> Unit = {},
+    onRetryClick: () -> Unit = {},
+    onPhotoLoadError: (DestinationPhoto) -> Unit = {},
 ) {
   val mainTrip = uiState.mainTrip
   val photosClick: () -> Unit =
@@ -179,133 +196,178 @@ fun TripsScreen(
       modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.trips_screen },
       containerColor = MaterialTheme.colorScheme.background,
       bottomBar = {
-        AppBottomBar(
-            onTripsClick = onTripsClick,
-            onMapClick = onMapClick,
-            onPhotosClick = photosClick,
-            onFriendsClick = onFriendsClick,
-        )
+        Column {
+          NewTripButton(onClick = onNewTripClick)
+          AppBottomBar(
+              onTripsClick = onTripsClick,
+              onMapClick = onMapClick,
+              onPhotosClick = photosClick,
+              onFriendsClick = onFriendsClick,
+          )
+        }
       },
   ) { innerPadding ->
-    LazyColumn(
+    PullToRefreshBox(
+        isRefreshing = uiState.isRefreshing,
+        onRefresh = { if (!uiState.isLoading && !uiState.isRefreshing) onRetryClick() },
         modifier = Modifier.fillMaxSize().padding(innerPadding),
-        contentPadding =
-            PaddingValues(
-                start = 20.dp,
-                top = 20.dp,
-                end = 20.dp,
-                bottom = 28.dp,
-            ),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-      item {
-        TripsHeader(
-            greeting = uiState.greeting,
-            userName = uiState.currentUserName,
-            userInitial = uiState.currentUserInitial,
-            onProfileClick = onProfileClick,
-        )
-      }
-
-      if (uiState.isLoading) {
+      LazyColumn(
+          modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.trips_list },
+          contentPadding =
+              PaddingValues(
+                  start = 20.dp,
+                  top = 20.dp,
+                  end = 20.dp,
+                  bottom = 28.dp,
+              ),
+          verticalArrangement = Arrangement.spacedBy(20.dp),
+      ) {
         item {
-          Box(
-              modifier = Modifier.fillMaxWidth().height(160.dp),
-              contentAlignment = Alignment.Center,
-          ) {
-            CircularProgressIndicator()
-          }
+          TripsHeader(
+              greeting = uiState.greeting,
+              userName = uiState.currentUserName,
+              userInitial = uiState.currentUserInitial,
+              photoUrl = uiState.currentUserPhotoUrl,
+              onProfileClick = onProfileClick,
+          )
         }
-      } else {
-        uiState.errorMessage?.let { errorMessage ->
+
+        if (uiState.isLoading) {
           item {
-            Text(
-                text = errorMessage,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.error,
-            )
+            Box(
+                modifier = Modifier.fillMaxWidth().height(160.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+              CircularProgressIndicator()
+            }
           }
-        }
-
-        if (uiState.errorMessage == null) {
-          uiState.mainTrip?.let { trip ->
+        } else {
+          uiState.errorMessage?.let { errorMessage ->
             item {
-              MainTripCard(
-                  trip = trip,
-                  imageRes = mainTripImageRes,
-                  onInviteClick = onInviteClick,
-                  onOpenTrip = { onOpenTrip(trip.id) },
+              TripsLoadError(message = stringResource(errorMessage), onRetryClick = onRetryClick)
+            }
+          }
+
+          uiState.refreshError?.let { messageRes ->
+            item {
+              TripsLoadError(
+                  message = stringResource(messageRes),
+                  onRetryClick = onRetryClick,
               )
             }
           }
 
-          uiState.nextActivity?.let { activity ->
-            item {
-              SectionTitle(stringResource(R.string.trips_next_up))
+          if (uiState.errorMessage == null) {
+            if (uiState.mainTrip == null && uiState.otherTrips.isEmpty()) {
+              item {
+                Text(
+                    text = stringResource(R.string.trips_empty),
+                    modifier = Modifier.semantics { testTag = C.Tag.trips_empty },
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              }
+            }
+            uiState.mainTrip?.let { trip ->
+              item {
+                MainTripCard(
+                    trip = trip,
+                    imageRes = mainTripImageRes,
+                    photo = uiState.mainTripPhoto,
+                    photoAttempt = uiState.mainTripPhotoAttempt,
+                    onPhotoLoadError = onPhotoLoadError,
+                    onInviteClick = onInviteClick,
+                    onOpenTrip = { onOpenTrip(trip.id) },
+                )
+              }
+            }
 
-              Spacer(modifier = Modifier.height(12.dp))
+            uiState.nextActivity?.let { activity ->
+              item {
+                SectionTitle(stringResource(R.string.trips_next_up))
 
-              NextActivityCard(
-                  activity = activity,
-                  imageRes = nextActivityImageRes,
+                Spacer(modifier = Modifier.height(12.dp))
+
+                NextActivityCard(
+                    activity = activity,
+                    imageRes = nextActivityImageRes,
+                )
+              }
+            }
+          }
+
+          item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+              if (uiState.errorMessage == null && uiState.otherTrips.isNotEmpty()) {
+                SectionTitle(stringResource(R.string.trips_other_trips))
+              } else {
+                Spacer(modifier = Modifier.weight(1f))
+              }
+
+              HistoryButton(onClick = onHistoryClick)
+            }
+          }
+          if (uiState.errorMessage == null) {
+            items(
+                items = uiState.otherTrips,
+                key = { trip -> trip.id },
+            ) { trip ->
+              OtherTripCard(
+                  trip,
+                  onClick = { onOpenTrip(trip.id) },
               )
             }
           }
-        }
-
-        item {
-          Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.SpaceBetween,
-              verticalAlignment = Alignment.CenterVertically,
-          ) {
-            if (uiState.errorMessage == null) {
-              SectionTitle(stringResource(R.string.trips_other_trips))
-            }
-
-            HistoryButton(onClick = onHistoryClick)
-          }
-        }
-        if (uiState.errorMessage == null) {
-          items(
-              items = uiState.otherTrips,
-              key = { trip -> trip.id },
-          ) { trip ->
-            OtherTripCard(
-                trip,
-                onClick = { onOpenTrip(trip.id) },
-            )
-          }
-        }
-      }
-
-      item {
-        Button(
-            onClick = onNewTripClick,
-            modifier =
-                Modifier.fillMaxWidth().height(58.dp).markNotImplemented(onNewTripClick).semantics {
-                  testTag = C.Tag.trips_new_trip_button
-                },
-            shape = MaterialTheme.shapes.medium,
-            colors =
-                ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                ),
-        ) {
-          Icon(
-              imageVector = Icons.Default.Add,
-              contentDescription = null,
-          )
-
-          Spacer(modifier = Modifier.width(8.dp))
-
-          Text(
-              text = stringResource(R.string.trips_new_trip),
-              style = MaterialTheme.typography.titleMedium,
-          )
         }
       }
     }
+  }
+}
+
+@Composable
+private fun TripsLoadError(message: String, onRetryClick: () -> Unit) {
+  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Text(
+        text = message,
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.error,
+    )
+    OutlinedButton(
+        onClick = onRetryClick,
+        modifier = Modifier.semantics { testTag = C.Tag.trips_retry },
+    ) {
+      Text(stringResource(R.string.trips_retry))
+    }
+  }
+}
+
+@Composable
+private fun NewTripButton(onClick: () -> Unit) {
+  Button(
+      onClick = onClick,
+      modifier =
+          Modifier.fillMaxWidth()
+              .padding(horizontal = 20.dp, vertical = 8.dp)
+              .height(50.dp)
+              .markNotImplemented(onClick)
+              .semantics { testTag = C.Tag.trips_new_trip_button },
+      shape = MaterialTheme.shapes.medium,
+      colors =
+          ButtonDefaults.buttonColors(
+              containerColor = MaterialTheme.colorScheme.primary,
+              contentColor = MaterialTheme.colorScheme.onPrimary,
+          ),
+  ) {
+    Icon(imageVector = Icons.Default.Add, contentDescription = null)
+    Spacer(modifier = Modifier.width(8.dp))
+    Text(
+        text = stringResource(R.string.trips_new_trip),
+        style = MaterialTheme.typography.titleMedium,
+    )
   }
 }

@@ -97,6 +97,10 @@
     <string name="trips_next_up">Next up</string>
     <string name="trips_other_trips">Other trips</string>
     <string name="trips_new_trip">New trip</string>
+    <string name="trips_retry">Retry</string>
+    <string name="trips_load_error">Unable to load trips.</string>
+    <string name="trips_refresh_error">Unable to refresh trips.</string>
+    <string name="trips_empty">No upcoming trips yet. Create a trip to get started.</string>
     <string name="trips_invite">Invite</string>
     <string name="trips_confirmed">Confirmed</string>
     <string name="trips_shared">Shared</string>
