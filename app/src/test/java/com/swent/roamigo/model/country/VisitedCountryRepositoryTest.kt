@@ -207,6 +207,50 @@ class VisitedCountryRepositoryTest {
     }
   }
 
+  @Test
+  fun duplicateCoordinatesBeyondSemaphoreLimitShareFailedLookup() = runTest {
+    val destinations =
+        List(7) { index -> TripLocation(38.7223, -9.1393, "Lisbon $index") } +
+            TripLocation(48.8566, 2.3522, "Paris", "FR")
+
+    var lookupCalls = 0
+
+    val resolver = CountryCodeResolver { location ->
+      if (location.countryCode != null) {
+        location.countryCode
+      } else {
+        lookupCalls++
+        if (lookupCalls == 1) throw IOException("offline")
+        "PT"
+      }
+    }
+
+    val repository =
+        VisitedCountryRepository(
+            FakeTripRepository(
+                trips =
+                    listOf(
+                        trip(
+                            "multi-city",
+                            "2026-10-25T12:00:00Z",
+                            destinations = destinations,
+                        )
+                    )
+            ),
+            resolver,
+            clock,
+        )
+
+    // The failed lookup is shared across all seven destinations.
+    // The known country remains visible.
+    assertEquals(mapOf("FR" to 1), repository.visitCounts())
+    assertEquals(1, lookupCalls)
+
+    // A new refresh can retry the failed resolution.
+    assertEquals(mapOf("FR" to 1, "PT" to 1), repository.visitCounts())
+    assertEquals(2, lookupCalls)
+  }
+
   private fun storedResolver() = CountryCodeResolver { it.countryCode }
 
   private fun trip(

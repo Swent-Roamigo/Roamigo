@@ -7,8 +7,8 @@ import com.swent.roamigo.model.validCountryCodeOrNull
 import java.time.Clock
 import java.time.LocalDate
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -38,24 +38,36 @@ class VisitedCountryRepository(
     val limiter = Semaphore(MAX_CONCURRENT_RESOLUTIONS)
 
     val resolved = coroutineScope {
-      completed
-          .flatMap { trip ->
-            trip.destinations.map { destination ->
-              async {
-                val code =
-                    try {
-                      limiter.withPermit { resolver.resolve(destination).validCountryCodeOrNull() }
-                    } catch (e: CancellationException) {
-                      throw e
-                    } catch (_: Exception) {
-                      null
-                    }
+      // Shared only within this visitCounts() call.
+      val lookups = mutableMapOf<ResolutionKey, Deferred<String?>>()
 
-                trip.uid to code
+      val pending = completed.flatMap { trip ->
+        trip.destinations.map { destination ->
+          val key =
+              ResolutionKey(
+                  destination.latitude.toBits(),
+                  destination.longitude.toBits(),
+                  destination.countryCode,
+              )
+
+          val lookup =
+              lookups.getOrPut(key) {
+                async {
+                  try {
+                    limiter.withPermit { resolver.resolve(destination).validCountryCodeOrNull() }
+                  } catch (e: CancellationException) {
+                    throw e
+                  } catch (_: Exception) {
+                    null
+                  }
+                }
               }
-            }
-          }
-          .awaitAll()
+
+          trip.uid to lookup
+        }
+      }
+
+      pending.map { (tripId, lookup) -> tripId to lookup.await() }
     }
 
     return resolved
@@ -69,4 +81,10 @@ class VisitedCountryRepository(
   private companion object {
     const val MAX_CONCURRENT_RESOLUTIONS = 4
   }
+
+  private data class ResolutionKey(
+      val latitudeBits: Long,
+      val longitudeBits: Long,
+      val storedCountryCode: String?,
+  )
 }

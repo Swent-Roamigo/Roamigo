@@ -13,6 +13,7 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -28,6 +29,7 @@ import org.json.JSONObject
 class GeoNamesCountryCodeLookup(
     private val geonamesUsername: String = BuildConfig.GEONAMES_USERNAME,
     private val client: OkHttpClient = DEFAULT_CLIENT,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : CountryCodeLookup {
 
   override suspend fun lookup(latitude: Double, longitude: Double): String? {
@@ -50,7 +52,7 @@ class GeoNamesCountryCodeLookup(
             .build()
 
     val json =
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
           val request =
               Request.Builder().url(url).header("User-Agent", DESTINATION_USER_AGENT).build()
 
