@@ -341,7 +341,11 @@
     <string name="votes_unresolved">Unresolved</string>
     <string name="votes_loading">Loading votes…</string>
     <string name="votes_empty_title">No votes yet</string>
-    <string name="votes_empty_description">Start a vote to decide together with your trip members.</string>
+    <string name="votes_empty_description">Can\'t agree on lunch or a day trip? Start a vote. Everyone picks, and the winner joins the plan.</string>
+    <string name="votes_empty_start">Start a vote</string>
+    <string name="votes_hint_title">How the group decides</string>
+    <string name="votes_hint_steps">1 Someone suggests a place · 2 Everyone votes · 3 The winner joins the plan</string>
+    <string name="votes_hint_got_it">Got it</string>
     <string name="votes_load_error">Unable to load votes. Please try again.</string>
     <string name="votes_sync_error">Unable to update votes. Showing the last available votes.</string>
     <string name="trip_ready_title">Your trip is ready!</string>
@@ -465,8 +469,9 @@
     <string name="vote_close">Close vote</string>
     <string name="vote_closing">Closing vote…</string>
     <string name="vote_close_title">Close this vote?</string>
-    <string name="vote_close_confirmation">Closing is permanent. Members will no longer be able to vote or change their vote.</string>
-    <string name="vote_close_cancel">Cancel</string>
+    <string name="vote_close_title_named">Close “%1$s” now?</string>
+    <string name="vote_close_confirmation">Once closed, the winning option is final and votes can\'t be changed.</string>
+    <string name="vote_close_cancel">Keep it open</string>
     <string name="vote_close_error">Could not close the vote. Please try again.</string>
     <string name="vote_close_unavailable">Only the creator can close an open vote.</string>
 </resources>

@@ -123,7 +123,7 @@ class TripRouteTest {
     composeRule.onNodeWithText("Retry").performClick()
     composeRule.onNodeWithText(trip.name).assertIsDisplayed()
     composeRule.onNodeWithText("Votes").performClick()
-    composeRule.onNodeWithText("New vote").assertIsDisplayed()
+    composeRule.onNodeWithText("Start a vote").assertIsDisplayed()
     composeRule.onNodeWithText("Photos").performClick()
     composeRule.onNodeWithText("Take a photo").assertIsDisplayed()
   }

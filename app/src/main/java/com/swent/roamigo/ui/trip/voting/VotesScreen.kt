@@ -32,6 +32,7 @@ import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.voting.components.VoteErrorContent
+import com.swent.roamigo.ui.trip.voting.components.VotesHintCard
 import com.swent.roamigo.ui.trip.voting.components.VotesList
 
 /** Connects [voteRepository] state and actions to [VotesScreen]. */
@@ -47,6 +48,8 @@ fun VotesRoute(
     modifier: Modifier = Modifier,
     onCloseVote: ((String) -> Unit)? = null,
     readOnly: Boolean = false,
+    showHint: Boolean = false,
+    onDismissHint: () -> Unit = {},
 ) {
   val viewModel = viewModel { VotesViewModel(voteRepository, tripId, currentUserId) }
   val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -65,6 +68,8 @@ fun VotesRoute(
       onRetry = viewModel::retry,
       onCloseVote = onCloseVote,
       readOnly = readOnly,
+      showHint = showHint,
+      onDismissHint = onDismissHint,
       modifier = modifier,
   )
 }
@@ -80,6 +85,8 @@ fun VotesScreen(
     modifier: Modifier = Modifier,
     onCloseVote: ((String) -> Unit)? = null,
     readOnly: Boolean = false,
+    showHint: Boolean = false,
+    onDismissHint: () -> Unit = {},
 ) {
   Scaffold(
       modifier = modifier,
@@ -91,6 +98,9 @@ fun VotesScreen(
             .padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium),
         verticalArrangement = Arrangement.spacedBy(Spacing.large),
     ) {
+      if (showHint && !readOnly && (state is VotesUiState.Empty || state is VotesUiState.Ready)) {
+        VotesHintCard(onDismiss = onDismissHint)
+      }
       Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
         when (state) {
           VotesUiState.Loading ->
@@ -135,7 +145,11 @@ fun VotesScreen(
         ) {
           Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp))
           Spacer(Modifier.width(Spacing.small))
-          Text(stringResource(R.string.vote_new))
+          Text(
+              stringResource(
+                  if (state is VotesUiState.Empty) R.string.votes_empty_start else R.string.vote_new
+              )
+          )
         }
       }
     }

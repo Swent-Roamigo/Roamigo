@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -127,7 +128,12 @@ internal fun VoteCloseConfirmation(
   AlertDialog(
       modifier = modifier.testTag(C.Tag.vote_close_dialog),
       onDismissRequest = cancel,
-      title = { Text(stringResource(R.string.vote_close_title)) },
+      title = {
+        Text(
+            if (ready != null) stringResource(R.string.vote_close_title_named, ready.vote.question)
+            else stringResource(R.string.vote_close_title)
+        )
+      },
       text = {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.medium)) {
           when (state) {
@@ -173,6 +179,8 @@ internal fun VoteCloseConfirmation(
               modifier = Modifier.testTag(C.Tag.vote_close_confirm),
               enabled = ready.canClose,
               onClick = onConfirm,
+              colors =
+                  ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
           ) {
             Text(stringResource(R.string.vote_close))
           }

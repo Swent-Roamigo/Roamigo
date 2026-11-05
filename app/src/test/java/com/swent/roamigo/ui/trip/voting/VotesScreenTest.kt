@@ -39,6 +39,9 @@ class VotesScreenTest {
       onOpenVote: (String) -> Unit = {},
       onRetry: () -> Unit = {},
       onCreateVote: () -> Unit = {},
+      readOnly: Boolean = false,
+      showHint: Boolean = false,
+      onDismissHint: () -> Unit = {},
   ) {
     composeRule.setContent {
       RoamigoTheme {
@@ -48,6 +51,9 @@ class VotesScreenTest {
             onOpenVote = onOpenVote,
             onCreateVote = onCreateVote,
             onRetry = onRetry,
+            readOnly = readOnly,
+            showHint = showHint,
+            onDismissHint = onDismissHint,
         )
       }
     }
@@ -93,10 +99,10 @@ class VotesScreenTest {
     composeRule.onNodeWithTag(C.Tag.closeVote(other.uid)).performScrollTo().performClick()
     composeRule.onNodeWithTag(C.Tag.vote_close_dialog).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.vote_dialog).assertDoesNotExist()
-    composeRule.onNodeWithText("Cancel").performClick()
+    composeRule.onNodeWithText("Keep it open").performClick()
     composeRule.onNodeWithTag(C.Tag.closeVote(live.uid)).performScrollTo().performClick()
     composeRule.onNodeWithTag(C.Tag.vote_dialog).assertDoesNotExist()
-    composeRule.onNodeWithText("Cancel").performClick()
+    composeRule.onNodeWithText("Keep it open").performClick()
     composeRule.runOnIdle { assertEquals(listOf(other.uid, live.uid), requested) }
     composeRule.onNodeWithTag(C.Tag.vote_close_dialog).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.closeVote(live.uid)).assertIsDisplayed()
@@ -155,12 +161,44 @@ class VotesScreenTest {
     content(VotesUiState.Empty, onCreateVote = { creations++ })
     composeRule.onNodeWithText("No votes yet").assertIsDisplayed()
     composeRule
-        .onNodeWithText("Start a vote to decide together with your trip members.")
+        .onNodeWithText(
+            "Can't agree on lunch or a day trip? Start a vote. Everyone picks, and the winner joins the plan."
+        )
         .assertIsDisplayed()
-    composeRule.onNodeWithText("New vote").performClick()
+    composeRule.onNodeWithText("Start a vote").performClick()
     composeRule.runOnIdle { assertEquals(1, creations) }
     composeRule.onNodeWithText("Live").assertDoesNotExist()
     composeRule.onNodeWithText("Decided").assertDoesNotExist()
+  }
+
+  @Test
+  fun firstVisitHintExplainsTheStepsAndIsDismissedWithGotIt() {
+    var dismissals = 0
+    content(
+        VotesUiState.Ready(listOf(live), emptyList()),
+        showHint = true,
+        onDismissHint = { dismissals++ },
+    )
+    composeRule.onNodeWithText("How the group decides").assertIsDisplayed()
+    composeRule
+        .onNodeWithText(
+            "1 Someone suggests a place · 2 Everyone votes · 3 The winner joins the plan"
+        )
+        .assertIsDisplayed()
+    composeRule.onNodeWithTag("votes_hint_dismiss").performClick()
+    composeRule.runOnIdle { assertEquals(1, dismissals) }
+  }
+
+  @Test
+  fun hintIsHiddenOnceSeen() {
+    content(VotesUiState.Ready(listOf(live), emptyList()), showHint = false)
+    composeRule.onNodeWithTag("votes_hint").assertDoesNotExist()
+  }
+
+  @Test
+  fun hintIsNotShownInReadOnlyTrips() {
+    content(VotesUiState.Ready(listOf(live), emptyList()), showHint = true, readOnly = true)
+    composeRule.onNodeWithTag("votes_hint").assertDoesNotExist()
   }
 
   @Test

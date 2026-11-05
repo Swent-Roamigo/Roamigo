@@ -52,7 +52,7 @@ class VoteClosingDialogTest {
       }
     }
     composeRule.onNodeWithText("Could not close the vote. Please try again.").assertIsDisplayed()
-    composeRule.onNodeWithText("Cancel").assertIsEnabled().performClick()
+    composeRule.onNodeWithText("Keep it open").assertIsEnabled().performClick()
     composeRule.runOnIdle {
       assertEquals(1, dismissed)
       assertEquals(0, closes)
@@ -118,7 +118,7 @@ class VoteClosingDialogTest {
     composeRule.onNodeWithTag(C.Tag.vote_dialog).assertDoesNotExist()
     composeRule.onNodeWithText("Market").assertDoesNotExist()
     composeRule.onNodeWithText("Update vote").assertDoesNotExist()
-    composeRule.onNodeWithText("Cancel").performClick()
+    composeRule.onNodeWithText("Keep it open").performClick()
     composeRule.runOnIdle { assertEquals(1, dismissals) }
   }
 
@@ -144,7 +144,7 @@ class VoteClosingDialogTest {
     composeRule.onNodeWithText("Submitting vote…").assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.vote_dialog).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.vote_close_confirm).assertDoesNotExist()
-    composeRule.onNodeWithText("Cancel").assertIsNotEnabled().performClick()
+    composeRule.onNodeWithText("Keep it open").assertIsNotEnabled().performClick()
     composeRule.runOnIdle {
       assertEquals(1, closes)
       state = state.copy(closingState = VoteSubmissionState.Failed)
@@ -169,7 +169,7 @@ class VoteClosingDialogTest {
     composeRule.onNodeWithText("Only the creator can close an open vote.").assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.vote_close_confirm).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.vote_dialog).assertDoesNotExist()
-    composeRule.onNodeWithText("Cancel").assertIsEnabled()
+    composeRule.onNodeWithText("Keep it open").assertIsEnabled()
   }
 
   @Test
@@ -207,7 +207,7 @@ class VoteClosingDialogTest {
     }
     composeRule.onNodeWithText("Retry").assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.vote_close_confirm).assertDoesNotExist()
-    composeRule.onNodeWithText("Cancel").assertIsEnabled()
+    composeRule.onNodeWithText("Keep it open").assertIsEnabled()
   }
 
   @Test

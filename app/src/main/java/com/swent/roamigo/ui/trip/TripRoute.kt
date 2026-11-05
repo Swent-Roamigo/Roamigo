@@ -3,6 +3,7 @@
 // Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui.trip
 
+import android.content.Context
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
@@ -252,6 +253,8 @@ private fun TripVotes(
   var selectedVoteId by rememberSaveable { mutableStateOf<String?>(null) }
   var confirmClose by rememberSaveable { mutableStateOf(false) }
   val userId = auth.getCurrentUser()?.uid
+  val context = LocalContext.current
+  var hintSeen by remember { mutableStateOf(votesHintSeen(context)) }
   VotesRoute(
       voteRepository = repository,
       tripId = tripId,
@@ -280,6 +283,11 @@ private fun TripVotes(
               },
       onCreateVote = { if (!readOnly) onCreateVote() },
       readOnly = readOnly,
+      showHint = !hintSeen,
+      onDismissHint = {
+        hintSeen = true
+        markVotesHintSeen(context)
+      },
   )
   val voteId = selectedVoteId
   if (voteId != null && userId != null) {
@@ -296,5 +304,26 @@ private fun TripVotes(
           onDismiss = { selectedVoteId = null },
       )
     }
+  }
+}
+
+private const val HINTS_PREFERENCES = "roamigo_hints"
+private const val VOTES_HINT_SEEN = "votes_hint_seen"
+
+// Losing this flag only shows the hint once more, so storage failures are not worth surfacing.
+private fun votesHintSeen(context: Context): Boolean = runCatching {
+  context
+      .getSharedPreferences(HINTS_PREFERENCES, Context.MODE_PRIVATE)
+      .getBoolean(VOTES_HINT_SEEN, false)
+}
+    .getOrDefault(false)
+
+private fun markVotesHintSeen(context: Context) {
+  runCatching {
+    context
+        .getSharedPreferences(HINTS_PREFERENCES, Context.MODE_PRIVATE)
+        .edit()
+        .putBoolean(VOTES_HINT_SEEN, true)
+        .apply()
   }
 }
