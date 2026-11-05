@@ -141,7 +141,7 @@ class VotesNavigationTest {
     openVotes(historical = true)
 
     composeRule.onNodeWithText("New vote").assertDoesNotExist()
-    composeRule.onNodeWithText(vote.question).performClick()
+    composeRule.onNodeWithTag("vote_action_${vote.uid}").performScrollTo().performClick()
 
     composeRule.runOnIdle {
       val entry = navController.currentBackStackEntry
