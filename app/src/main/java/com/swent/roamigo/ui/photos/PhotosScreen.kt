@@ -58,7 +58,6 @@ import java.util.Date
  * @param fileOf the file holding a waiting photo, to show its thumbnail.
  * @param onPhotoClick invoked with the id of an uploaded photo the user wants to see full screen.
  * @param onGalleryRetryClick invoked when the user asks to read the uploaded photos again.
- * @param onTripsClick invoked when the Trips tab of the bottom bar is selected.
  */
 @Composable
 fun PhotosScreen(
@@ -69,7 +68,6 @@ fun PhotosScreen(
     onRetryClick: (String) -> Unit,
     onPhotoClick: (String) -> Unit,
     onGalleryRetryClick: () -> Unit,
-    onTripsClick: () -> Unit,
     modifier: Modifier = Modifier,
     readOnly: Boolean = false,
 ) {

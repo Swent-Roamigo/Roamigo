@@ -37,7 +37,6 @@ class PhotosScreenTest {
             onRetryClick = { taps += "retry $it" },
             onPhotoClick = { taps += "photo $it" },
             onGalleryRetryClick = { taps += "gallery retry" },
-            onTripsClick = { taps += "trips" },
         )
       }
     }

@@ -163,7 +163,7 @@ class VotesNavigationTest {
     composeRule.runOnIdle {
       assertEquals(
           VoteStatus.OPEN,
-          repository.snapshots.value.getOrThrow().single().status,
+          repository.snapshots.value.getOrThrow().single { it.tripId == tripId }.status,
       )
     }
   }
@@ -184,7 +184,10 @@ class VotesNavigationTest {
     composeRule.onNodeWithText("Closed vote").assertIsDisplayed()
     composeRule.onNodeWithText("Vote").assertDoesNotExist()
     composeRule.runOnIdle {
-      assertEquals(VoteStatus.CLOSED, repository.snapshots.value.getOrThrow().single().status)
+      assertEquals(
+          VoteStatus.CLOSED,
+          repository.snapshots.value.getOrThrow().single { it.tripId == tripId }.status,
+      )
       assertEquals(0, repository.activeBallotObservers[vote.uid])
     }
   }
@@ -319,14 +322,29 @@ class VotesNavigationTest {
   @Test
   fun selectingAnotherTripObservesItsVotesAndReleasesPreviousListener() {
     openVotes()
+    assertTripAcrossDetailAndPhotos(tripId, tripName)
     composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
     composeRule.onNodeWithText("Other trip").performScrollTo().performClick()
     composeRule.onNodeWithText("Votes").performClick()
     composeRule.onNodeWithText("Other trip vote?").assertIsDisplayed()
     composeRule.onNodeWithText(vote.question).assertDoesNotExist()
     composeRule.runOnIdle {
-      assertEquals(listOf(tripId, "other"), repository.observedTrips)
+      assertEquals("other", repository.observedTrips.last())
       assertEquals(1, repository.activeObservers)
+    }
+    assertTripAcrossDetailAndPhotos("other", "Other trip")
+  }
+
+  private fun assertTripAcrossDetailAndPhotos(expectedId: String, expectedName: String) {
+    for (label in listOf("Detail", "Photos")) {
+      composeRule.onNodeWithText(label).performClick()
+      composeRule.onNodeWithText(expectedName).assertIsDisplayed()
+      composeRule.runOnIdle {
+        assertEquals(
+            expectedId,
+            navController.currentBackStackEntry?.arguments?.getString("tripId"),
+        )
+      }
     }
   }
 
@@ -372,10 +390,12 @@ class VotesNavigationTest {
   }
 
   @Test
-  fun backFromMembersRestoresVotes() {
+  fun closingMembersKeepsTheSelectedTripDetail() {
     openVotes()
-    composeRule.onNodeWithText("Members").performClick()
+    composeRule.onNodeWithText("Detail").performClick()
+    composeRule.onNodeWithText("Members").performScrollTo().performClick()
     composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
-    composeRule.onNodeWithText(vote.question).assertIsDisplayed()
+    composeRule.onNodeWithText("Detail").assertIsSelected()
+    composeRule.onNodeWithText(tripName).assertIsDisplayed()
   }
 }

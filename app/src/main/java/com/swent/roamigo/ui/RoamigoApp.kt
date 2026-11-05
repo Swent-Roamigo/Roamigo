@@ -15,17 +15,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.People
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,6 +57,7 @@ import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.photo.PhotoRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TripRepository
+import com.swent.roamigo.model.trip.isCompletedOn
 import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
@@ -98,6 +97,8 @@ import com.swent.roamigo.ui.trip.voting.VotesScreen
 import com.swent.roamigo.ui.trip.voting.VotesUiState
 import com.swent.roamigo.ui.trip.voting.VotesViewModel
 import com.swent.roamigo.ui.trips.TripsRoute
+import java.time.LocalDate
+import java.time.ZoneId
 import kotlinx.coroutines.launch
 
 /**
@@ -266,7 +267,7 @@ fun RoamigoApp(
 
     composable(Route.TRIP_DETAILS) { entry ->
       val tripId = requireNotNull(entry.arguments?.getString("tripId"))
-      val readOnly = entry.arguments?.getString("readOnly") == "true"
+      val fromHistory = entry.arguments?.getString("readOnly") == "true"
       var tab by rememberSaveable {
         mutableStateOf(
             if (entry.arguments?.getString("initialTab") == "map") TripSection.Map
@@ -275,8 +276,13 @@ fun RoamigoApp(
       }
       var membersOpen by rememberSaveable { mutableStateOf(false) }
       val back: () -> Unit = {
-        if (readOnly) navController.popBackStack()
+        if (fromHistory) navController.popBackStack()
         else navController.popBackStack(Route.TRIPS, false)
+      }
+      val userId = authRepository.getCurrentUser()?.uid
+      if (userId == null) {
+        LaunchedEffect(Unit) { redirectToAuthentication(navController) }
+        return@composable
       }
       val tripMapFactory =
           remember(tripId, tripRepository, userRepository) {
@@ -286,19 +292,37 @@ fun RoamigoApp(
           viewModel(key = "trip_map_$tripId", factory = tripMapFactory)
       val tripState by tripModel.uiState.collectAsState()
       val loaded = tripState as? TripMapUiState.Loaded
-      val userId = authRepository.getCurrentUser()?.uid
-      if (userId == null) {
-        LaunchedEffect(Unit) { redirectToAuthentication(navController) }
-        return@composable
+      val zone = ZoneId.systemDefault()
+      val readOnly = fromHistory || loaded?.trip?.isCompletedOn(LocalDate.now(zone), zone) != false
+      var hasOpenedMap by rememberSaveable { mutableStateOf(false) }
+      if (tab == TripSection.Map && !readOnly) SideEffect { hasOpenedMap = true }
+      val locationFactory =
+          if (!readOnly && (tab == TripSection.Map || hasOpenedMap)) {
+            val location =
+                locationRepository
+                    ?: (context.applicationContext as RoamigoApplication).locationRepository
+            val connectivity =
+                connectivityRepository
+                    ?: remember(context) {
+                      DefaultConnectivityRepository(context)
+                    }
+            remember(tripId, userId, location, connectivity) {
+              LocationViewModel.factory(tripId, userId, location, connectivity)
+            }
+          } else null
+      val locationModel: LocationViewModel? = locationFactory?.let {
+        viewModel(key = "trip_map_location_$tripId", factory = it)
       }
+      val locationState = locationModel?.uiState?.collectAsState()?.value
       val tabState = rememberSaveableStateHolder()
       BackHandler(onBack = back)
       Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
           TextButton(onClick = back) { Text(stringResource(R.string.trip_details_back)) }
-          TextButton(onClick = { membersOpen = true }) {
-            Icon(Icons.Outlined.People, contentDescription = null)
-            Text(stringResource(R.string.trip_details_members))
+          if (tab != TripSection.Map && locationModel != null && locationState?.isSharing == true) {
+            TextButton(onClick = locationModel::stopSharing) {
+              Text(stringResource(R.string.trip_map_pause_sharing))
+            }
           }
         }
         SecondaryTabRow(selectedTabIndex = tab.ordinal) {
@@ -342,17 +366,10 @@ fun RoamigoApp(
                       readOnly = true,
                   )
                 } else {
-                  val location =
-                      locationRepository
-                          ?: (context.applicationContext as RoamigoApplication).locationRepository
-                  val connectivity =
-                      connectivityRepository
-                          ?: remember(context) { DefaultConnectivityRepository(context) }
                   TripMapScreen(
                       tripId = tripId,
                       tripMapViewModelFactory = tripMapFactory,
-                      locationViewModelFactory =
-                          LocationViewModel.factory(tripId, userId, location, connectivity),
+                      locationViewModelFactory = requireNotNull(locationFactory),
                   )
                 }
               }
@@ -382,7 +399,6 @@ fun RoamigoApp(
                         },
                     tripName = loaded?.trip?.name.orEmpty(),
                     fileOf = photoRepository::fileOf,
-                    onTripsClick = back,
                     readOnly = readOnly,
                 )
               }
