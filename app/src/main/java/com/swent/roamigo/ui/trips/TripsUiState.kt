@@ -79,16 +79,18 @@ data class ActivityCardUiModel(
 )
 
 /**
- * Represents an upcoming trip displayed in the secondary trip list.
+ * Represents an ongoing or upcoming trip displayed in the secondary trip list.
  *
  * @property id the unique identifier of the trip.
  * @property name the trip name displayed to the user.
  * @property dateRange the formatted start and end dates.
  * @property memberCount the number of members belonging to the trip.
+ * @property isInProgress whether the trip is active or has reached its local start day.
  */
 data class OtherTripUiModel(
     val id: String,
     val name: String,
     val dateRange: String,
     val memberCount: Int,
+    val isInProgress: Boolean = false,
 )

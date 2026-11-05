@@ -27,7 +27,7 @@ class TripPhotoCardTest {
   @get:Rule val rule = createComposeRule()
 
   private val trip =
-      MainTripUiModel("trip", "Lisbon", "12 – 19 Oct", 8, 2, emptyList(), "Starts today")
+      MainTripUiModel("trip", "Lisbon", "12 – 19 Oct", 8, 2, emptyList(), MainTripBadge.StartsToday)
   private val photo =
       DestinationPhoto(
           "android.resource://com.swent.roamigo/drawable/destination_placeholder",

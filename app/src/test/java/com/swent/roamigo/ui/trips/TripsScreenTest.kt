@@ -3,15 +3,18 @@
 package com.swent.roamigo.ui.trips
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -35,6 +38,7 @@ import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.trips.components.OtherTripCard
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -294,6 +298,41 @@ class TripsScreenTest {
       composeTestRule.runOnIdle { badge.value = state }
       composeTestRule.onNodeWithText(text).assertIsDisplayed()
     }
+  }
+
+  @Test
+  @Config(qualifiers = "w320dp-h640dp")
+  fun secondaryTripIndicatorKeepsSharedStatusAndClickActionsOnSmallScreen() {
+    assertSecondaryTripIndicatorsAndActions()
+  }
+
+  @Test
+  @Config(qualifiers = "w640dp-h320dp")
+  fun secondaryTripIndicatorKeepsSharedStatusAndClickActionsInLandscape() {
+    assertSecondaryTripIndicatorsAndActions()
+  }
+
+  private fun assertSecondaryTripIndicatorsAndActions() {
+    val clicked = mutableListOf<String>()
+    val ongoing = OtherTripUiModel("ongoing", "Ongoing trip", "4–7 Nov", 2, isInProgress = true)
+    val upcoming = OtherTripUiModel("upcoming", "Upcoming trip", "20–22 Nov", 1)
+    composeTestRule.setContent {
+      MaterialTheme {
+        Column {
+          OtherTripCard(ongoing) { clicked += ongoing.id }
+          OtherTripCard(upcoming) { clicked += upcoming.id }
+        }
+      }
+    }
+
+    composeTestRule.onAllNodesWithText("In progress").assertCountEquals(1)
+    composeTestRule.onNodeWithText("In progress").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Shared").assertIsDisplayed()
+    composeTestRule.onNodeWithText("4–7 Nov · 2 travelers").assertIsDisplayed()
+    composeTestRule.onNodeWithText("20–22 Nov · 1 traveler").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Ongoing trip").performClick()
+    composeTestRule.onNodeWithText("Upcoming trip").performClick()
+    assertEquals(listOf("ongoing", "upcoming"), clicked)
   }
 
   @Test
