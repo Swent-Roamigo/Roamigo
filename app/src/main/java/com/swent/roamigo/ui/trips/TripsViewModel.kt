@@ -4,6 +4,7 @@ package com.swent.roamigo.ui.trips
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.destination.DestinationPhoto
@@ -120,7 +121,10 @@ class TripsViewModel(
       } catch (exception: Exception) {
         _uiState.value =
             if (hasLoadedTrips) {
-              _uiState.value.copy(isRefreshing = false, refreshError = "Unable to refresh trips.")
+              _uiState.value.copy(
+                  isRefreshing = false,
+                  refreshError = R.string.trips_refresh_error,
+              )
             } else {
               TripsUiState(isLoading = false, errorMessage = "Unable to load trips.")
             }

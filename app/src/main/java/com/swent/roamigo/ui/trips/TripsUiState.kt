@@ -1,6 +1,7 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.trips
 
+import androidx.annotation.StringRes
 import com.swent.roamigo.model.destination.DestinationPhoto
 
 /**
@@ -8,7 +9,8 @@ import com.swent.roamigo.model.destination.DestinationPhoto
  *
  * @property isLoading whether the initial trip data is being loaded.
  * @property isRefreshing whether previously loaded trip data is being refreshed.
- * @property refreshError the error shown alongside previously loaded data, if refresh fails.
+ * @property refreshError the message resource shown alongside previously loaded data if refresh
+ *   fails.
  * @property errorMessage the user-facing loading error, or `null` when no error is present.
  * @property greeting the time-dependent greeting displayed in the header.
  * @property currentUserName the current user's display name shown in the header.
@@ -20,7 +22,7 @@ import com.swent.roamigo.model.destination.DestinationPhoto
 data class TripsUiState(
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
-    val refreshError: String? = null,
+    @StringRes val refreshError: Int? = null,
     val errorMessage: String? = null,
     val greeting: String = "",
     val currentUserName: String = "",

@@ -4,6 +4,7 @@ package com.swent.roamigo.ui.trips
 
 import androidx.lifecycle.ViewModel
 import com.google.firebase.Timestamp
+import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
@@ -638,7 +639,7 @@ class TripsViewModelTest {
     result.completeExceptionally(IllegalStateException("offline"))
     advanceUntilIdle()
     assertEquals("lisbon", vm.uiState.value.mainTrip?.id)
-    assertEquals("Unable to refresh trips.", vm.uiState.value.refreshError)
+    assertEquals(R.string.trips_refresh_error, vm.uiState.value.refreshError)
     assertNull(vm.uiState.value.errorMessage)
     assertEquals(false, vm.uiState.value.isRefreshing)
     result = CompletableDeferred<List<Trip>>().apply { complete(emptyList()) }

@@ -242,37 +242,16 @@ fun TripsScreen(
         } else {
           uiState.errorMessage?.let { errorMessage ->
             item {
-              Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = errorMessage,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.error,
-                )
-                OutlinedButton(
-                    onClick = onRetryClick,
-                    modifier = Modifier.semantics { testTag = C.Tag.trips_retry },
-                ) {
-                  Text(stringResource(R.string.trips_retry))
-                }
-              }
+              TripsLoadError(message = errorMessage, onRetryClick = onRetryClick)
             }
           }
 
-          uiState.refreshError?.let { message ->
+          uiState.refreshError?.let { messageRes ->
             item {
-              Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.error,
-                )
-                OutlinedButton(
-                    onClick = onRetryClick,
-                    modifier = Modifier.semantics { testTag = C.Tag.trips_retry },
-                ) {
-                  Text(stringResource(R.string.trips_retry))
-                }
-              }
+              TripsLoadError(
+                  message = stringResource(messageRes),
+                  onRetryClick = onRetryClick,
+              )
             }
           }
 
@@ -344,6 +323,23 @@ fun TripsScreen(
           }
         }
       }
+    }
+  }
+}
+
+@Composable
+private fun TripsLoadError(message: String, onRetryClick: () -> Unit) {
+  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Text(
+        text = message,
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.error,
+    )
+    OutlinedButton(
+        onClick = onRetryClick,
+        modifier = Modifier.semantics { testTag = C.Tag.trips_retry },
+    ) {
+      Text(stringResource(R.string.trips_retry))
     }
   }
 }

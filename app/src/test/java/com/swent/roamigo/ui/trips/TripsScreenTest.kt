@@ -20,6 +20,7 @@ import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
+import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
@@ -533,7 +534,7 @@ class TripsScreenTest {
         TripsScreen(
             TripsUiState(
                 isLoading = false,
-                refreshError = "Unable to refresh trips.",
+                refreshError = R.string.trips_refresh_error,
                 mainTrip = main,
             ),
             onRetryClick = { retryClicks++ },
