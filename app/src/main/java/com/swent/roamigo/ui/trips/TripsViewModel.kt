@@ -86,36 +86,19 @@ class TripsViewModel(
           )
 
       try {
-        val (state, location) = loadTripsState()
+        val currentUser = loadCurrentUser()
+        val now = ZonedDateTime.now(clock)
+        val firstName = currentUser.displayName.trim().substringBefore(" ").ifBlank { "Traveler" }
+        _uiState.value =
+            _uiState.value.copy(
+                greeting = greetingFor(now),
+                currentUserName = firstName,
+                currentUserInitial = firstName.take(1).uppercase(),
+                currentUserPhotoUrl = currentUser.profilePictureUrl?.takeIf { it.isNotBlank() },
+            )
+        val (state, location) = loadTripsState(now)
         hasLoadedTrips = true
-        val tripId = state.mainTrip?.id
-        val photoKey = if (tripId != null && location != null) PhotoKey(tripId, location) else null
-        val previousPhoto = cachedPhoto?.takeIf { it.first == photoKey }?.second
-        if (previousPhoto == null) cachedPhoto = null
-        _uiState.value = state.copy(mainTripPhoto = previousPhoto)
-        if (photoKey != null && previousPhoto == null && destinationRepository != null) {
-          try {
-            val location = photoKey.location
-            val destination =
-                destinationRepository
-                    .searchDestinations(location.name)
-                    .filter {
-                      kotlin.math.abs(it.latitude - location.latitude) < 0.02 &&
-                          kotlin.math.abs(it.longitude - location.longitude) < 0.02
-                    }
-                    .minByOrNull {
-                      kotlin.math.abs(it.latitude - location.latitude) +
-                          kotlin.math.abs(it.longitude - location.longitude)
-                    }
-            val photo = destination?.let { destinationRepository.findPhoto(it) }
-            if (photo != null) cachedPhoto = photoKey to photo
-            _uiState.value = _uiState.value.copy(mainTripPhoto = photo)
-          } catch (cancelled: CancellationException) {
-            throw cancelled
-          } catch (_: Exception) {
-            // Photo lookup is optional and must not prevent the trip from being displayed.
-          }
-        }
+        loadFeaturedPhoto(state, location)
       } catch (exception: CancellationException) {
         throw exception
       } catch (exception: Exception) {
@@ -126,11 +109,59 @@ class TripsViewModel(
                   refreshError = R.string.trips_refresh_error,
               )
             } else {
-              TripsUiState(isLoading = false, errorMessage = "Unable to load trips.")
+              _uiState.value.copy(isLoading = false, errorMessage = R.string.trips_load_error)
             }
       }
     }
   }
+
+  /** Marks a failed image as eligible for lookup on the next refresh. */
+  fun onPhotoLoadError(photo: DestinationPhoto) {
+    if (cachedPhoto?.second == photo) cachedPhoto = null
+  }
+
+  private suspend fun loadFeaturedPhoto(state: TripsUiState, location: TripLocation?) {
+    val tripId = state.mainTrip?.id
+    val key = if (tripId != null && location != null) PhotoKey(tripId, location) else null
+    val previousPhoto = cachedPhoto?.takeIf { it.first == key }?.second
+    if (previousPhoto == null) cachedPhoto = null
+    _uiState.value = state.copy(mainTripPhoto = previousPhoto)
+    if (key == null || previousPhoto != null || destinationRepository == null) return
+
+    try {
+      val destination =
+          destinationRepository
+              .searchDestinations(key.location.name)
+              .filter {
+                (key.location.countryCode == null || it.countryCode == key.location.countryCode) &&
+                    kotlin.math.abs(it.latitude - key.location.latitude) < 0.02 &&
+                    kotlin.math.abs(it.longitude - key.location.longitude) < 0.02
+              }
+              .minByOrNull {
+                kotlin.math.abs(it.latitude - key.location.latitude) +
+                    kotlin.math.abs(it.longitude - key.location.longitude)
+              }
+      val photo = destination?.let { destinationRepository.findPhoto(it) }
+      if (photo != null) cachedPhoto = key to photo
+      _uiState.value =
+          _uiState.value.copy(
+              mainTripPhoto = photo,
+              mainTripPhotoAttempt = _uiState.value.mainTripPhotoAttempt + 1,
+          )
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (_: Exception) {
+      // Photo lookup is optional and must not prevent the trip from being displayed.
+    }
+  }
+
+  private suspend fun loadCurrentUser(): User =
+      if (authRepository != null) {
+        val account = authRepository.getCurrentUser()
+        User(account?.uid.orEmpty(), account?.displayName.orEmpty(), account?.photoUrl)
+      } else {
+        userRepository.getCurrentUser()
+      }
 
   /**
    * Retrieves domain data and converts it into presentation state.
@@ -141,16 +172,7 @@ class TripsViewModel(
    * @return the fully prepared state for the Trips Home screen.
    * @throws Exception if one of the repository operations fails.
    */
-  private suspend fun loadTripsState(): Pair<TripsUiState, com.swent.roamigo.model.TripLocation?> {
-    val now = ZonedDateTime.now(clock)
-
-    val currentUser =
-        if (authRepository != null) {
-          val account = authRepository.getCurrentUser()
-          User(account?.uid.orEmpty(), account?.displayName.orEmpty(), account?.photoUrl)
-        } else {
-          userRepository.getCurrentUser()
-        }
+  private suspend fun loadTripsState(now: ZonedDateTime): Pair<TripsUiState, TripLocation?> {
     val trips = tripRepository.getTrips()
 
     val mainTrip =
@@ -204,16 +226,12 @@ class TripsViewModel(
       )
     }
 
-    val firstName = currentUser.displayName.trim().substringBefore(" ").ifBlank { "Traveler" }
-
     val state =
-        TripsUiState(
+        _uiState.value.copy(
             isLoading = false,
+            isRefreshing = false,
             errorMessage = null,
-            greeting = greetingFor(now),
-            currentUserName = firstName,
-            currentUserInitial = firstName.take(1).uppercase(),
-            currentUserPhotoUrl = currentUser.profilePictureUrl?.takeIf { it.isNotBlank() },
+            refreshError = null,
             mainTrip =
                 mainTrip?.toMainTripUiModel(
                     activities = mainActivities,

@@ -119,10 +119,7 @@ class TripsScreenTest {
     val tripRepository =
         FakeTripRepository(
             trips = listOf(mainTrip, otherTrip),
-            activitiesByTripId =
-                mapOf(
-                    mainTrip.uid to listOf(nextActivity),
-                ),
+            activitiesByTripId = mapOf(mainTrip.uid to listOf(nextActivity)),
             membersByTripId =
                 mapOf(
                     mainTrip.uid to
@@ -194,10 +191,7 @@ class TripsScreenTest {
     composeTestRule.setContent {
       MaterialTheme {
         TripsScreen(
-            uiState =
-                TripsUiState(
-                    isLoading = false,
-                ),
+            uiState = TripsUiState(isLoading = false),
             onNewTripClick = { newTripClicks++ },
             onTripsClick = { tripsClicks++ },
             onMapClick = { mapClicks++ },
@@ -282,7 +276,7 @@ class TripsScreenTest {
             uiState =
                 TripsUiState(
                     isLoading = false,
-                    errorMessage = "Unable to load trips.",
+                    errorMessage = R.string.trips_load_error,
                 )
         )
       }
@@ -299,9 +293,7 @@ class TripsScreenTest {
   fun loadingStateDoesNotDisplayTripCards() {
     composeTestRule.setContent {
       MaterialTheme {
-        TripsScreen(
-            uiState = TripsUiState(),
-        )
+        TripsScreen(uiState = TripsUiState())
       }
     }
 
@@ -342,7 +334,7 @@ class TripsScreenTest {
             uiState =
                 TripsUiState(
                     isLoading = false,
-                    errorMessage = "Unable to load trips.",
+                    errorMessage = R.string.trips_load_error,
                 ),
             onHistoryClick = { historyClicks++ },
         )
@@ -354,6 +346,27 @@ class TripsScreenTest {
     composeTestRule.onNodeWithText("Other trips").assertDoesNotExist()
 
     assertEquals(1, historyClicks)
+  }
+
+  @Test
+  fun featuredTripWithoutOtherTripsHidesHeadingButKeepsHistory() {
+    var clicks = 0
+    composeTestRule.setContent {
+      MaterialTheme {
+        TripsScreen(
+            uiState =
+                TripsUiState(
+                    isLoading = false,
+                    mainTrip =
+                        MainTripUiModel("one", "Lisbon", "8–10 Oct", 3, 0, emptyList(), null),
+                ),
+            onHistoryClick = { clicks++ },
+        )
+      }
+    }
+    composeTestRule.onNodeWithText("Other trips").assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.trips_history_button).assertIsDisplayed().performClick()
+    assertEquals(1, clicks)
   }
 
   @Test
@@ -373,7 +386,7 @@ class TripsScreenTest {
                                 name = "Paris trip",
                                 dateRange = "10 – 15 Nov",
                                 memberCount = 2,
-                            ),
+                            )
                         ),
                 ),
             onHistoryClick = { historyClicks++ },
@@ -410,8 +423,10 @@ class TripsScreenTest {
     var state by androidx.compose.runtime.mutableStateOf(TripsUiState(isLoading = true))
     composeTestRule.setContent { MaterialTheme { TripsScreen(state) } }
     composeTestRule.onNodeWithTag(C.Tag.trips_empty).assertDoesNotExist()
-    composeTestRule.runOnIdle { state = TripsUiState(isLoading = false, errorMessage = "Offline") }
-    composeTestRule.onNodeWithText("Offline").assertIsDisplayed()
+    composeTestRule.runOnIdle {
+      state = TripsUiState(isLoading = false, errorMessage = R.string.trips_load_error)
+    }
+    composeTestRule.onNodeWithText("Unable to load trips.").assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.trips_empty).assertDoesNotExist()
   }
 

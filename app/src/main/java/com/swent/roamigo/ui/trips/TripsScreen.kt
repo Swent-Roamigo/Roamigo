@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
 import com.swent.roamigo.model.authentication.AuthRepository
+import com.swent.roamigo.model.destination.DestinationPhoto
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.users.UserRepository
@@ -138,6 +139,7 @@ fun TripsRoute(
       onHistoryClick = onHistoryClick,
       onOpenTrip = onOpenTrip,
       onRetryClick = viewModel::refresh,
+      onPhotoLoadError = viewModel::onPhotoLoadError,
   )
 }
 
@@ -181,6 +183,7 @@ fun TripsScreen(
     onHistoryClick: () -> Unit = rememberNotImplementedAction(),
     onOpenTrip: (String) -> Unit = {},
     onRetryClick: () -> Unit = {},
+    onPhotoLoadError: (DestinationPhoto) -> Unit = {},
 ) {
   val mainTrip = uiState.mainTrip
   val photosClick: () -> Unit =
@@ -241,7 +244,9 @@ fun TripsScreen(
           }
         } else {
           uiState.errorMessage?.let { errorMessage ->
-            item { TripsLoadError(message = errorMessage, onRetryClick = onRetryClick) }
+            item {
+              TripsLoadError(message = stringResource(errorMessage), onRetryClick = onRetryClick)
+            }
           }
 
           uiState.refreshError?.let { messageRes ->
@@ -270,6 +275,8 @@ fun TripsScreen(
                     trip = trip,
                     imageRes = mainTripImageRes,
                     photo = uiState.mainTripPhoto,
+                    photoAttempt = uiState.mainTripPhotoAttempt,
+                    onPhotoLoadError = onPhotoLoadError,
                     onInviteClick = onInviteClick,
                     onOpenTrip = { onOpenTrip(trip.id) },
                 )
@@ -296,10 +303,7 @@ fun TripsScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-              if (
-                  uiState.errorMessage == null &&
-                      (uiState.mainTrip != null || uiState.otherTrips.isNotEmpty())
-              ) {
+              if (uiState.errorMessage == null && uiState.otherTrips.isNotEmpty()) {
                 SectionTitle(stringResource(R.string.trips_other_trips))
               } else {
                 Spacer(modifier = Modifier.weight(1f))

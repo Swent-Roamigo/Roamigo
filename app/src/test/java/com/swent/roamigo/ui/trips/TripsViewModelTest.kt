@@ -667,6 +667,97 @@ class TripsViewModelTest {
   }
 
   @Test
+  fun initialTripFailureKeepsAuthenticatedProfile() = runTest {
+    val account = AuthenticatedUser("user", "Marie Martin", null, "https://example.com/avatar.jpg")
+    val vm =
+        TripsViewModel(
+            tripRepository = FakeTripRepository(failure = IllegalStateException("offline")),
+            userRepository = FakeUserRepository(currentUser = alex),
+            authRepository = FakeAuthRepository(account, initiallySignedIn = true),
+        )
+    advanceUntilIdle()
+    assertEquals(R.string.trips_load_error, vm.uiState.value.errorMessage)
+    assertEquals("Marie", vm.uiState.value.currentUserName)
+    assertEquals("M", vm.uiState.value.currentUserInitial)
+    assertEquals(account.photoUrl, vm.uiState.value.currentUserPhotoUrl)
+  }
+
+  @Test
+  fun countryCodeFiltersNearbyCandidatesAndLegacyTripsStillUseCoordinates() = runTest {
+    val main =
+        trip("lisbon", "Lisbon", "2026-10-08T00:00:00Z", "2026-10-10T23:00:00Z", TripStatus.ACTIVE)
+    val foreign =
+        Destination("foreign", DestinationKind.CITY, "Lisbon", "Spain", "ES", 38.7223, -9.1393, 1)
+    val local = foreign.copy(stableId = "local", countryCode = "PT", latitude = 38.723)
+    val requested = mutableListOf<Destination>()
+    val destinations =
+        object : DestinationRepository {
+          override suspend fun searchDestinations(query: String) = listOf(foreign, local)
+
+          override suspend fun findPhoto(destination: Destination): DestinationPhoto? {
+            requested.add(destination)
+            return null
+          }
+        }
+    val clock = Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC)
+    TripsViewModel(
+        FakeTripRepository(
+            trips = listOf(main.copy(destinations = listOf(location.copy(countryCode = "PT"))))
+        ),
+        FakeUserRepository(alex),
+        clock,
+        destinations,
+    )
+    advanceUntilIdle()
+    assertEquals(local, requested.single())
+    requested.clear()
+    TripsViewModel(
+        FakeTripRepository(trips = listOf(main)),
+        FakeUserRepository(alex),
+        clock,
+        destinations,
+    )
+    advanceUntilIdle()
+    assertEquals(foreign, requested.single())
+  }
+
+  @Test
+  fun failedPhotoIsLookedUpAgainOnNextRefresh() = runTest {
+    val main =
+        trip("lisbon", "Lisbon", "2026-10-08T00:00:00Z", "2026-10-10T23:00:00Z", TripStatus.ACTIVE)
+    val destination =
+        Destination("lisbon", DestinationKind.CITY, "Lisbon", "Portugal", "PT", 38.7223, -9.1393, 1)
+    val photo =
+        DestinationPhoto("https://example.com/image", null, "https://example.com", "CC0", null)
+    var searches = 0
+    val destinations =
+        object : DestinationRepository {
+          override suspend fun searchDestinations(query: String): List<Destination> {
+            searches++
+            return listOf(destination)
+          }
+
+          override suspend fun findPhoto(destination: Destination) = photo
+        }
+    val vm =
+        TripsViewModel(
+            FakeTripRepository(trips = listOf(main)),
+            FakeUserRepository(alex),
+            Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+            destinations,
+        )
+    advanceUntilIdle()
+    val firstAttempt = vm.uiState.value.mainTripPhotoAttempt
+    vm.onPhotoLoadError(photo)
+    assertEquals(1, searches)
+    vm.refresh()
+    advanceUntilIdle()
+    assertEquals(2, searches)
+    assertEquals(firstAttempt + 1, vm.uiState.value.mainTripPhotoAttempt)
+    assertEquals(photo, vm.uiState.value.mainTripPhoto)
+  }
+
+  @Test
   fun authenticatedAccountWithoutNameOrPhotoUsesTravelerFallback() = runTest {
     val account = AuthenticatedUser("user", "  ", null, null)
     val vm =
@@ -742,10 +833,7 @@ class TripsViewModelTest {
   fun repositoryFailureProducesErrorState() = runTest {
     val viewModel =
         TripsViewModel(
-            tripRepository =
-                FakeTripRepository(
-                    failure = IllegalStateException("Failure"),
-                ),
+            tripRepository = FakeTripRepository(failure = IllegalStateException("Failure")),
             userRepository = FakeUserRepository(currentUser = alex),
             clock =
                 Clock.fixed(
@@ -759,7 +847,7 @@ class TripsViewModelTest {
     val state = viewModel.uiState.value
 
     assertEquals(false, state.isLoading)
-    assertEquals("Unable to load trips.", state.errorMessage)
+    assertEquals(R.string.trips_load_error, state.errorMessage)
   }
 
   @Test

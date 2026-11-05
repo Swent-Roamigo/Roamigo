@@ -23,7 +23,7 @@ data class TripsUiState(
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
     @StringRes val refreshError: Int? = null,
-    val errorMessage: String? = null,
+    @StringRes val errorMessage: Int? = null,
     val greeting: String = "",
     val currentUserName: String = "",
     val currentUserInitial: String = "",
@@ -32,6 +32,7 @@ data class TripsUiState(
     val nextActivity: ActivityCardUiModel? = null,
     val otherTrips: List<OtherTripUiModel> = emptyList(),
     val mainTripPhoto: DestinationPhoto? = null,
+    val mainTripPhotoAttempt: Int = 0,
 )
 
 /**

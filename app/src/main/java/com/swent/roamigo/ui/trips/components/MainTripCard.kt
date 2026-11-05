@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -56,8 +57,10 @@ internal fun MainTripCard(
     photo: DestinationPhoto? = null,
     onInviteClick: () -> Unit,
     onOpenTrip: () -> Unit,
+    photoAttempt: Int = 0,
+    onPhotoLoadError: (DestinationPhoto) -> Unit = {},
 ) {
-  var imageLoaded by remember(photo?.imageUrl) { mutableStateOf(false) }
+  var imageLoaded by remember(photo?.imageUrl, photoAttempt) { mutableStateOf(false) }
   var showCredits by remember(photo?.imageUrl) { mutableStateOf(false) }
   Box(
       modifier =
@@ -65,18 +68,23 @@ internal fun MainTripCard(
               .height(190.dp)
               .clip(MaterialTheme.shapes.large)
               .clickable(onClick = onOpenTrip)
-              .semantics { testTag = C.Tag.trips_main_trip_card },
+              .semantics { testTag = C.Tag.trips_main_trip_card }
   ) {
     TripImage(imageRes = imageRes, modifier = Modifier.fillMaxSize())
     if (photo != null) {
-      AsyncImage(
-          model = photo.imageUrl,
-          contentDescription = null,
-          modifier = Modifier.fillMaxSize(),
-          contentScale = ContentScale.Crop,
-          onSuccess = { imageLoaded = true },
-          onError = { imageLoaded = false },
-      )
+      key(photoAttempt) {
+        AsyncImage(
+            model = photo.imageUrl,
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+            onSuccess = { imageLoaded = true },
+            onError = {
+              imageLoaded = false
+              onPhotoLoadError(photo)
+            },
+        )
+      }
     }
 
     Box(
