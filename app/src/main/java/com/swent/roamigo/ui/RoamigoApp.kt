@@ -357,7 +357,8 @@ fun RoamigoApp(
                           stringResource(
                               R.string.trip_photo_summary,
                               pluralStringResource(R.plurals.trip_photo_count, count, count),
-                              pluralStringResource(R.plurals.trip_person_count, memberCount, memberCount),
+                              pluralStringResource(
+                                  R.plurals.trip_person_count, memberCount, memberCount),
                           )
                         } ?: stringResource(R.string.photos_title)
                   }
