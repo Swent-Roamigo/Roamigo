@@ -2,6 +2,7 @@
 package com.swent.roamigo.ui.map
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -84,6 +85,16 @@ class RoamigoAppMapNavigationTest {
           status = TripStatus.PLANNED,
       )
 
+  private val completedTrip =
+      mainTrip.copy(
+          uid = "rome-past",
+          name = "Rome memories",
+          destinations = listOf(TripLocation(41.9028, 12.4964, "Rome")),
+          startDate = Timestamp(0, 0),
+          endDate = Timestamp(0, 0),
+          status = TripStatus.COMPLETED,
+      )
+
   @Before
   fun setUp() {
     val destinationRepository =
@@ -92,7 +103,7 @@ class RoamigoAppMapNavigationTest {
 
           override suspend fun findPhoto(destination: Destination): DestinationPhoto? = null
         }
-    val tripRepository = FakeTripRepository(trips = listOf(mainTrip, otherTrip))
+    val tripRepository = FakeTripRepository(trips = listOf(mainTrip, otherTrip, completedTrip))
     composeRule.setContent {
       navController = rememberNavController()
       RoamigoTheme {
@@ -193,6 +204,42 @@ class RoamigoAppMapNavigationTest {
     pressBack()
     waitForRoute(Route.TRIPS)
     composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).assertIsSelected()
+  }
+
+  @Test
+  fun completedTripOpenedFromGlobalMapStaysReadOnlyAcrossTripTabs() {
+    openMap()
+    val markerTag = TripMarkerTestTags.markerFor(completedTrip.toTripMarkerUiStates().single().id)
+    waitForTag(markerTag)
+    composeRule.onNodeWithTag(markerTag).performClick()
+
+    waitForRoute(Route.TRIP_DETAILS)
+    composeRule.runOnIdle {
+      assertEquals(
+          completedTrip.uid,
+          navController.currentBackStackEntry?.arguments?.getString("tripId"),
+      )
+    }
+
+    composeRule
+        .onNodeWithText(composeRule.activity.getString(R.string.trip_details_map))
+        .performClick()
+    waitForTag(C.Tag.trip_map_map)
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_banner).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertDoesNotExist()
+
+    composeRule.onNodeWithText("Votes").performClick()
+    composeRule.onNodeWithText("New vote").assertDoesNotExist()
+
+    composeRule.onNodeWithText("Photos").performClick()
+    waitForTag(C.Tag.photos_screen)
+    composeRule.onNodeWithTag(C.Tag.photos_take_photo).assertDoesNotExist()
+    composeRule.runOnIdle {
+      assertEquals(
+          completedTrip.uid,
+          navController.currentBackStackEntry?.arguments?.getString("tripId"),
+      )
+    }
   }
 
   @Test
