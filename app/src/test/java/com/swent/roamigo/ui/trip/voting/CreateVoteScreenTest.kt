@@ -1,6 +1,9 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.trip.voting
 
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -20,6 +23,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.viewmodel.compose.viewModel as composeViewModel
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -94,6 +98,52 @@ class CreateVoteScreenTest {
     composeRule.onNodeWithTag("vote_submit").assertIsNotEnabled()
     composeRule.onNodeWithText("Cancel").performClick()
     composeRule.runOnIdle { assertTrue(cancelled) }
+  }
+
+  @Test
+  fun systemBackWaitsForPendingSubmissionAndIsReleasedAfterSuccess() {
+    val pendingSubmission = CompletableDeferred<Unit>()
+    val repository = FakeVoteRepository().apply { gate = pendingSubmission }
+    val successes = mutableListOf<String>()
+    var backRequests = 0
+    lateinit var backDispatcher: OnBackPressedDispatcher
+    composeRule.setContent {
+      backDispatcher =
+          requireNotNull(LocalOnBackPressedDispatcherOwner.current).onBackPressedDispatcher
+      BackHandler { backRequests++ }
+      RoamigoTheme {
+        CreateVoteRoute(
+            voteRepository = repository,
+            tripId = "trip",
+            currentUserId = "member",
+            onBack = { backRequests++ },
+            onVoteCreated = { successes += it },
+        )
+      }
+    }
+    composeRule.onNodeWithTag("vote_question").performTextInput("Dinner?")
+    composeRule.onNodeWithTag("vote_option_0").performTextInput("Market")
+    composeRule.onNodeWithTag("vote_option_1").performTextInput("Restaurant")
+    composeRule.onNodeWithTag("vote_submit").performClick()
+    composeRule.onNodeWithText("Creating vote…").assertIsDisplayed()
+
+    composeRule.runOnUiThread { backDispatcher.onBackPressed() }
+
+    composeRule.runOnIdle {
+      assertEquals(0, backRequests)
+      assertEquals(1, repository.createCalls.size)
+      assertTrue(successes.isEmpty())
+      pendingSubmission.complete(Unit)
+    }
+    composeRule.waitForIdle()
+    composeRule.runOnIdle { assertEquals(listOf(repository.created.single().uid), successes) }
+
+    composeRule.runOnUiThread { backDispatcher.onBackPressed() }
+
+    composeRule.runOnIdle {
+      assertEquals(1, backRequests)
+      assertEquals(1, repository.createCalls.size)
+    }
   }
 
   @Test

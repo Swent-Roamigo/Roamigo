@@ -3,7 +3,12 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.trip.creation
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
@@ -13,17 +18,17 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.lifecycle.SavedStateHandle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.destination.sampleDestination
 import com.swent.roamigo.model.destination.sampleDestinationRepository
+import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
 import com.swent.roamigo.ui.trip.creation.components.DestinationCardTestTags
 import com.swent.roamigo.ui.trip.creation.components.DestinationSearchBarTestTags
 import com.swent.roamigo.ui.trip.creation.components.SelectedDestinations
 import com.swent.roamigo.ui.trip.creation.components.SelectedDestinationsTestTags
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,94 +38,45 @@ class DestinationSelectionScreenTest {
   @get:Rule val composeRule = createComposeRule()
 
   @Test
-  fun injectedSharedViewModelKeepsSelectedDestinationsAndContinueIsAnEvent() {
-    val viewModel =
-        createTestCreateTripViewModel(
-            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
-            destinationRepository = sampleDestinationRepository(),
-        )
-    var continued = false
-
-    composeRule.setContent {
-      RoamigoTheme {
-        DestinationRoute(
-            createTripViewModel = viewModel,
-            onBack = {},
-            onClose = {},
-            onContinue = { continued = true },
-        )
-      }
-    }
-
+  fun continueOpensDatesAndBackPreservesSelectedDestinations() {
+    showCreation()
     composeRule.searchSampleDestinations()
-    composeRule
-        .onNodeWithTag(
-            DestinationCardTestTags.forDestination(sampleDestination("Barcelona").stableId)
-        )
-        .performClick()
-    composeRule
-        .onNodeWithTag(
-            DestinationCardTestTags.forDestination(sampleDestination("Barcelona").stableId)
-        )
-        .assertIsSelected()
+    val barcelonaTag =
+        DestinationCardTestTags.forDestination(sampleDestination("Barcelona").stableId)
+    composeRule.onNodeWithTag(barcelonaTag).performClick().assertIsSelected()
+
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
 
-    composeRule.runOnIdle {
-      assertTrue(continued)
-      assertEquals(
-          listOf(sampleDestination("Barcelona")),
-          viewModel.uiState.value.selectedDestinations,
-      )
-    }
+    composeRule.onNodeWithTag(DatesTravelersScreenTestTags.SCREEN).assertIsDisplayed()
+    composeRule.onNodeWithTag(CreateTripScaffoldTestTags.BACK).performClick()
+    composeRule.onNodeWithTag(barcelonaTag).assertIsSelected()
+    composeRule
+        .onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION)
+        .assertTextEquals("Continue · 1 stop")
   }
 
   @Test
-  fun continueIsDisabledWhenRouteIsEmpty() {
-    val viewModel =
-        createTestCreateTripViewModel(
-            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
-            destinationRepository = sampleDestinationRepository(),
-        )
-
-    composeRule.setContent {
-      RoamigoTheme {
-        DestinationRoute(
-            createTripViewModel = viewModel,
-            onBack = {},
-            onClose = {},
-            onContinue = {},
-        )
-      }
-    }
+  fun continueIsDisabledWithoutSelectedDestinations() {
+    showScreen { CreateTripUiState() }
 
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsNotEnabled()
   }
 
   @Test
   fun continueLabelUsesSingularAndPluralStopForms() {
-    val viewModel =
-        createTestCreateTripViewModel(
-            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
-            destinationRepository = sampleDestinationRepository(),
+    var state by
+        mutableStateOf(
+            CreateTripUiState(selectedDestinations = listOf(sampleDestination("Lisbon")))
         )
+    showScreen { state }
 
-    composeRule.setContent {
-      RoamigoTheme {
-        DestinationRoute(
-            createTripViewModel = viewModel,
-            onBack = {},
-            onClose = {},
-            onContinue = {},
-        )
-      }
-    }
-
-    viewModel.toggleDestination(sampleDestination("Lisbon"))
     composeRule
         .onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION)
         .assertTextEquals("Continue · 1 stop")
 
-    viewModel.toggleDestination(sampleDestination("Porto"))
+    composeRule.runOnIdle {
+      state = state.copy(selectedDestinations = listOf("Lisbon", "Porto").map(::sampleDestination))
+    }
     composeRule
         .onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION)
         .assertTextEquals("Continue · 2 stops")
@@ -147,62 +103,73 @@ class DestinationSelectionScreenTest {
 
   @Test
   fun searchFiltersDestinationsAndSelectedStopCanBeRemoved() {
-    val viewModel =
-        createTestCreateTripViewModel(
-            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
-            destinationRepository = sampleDestinationRepository(),
-        )
-    viewModel.toggleDestination(sampleDestination("Lisbon"))
-    viewModel.toggleDestination(sampleDestination("Porto"))
-
-    composeRule.setContent {
-      RoamigoTheme {
-        DestinationRoute(
-            createTripViewModel = viewModel,
-            onBack = {},
-            onClose = {},
-            onContinue = {},
-        )
-      }
-    }
-
-    composeRule.onNodeWithTag(DestinationSearchBarTestTags.SEARCH_FIELD).performTextInput("bar")
-    composeRule.waitUntil(5_000) {
+    showCreation()
+    composeRule.searchSampleDestinations()
+    listOf("Lisbon", "Porto").forEach { name ->
       composeRule
-          .onAllNodesWithTag(
-              DestinationCardTestTags.forDestination(sampleDestination("Barcelona").stableId)
-          )
-          .fetchSemanticsNodes()
-          .isNotEmpty()
+          .onNodeWithTag(DestinationCardTestTags.forDestination(sampleDestination(name).stableId))
+          .performClick()
     }
-    composeRule.runOnIdle {
-      assertEquals(
-          1,
-          composeRule
-              .onAllNodesWithTag(
-                  DestinationCardTestTags.forDestination(sampleDestination("Barcelona").stableId)
-              )
-              .fetchSemanticsNodes()
-              .size,
-      )
-      assertEquals(
-          0,
-          composeRule
-              .onAllNodesWithTag(
-                  DestinationCardTestTags.forDestination(sampleDestination("Prague").stableId)
-              )
-              .fetchSemanticsNodes()
-              .size,
-      )
+
+    composeRule.onNodeWithTag(DestinationSearchBarTestTags.SEARCH_FIELD).performTextClearance()
+    composeRule.onNodeWithTag(DestinationSearchBarTestTags.SEARCH_FIELD).performTextInput("bar")
+    val barcelonaTag =
+        DestinationCardTestTags.forDestination(sampleDestination("Barcelona").stableId)
+    val pragueTag = DestinationCardTestTags.forDestination(sampleDestination("Prague").stableId)
+    composeRule.waitUntil(5_000) {
+      composeRule.onAllNodesWithTag(barcelonaTag).fetchSemanticsNodes().isNotEmpty() &&
+          composeRule.onAllNodesWithTag(pragueTag).fetchSemanticsNodes().isEmpty()
     }
+    composeRule.onAllNodesWithTag(barcelonaTag).assertCountEquals(1)
+    composeRule.onAllNodesWithTag(pragueTag).assertCountEquals(0)
 
     composeRule.onNodeWithTag(DestinationSearchBarTestTags.SEARCH_FIELD).performTextClearance()
     composeRule
         .onNodeWithTag(SelectedDestinationsTestTags.removeFor(sampleDestination("Lisbon").stableId))
         .performClick()
 
-    composeRule.runOnIdle {
-      assertEquals(listOf(sampleDestination("Porto")), viewModel.uiState.value.selectedDestinations)
+    composeRule
+        .onNodeWithTag(SelectedDestinationsTestTags.removeFor(sampleDestination("Lisbon").stableId))
+        .assertDoesNotExist()
+    composeRule
+        .onNodeWithTag(SelectedDestinationsTestTags.removeFor(sampleDestination("Porto").stableId))
+        .assertIsDisplayed()
+    composeRule
+        .onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION)
+        .assertTextEquals("Continue · 1 stop")
+  }
+
+  private fun showCreation() {
+    val tripRepository = FakeTripRepository()
+    val destinationRepository = sampleDestinationRepository()
+    val savedStateHandle = SavedStateHandle()
+    composeRule.setContent {
+      RoamigoTheme {
+        CreateTripRoute(
+            tripRepository = tripRepository,
+            destinationRepository = destinationRepository,
+            savedStateHandle = savedStateHandle,
+            onClose = {},
+            onSignIn = {},
+            onTripCreated = { _, _ -> },
+        )
+      }
+    }
+  }
+
+  private fun showScreen(state: () -> CreateTripUiState) {
+    composeRule.setContent {
+      RoamigoTheme {
+        DestinationScreen(
+            uiState = state(),
+            onBack = {},
+            onClose = {},
+            onQueryChange = {},
+            onToggleDestination = {},
+            onRemoveDestination = {},
+            onContinue = {},
+        )
+      }
     }
   }
 }

@@ -421,7 +421,7 @@ class VotesNavigationTest {
   }
 
   @Test
-  fun closedVoteUsesTheExistingClosedInteractionState() {
+  fun closedVoteNavigatesToItsDetailScreenWithoutOpeningDialog() {
     openVotes()
     composeRule.runOnIdle {
       repository.snapshots.value = Result.success(listOf(vote.copy(status = VoteStatus.CLOSED)))
@@ -430,6 +430,12 @@ class VotesNavigationTest {
     composeRule.onNodeWithText(vote.question).performClick()
     composeRule.onNodeWithText("This vote is closed.").assertIsDisplayed()
     composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
+    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
+    composeRule.runOnIdle {
+      assertEquals(Route.VOTE, navController.currentBackStackEntry?.destination?.route)
+      assertEquals(tripId, navController.currentBackStackEntry?.arguments?.getString("tripId"))
+      assertEquals(vote.uid, navController.currentBackStackEntry?.arguments?.getString("voteId"))
+    }
   }
 
   @Test
