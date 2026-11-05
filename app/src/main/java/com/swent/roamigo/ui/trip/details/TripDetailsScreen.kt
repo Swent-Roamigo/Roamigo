@@ -55,6 +55,7 @@ fun TripDetailsRoute(
     tripId: String,
     tripRepository: TripRepository,
     onBack: () -> Unit,
+    onRetryTrip: () -> Unit = {},
     onMembersClick: () -> Unit = rememberNotImplementedAction(),
     onVotesClick: (String) -> Unit,
     onTripMapClick: () -> Unit,
@@ -64,7 +65,10 @@ fun TripDetailsRoute(
   val state by model.uiState.collectAsState()
   TripDetailsScreen(
       state,
-      onRetry = model::refresh,
+      onRetry = {
+        model.refresh()
+        onRetryTrip()
+      },
       onBack = onBack,
       onMembersClick = onMembersClick,
       onVotesClick = { state.details?.let { onVotesClick(it.name) } },

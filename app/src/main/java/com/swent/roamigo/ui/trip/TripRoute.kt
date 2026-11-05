@@ -3,6 +3,7 @@
 // Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui.trip
 
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,6 +27,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -66,9 +68,12 @@ import com.swent.roamigo.ui.trip.voting.VoteViewModel
 import com.swent.roamigo.ui.trip.voting.VotesScreen
 import com.swent.roamigo.ui.trip.voting.VotesUiState
 import com.swent.roamigo.ui.trip.voting.VotesViewModel
+import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 
@@ -111,12 +116,13 @@ internal fun TripRoute(
   val tripState by tripModel.uiState.collectAsState()
   val loaded = tripState as? TripMapUiState.Loaded
   val zone = ZoneId.systemDefault()
+  val today by rememberLocalDate(zone)
   // Keep trip actions read-only until the trip has loaded and its end date is known.
-  val readOnly = fromHistory || loaded?.trip?.isCompletedOn(LocalDate.now(zone), zone) != false
+  val readOnly = fromHistory || loaded?.trip?.isCompletedOn(today, zone) != false
   var hasOpenedMap by rememberSaveable { mutableStateOf(false) }
   if (tab == TripSection.Map && !readOnly) SideEffect { hasOpenedMap = true }
   val locationFactory =
-      if (!readOnly && (tab == TripSection.Map || hasOpenedMap)) {
+      if ((tab == TripSection.Map || hasOpenedMap) && (!readOnly || hasOpenedMap)) {
         val location =
             locationRepository
                 ?: (context.applicationContext as RoamigoApplication).locationRepository
@@ -128,6 +134,19 @@ internal fun TripRoute(
       } else null
   val locationModel: LocationViewModel? = locationFactory?.let {
     viewModel(key = "trip_map_location_$tripId", factory = it)
+  }
+  LaunchedEffect(tripId, loaded?.trip?.endDate, readOnly) {
+    if (loaded?.trip != null && readOnly) {
+      if (locationModel != null) {
+        locationModel.onLeaveTrip()
+      } else {
+        val location =
+            locationRepository
+                ?: (context.applicationContext as RoamigoApplication).locationRepository
+        runCatching { location.stopSharing(tripId) }
+            .onFailure { Log.w("TripRoute", "Could not stop sharing for completed trip", it) }
+      }
+    }
   }
   val locationState = locationModel?.uiState?.collectAsState()?.value
   val photosCount by
@@ -212,6 +231,7 @@ internal fun TripRoute(
                   tripId = tripId,
                   tripRepository = tripRepository,
                   onBack = onBack,
+                  onRetryTrip = tripModel::retry,
                   onVotesClick = { tab = TripSection.Votes },
                   onTripMapClick = {
                     if (authRepository.getCurrentUser() == null) onAuthenticationRequired()
@@ -281,6 +301,17 @@ internal fun TripRoute(
     )
   }
 }
+
+@Composable
+private fun rememberLocalDate(zone: ZoneId) =
+    produceState(initialValue = LocalDate.now(zone), key1 = zone) {
+      while (true) {
+        val nextDate = LocalDate.now(zone).plusDays(1).atStartOfDay(zone).toInstant()
+        val remainingMillis = Duration.between(Instant.now(), nextDate).toMillis().coerceAtLeast(1)
+        delay(remainingMillis)
+        value = LocalDate.now(zone)
+      }
+    }
 
 private enum class TripSection(val label: Int) {
   Detail(R.string.trip_details_tab),

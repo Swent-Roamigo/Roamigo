@@ -304,6 +304,10 @@ class RoamigoAppMapNavigationTest {
           navController.currentBackStackEntry?.arguments?.getString("tripId"),
       )
     }
+
+    pressBack()
+    waitForRoute(Route.TRIPS)
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
   }
 
   @Test
