@@ -25,11 +25,13 @@ import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -405,6 +407,122 @@ class TripsViewModelTest {
     assertEquals("lisbon", vm.uiState.value.mainTrip?.id)
     assertNull(vm.uiState.value.errorMessage)
     assertNull(vm.uiState.value.mainTripPhoto)
+  }
+
+  @Test
+  fun photoLookupUsesNearestMatchingDestinationAndSkipsDistantNamesakes() = runTest {
+    val main =
+        trip("lisbon", "Lisbon", "2026-10-08T00:00:00Z", "2026-10-10T23:00:00Z", TripStatus.ACTIVE)
+    val exact =
+        Destination("exact", DestinationKind.CITY, "Lisbon", "Portugal", "PT", 38.7223, -9.1393, 1)
+    val distant = exact.copy(stableId = "distant", longitude = 4.0)
+    val nearby = exact.copy(stableId = "nearby", latitude = 38.73)
+    val photo =
+        DestinationPhoto("https://example.com/image", null, "https://example.com", "CC0", null)
+    var requested: Destination? = null
+    val destinations =
+        object : DestinationRepository {
+          override suspend fun searchDestinations(query: String): List<Destination> {
+            assertEquals("Lisbon", query)
+            return listOf(distant, nearby, exact)
+          }
+
+          override suspend fun findPhoto(destination: Destination): DestinationPhoto? {
+            requested = destination
+            return photo
+          }
+        }
+    val vm =
+        TripsViewModel(
+            FakeTripRepository(trips = listOf(main)),
+            FakeUserRepository(alex),
+            Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+            destinations,
+        )
+    advanceUntilIdle()
+    assertEquals(exact, requested)
+    assertEquals(photo, vm.uiState.value.mainTripPhoto)
+  }
+
+  @Test
+  fun noNearbyMatchOrDestinationKeepsTripVisibleWithoutRequestingPhoto() = runTest {
+    val main =
+        trip("lisbon", "Lisbon", "2026-10-08T00:00:00Z", "2026-10-10T23:00:00Z", TripStatus.ACTIVE)
+    val distant = Destination("other", DestinationKind.CITY, "Lisbon", "US", "US", 39.0, -9.1393, 2)
+    var searches = 0
+    var photoRequests = 0
+    val destinations =
+        object : DestinationRepository {
+          override suspend fun searchDestinations(query: String): List<Destination> {
+            searches++
+            return listOf(distant)
+          }
+
+          override suspend fun findPhoto(destination: Destination): DestinationPhoto? {
+            photoRequests++
+            return null
+          }
+        }
+    val now = Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC)
+    val vm =
+        TripsViewModel(
+            FakeTripRepository(trips = listOf(main)),
+            FakeUserRepository(alex),
+            now,
+            destinations,
+        )
+    advanceUntilIdle()
+    assertEquals("lisbon", vm.uiState.value.mainTrip?.id)
+    assertNull(vm.uiState.value.mainTripPhoto)
+    assertEquals(1, searches)
+    assertEquals(0, photoRequests)
+    val withoutLocation =
+        TripsViewModel(
+            FakeTripRepository(trips = listOf(main.copy(destinations = emptyList()))),
+            FakeUserRepository(alex),
+            now,
+            destinations,
+        )
+    advanceUntilIdle()
+    assertEquals("lisbon", withoutLocation.uiState.value.mainTrip?.id)
+    assertNull(withoutLocation.uiState.value.mainTripPhoto)
+    assertEquals(1, searches)
+  }
+
+  @Test
+  fun refreshingCancelsPreviousPhotoLookupAndKeepsNewerResult() = runTest {
+    val main =
+        trip("lisbon", "Lisbon", "2026-10-08T00:00:00Z", "2026-10-10T23:00:00Z", TripStatus.ACTIVE)
+    val destination =
+        Destination("lisbon", DestinationKind.CITY, "Lisbon", "Portugal", "PT", 38.7223, -9.1393, 1)
+    val latest =
+        DestinationPhoto("https://example.com/new", null, "https://example.com", "CC0", null)
+    val pending = CompletableDeferred<DestinationPhoto?>()
+    var attempts = 0
+    val destinations =
+        object : DestinationRepository {
+          override suspend fun searchDestinations(query: String) = listOf(destination)
+
+          override suspend fun findPhoto(destination: Destination): DestinationPhoto? {
+            attempts++
+            return if (attempts == 1) pending.await() else latest
+          }
+        }
+    val vm =
+        TripsViewModel(
+            FakeTripRepository(trips = listOf(main)),
+            FakeUserRepository(alex),
+            Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+            destinations,
+        )
+    runCurrent()
+    assertEquals("lisbon", vm.uiState.value.mainTrip?.id)
+    assertNull(vm.uiState.value.mainTripPhoto)
+    vm.refresh()
+    advanceUntilIdle()
+    assertEquals(2, attempts)
+    assertEquals(latest, vm.uiState.value.mainTripPhoto)
+    assertNull(vm.uiState.value.errorMessage)
   }
 
   @Test
