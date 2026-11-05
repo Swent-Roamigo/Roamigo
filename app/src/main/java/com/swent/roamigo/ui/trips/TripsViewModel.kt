@@ -318,10 +318,9 @@ internal fun selectMainTrip(
     return activeTrip
   }
 
-  val plannedTrips =
-      trips.filter { trip ->
-        trip.status == TripStatus.PLANNED && !trip.isCompletedOn(now.toLocalDate(), now.zone)
-      }
+  val plannedTrips = trips.filter { trip ->
+    trip.status == TripStatus.PLANNED && !trip.isCompletedOn(now.toLocalDate(), now.zone)
+  }
 
   return plannedTrips
       .filter { trip ->

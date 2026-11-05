@@ -933,10 +933,13 @@ class TripsViewModelTest {
       val state = model.uiState.value
       assertNull(state.errorMessage)
       assertEquals(instant, expectedBadge, state.mainTrip?.badge)
-      val history = selectCompletedTrips(listOf(planned), ZonedDateTime.now(clock).toLocalDate(), zone)
+      val history =
+          selectCompletedTrips(listOf(planned), ZonedDateTime.now(clock).toLocalDate(), zone)
       assertEquals(instant, expectedBadge == null, history.isNotEmpty())
       val visibleIds =
-          listOfNotNull(state.mainTrip?.id) + state.otherTrips.map { it.id } + history.map { it.uid }
+          listOfNotNull(state.mainTrip?.id) +
+              state.otherTrips.map { it.id } +
+              history.map { it.uid }
       assertEquals(instant, listOf(planned.uid), visibleIds)
     }
   }
@@ -945,7 +948,13 @@ class TripsViewModelTest {
   fun ongoingPlannedTripTakesPriorityOverUpcomingTrips() {
     val now = ZonedDateTime.parse("2026-11-05T12:00:00Z")
     val ongoing =
-        trip("ongoing", "Ongoing", "2026-11-04T00:00:00Z", "2026-11-07T00:00:00Z", TripStatus.PLANNED)
+        trip(
+            "ongoing",
+            "Ongoing",
+            "2026-11-04T00:00:00Z",
+            "2026-11-07T00:00:00Z",
+            TripStatus.PLANNED,
+        )
     val upcoming = ongoing.copy(uid = "upcoming", startDate = timestamp("2026-11-06T00:00:00Z"))
     val trips = listOf(upcoming, ongoing)
 
@@ -957,9 +966,16 @@ class TripsViewModelTest {
   fun overlappingOngoingTripsStayAccessibleWhenOneIsHighlighted() {
     val now = ZonedDateTime.parse("2026-11-05T12:00:00Z")
     val planned =
-        trip("planned", "Planned", "2026-11-03T00:00:00Z", "2026-11-07T00:00:00Z", TripStatus.PLANNED)
+        trip(
+            "planned",
+            "Planned",
+            "2026-11-03T00:00:00Z",
+            "2026-11-07T00:00:00Z",
+            TripStatus.PLANNED,
+        )
     val active = planned.copy(uid = "active", status = TripStatus.ACTIVE)
-    val secondActive = active.copy(uid = "second-active", startDate = timestamp("2026-11-04T00:00:00Z"))
+    val secondActive =
+        active.copy(uid = "second-active", startDate = timestamp("2026-11-04T00:00:00Z"))
     val expired = planned.copy(uid = "expired", endDate = timestamp("2026-11-04T00:00:00Z"))
     val trips = listOf(expired, secondActive, planned, active)
 
