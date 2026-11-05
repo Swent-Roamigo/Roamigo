@@ -12,13 +12,11 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.TripCreationException
@@ -28,32 +26,6 @@ import com.swent.roamigo.ui.trip.creation.components.DateSummary
 import com.swent.roamigo.ui.trip.creation.components.TravelersCounter
 import com.swent.roamigo.ui.trip.creation.components.TripTypeSelector
 import java.time.LocalDate
-
-/** Connects the creation flow's shared [CreateTripViewModel] to [DatesTravelersScreen]. */
-@Composable
-fun DatesTravelersRoute(
-    createTripViewModel: CreateTripViewModel,
-    onBack: () -> Unit,
-    onClose: () -> Unit,
-    onCreateTrip: () -> Unit,
-    onSignIn: () -> Unit = {},
-) {
-  val uiState by createTripViewModel.uiState.collectAsStateWithLifecycle()
-  DatesTravelersScreen(
-      uiState = uiState,
-      onBack = onBack,
-      onClose = onClose,
-      onCreateTrip = onCreateTrip,
-      onSignIn = onSignIn,
-      onPreviousMonth = createTripViewModel::showPreviousMonth,
-      onNextMonth = createTripViewModel::showNextMonth,
-      onSelectDate = createTripViewModel::selectDate,
-      onFlexibleDatesChange = createTripViewModel::setFlexibleDates,
-      onTravelModeChange = createTripViewModel::selectTravelMode,
-      onDecrementTravelers = createTripViewModel::decrementTravelers,
-      onIncrementTravelers = createTripViewModel::incrementTravelers,
-  )
-}
 
 /** Renders date and traveler selection from [uiState] and forwards user actions. */
 @Composable

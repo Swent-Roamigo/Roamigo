@@ -27,8 +27,6 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModelStore
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.trip.voting.VoteBallot
@@ -167,47 +165,36 @@ class VoteScreenTest {
   }
 
   @Test
-  fun screenRestoresRepositoryBallotAndSubmitsChangedChoice() {
+  fun routeRestoresRepositoryBallotAndSubmitsChangedChoice() {
     val repository = InteractionVoteRepository()
     repository.ballots.value = listOf(VoteBallot("member", "a", Timestamp(1, 0)))
-    val store = ViewModelStore()
-    lateinit var viewModel: VoteViewModel
+    composeRule.setContent {
+      RoamigoTheme {
+        VoteRoute(
+            voteRepository = repository,
+            tripId = "trip",
+            voteId = "vote",
+            currentUserId = "member",
+            onBack = {},
+        )
+      }
+    }
+    composeRule.onNodeWithText("Market").assertIsSelected()
+    assertCount("Market", "1 vote")
+    assertCount("Restaurant", "0 votes")
     composeRule.runOnIdle {
-      viewModel = VoteViewModel(repository, "trip", "vote", "member")
-      store.put("vote", viewModel)
+      repository.ballots.value =
+          repository.ballots.value + VoteBallot("other", "b", Timestamp(1, 0))
     }
-    try {
-      composeRule.setContent {
-        RoamigoTheme {
-          val state by viewModel.uiState.collectAsStateWithLifecycle()
-          VoteScreen(
-              state,
-              viewModel::selectOption,
-              viewModel::submitVote,
-              viewModel::retryLoad,
-              {},
-          )
-        }
-      }
-      composeRule.onNodeWithText("Market").assertIsSelected()
-      assertCount("Market", "1 vote")
-      assertCount("Restaurant", "0 votes")
-      composeRule.runOnIdle {
-        repository.ballots.value =
-            repository.ballots.value + VoteBallot("other", "b", Timestamp(1, 0))
-      }
-      assertCount("Restaurant", "1 vote")
-      composeRule.onNodeWithText("Restaurant").performClick().assertIsSelected()
-      composeRule.onNodeWithText("Update vote").performClick()
-      composeRule.runOnIdle {
-        assertEquals("member", repository.calls.single().third.userId)
-        assertEquals("b", repository.calls.single().third.optionId)
-      }
-      assertCount("Market", "0 votes")
-      assertCount("Restaurant", "2 votes")
-    } finally {
-      composeRule.runOnIdle { store.clear() }
+    assertCount("Restaurant", "1 vote")
+    composeRule.onNodeWithText("Restaurant").performClick().assertIsSelected()
+    composeRule.onNodeWithText("Update vote").performClick()
+    composeRule.runOnIdle {
+      assertEquals("member", repository.calls.single().third.userId)
+      assertEquals("b", repository.calls.single().third.optionId)
     }
+    assertCount("Market", "0 votes")
+    assertCount("Restaurant", "2 votes")
   }
 
   @Test

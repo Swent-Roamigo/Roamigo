@@ -1,25 +1,34 @@
 // Author : Constantin Dunoyer de Segonzac
 // Co-author : ChatGPT-Codex
+// AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.trip.creation
 
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextClearance
+import androidx.compose.ui.test.performTextInput
+import androidx.lifecycle.SavedStateHandle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.destination.Destination
 import com.swent.roamigo.model.destination.DestinationKind
 import com.swent.roamigo.model.destination.DestinationPhoto
+import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.destination.FakeDestinationRepository
+import com.swent.roamigo.model.trip.FakeTripRepository
+import com.swent.roamigo.ui.components.PhotoCreditsDialogTestTags
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
 import com.swent.roamigo.ui.trip.creation.components.DestinationCardTestTags
 import com.swent.roamigo.ui.trip.creation.components.DestinationScreenTestTags
+import com.swent.roamigo.ui.trip.creation.components.DestinationSearchBarTestTags
 import com.swent.roamigo.ui.trip.creation.components.SelectedDestinationsTestTags
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Rule
@@ -32,29 +41,21 @@ class DestinationScreenTest {
 
   @Test
   fun loadingSearchExposesProgressUntilRepositoryCompletes() {
+    val paris = destination("paris-fr", "Paris", "France", "FR", 2988507)
     val response = CompletableDeferred<List<Destination>>()
     val repository = FakeDestinationRepository(search = { response.await() })
-    val viewModel =
-        createTestCreateTripViewModel(
-            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
-            destinationRepository = repository,
-            requestDispatcher = Dispatchers.IO,
-        )
-    show(viewModel)
+    showRoute(repository)
 
-    viewModel.updateDestinationQuery("Paris")
-    composeRule.mainClock.advanceTimeBy(300)
-    composeRule.waitForIdle()
-    composeRule.waitUntil(5_000) {
-      viewModel.uiState.value.destinationSearchStatus == DestinationSearchStatus.LOADING
-    }
+    search("Paris")
+    waitForTag(DestinationScreenTestTags.LOADING)
     composeRule.onNodeWithTag(DestinationScreenTestTags.LOADING).assertIsDisplayed()
 
-    response.complete(listOf(destination("paris-fr", "Paris", "France", "FR", 2988507)))
-    composeRule.waitForIdle()
-    composeRule.waitUntil(5_000) {
-      viewModel.uiState.value.destinationSearchStatus == DestinationSearchStatus.RESULTS
-    }
+    response.complete(listOf(paris))
+    waitForTag(DestinationCardTestTags.forDestination(paris.stableId))
+    composeRule
+        .onNodeWithTag(DestinationCardTestTags.forDestination(paris.stableId))
+        .assertIsDisplayed()
+    composeRule.onNodeWithTag(DestinationScreenTestTags.LOADING).assertDoesNotExist()
   }
 
   @Test
@@ -68,31 +69,20 @@ class DestinationScreenTest {
               listOf(paris)
             },
         )
-    val viewModel =
-        createTestCreateTripViewModel(
-            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
-            destinationRepository = repository,
-            requestDispatcher = Dispatchers.IO,
-        )
-    show(viewModel)
+    showRoute(repository)
 
-    viewModel.updateDestinationQuery("Paris")
-    composeRule.mainClock.advanceTimeBy(300)
-    composeRule.waitForIdle()
-    composeRule.waitUntil(5_000) {
-      viewModel.uiState.value.destinationSearchStatus == DestinationSearchStatus.ERROR
-    }
+    search("Paris")
+    waitForTag(DestinationScreenTestTags.ERROR)
     composeRule.onNodeWithTag(DestinationScreenTestTags.ERROR).assertIsDisplayed()
 
     shouldFail = false
     composeRule.onNodeWithTag(DestinationScreenTestTags.RETRY).performClick()
-    composeRule.waitUntil(5_000) {
-      viewModel.uiState.value.destinationSearchStatus == DestinationSearchStatus.RESULTS
-    }
+    waitForTag(DestinationCardTestTags.forDestination(paris.stableId))
 
     composeRule
         .onNodeWithTag(DestinationCardTestTags.forDestination(paris.stableId))
         .assertIsDisplayed()
+    composeRule.onNodeWithTag(DestinationScreenTestTags.ERROR).assertDoesNotExist()
     assertEquals(listOf("Paris", "Paris"), repository.searchQueries)
   }
 
@@ -115,26 +105,10 @@ class DestinationScreenTest {
             search = { destinations },
             photo = { if (it.stableId == destinations.first().stableId) photo else null },
         )
-    val viewModel =
-        createTestCreateTripViewModel(
-            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
-            destinationRepository = repository,
-            requestDispatcher = Dispatchers.IO,
-        )
-    show(viewModel)
+    showRoute(repository)
 
-    viewModel.updateDestinationQuery("City")
-    composeRule.mainClock.advanceTimeBy(300)
-    composeRule.waitForIdle()
-    composeRule.waitUntil(5_000) {
-      repository.photoRequests.any { it.stableId == destinations.first().stableId }
-    }
-    composeRule.waitUntil(5_000) {
-      composeRule
-          .onAllNodesWithTag(DestinationCardTestTags.photoCreditsFor(destinations.first().stableId))
-          .fetchSemanticsNodes()
-          .isNotEmpty()
-    }
+    search("City")
+    waitForTag(DestinationCardTestTags.photoCreditsFor(destinations.first().stableId))
 
     composeRule
         .onNodeWithTag(DestinationCardTestTags.photoCreditsFor(destinations.first().stableId))
@@ -147,8 +121,9 @@ class DestinationScreenTest {
     composeRule.onNodeWithText("CC BY-SA 4.0 · Cropped for display").assertIsDisplayed()
     composeRule.onNodeWithText("View original").assertHasClickAction()
     composeRule.onNodeWithText("View license").assertHasClickAction()
-    assertEquals(emptyList<Destination>(), viewModel.uiState.value.selectedDestinations)
     assertFalse(repository.photoRequests.any { it.stableId == destinations.last().stableId })
+    composeRule.onNodeWithTag(PhotoCreditsDialogTestTags.CLOSE).performClick()
+    composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsNotEnabled()
   }
 
   @Test
@@ -163,21 +138,14 @@ class DestinationScreenTest {
             license = "CC BY 4.0",
             licenseUrl = null,
         )
-    val repository = FakeDestinationRepository(search = { listOf(city) }, photo = { photo })
-    val viewModel =
-        createTestCreateTripViewModel(
-            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
-            destinationRepository = repository,
-            requestDispatcher = Dispatchers.IO,
+    showScreen(
+        CreateTripUiState(
+            destinations = listOf(city),
+            destinationSearchStatus = DestinationSearchStatus.RESULTS,
+            photosByDestinationId = mapOf(city.stableId to photo),
         )
-    show(viewModel)
-    viewModel.updateDestinationQuery("Paris")
-    composeRule.waitUntil(5_000) {
-      composeRule
-          .onAllNodesWithTag(DestinationCardTestTags.photoCreditsFor(city.stableId))
-          .fetchSemanticsNodes()
-          .isNotEmpty()
-    }
+    )
+    waitForTag(DestinationCardTestTags.photoCreditsFor(city.stableId))
     composeRule.onNodeWithTag(DestinationCardTestTags.photoCreditsFor(city.stableId)).performClick()
     composeRule.onNodeWithText("View original").assertHasClickAction()
     composeRule.onNodeWithText("View license").assertDoesNotExist()
@@ -195,19 +163,14 @@ class DestinationScreenTest {
             license = "CC BY 4.0",
             licenseUrl = "https://creativecommons.org/licenses/by/4.0/",
         )
-    val repository = FakeDestinationRepository(search = { listOf(city) }, photo = { photo })
-    val viewModel =
-        createTestCreateTripViewModel(
-            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
-            destinationRepository = repository,
-            requestDispatcher = Dispatchers.IO,
+    showScreen(
+        CreateTripUiState(
+            destinations = listOf(city),
+            destinationSearchStatus = DestinationSearchStatus.RESULTS,
+            photosByDestinationId = mapOf(city.stableId to photo),
         )
-    show(viewModel)
+    )
 
-    viewModel.updateDestinationQuery("Paris")
-    composeRule.waitUntil(5_000) {
-      viewModel.uiState.value.photosByDestinationId.containsKey(city.stableId)
-    }
     composeRule
         .onNodeWithTag(DestinationCardTestTags.forDestination(city.stableId))
         .assertIsDisplayed()
@@ -229,19 +192,15 @@ class DestinationScreenTest {
             licenseUrl = "https://creativecommons.org/publicdomain/mark/1.0/",
             credit = "Public domain",
         )
-    val repository = FakeDestinationRepository(search = { listOf(city) }, photo = { photo })
-    val viewModel =
-        createTestCreateTripViewModel(
-            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
-            destinationRepository = repository,
-            requestDispatcher = Dispatchers.IO,
+    showScreen(
+        CreateTripUiState(
+            destinations = listOf(city),
+            destinationSearchStatus = DestinationSearchStatus.RESULTS,
+            photosByDestinationId = mapOf(city.stableId to photo),
         )
-    show(viewModel)
+    )
 
-    viewModel.updateDestinationQuery("Lisbon")
-    composeRule.waitUntil(5_000) {
-      viewModel.uiState.value.photosByDestinationId.containsKey(city.stableId)
-    }
+    waitForTag(DestinationCardTestTags.photoCreditsFor(city.stableId))
     composeRule.onNodeWithTag(DestinationCardTestTags.photoCreditsFor(city.stableId)).performClick()
 
     composeRule.onNodeWithText("Public domain").assertIsDisplayed()
@@ -250,42 +209,78 @@ class DestinationScreenTest {
   }
 
   @Test
-  fun noResultsAndRemovalKeepOtherSelectedDestinationInOrder() {
+  fun noResultsAndRemovalKeepOtherSelectedDestination() {
     val paris = destination("paris-fr", "Paris", "France", "FR", 2988507)
     val lisbon = destination("lisbon-pt", "Lisbon", "Portugal", "PT", 2267057)
-    val repository = FakeDestinationRepository(search = { emptyList() })
-    val viewModel =
-        createTestCreateTripViewModel(
-            repository = com.swent.roamigo.model.trip.FakeTripRepository(),
-            destinationRepository = repository,
-            requestDispatcher = Dispatchers.IO,
+    val repository =
+        FakeDestinationRepository(
+            search = { if (it == "all") listOf(paris, lisbon) else emptyList() },
         )
-    viewModel.toggleDestination(paris)
-    viewModel.toggleDestination(lisbon)
-    show(viewModel)
+    showRoute(repository)
+    search("all")
+    waitForTag(DestinationCardTestTags.forDestination(paris.stableId))
+    composeRule.onNodeWithTag(DestinationCardTestTags.forDestination(paris.stableId)).performClick()
+    composeRule
+        .onNodeWithTag(DestinationCardTestTags.forDestination(lisbon.stableId))
+        .performClick()
 
-    viewModel.updateDestinationQuery("No matching city")
-    composeRule.mainClock.advanceTimeBy(300)
-    composeRule.waitForIdle()
-    composeRule.waitUntil(5_000) {
-      viewModel.uiState.value.destinationSearchStatus == DestinationSearchStatus.EMPTY
-    }
+    composeRule.onNodeWithTag(DestinationSearchBarTestTags.SEARCH_FIELD).performTextClearance()
+    search("No matching city")
+    waitForTag(DestinationScreenTestTags.EMPTY)
     composeRule.onNodeWithTag(DestinationScreenTestTags.EMPTY).assertIsDisplayed()
     composeRule.onNodeWithTag(SelectedDestinationsTestTags.removeFor(paris.stableId)).performClick()
 
-    assertEquals(listOf(lisbon), viewModel.uiState.value.selectedDestinations)
+    composeRule
+        .onNodeWithTag(SelectedDestinationsTestTags.removeFor(paris.stableId))
+        .assertDoesNotExist()
+    composeRule
+        .onNodeWithTag(SelectedDestinationsTestTags.removeFor(lisbon.stableId))
+        .assertIsDisplayed()
+    composeRule.onNodeWithText("Continue · 1 stop").assertIsDisplayed()
   }
 
-  private fun show(viewModel: CreateTripViewModel) {
+  private fun showRoute(repository: DestinationRepository) {
+    val trips = FakeTripRepository()
+    val savedStateHandle = SavedStateHandle()
     composeRule.setContent {
       RoamigoTheme {
-        DestinationRoute(
-            createTripViewModel = viewModel,
+        CreateTripRoute(
+            tripRepository = trips,
+            destinationRepository = repository,
+            savedStateHandle = savedStateHandle,
+            onClose = {},
+            onSignIn = {},
+            onTripCreated = { _, _ -> },
+        )
+      }
+    }
+  }
+
+  private fun showScreen(state: CreateTripUiState) {
+    composeRule.setContent {
+      RoamigoTheme {
+        DestinationScreen(
+            uiState = state,
             onBack = {},
             onClose = {},
+            onQueryChange = {},
+            onToggleDestination = {},
+            onRemoveDestination = {},
             onContinue = {},
         )
       }
+    }
+  }
+
+  private fun search(query: String) {
+    composeRule.onNodeWithTag(DestinationSearchBarTestTags.SEARCH_FIELD).performTextInput(query)
+    composeRule.mainClock.advanceTimeBy(300)
+    composeRule.waitForIdle()
+  }
+
+  private fun waitForTag(tag: String) {
+    composeRule.waitUntil(5_000) {
+      composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
     }
   }
 

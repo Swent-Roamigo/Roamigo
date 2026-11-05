@@ -17,14 +17,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.roamigo.R
 import com.swent.roamigo.model.destination.Destination
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffold
@@ -32,28 +30,6 @@ import com.swent.roamigo.ui.trip.creation.components.DestinationCard
 import com.swent.roamigo.ui.trip.creation.components.DestinationScreenTestTags
 import com.swent.roamigo.ui.trip.creation.components.DestinationSearchBar
 import com.swent.roamigo.ui.trip.creation.components.SelectedDestinations
-
-/** Connects the creation flow's shared [CreateTripViewModel] to [DestinationScreen]. */
-@Composable
-fun DestinationRoute(
-    createTripViewModel: CreateTripViewModel,
-    onBack: () -> Unit,
-    onClose: () -> Unit,
-    onContinue: () -> Unit,
-) {
-  val uiState by createTripViewModel.uiState.collectAsStateWithLifecycle()
-  DestinationScreen(
-      uiState = uiState,
-      onBack = onBack,
-      onClose = onClose,
-      onQueryChange = createTripViewModel::updateDestinationQuery,
-      onToggleDestination = createTripViewModel::toggleDestination,
-      onRemoveDestination = createTripViewModel::removeDestination,
-      onRetry = createTripViewModel::retryDestinationSearch,
-      onRequestPhoto = createTripViewModel::requestDestinationPhoto,
-      onContinue = onContinue,
-  )
-}
 
 /** Renders destination selection from [uiState] and forwards user actions. */
 @Composable
