@@ -4,6 +4,7 @@ package com.swent.roamigo.ui.trips
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,6 +22,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -133,6 +135,7 @@ fun TripsRoute(
       onProfileClick = onProfileClick,
       onHistoryClick = onHistoryClick,
       onOpenTrip = onOpenTrip,
+      onRetryClick = viewModel::refresh,
   )
 }
 
@@ -157,6 +160,7 @@ fun TripsRoute(
  * @param onProfileClick invoked when the user selects their profile avatar.
  * @param onHistoryClick invoked when the user opens Trip History.
  * @param onOpenTrip opens the selected trip's details.
+ * @param onRetryClick retries loading trips after an error.
  */
 @Composable
 fun TripsScreen(
@@ -173,6 +177,7 @@ fun TripsScreen(
     onProfileClick: () -> Unit = rememberNotImplementedAction(),
     onHistoryClick: () -> Unit = rememberNotImplementedAction(),
     onOpenTrip: (String) -> Unit = {},
+    onRetryClick: () -> Unit = {},
 ) {
   val mainTrip = uiState.mainTrip
   val photosClick: () -> Unit =
@@ -185,16 +190,20 @@ fun TripsScreen(
       modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.trips_screen },
       containerColor = MaterialTheme.colorScheme.background,
       bottomBar = {
-        AppBottomBar(
-            onTripsClick = onTripsClick,
-            onMapClick = onMapClick,
-            onPhotosClick = photosClick,
-            onFriendsClick = onFriendsClick,
-        )
+        Column {
+          NewTripButton(onClick = onNewTripClick)
+          AppBottomBar(
+              onTripsClick = onTripsClick,
+              onMapClick = onMapClick,
+              onPhotosClick = photosClick,
+              onFriendsClick = onFriendsClick,
+          )
+        }
       },
   ) { innerPadding ->
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(innerPadding),
+        modifier =
+            Modifier.fillMaxSize().padding(innerPadding).semantics { testTag = C.Tag.trips_list },
         contentPadding =
             PaddingValues(
                 start = 20.dp,
@@ -226,15 +235,33 @@ fun TripsScreen(
       } else {
         uiState.errorMessage?.let { errorMessage ->
           item {
-            Text(
-                text = errorMessage,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.error,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              Text(
+                  text = errorMessage,
+                  style = MaterialTheme.typography.bodyLarge,
+                  color = MaterialTheme.colorScheme.error,
+              )
+              OutlinedButton(
+                  onClick = onRetryClick,
+                  modifier = Modifier.semantics { testTag = C.Tag.trips_retry },
+              ) {
+                Text(stringResource(R.string.trips_retry))
+              }
+            }
           }
         }
 
         if (uiState.errorMessage == null) {
+          if (uiState.mainTrip == null && uiState.otherTrips.isEmpty()) {
+            item {
+              Text(
+                  text = stringResource(R.string.trips_empty),
+                  modifier = Modifier.semantics { testTag = C.Tag.trips_empty },
+                  style = MaterialTheme.typography.bodyLarge,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+            }
+          }
           uiState.mainTrip?.let { trip ->
             item {
               MainTripCard(
@@ -286,34 +313,32 @@ fun TripsScreen(
           }
         }
       }
-
-      item {
-        Button(
-            onClick = onNewTripClick,
-            modifier =
-                Modifier.fillMaxWidth().height(58.dp).markNotImplemented(onNewTripClick).semantics {
-                  testTag = C.Tag.trips_new_trip_button
-                },
-            shape = MaterialTheme.shapes.medium,
-            colors =
-                ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                ),
-        ) {
-          Icon(
-              imageVector = Icons.Default.Add,
-              contentDescription = null,
-          )
-
-          Spacer(modifier = Modifier.width(8.dp))
-
-          Text(
-              text = stringResource(R.string.trips_new_trip),
-              style = MaterialTheme.typography.titleMedium,
-          )
-        }
-      }
     }
+  }
+}
+
+@Composable
+private fun NewTripButton(onClick: () -> Unit) {
+  Button(
+      onClick = onClick,
+      modifier =
+          Modifier.fillMaxWidth()
+              .padding(horizontal = 20.dp, vertical = 8.dp)
+              .height(50.dp)
+              .markNotImplemented(onClick)
+              .semantics { testTag = C.Tag.trips_new_trip_button },
+      shape = MaterialTheme.shapes.medium,
+      colors =
+          ButtonDefaults.buttonColors(
+              containerColor = MaterialTheme.colorScheme.primary,
+              contentColor = MaterialTheme.colorScheme.onPrimary,
+          ),
+  ) {
+    Icon(imageVector = Icons.Default.Add, contentDescription = null)
+    Spacer(modifier = Modifier.width(8.dp))
+    Text(
+        text = stringResource(R.string.trips_new_trip),
+        style = MaterialTheme.typography.titleMedium,
+    )
   }
 }
