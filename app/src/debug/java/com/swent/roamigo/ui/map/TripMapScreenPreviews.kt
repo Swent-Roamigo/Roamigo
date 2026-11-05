@@ -29,13 +29,13 @@ class TripMapScreenPreviews {
   @Preview(showBackground = true, widthDp = 390, heightDp = 844)
   @Composable
   private fun TripMapSharingOffPreview() {
-    TripMapPreview(uiState = loadedState, isSharing = false)
+    TripMapPreview(uiState = previewTripMapLoadedState, isSharing = false)
   }
 
   @Preview(showBackground = true, widthDp = 390, heightDp = 844)
   @Composable
   private fun TripMapSharingOnPreview() {
-    TripMapPreview(uiState = loadedState, isSharing = true)
+    TripMapPreview(uiState = previewTripMapLoadedState, isSharing = true)
   }
 
   @Composable
@@ -50,29 +50,30 @@ class TripMapScreenPreviews {
       )
     }
   }
-
-  private val previewTrip =
-      Trip(
-          uid = "trip_lisbon",
-          name = "Lisbon & Porto",
-          description = null,
-          destinations =
-              listOf(TripLocation(latitude = 38.7223, longitude = -9.1393, name = "Lisbon")),
-          startDate = Timestamp.now(),
-          endDate = Timestamp.now(),
-          flexibleDates = false,
-          travelMode = TravelMode.GROUP,
-          travelerCount = 3,
-          ownerId = "user_1",
-          memberIds = listOf("user_1"),
-          status = TripStatus.PLANNED,
-          createdAt = Timestamp.now(),
-      )
-
-  private val loadedState =
-      TripMapUiState.Loaded(
-          trip = previewTrip,
-          viewport = TripMapViewport.Centered(latitude = 38.7223, longitude = -9.1393),
-          members = mapOf("user_1" to memberDisplayInfo("user_1", null)),
-      )
 }
+
+private val previewTrip =
+    Trip(
+        uid = "trip_lisbon",
+        name = "Lisbon & Porto",
+        description = null,
+        destinations =
+            listOf(TripLocation(latitude = 38.7223, longitude = -9.1393, name = "Lisbon")),
+        startDate = Timestamp.now(),
+        endDate = Timestamp.now(),
+        flexibleDates = false,
+        travelMode = TravelMode.GROUP,
+        travelerCount = 3,
+        ownerId = "user_1",
+        memberIds = listOf("user_1"),
+        status = TripStatus.PLANNED,
+        createdAt = Timestamp.now(),
+    )
+
+/** A loaded trip map, shared by the trip map previews. */
+internal val previewTripMapLoadedState =
+    TripMapUiState.Loaded(
+        trip = previewTrip,
+        viewport = TripMapViewport.Centered(latitude = 38.7223, longitude = -9.1393),
+        members = mapOf("user_1" to memberDisplayInfo("user_1", null)),
+    )

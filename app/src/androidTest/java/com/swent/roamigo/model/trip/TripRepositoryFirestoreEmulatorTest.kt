@@ -22,6 +22,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.time.Instant
 import java.util.UUID
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
@@ -358,12 +359,52 @@ class TripRepositoryFirestoreEmulatorTest {
   }
 
   @Test
-  fun clientsCannotUpdateOrDeleteVotes() = runBlocking {
+  fun onlyCreatorCanCloseAndObserversReceivePersistedClosedVote() = runBlocking {
+    alice.repository.createTrip(tripId, draft)
+    addBobToTrip()
+    val vote = voteCreatedBy(alice)
+    alice.voteRepository.createVote(vote)
+    assertPermissionDenied { bob.voteRepository.closeVote(tripId, vote.uid) }
+    val observed = async {
+      withTimeout(10_000) {
+        bob.voteRepository.observeVotes(tripId).first {
+          it.singleOrNull()?.status == VoteStatus.CLOSED
+        }
+      }
+    }
+    alice.voteRepository.closeVote(tripId, vote.uid)
+    assertEquals(
+        vote.copy(status = VoteStatus.CLOSED),
+        alice.voteRepository.getVote(tripId, vote.uid),
+    )
+    assertEquals(listOf(vote.copy(status = VoteStatus.CLOSED)), observed.await())
+    assertFailedPrecondition { alice.voteRepository.closeVote(tripId, vote.uid) }
+    assertPermissionDenied { voteDocument(alice).update("status", "OPEN").await() }
+  }
+
+  @Test
+  fun clientsCannotModifyImmutableVoteFieldsOrDeleteVotes() = runBlocking {
     alice.repository.createTrip(tripId, draft)
     alice.voteRepository.createVote(voteCreatedBy(alice))
 
     assertPermissionDenied { voteDocument(alice).update("question", "Changed?").await() }
-    assertPermissionDenied { voteDocument(alice).update("status", "CLOSED").await() }
+    val immutableChanges =
+        mapOf(
+            "uid" to "other",
+            "tripId" to "other",
+            "question" to "Changed?",
+            "options" to emptyList<Any>(),
+            "createdByUserId" to bob.userId,
+            "creationTime" to Timestamp(1, 0),
+            "closingTime" to Timestamp(2, 0),
+            "winningOptionId" to "a",
+            "unexpected" to true,
+        )
+    immutableChanges.forEach { (field, value) ->
+      assertPermissionDenied {
+        voteDocument(alice).update(mapOf("status" to "CLOSED", field to value)).await()
+      }
+    }
     assertPermissionDenied { voteDocument(alice).update("winningOptionId", "a").await() }
     assertPermissionDenied { voteDocument(alice).delete().await() }
   }
@@ -491,10 +532,7 @@ class TripRepositoryFirestoreEmulatorTest {
     alice.voteRepository.createVote(voteCreatedBy(alice))
     val ballot = VoteBallot(alice.userId, "a", Timestamp.now())
     alice.voteRepository.submitBallot(tripId, "vote", ballot)
-    updateAsAdmin(
-        "trips/$tripId/votes/vote",
-        JSONObject().put("status", JSONObject().put("stringValue", "CLOSED")),
-    )
+    alice.voteRepository.closeVote(tripId, "vote")
     assertPermissionDenied {
       voteDocument(alice)
           .collection("ballots")
@@ -634,7 +672,7 @@ class TripRepositoryFirestoreEmulatorTest {
     )
   }
 
-  /** Emulator-only fixtures; client rules still forbid membership changes and vote closing. */
+  /** Emulator-only fixtures; client rules still forbid membership changes. */
   private fun updateAsAdmin(documentPath: String, fields: JSONObject) {
     val update =
         JSONObject()
@@ -700,6 +738,15 @@ class TripRepositoryFirestoreEmulatorTest {
 
   private fun ownerMemberData(userId: String) =
       TripMember(userId, TripMemberRole.OWNER, Timestamp.now()).toFirestoreData()
+
+  private suspend fun assertFailedPrecondition(block: suspend () -> Unit) {
+    val error = runCatching { block() }.exceptionOrNull()
+    assertTrue(
+        error.toString(),
+        error is FirebaseFirestoreException &&
+            error.code == FirebaseFirestoreException.Code.FAILED_PRECONDITION,
+    )
+  }
 
   private suspend fun assertPermissionDenied(block: suspend () -> Unit) {
     val error = runCatching { block() }.exceptionOrNull()

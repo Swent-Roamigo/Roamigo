@@ -39,4 +39,8 @@ enum class VotesSyncState {
 }
 
 /** Ballot-derived card snapshot owned by [VotesViewModel], including options with no ballots. */
-data class LiveVoteSummary(val counts: Map<String, Int>, val hasPersistedBallot: Boolean)
+data class LiveVoteSummary(
+    val counts: Map<String, Int>,
+    val hasPersistedBallot: Boolean,
+    val isCreator: Boolean = false,
+)
