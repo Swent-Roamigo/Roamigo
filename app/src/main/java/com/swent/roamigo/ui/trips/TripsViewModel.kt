@@ -4,7 +4,9 @@ package com.swent.roamigo.ui.trips
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthRepository
+import com.swent.roamigo.model.destination.DestinationPhoto
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
@@ -52,6 +54,11 @@ class TripsViewModel(
   private var refreshJob: Job? = null
   private var hasLoadedTrips = false
 
+  // Only cache successful lookups for the featured trip, scoped to this ViewModel's lifetime.
+  private data class PhotoKey(val tripId: String, val location: TripLocation)
+
+  private var cachedPhoto: Pair<PhotoKey, DestinationPhoto>? = null
+
   /** State currently rendered by the Trips Home screen. */
   val uiState: StateFlow<TripsUiState> = _uiState.asStateFlow()
 
@@ -80,25 +87,28 @@ class TripsViewModel(
       try {
         val (state, location) = loadTripsState()
         hasLoadedTrips = true
-        _uiState.value = state
         val tripId = state.mainTrip?.id
-        if (tripId != null && destinationRepository != null) {
+        val photoKey = if (tripId != null && location != null) PhotoKey(tripId, location) else null
+        val previousPhoto = cachedPhoto?.takeIf { it.first == photoKey }?.second
+        if (previousPhoto == null) cachedPhoto = null
+        _uiState.value = state.copy(mainTripPhoto = previousPhoto)
+        if (photoKey != null && previousPhoto == null && destinationRepository != null) {
           try {
-            if (location != null) {
-              val destination =
-                  destinationRepository
-                      .searchDestinations(location.name)
-                      .filter {
-                        kotlin.math.abs(it.latitude - location.latitude) < 0.02 &&
-                            kotlin.math.abs(it.longitude - location.longitude) < 0.02
-                      }
-                      .minByOrNull {
-                        kotlin.math.abs(it.latitude - location.latitude) +
-                            kotlin.math.abs(it.longitude - location.longitude)
-                      }
-              val photo = destination?.let { destinationRepository.findPhoto(it) }
-              _uiState.value = _uiState.value.copy(mainTripPhoto = photo)
-            }
+            val location = photoKey.location
+            val destination =
+                destinationRepository
+                    .searchDestinations(location.name)
+                    .filter {
+                      kotlin.math.abs(it.latitude - location.latitude) < 0.02 &&
+                          kotlin.math.abs(it.longitude - location.longitude) < 0.02
+                    }
+                    .minByOrNull {
+                      kotlin.math.abs(it.latitude - location.latitude) +
+                          kotlin.math.abs(it.longitude - location.longitude)
+                    }
+            val photo = destination?.let { destinationRepository.findPhoto(it) }
+            if (photo != null) cachedPhoto = photoKey to photo
+            _uiState.value = _uiState.value.copy(mainTripPhoto = photo)
           } catch (cancelled: CancellationException) {
             throw cancelled
           } catch (_: Exception) {

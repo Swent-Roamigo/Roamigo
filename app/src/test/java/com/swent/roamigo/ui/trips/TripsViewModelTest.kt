@@ -380,10 +380,12 @@ class TripsViewModelTest {
             "CC BY",
             null,
         )
-    var fail = false
+    var fail = true
+    var searchCount = 0
     val destinations =
         object : DestinationRepository {
           override suspend fun searchDestinations(query: String): List<Destination> {
+            searchCount++
             if (fail) error("offline")
             return listOf(wrong, correct)
           }
@@ -401,13 +403,18 @@ class TripsViewModelTest {
             destinations,
         )
     advanceUntilIdle()
+    assertEquals("lisbon", vm.uiState.value.mainTrip?.id)
+    assertNull(vm.uiState.value.mainTripPhoto)
+    assertNull(vm.uiState.value.errorMessage)
+    fail = false
+    vm.refresh()
+    advanceUntilIdle()
     assertEquals(photo, vm.uiState.value.mainTripPhoto)
     fail = true
     vm.refresh()
     advanceUntilIdle()
-    assertEquals("lisbon", vm.uiState.value.mainTrip?.id)
-    assertNull(vm.uiState.value.errorMessage)
-    assertNull(vm.uiState.value.mainTripPhoto)
+    assertEquals(photo, vm.uiState.value.mainTripPhoto)
+    assertEquals(2, searchCount)
   }
 
   @Test
@@ -524,6 +531,84 @@ class TripsViewModelTest {
     assertEquals(2, attempts)
     assertEquals(latest, vm.uiState.value.mainTripPhoto)
     assertNull(vm.uiState.value.errorMessage)
+  }
+
+  @Test
+  fun refreshReusesPhotoForSameTripAndReloadsWhenDestinationChanges() = runTest {
+    val main =
+        trip("lisbon", "Lisbon", "2026-10-08T00:00:00Z", "2026-10-10T23:00:00Z", TripStatus.ACTIVE)
+    val lisbon =
+        Destination("lisbon", DestinationKind.CITY, "Lisbon", "Portugal", "PT", 38.7223, -9.1393, 1)
+    val porto =
+        Destination("porto", DestinationKind.CITY, "Porto", "Portugal", "PT", 41.1496, -8.6109, 2)
+    val photo =
+        DestinationPhoto(
+            "https://example.com/lisbon",
+            "Author",
+            "https://example.com",
+            "CC BY",
+            null,
+        )
+    val newPhoto = photo.copy(imageUrl = "https://example.com/porto")
+    val delegate = FakeTripRepository(trips = listOf(main))
+    var trips = listOf(main)
+    val repository =
+        object : TripRepository by delegate {
+          override suspend fun getTrips() = trips
+        }
+    var searches = 0
+    var lookups = 0
+    val destinations =
+        object : DestinationRepository {
+          override suspend fun searchDestinations(query: String): List<Destination> {
+            searches++
+            return listOf(lisbon, porto)
+          }
+
+          override suspend fun findPhoto(destination: Destination): DestinationPhoto? {
+            lookups++
+            return if (destination == lisbon) photo else newPhoto
+          }
+        }
+    val vm =
+        TripsViewModel(
+            repository,
+            FakeUserRepository(alex),
+            Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+            destinations,
+        )
+    advanceUntilIdle()
+    assertEquals(photo, vm.uiState.value.mainTripPhoto)
+    trips = listOf(main.copy(name = "Renamed trip"))
+    vm.refresh()
+    runCurrent()
+    assertEquals("Renamed trip", vm.uiState.value.mainTrip?.name)
+    assertEquals(photo, vm.uiState.value.mainTripPhoto)
+    assertEquals(1, searches)
+    assertEquals(1, lookups)
+    trips =
+        listOf(
+            main.copy(
+                destinations = listOf(TripLocation(porto.latitude, porto.longitude, porto.name))
+            )
+        )
+    vm.refresh()
+    advanceUntilIdle()
+    assertEquals(newPhoto, vm.uiState.value.mainTripPhoto)
+    assertEquals(2, searches)
+    assertEquals(2, lookups)
+    trips = listOf(trips.single().copy(uid = "new-trip"))
+    vm.refresh()
+    advanceUntilIdle()
+    assertEquals("new-trip", vm.uiState.value.mainTrip?.id)
+    assertEquals(newPhoto, vm.uiState.value.mainTripPhoto)
+    assertEquals(3, searches)
+    assertEquals(3, lookups)
+    trips = emptyList()
+    vm.refresh()
+    advanceUntilIdle()
+    assertNull(vm.uiState.value.mainTrip)
+    assertNull(vm.uiState.value.mainTripPhoto)
   }
 
   @Test

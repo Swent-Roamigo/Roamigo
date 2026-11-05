@@ -56,6 +56,23 @@ class TripPhotoCardTest {
   }
 
   @Test
+  fun photoRemainsVisibleWhenTripsHomeRefreshesTheSameTrip() {
+    var state by
+        mutableStateOf(TripsUiState(isLoading = false, mainTrip = trip, mainTripPhoto = photo))
+    rule.setContent { MaterialTheme { TripsScreen(state) } }
+    rule.waitUntil(10_000) {
+      rule.onAllNodesWithText("Photo credits").fetchSemanticsNodes().isNotEmpty()
+    }
+    rule.runOnIdle { state = state.copy(isRefreshing = true) }
+    rule.onNodeWithText("Photo credits").assertIsDisplayed()
+    rule.runOnIdle {
+      state = state.copy(isRefreshing = false, mainTrip = trip.copy(name = "Lisbon updated"))
+    }
+    rule.onNodeWithText("Lisbon updated").assertIsDisplayed()
+    rule.onNodeWithText("Photo credits").assertIsDisplayed()
+  }
+
+  @Test
   fun replacingLoadedPhotoWithUnavailablePhotoHidesStaleCredits() {
     var currentPhoto by mutableStateOf<DestinationPhoto?>(photo)
     rule.setContent { MaterialTheme { MainTripCard(trip, null, currentPhoto, {}, {}) } }
