@@ -157,6 +157,17 @@ class VotesNavigationTest {
     composeRule.onNodeWithText(vote.question).assertIsDisplayed()
   }
 
+  @Test
+  fun backFromHistoricalTripVotesReturnsToHistory() {
+    openVotes(historical = true)
+
+    composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+
+    composeRule.onNodeWithTag(C.Tag.trip_history_screen).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_history_card_prefix + tripId).assertIsDisplayed()
+    composeRule.onNodeWithText(vote.question).assertDoesNotExist()
+  }
+
   private fun dialogText(text: String) =
       composeRule.onNode(hasText(text) and hasAnyAncestor(hasTestTag("vote_dialog")))
 
@@ -258,6 +269,19 @@ class VotesNavigationTest {
 
     composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
     composeRule.onNodeWithText(vote.question).assertDoesNotExist()
+  }
+
+  @Test
+  fun globalTripsFromTripVotesReturnsToTrips() {
+    openVotes()
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+    composeRule.onNodeWithText(vote.question).assertDoesNotExist()
+    composeRule.runOnIdle {
+      assertEquals(Route.TRIPS, navController.currentBackStackEntry?.destination?.route)
+    }
   }
 
   @Test
