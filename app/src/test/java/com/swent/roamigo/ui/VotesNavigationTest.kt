@@ -247,6 +247,20 @@ class VotesNavigationTest {
   }
 
   @Test
+  fun globalFriendsFromTripVotesReturnsToTripsOnBack() {
+    openVotes()
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
+    composeRule.onNodeWithTag(C.Tag.friends_screen).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).assertIsSelected()
+
+    composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+    composeRule.onNodeWithText(vote.question).assertDoesNotExist()
+  }
+
+  @Test
   fun inlineVoteUpdatesCardAndReopeningRestoresChoiceWithoutRefresh() {
     openVotes()
     composeRule.onNodeWithText(vote.question).assertIsDisplayed()
