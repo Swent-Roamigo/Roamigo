@@ -69,19 +69,21 @@ class AuthenticationViewModel(private val repository: AuthRepository = AuthRepos
         throw e
       } catch (e: AuthException) {
         Log.w("AuthenticationViewModel", "Repository sign-in failed", e)
-        val message =
-            when (e) {
-              is AuthException.Network -> R.string.auth_network_error
-              is AuthException.InvalidCredential -> R.string.auth_invalid_credential
-              is AuthException.Unknown -> R.string.auth_sign_in_failed
-            }
-        showFeedback(message)
+        showFeedback(repositoryErrorMessage(e))
       } catch (e: Exception) {
         Log.w("AuthenticationViewModel", "Unexpected sign-in failure", e)
         showFeedback(R.string.auth_sign_in_failed)
       }
     }
   }
+
+  @StringRes
+  private fun repositoryErrorMessage(failure: AuthException): Int =
+      when (failure) {
+        is AuthException.Network -> R.string.auth_network_error
+        is AuthException.InvalidCredential -> R.string.auth_invalid_credential
+        is AuthException.Unknown -> R.string.auth_sign_in_failed
+      }
 
   private fun showFeedback(@StringRes messageRes: Int) {
     _uiState.value = AuthenticationUiState(errorMessageRes = messageRes)
