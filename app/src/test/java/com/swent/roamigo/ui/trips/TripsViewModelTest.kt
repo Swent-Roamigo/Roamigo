@@ -18,6 +18,7 @@ import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripMember
 import com.swent.roamigo.model.trip.TripMemberRole
+import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
@@ -523,6 +524,44 @@ class TripsViewModelTest {
     assertEquals(2, attempts)
     assertEquals(latest, vm.uiState.value.mainTripPhoto)
     assertNull(vm.uiState.value.errorMessage)
+  }
+
+  @Test
+  fun refreshKeepsExistingTripsWhileLoadingAndAfterFailureThenRecovers() = runTest {
+    val main =
+        trip("lisbon", "Lisbon", "2026-10-08T00:00:00Z", "2026-10-10T23:00:00Z", TripStatus.ACTIVE)
+    val delegate = FakeTripRepository(trips = listOf(main))
+    var result = CompletableDeferred<List<Trip>>().apply { complete(listOf(main)) }
+    val repository =
+        object : TripRepository by delegate {
+          override suspend fun getTrips(): List<Trip> = result.await()
+        }
+    val vm =
+        TripsViewModel(
+            repository,
+            FakeUserRepository(alex),
+            Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+        )
+    advanceUntilIdle()
+    assertEquals("lisbon", vm.uiState.value.mainTrip?.id)
+    result = CompletableDeferred()
+    vm.refresh()
+    runCurrent()
+    assertEquals("lisbon", vm.uiState.value.mainTrip?.id)
+    assertTrue(vm.uiState.value.isRefreshing)
+    assertEquals(false, vm.uiState.value.isLoading)
+    result.completeExceptionally(IllegalStateException("offline"))
+    advanceUntilIdle()
+    assertEquals("lisbon", vm.uiState.value.mainTrip?.id)
+    assertEquals("Unable to refresh trips.", vm.uiState.value.refreshError)
+    assertNull(vm.uiState.value.errorMessage)
+    assertEquals(false, vm.uiState.value.isRefreshing)
+    result = CompletableDeferred<List<Trip>>().apply { complete(emptyList()) }
+    vm.refresh()
+    advanceUntilIdle()
+    assertNull(vm.uiState.value.mainTrip)
+    assertNull(vm.uiState.value.refreshError)
+    assertEquals(false, vm.uiState.value.isRefreshing)
   }
 
   @Test

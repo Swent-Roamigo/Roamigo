@@ -20,11 +20,13 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -162,6 +164,7 @@ fun TripsRoute(
  * @param onOpenTrip opens the selected trip's details.
  * @param onRetryClick retries loading trips after an error.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TripsScreen(
     uiState: TripsUiState,
@@ -201,115 +204,143 @@ fun TripsScreen(
         }
       },
   ) { innerPadding ->
-    LazyColumn(
-        modifier =
-            Modifier.fillMaxSize().padding(innerPadding).semantics { testTag = C.Tag.trips_list },
-        contentPadding =
-            PaddingValues(
-                start = 20.dp,
-                top = 20.dp,
-                end = 20.dp,
-                bottom = 28.dp,
-            ),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+    PullToRefreshBox(
+        isRefreshing = uiState.isRefreshing,
+        onRefresh = { if (!uiState.isLoading && !uiState.isRefreshing) onRetryClick() },
+        modifier = Modifier.fillMaxSize().padding(innerPadding),
     ) {
-      item {
-        TripsHeader(
-            greeting = uiState.greeting,
-            userName = uiState.currentUserName,
-            userInitial = uiState.currentUserInitial,
-            photoUrl = uiState.currentUserPhotoUrl,
-            onProfileClick = onProfileClick,
-        )
-      }
-
-      if (uiState.isLoading) {
+      LazyColumn(
+          modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.trips_list },
+          contentPadding =
+              PaddingValues(
+                  start = 20.dp,
+                  top = 20.dp,
+                  end = 20.dp,
+                  bottom = 28.dp,
+              ),
+          verticalArrangement = Arrangement.spacedBy(20.dp),
+      ) {
         item {
-          Box(
-              modifier = Modifier.fillMaxWidth().height(160.dp),
-              contentAlignment = Alignment.Center,
-          ) {
-            CircularProgressIndicator()
-          }
+          TripsHeader(
+              greeting = uiState.greeting,
+              userName = uiState.currentUserName,
+              userInitial = uiState.currentUserInitial,
+              photoUrl = uiState.currentUserPhotoUrl,
+              onProfileClick = onProfileClick,
+          )
         }
-      } else {
-        uiState.errorMessage?.let { errorMessage ->
+
+        if (uiState.isLoading) {
           item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-              Text(
-                  text = errorMessage,
-                  style = MaterialTheme.typography.bodyLarge,
-                  color = MaterialTheme.colorScheme.error,
-              )
-              OutlinedButton(
-                  onClick = onRetryClick,
-                  modifier = Modifier.semantics { testTag = C.Tag.trips_retry },
-              ) {
-                Text(stringResource(R.string.trips_retry))
+            Box(
+                modifier = Modifier.fillMaxWidth().height(160.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+              CircularProgressIndicator()
+            }
+          }
+        } else {
+          uiState.errorMessage?.let { errorMessage ->
+            item {
+              Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = errorMessage,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                OutlinedButton(
+                    onClick = onRetryClick,
+                    modifier = Modifier.semantics { testTag = C.Tag.trips_retry },
+                ) {
+                  Text(stringResource(R.string.trips_retry))
+                }
               }
             }
           }
-        }
 
-        if (uiState.errorMessage == null) {
-          if (uiState.mainTrip == null && uiState.otherTrips.isEmpty()) {
+          uiState.refreshError?.let { message ->
             item {
-              Text(
-                  text = stringResource(R.string.trips_empty),
-                  modifier = Modifier.semantics { testTag = C.Tag.trips_empty },
-                  style = MaterialTheme.typography.bodyLarge,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+              Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                OutlinedButton(
+                    onClick = onRetryClick,
+                    modifier = Modifier.semantics { testTag = C.Tag.trips_retry },
+                ) {
+                  Text(stringResource(R.string.trips_retry))
+                }
+              }
+            }
+          }
+
+          if (uiState.errorMessage == null) {
+            if (uiState.mainTrip == null && uiState.otherTrips.isEmpty()) {
+              item {
+                Text(
+                    text = stringResource(R.string.trips_empty),
+                    modifier = Modifier.semantics { testTag = C.Tag.trips_empty },
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              }
+            }
+            uiState.mainTrip?.let { trip ->
+              item {
+                MainTripCard(
+                    trip = trip,
+                    imageRes = mainTripImageRes,
+                    photo = uiState.mainTripPhoto,
+                    onInviteClick = onInviteClick,
+                    onOpenTrip = { onOpenTrip(trip.id) },
+                )
+              }
+            }
+
+            uiState.nextActivity?.let { activity ->
+              item {
+                SectionTitle(stringResource(R.string.trips_next_up))
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                NextActivityCard(
+                    activity = activity,
+                    imageRes = nextActivityImageRes,
+                )
+              }
+            }
+          }
+
+          item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+              if (
+                  uiState.errorMessage == null &&
+                      (uiState.mainTrip != null || uiState.otherTrips.isNotEmpty())
+              ) {
+                SectionTitle(stringResource(R.string.trips_other_trips))
+              } else {
+                Spacer(modifier = Modifier.weight(1f))
+              }
+
+              HistoryButton(onClick = onHistoryClick)
+            }
+          }
+          if (uiState.errorMessage == null) {
+            items(
+                items = uiState.otherTrips,
+                key = { trip -> trip.id },
+            ) { trip ->
+              OtherTripCard(
+                  trip,
+                  onClick = { onOpenTrip(trip.id) },
               )
             }
-          }
-          uiState.mainTrip?.let { trip ->
-            item {
-              MainTripCard(
-                  trip = trip,
-                  imageRes = mainTripImageRes,
-                  photo = uiState.mainTripPhoto,
-                  onInviteClick = onInviteClick,
-                  onOpenTrip = { onOpenTrip(trip.id) },
-              )
-            }
-          }
-
-          uiState.nextActivity?.let { activity ->
-            item {
-              SectionTitle(stringResource(R.string.trips_next_up))
-
-              Spacer(modifier = Modifier.height(12.dp))
-
-              NextActivityCard(
-                  activity = activity,
-                  imageRes = nextActivityImageRes,
-              )
-            }
-          }
-        }
-
-        item {
-          Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.SpaceBetween,
-              verticalAlignment = Alignment.CenterVertically,
-          ) {
-            if (uiState.errorMessage == null) {
-              SectionTitle(stringResource(R.string.trips_other_trips))
-            }
-
-            HistoryButton(onClick = onHistoryClick)
-          }
-        }
-        if (uiState.errorMessage == null) {
-          items(
-              items = uiState.otherTrips,
-              key = { trip -> trip.id },
-          ) { trip ->
-            OtherTripCard(
-                trip,
-                onClick = { onOpenTrip(trip.id) },
-            )
           }
         }
       }

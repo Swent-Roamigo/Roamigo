@@ -50,6 +50,7 @@ class TripsViewModel(
   private val _uiState = MutableStateFlow(TripsUiState())
 
   private var refreshJob: Job? = null
+  private var hasLoadedTrips = false
 
   /** State currently rendered by the Trips Home screen. */
   val uiState: StateFlow<TripsUiState> = _uiState.asStateFlow()
@@ -70,12 +71,15 @@ class TripsViewModel(
     refreshJob = viewModelScope.launch {
       _uiState.value =
           _uiState.value.copy(
-              isLoading = true,
+              isLoading = !hasLoadedTrips,
+              isRefreshing = hasLoadedTrips,
               errorMessage = null,
+              refreshError = null,
           )
 
       try {
         val (state, location) = loadTripsState()
+        hasLoadedTrips = true
         _uiState.value = state
         val tripId = state.mainTrip?.id
         if (tripId != null && destinationRepository != null) {
@@ -105,10 +109,11 @@ class TripsViewModel(
         throw exception
       } catch (exception: Exception) {
         _uiState.value =
-            TripsUiState(
-                isLoading = false,
-                errorMessage = "Unable to load trips.",
-            )
+            if (hasLoadedTrips) {
+              _uiState.value.copy(isRefreshing = false, refreshError = "Unable to refresh trips.")
+            } else {
+              TripsUiState(isLoading = false, errorMessage = "Unable to load trips.")
+            }
       }
     }
   }
