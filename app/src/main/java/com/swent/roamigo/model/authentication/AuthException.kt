@@ -1,7 +1,12 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.model.authentication
 
-/** Sign-in failures that callers can distinguish without depending on a provider SDK. */
+/**
+ * Sign-in failures that callers can distinguish without depending on a provider SDK.
+ *
+ * Exception messages are diagnostic context for logs. The UI maps each subtype to a string resource
+ * instead of displaying these messages.
+ */
 sealed class AuthException(message: String, cause: Throwable? = null) : Exception(message, cause) {
 
   /** The authentication service could not be reached. */

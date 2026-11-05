@@ -95,8 +95,8 @@ class AuthenticationViewModelStateTest {
                 cause to R.string.auth_sign_in_failed,
             )
             .forEach { (failure, message) ->
-              val repository = FakeAuthRepository(user).apply { this.failure = failure }
-              val viewModel = AuthenticationViewModel(repository)
+              val failingRepository = FakeAuthRepository(user).apply { this.failure = failure }
+              val viewModel = AuthenticationViewModel(failingRepository)
               viewModel.signIn(context, manager)
               advanceUntilIdle()
               assertEquals(
@@ -104,7 +104,7 @@ class AuthenticationViewModelStateTest {
                   viewModel.uiState.value,
               )
 
-              repository.failure = null
+              failingRepository.failure = null
               manager.pending = CompletableDeferred()
               viewModel.signIn(context, manager)
               assertEquals(AuthenticationUiState(isLoading = true), viewModel.uiState.value)
