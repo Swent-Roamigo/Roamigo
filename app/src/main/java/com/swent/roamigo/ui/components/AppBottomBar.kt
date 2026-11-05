@@ -6,7 +6,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CardTravel
 import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.People
-import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -31,24 +30,20 @@ import com.swent.roamigo.resources.C
  *
  * @param onTripsClick invoked when the Trips destination is selected.
  * @param onMapClick invoked when the Map destination is selected.
- * @param onPhotosClick invoked when the Photos destination is selected.
  * @param tripsSelected whether the Trips destination is highlighted; false on screens that are not
  *   the trips home.
  * @param onFriendsClick invoked when the Friends destination is selected.
  * @param friendsSelected whether the Friends destination is highlighted.
  * @param mapSelected whether the Map destination is highlighted.
- * @param photosSelected whether the Photos destination is highlighted.
  */
 @Composable
 internal fun AppBottomBar(
     onTripsClick: () -> Unit,
     onMapClick: () -> Unit,
-    onPhotosClick: () -> Unit,
     tripsSelected: Boolean = true,
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
     friendsSelected: Boolean = false,
     mapSelected: Boolean = false,
-    photosSelected: Boolean = false,
 ) {
   Column {
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -91,22 +86,6 @@ internal fun AppBottomBar(
           colors = navigationColors(),
       )
 
-      NavigationBarItem(
-          selected = photosSelected,
-          onClick = onPhotosClick,
-          modifier =
-              Modifier.markNotImplemented(onPhotosClick).semantics {
-                testTag = C.Tag.trips_navigation_photos
-              },
-          icon = {
-            Icon(
-                imageVector = Icons.Outlined.PhotoCamera,
-                contentDescription = stringResource(R.string.trips_nav_photos),
-            )
-          },
-          label = { Text(stringResource(R.string.trips_nav_photos)) },
-          colors = navigationColors(),
-      )
       NavigationBarItem(
           selected = friendsSelected,
           onClick = onFriendsClick,

@@ -61,7 +61,6 @@ fun TripHistoryScreen(
           AppBottomBar(
               onTripsClick = onTripsClick,
               onMapClick = onMapClick,
-              onPhotosClick = onPhotosClick,
               tripsSelected = false,
               onFriendsClick = onFriendsClick,
           )
@@ -172,8 +171,8 @@ private fun TripHistoryPreview() {
                             startDate = LocalDate.of(2016, 6, 5),
                             endDate = LocalDate.of(2016, 6, 12),
                             travelerCount = 3,
-                        ),
-                    ),
+                        )
+                    )
             ),
         onOpenTrip = {},
     )

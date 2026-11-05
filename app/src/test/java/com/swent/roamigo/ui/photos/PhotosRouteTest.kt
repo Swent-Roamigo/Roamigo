@@ -84,7 +84,6 @@ class PhotosRouteTest {
   private val registry = FakeRegistry()
   private val connectivity = FakeConnectivityRepository()
   private lateinit var repository: FakePhotoRepository
-  private var tripsClicks = 0
 
   @Before
   fun setUp() {
@@ -120,7 +119,6 @@ class PhotosRouteTest {
               viewModel = viewModel,
               tripName = "Lisbon",
               fileOf = repository::fileOf,
-              onTripsClick = { tripsClicks++ },
           )
         }
       }
@@ -314,15 +312,6 @@ class PhotosRouteTest {
     tap(C.Tag.photo_preview_close)
 
     composeRule.onNodeWithTag(C.Tag.photos_screen).assertIsDisplayed()
-  }
-
-  @Test
-  fun theTripsTabLeavesTheScreen() {
-    show()
-
-    tap(C.Tag.trips_navigation_trips)
-
-    assertEquals(1, tripsClicks)
   }
 
   @Test

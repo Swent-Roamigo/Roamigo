@@ -44,8 +44,6 @@ import com.swent.roamigo.model.photo.PendingPhoto
 import com.swent.roamigo.model.photo.PhotoUploadStatus
 import com.swent.roamigo.model.photo.TripPhoto
 import com.swent.roamigo.resources.C
-import com.swent.roamigo.ui.components.AppBottomBar
-import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.theme.Success
 import com.swent.roamigo.ui.theme.Warning
@@ -60,7 +58,6 @@ import java.util.Date
  * @param fileOf the file holding a waiting photo, to show its thumbnail.
  * @param onPhotoClick invoked with the id of an uploaded photo the user wants to see full screen.
  * @param onGalleryRetryClick invoked when the user asks to read the uploaded photos again.
- * @param onTripsClick invoked when the Trips tab of the bottom bar is selected.
  */
 @Composable
 fun PhotosScreen(
@@ -71,21 +68,12 @@ fun PhotosScreen(
     onRetryClick: (String) -> Unit,
     onPhotoClick: (String) -> Unit,
     onGalleryRetryClick: () -> Unit,
-    onTripsClick: () -> Unit,
     modifier: Modifier = Modifier,
+    readOnly: Boolean = false,
 ) {
   Scaffold(
       modifier = modifier.testTag(C.Tag.photos_screen),
       containerColor = MaterialTheme.colorScheme.background,
-      bottomBar = {
-        AppBottomBar(
-            onTripsClick = onTripsClick,
-            onMapClick = rememberNotImplementedAction(),
-            onPhotosClick = {},
-            tripsSelected = false,
-            photosSelected = true,
-        )
-      },
   ) { padding ->
     Column(
         Modifier.fillMaxSize()
@@ -93,37 +81,27 @@ fun PhotosScreen(
             .padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium),
         verticalArrangement = Arrangement.spacedBy(Spacing.large),
     ) {
-      Column(verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)) {
-        Text(
-            stringResource(R.string.photos_title),
-            modifier = Modifier.testTag(C.Tag.photos_title),
-            style = MaterialTheme.typography.headlineLarge,
-        )
-        Text(
-            tripName,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
-      PhotosBanner(state)
+      if (!readOnly) PhotosBanner(state)
       PhotosContent(
-          state,
+          if (readOnly) state.copy(photos = emptyList()) else state,
           fileOf,
           onRetryClick,
           onPhotoClick,
           onGalleryRetryClick,
           Modifier.weight(1f).fillMaxWidth(),
       )
-      Button(
-          onClick = onTakePhotoClick,
-          modifier = Modifier.fillMaxWidth().height(58.dp).testTag(C.Tag.photos_take_photo),
-          shape = MaterialTheme.shapes.medium,
-      ) {
-        Icon(Icons.Outlined.PhotoCamera, contentDescription = null)
-        Text(
-            stringResource(R.string.photos_take_photo),
-            modifier = Modifier.padding(start = Spacing.small),
-        )
+      if (!readOnly) {
+        Button(
+            onClick = onTakePhotoClick,
+            modifier = Modifier.fillMaxWidth().height(58.dp).testTag(C.Tag.photos_take_photo),
+            shape = MaterialTheme.shapes.medium,
+        ) {
+          Icon(Icons.Outlined.PhotoCamera, contentDescription = null)
+          Text(
+              stringResource(R.string.photos_take_photo),
+              modifier = Modifier.padding(start = Spacing.small),
+          )
+        }
       }
     }
   }

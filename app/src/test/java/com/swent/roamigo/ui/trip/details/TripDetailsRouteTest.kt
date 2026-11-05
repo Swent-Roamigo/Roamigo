@@ -3,9 +3,9 @@ package com.swent.roamigo.ui.trip.details
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.Trip
@@ -32,31 +32,22 @@ class TripDetailsRouteTest {
             tripId = "trip",
             tripRepository = repository,
             onBack = {},
-            onTripsClick = { actions += "trips" },
-            onShareClick = { actions += "share" },
-            onInviteClick = { actions += "invite" },
-            onItineraryClick = { actions += "itinerary" },
+            onMembersClick = { actions += "invite" },
             onVotesClick = { tripName ->
               actions += "votes"
               votedTripNames += tripName
             },
-            onMapClick = { actions += "map" },
             onTripMapClick = { actions += "tripMap" },
             onPhotosClick = { actions += "photos" },
         )
       }
     }
-    composeRule.onNodeWithText("Lisbon & Porto").assertIsDisplayed()
-    composeRule.onNodeWithContentDescription("Share trip").performClick()
-    composeRule.onNodeWithText("Invite").performClick()
-    composeRule.onNodeWithText("Itinerary").performClick()
-    composeRule.onNodeWithText("Votes").performClick()
+    composeRule.onNodeWithText("Members").performScrollTo().performClick()
+    composeRule.onNodeWithText("Live votes").performScrollTo().performClick()
     composeRule.onNodeWithText("Open trip map").performClick()
-    composeRule.onNodeWithText("Trips").performClick()
-    composeRule.onNodeWithText("Map").performClick()
-    composeRule.onNodeWithText("Photos").performClick()
+    composeRule.onNodeWithText("Trip photos").performScrollTo().performClick()
     assertEquals(
-        listOf("share", "invite", "itinerary", "votes", "tripMap", "trips", "map", "photos"),
+        listOf("invite", "votes", "tripMap", "photos"),
         actions,
     )
     assertEquals(listOf("Lisbon & Porto"), votedTripNames)
@@ -80,9 +71,7 @@ class TripDetailsRouteTest {
             "trip",
             repository,
             onBack = { backed = true },
-            onTripsClick = {},
             onVotesClick = { votedTripNames += it },
-            onMapClick = {},
             onTripMapClick = {},
         )
       }
@@ -92,8 +81,7 @@ class TripDetailsRouteTest {
     assertTrue(backed)
     composeRule.runOnIdle { fails = false }
     composeRule.onNodeWithText("Retry").performClick()
-    composeRule.onNodeWithText("Lisbon & Porto").assertIsDisplayed()
-    composeRule.onNodeWithText("Votes").performClick()
+    composeRule.onNodeWithText("Live votes").performScrollTo().performClick()
     assertEquals(listOf("Lisbon & Porto"), votedTripNames)
   }
 }

@@ -76,9 +76,6 @@ internal fun VotesPreview(state: VotesUiState) {
         onCreateVote = {},
         onRetry = {},
         onCloseVote = {},
-        onOverviewClick = {},
-        onTripsClick = {},
-        onMapClick = {},
     )
   }
 }

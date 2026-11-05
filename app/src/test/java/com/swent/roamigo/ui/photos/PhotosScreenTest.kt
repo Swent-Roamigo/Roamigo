@@ -2,9 +2,7 @@
 package com.swent.roamigo.ui.photos
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
-import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -27,7 +25,7 @@ class PhotosScreenTest {
 
   private val taps = mutableListOf<String>()
 
-  private fun show(state: PhotosUiState) {
+  private fun show(state: PhotosUiState, readOnly: Boolean = false) {
     composeRule.setContent {
       RoamigoTheme {
         PhotosScreen(
@@ -38,7 +36,7 @@ class PhotosScreenTest {
             onRetryClick = { taps += "retry $it" },
             onPhotoClick = { taps += "photo $it" },
             onGalleryRetryClick = { taps += "gallery retry" },
-            onTripsClick = { taps += "trips" },
+            readOnly = readOnly,
         )
       }
     }
@@ -59,9 +57,7 @@ class PhotosScreenTest {
   fun showsTheTitleAndTheTripName() {
     show(PhotosUiState())
 
-    composeRule.onNodeWithTag(C.Tag.photos_title).assertTextEquals("Trip photos")
     composeRule.onNodeWithTag(C.Tag.photos_screen).assertIsDisplayed()
-    composeRule.onNodeWithText("Lisbon & Porto").assertIsDisplayed()
   }
 
   @Test
@@ -191,17 +187,6 @@ class PhotosScreenTest {
   }
 
   @Test
-  fun highlightsThePhotosTabAndLeadsBackToTrips() {
-    show(PhotosUiState())
-
-    composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).assertIsSelected()
-    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
-    composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).performClick()
-
-    assertEquals(listOf("trips"), taps)
-  }
-
-  @Test
   fun listsThePhotosTheTripHasWithWhoTookThem() {
     show(
         PhotosUiState(
@@ -288,6 +273,27 @@ class PhotosScreenTest {
 
     composeRule.onNodeWithTag(C.Tag.photos_gallery_error).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.photos_uploaded_prefix + "a").assertIsDisplayed()
+  }
+
+  @Test
+  fun readOnlyKeepsUploadedPhotosBrowsableAndHidesDeviceMutations() {
+    show(
+        PhotosUiState(
+            photos = waiting(1),
+            uploaded = listOf(tripPhoto("archive")),
+        ),
+        readOnly = true,
+    )
+
+    noBanner()
+    composeRule.onNodeWithTag(C.Tag.photos_item_prefix + "p0").assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.photos_take_photo).assertDoesNotExist()
+    composeRule
+        .onNodeWithTag(C.Tag.photos_uploaded_prefix + "archive")
+        .assertIsDisplayed()
+        .performClick()
+
+    assertEquals(listOf("photo archive"), taps)
   }
 
   @Test

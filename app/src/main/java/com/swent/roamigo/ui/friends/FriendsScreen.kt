@@ -56,7 +56,6 @@ private val friendAvatarColors = listOf(FriendAvatarBlue, FriendAvatarRose, Frie
  * @param onViewMapClick invoked with a friend's user ID when the user selects their map action.
  * @param onTripsClick invoked when the Trips destination is selected.
  * @param onMapClick invoked when the Map destination is selected.
- * @param onPhotosClick invoked when the Photos destination is selected.
  */
 @Composable
 fun FriendsScreen(
@@ -66,7 +65,6 @@ fun FriendsScreen(
     onViewMapClick: ((String) -> Unit)? = null,
     onTripsClick: () -> Unit = rememberNotImplementedAction(),
     onMapClick: () -> Unit = rememberNotImplementedAction(),
-    onPhotosClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   Scaffold(
       modifier = modifier.fillMaxSize().testTag(C.Tag.friends_screen),
@@ -74,7 +72,6 @@ fun FriendsScreen(
         AppBottomBar(
             onTripsClick = onTripsClick,
             onMapClick = onMapClick,
-            onPhotosClick = onPhotosClick,
             tripsSelected = false,
             onFriendsClick = {},
             friendsSelected = true,
@@ -84,9 +81,7 @@ fun FriendsScreen(
   ) { innerPadding ->
     Column(
         modifier =
-            Modifier.fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = Spacing.screenPadding),
+            Modifier.fillMaxSize().padding(innerPadding).padding(horizontal = Spacing.screenPadding)
     ) {
       FriendsHeader()
 

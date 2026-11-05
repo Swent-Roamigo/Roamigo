@@ -57,7 +57,6 @@ class FriendsScreenTest {
       onViewMapClick: (String) -> Unit = {},
       onTripsClick: () -> Unit = {},
       onMapClick: () -> Unit = {},
-      onPhotosClick: () -> Unit = {},
   ) {
     composeRule.setContent {
       RoamigoTheme {
@@ -67,7 +66,6 @@ class FriendsScreenTest {
             onViewMapClick = onViewMapClick,
             onTripsClick = onTripsClick,
             onMapClick = onMapClick,
-            onPhotosClick = onPhotosClick,
         )
       }
     }
@@ -141,7 +139,7 @@ class FriendsScreenTest {
 
     composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.trips_navigation_map).assertIsDisplayed()
-    composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).assertDoesNotExist()
 
     composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).assertIsDisplayed().assertIsSelected()
   }
@@ -150,21 +148,18 @@ class FriendsScreenTest {
   fun bottomNavigationActionsAreForwardedToCaller() {
     var tripsClicks = 0
     var mapClicks = 0
-    var photosClicks = 0
 
     show(
         onTripsClick = { tripsClicks++ },
         onMapClick = { mapClicks++ },
-        onPhotosClick = { photosClicks++ },
     )
 
     composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
     composeRule.onNodeWithTag(C.Tag.trips_navigation_map).performClick()
-    composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).performClick()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).assertDoesNotExist()
 
     assertEquals(1, tripsClicks)
     assertEquals(1, mapClicks)
-    assertEquals(1, photosClicks)
   }
 
   @Test

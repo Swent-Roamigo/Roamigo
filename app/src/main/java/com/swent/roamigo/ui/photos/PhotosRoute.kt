@@ -32,15 +32,14 @@ import java.io.File
  * camera and the system settings.
  *
  * @param fileOf the file holding a waiting photo, to show its thumbnail.
- * @param onTripsClick invoked when the Trips tab of the bottom bar is selected.
  */
 @Composable
 fun PhotosRoute(
     viewModel: PhotosViewModel,
     tripName: String,
     fileOf: (PendingPhoto) -> File,
-    onTripsClick: () -> Unit,
     modifier: Modifier = Modifier,
+    readOnly: Boolean = false,
 ) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   val context = LocalContext.current
@@ -139,7 +138,7 @@ fun PhotosRoute(
         onRetryClick = viewModel::onRetry,
         onPhotoClick = viewModel::onPhotoClick,
         onGalleryRetryClick = viewModel::onGalleryRetry,
-        onTripsClick = onTripsClick,
+        readOnly = readOnly,
         modifier = modifier,
     )
   }

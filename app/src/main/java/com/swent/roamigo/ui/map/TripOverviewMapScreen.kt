@@ -42,7 +42,6 @@ fun TripOverviewMapRoute(
     onMarkerClick: (String) -> Unit = rememberNotImplementedAction(),
     onTripsClick: () -> Unit = {},
     onMapClick: () -> Unit = {},
-    onPhotosClick: () -> Unit = rememberNotImplementedAction(),
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -54,7 +53,6 @@ fun TripOverviewMapRoute(
       onRetry = viewModel::loadTrips,
       onTripsClick = onTripsClick,
       onMapClick = onMapClick,
-      onPhotosClick = onPhotosClick,
       onFriendsClick = onFriendsClick,
   )
 }
@@ -68,7 +66,6 @@ fun TripOverviewMapScreen(
     onRetry: () -> Unit = {},
     onTripsClick: () -> Unit = {},
     onMapClick: () -> Unit = {},
-    onPhotosClick: () -> Unit = rememberNotImplementedAction(),
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   Scaffold(
@@ -77,7 +74,6 @@ fun TripOverviewMapScreen(
         AppBottomBar(
             onTripsClick = onTripsClick,
             onMapClick = onMapClick,
-            onPhotosClick = onPhotosClick,
             onFriendsClick = onFriendsClick,
             tripsSelected = false,
             mapSelected = true,

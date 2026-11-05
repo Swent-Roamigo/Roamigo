@@ -148,6 +148,7 @@ fun TripMapContent(
     onTurnOnSharing: () -> Unit,
     onPauseSharing: () -> Unit,
     modifier: Modifier = Modifier,
+    readOnly: Boolean = false,
 ) {
   // Until the trip is loaded the camera keeps its position, so the map stays usable underneath.
   val viewport = (uiState as? TripMapUiState.Loaded)?.viewport ?: TripMapViewport.None
@@ -160,16 +161,18 @@ fun TripMapContent(
 
     // Stacked so that the status overlays never cover the banner or the sharing button.
     Column(modifier = Modifier.fillMaxSize()) {
-      SharingBanner(
-          isSharing = isSharing,
-          modifier =
-              Modifier.windowInsetsPadding(
-                      WindowInsets.safeDrawing.only(
-                          WindowInsetsSides.Top + WindowInsetsSides.Horizontal
-                      )
-                  )
-                  .padding(horizontal = Spacing.large, vertical = Spacing.cardPadding),
-      )
+      if (!readOnly) {
+        SharingBanner(
+            isSharing = isSharing,
+            modifier =
+                Modifier.windowInsetsPadding(
+                        WindowInsets.safeDrawing.only(
+                            WindowInsetsSides.Top + WindowInsetsSides.Horizontal
+                        )
+                    )
+                    .padding(horizontal = Spacing.large, vertical = Spacing.cardPadding),
+        )
+      }
       Box(
           modifier =
               Modifier.weight(1f)
@@ -179,11 +182,13 @@ fun TripMapContent(
       ) {
         TripStatusOverlay(uiState = uiState, onRetry = onRetry)
       }
-      SharingButtonBar(
-          isSharing = isSharing,
-          onTurnOnSharing = onTurnOnSharing,
-          onPauseSharing = onPauseSharing,
-      )
+      if (!readOnly) {
+        SharingButtonBar(
+            isSharing = isSharing,
+            onTurnOnSharing = onTurnOnSharing,
+            onPauseSharing = onPauseSharing,
+        )
+      }
     }
   }
 }

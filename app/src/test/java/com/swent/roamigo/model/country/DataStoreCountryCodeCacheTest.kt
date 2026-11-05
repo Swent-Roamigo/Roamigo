@@ -9,8 +9,10 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -84,7 +86,7 @@ class DataStoreCountryCodeCacheTest {
   @Test
   fun valuesSurviveReopeningDataStore() = runTest {
     cache.put(46.52, 6.57, "CH")
-    scope.cancel()
+    scope.coroutineContext[Job]!!.cancelAndJoin()
 
     val reopenScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 

@@ -19,7 +19,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.ClearCredentialException
-import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -29,7 +28,6 @@ import com.swent.roamigo.RoamigoApplication
 import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.authentication.AuthRepositoryFirebase
 import com.swent.roamigo.model.connectivity.ConnectivityRepository
-import com.swent.roamigo.model.connectivity.DefaultConnectivityRepository
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.location.LocationRepository
 import com.swent.roamigo.model.photo.FakePhotoRepository
@@ -45,33 +43,23 @@ import com.swent.roamigo.ui.authentication.AuthenticationViewModel
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.friends.FriendsScreen
 import com.swent.roamigo.ui.friends.FriendsUiState
-import com.swent.roamigo.ui.map.LocationViewModel
-import com.swent.roamigo.ui.map.TripMapScreen
-import com.swent.roamigo.ui.map.TripMapViewModel
 import com.swent.roamigo.ui.map.TripOverviewMapRoute
 import com.swent.roamigo.ui.map.TripOverviewMapViewModel
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.permissions.PermissionsScreen
-import com.swent.roamigo.ui.photos.PhotosRoute
-import com.swent.roamigo.ui.photos.PhotosViewModel
 import com.swent.roamigo.ui.profile.ProfileScreen
 import com.swent.roamigo.ui.profile.ProfileViewModel
+import com.swent.roamigo.ui.trip.TripRoute
 import com.swent.roamigo.ui.trip.creation.CreateTripViewModel
 import com.swent.roamigo.ui.trip.creation.DatesTravelersScreen
 import com.swent.roamigo.ui.trip.creation.DestinationScreen
 import com.swent.roamigo.ui.trip.creation.TripReadyScreen
 import com.swent.roamigo.ui.trip.creation.TripReadyViewModel
-import com.swent.roamigo.ui.trip.details.TripDetailsRoute
 import com.swent.roamigo.ui.trip.history.TripHistoryRoute
 import com.swent.roamigo.ui.trip.voting.CreateVoteScreen
 import com.swent.roamigo.ui.trip.voting.CreateVoteViewModel
-import com.swent.roamigo.ui.trip.voting.VoteCloseDialog
-import com.swent.roamigo.ui.trip.voting.VoteDialog
 import com.swent.roamigo.ui.trip.voting.VoteScreen
 import com.swent.roamigo.ui.trip.voting.VoteViewModel
-import com.swent.roamigo.ui.trip.voting.VotesScreen
-import com.swent.roamigo.ui.trip.voting.VotesUiState
-import com.swent.roamigo.ui.trip.voting.VotesViewModel
 import com.swent.roamigo.ui.trips.TripsRoute
 import kotlinx.coroutines.launch
 
@@ -103,9 +91,7 @@ fun RoamigoApp(
   val context = LocalContext.current
   val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }
   val scope = rememberCoroutineScope()
-  val onMapClick: () -> Unit = {
-    navController.navigate(Route.TRIP_OVERVIEW_MAP) { launchSingleTop = true }
-  }
+  val onMapClick: () -> Unit = { navigateRoot(navController, Route.TRIP_OVERVIEW_MAP) }
   val startDestination =
       remember(authRepository) {
         if (authRepository.getCurrentUser() == null) Route.AUTHENTICATION else Route.TRIPS
@@ -147,91 +133,11 @@ fun RoamigoApp(
           authRepository = authRepository,
           onNewTripClick = { navController.navigate(Route.NEW_TRIP) },
           onProfileClick = { navController.navigate(Route.PROFILE) },
-          onFriendsClick = { navController.navigate(Route.FRIENDS) { launchSingleTop = true } },
+          onFriendsClick = { navigateRoot(navController, Route.FRIENDS) },
           onHistoryClick = {
             navController.navigate(Route.TRIP_HISTORY) { launchSingleTop = true }
           },
           onOpenTrip = { tripId -> navController.navigate(Route.tripDetails(tripId)) },
-          onOpenTripPhotos = { tripId, tripName ->
-            navController.navigate(Route.photos(tripId, tripName))
-          },
-      )
-    }
-    composable(Route.VOTES) { entry ->
-      val tripId = requireNotNull(entry.arguments?.getString("tripId"))
-      val tripName = entry.arguments?.getString("tripName").orEmpty()
-      var selectedVoteId by rememberSaveable { mutableStateOf<String?>(null) }
-      var confirmVoteClose by rememberSaveable { mutableStateOf(false) }
-      val votesViewModel = viewModel {
-        VotesViewModel(voteRepository, tripId, authRepository.getCurrentUser()?.uid.orEmpty())
-      }
-      VotesScreen(
-          viewModel = votesViewModel,
-          tripName = tripName,
-          onOpenVote = { voteId ->
-            confirmVoteClose = false
-            val ready = votesViewModel.uiState.value as? VotesUiState.Ready
-            if (ready?.liveVotes?.any { it.uid == voteId } == true) selectedVoteId = voteId
-            else navController.navigate(Route.vote(tripId, voteId))
-          },
-          onCloseVote = { voteId ->
-            confirmVoteClose = true
-            selectedVoteId = voteId
-          },
-          onCreateVote = { navController.navigate(Route.newVote(tripId)) },
-          onOverviewClick = {
-            navController.popBackStack(
-                Route.tripDetails(tripId),
-                inclusive = false,
-            )
-          },
-          onMapClick = onMapClick,
-          onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
-          onFriendsClick = { navController.navigate(Route.FRIENDS) { launchSingleTop = true } },
-          onPhotosClick = { navController.navigate(Route.photos(tripId, tripName)) },
-      )
-      selectedVoteId?.let { voteId ->
-        val userId = authRepository.getCurrentUser()?.uid
-        if (userId == null) {
-          LaunchedEffect(Unit) {
-            navController.navigate(Route.AUTHENTICATION) { popUpTo(navController.graph.id) }
-          }
-        } else {
-          if (confirmVoteClose) {
-            VoteCloseDialog(
-                voteId,
-                { VoteViewModel(voteRepository, tripId, it, userId) },
-                onDismiss = { selectedVoteId = null },
-            )
-          } else {
-            VoteDialog(
-                voteId,
-                { VoteViewModel(voteRepository, tripId, it, userId) },
-                onDismiss = { selectedVoteId = null },
-            )
-          }
-        }
-      }
-    }
-    composable(Route.PHOTOS) { entry ->
-      val tripId = requireNotNull(entry.arguments?.getString("tripId"))
-      val tripName = entry.arguments?.getString("tripName").orEmpty()
-      val connectivity =
-          connectivityRepository ?: remember(context) { DefaultConnectivityRepository(context) }
-      PhotosRoute(
-          viewModel =
-              viewModel {
-                PhotosViewModel(
-                    photoRepository,
-                    connectivity,
-                    tripId,
-                    authRepository.getCurrentUser()?.uid,
-                    createSavedStateHandle(),
-                )
-              },
-          tripName = tripName,
-          fileOf = photoRepository::fileOf,
-          onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
       )
     }
     composable(Route.VOTE) { entry ->
@@ -246,6 +152,7 @@ fun RoamigoApp(
         VoteScreen(
             viewModel = viewModel { VoteViewModel(voteRepository, tripId, voteId, userId) },
             onBack = { navController.popBackStack() },
+            readOnly = entry.arguments?.getString("readOnly") == "true",
         )
       }
     }
@@ -272,7 +179,6 @@ fun RoamigoApp(
           uiState = FriendsUiState(),
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
           onMapClick = onMapClick,
-          onPhotosClick = rememberNotImplementedAction(),
       )
     }
     composable(Route.PROFILE) {
@@ -299,7 +205,7 @@ fun RoamigoApp(
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
           onSignOutClick = profileViewModel::signOut,
           onMapClick = onMapClick,
-          onFriendsClick = { navController.navigate(Route.FRIENDS) { launchSingleTop = true } },
+          onFriendsClick = { navigateRoot(navController, Route.FRIENDS) },
       )
     }
 
@@ -314,51 +220,40 @@ fun RoamigoApp(
                 inclusive = false,
             )
           },
-          onOpenTrip = { tripId -> navController.navigate(Route.tripDetails(tripId)) },
-          onFriendsClick = { navController.navigate(Route.FRIENDS) { launchSingleTop = true } },
+          onOpenTrip = { tripId ->
+            navController.navigate(Route.tripDetails(tripId, readOnly = true))
+          },
+          onFriendsClick = { navigateRoot(navController, Route.FRIENDS) },
       )
     }
 
     composable(Route.TRIP_DETAILS) { entry ->
       val tripId = requireNotNull(entry.arguments?.getString("tripId"))
-      TripDetailsRoute(
+      val fromHistory = entry.arguments?.getString("readOnly") == "true"
+      TripRoute(
           tripId = tripId,
+          fromHistory = fromHistory,
+          openMap = entry.arguments?.getString("initialTab") == "map",
+          authRepository = authRepository,
           tripRepository = tripRepository,
-          onBack = { navController.popBackStack() },
+          userRepository = userRepository,
+          voteRepository = voteRepository,
+          photoRepository = photoRepository,
+          connectivityRepository = connectivityRepository,
+          locationRepository = locationRepository,
+          onBack = {
+            if (fromHistory) navController.popBackStack()
+            else navController.popBackStack(Route.TRIPS, inclusive = false)
+          },
+          onAuthenticationRequired = { redirectToAuthentication(navController) },
+          onOpenVote = { voteId, readOnly ->
+            navController.navigate(Route.vote(tripId, voteId, readOnly))
+          },
+          onCreateVote = { navController.navigate(Route.newVote(tripId)) },
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
-          onShareClick = rememberNotImplementedAction(),
-          onInviteClick = rememberNotImplementedAction(),
-          onItineraryClick = rememberNotImplementedAction(),
-          onVotesClick = { tripName -> navController.navigate(Route.votes(tripId, tripName)) },
           onMapClick = onMapClick,
-          onTripMapClick = { navController.navigate(Route.tripMap(tripId)) },
-          onPhotosClick = rememberNotImplementedAction(),
+          onFriendsClick = { navigateRoot(navController, Route.FRIENDS) },
       )
-    }
-
-    composable(Route.TRIP_MAP) { entry ->
-      val tripId = requireNotNull(entry.arguments?.getString("tripId"))
-      val userId = authRepository.getCurrentUser()?.uid
-      if (userId == null) {
-        LaunchedEffect(Unit) {
-          navController.navigate(Route.AUTHENTICATION) { popUpTo(navController.graph.id) }
-        }
-      } else {
-        val location =
-            locationRepository
-                ?: remember(context) {
-                  (context.applicationContext as RoamigoApplication).locationRepository
-                }
-        val connectivity =
-            connectivityRepository ?: remember(context) { DefaultConnectivityRepository(context) }
-        TripMapScreen(
-            tripId = tripId,
-            tripMapViewModelFactory =
-                TripMapViewModel.factory(tripId, tripRepository, userRepository),
-            locationViewModelFactory =
-                LocationViewModel.factory(tripId, userId, location, connectivity),
-        )
-      }
     }
 
     composable(Route.TRIP_READY) { entry ->
@@ -368,16 +263,20 @@ fun RoamigoApp(
           entry.savedStateHandle.getStateFlow<Bundle?>("ready_photo", null).collectAsState()
       val onInviteClick = rememberNotImplementedAction()
       val onSuggestClick = rememberNotImplementedAction()
-      val onShareLocationClick = rememberNotImplementedAction()
-      val onOpenItineraryClick = rememberNotImplementedAction()
+      fun openTrip(openMap: Boolean) {
+        navController.navigate(Route.tripDetails(id, openMap = openMap)) {
+          popUpTo(Route.TRIP_READY) { inclusive = true }
+          launchSingleTop = true
+        }
+      }
       val onShareTripClick = rememberNotImplementedAction()
       TripReadyScreen(
           viewModel = readyViewModel,
           photo = photo,
           onInviteClick = onInviteClick,
           onSuggestClick = onSuggestClick,
-          onShareLocationClick = onShareLocationClick,
-          onOpenItineraryClick = onOpenItineraryClick,
+          onShareLocationClick = { openTrip(openMap = true) },
+          onOpenItineraryClick = { openTrip(openMap = false) },
           onShareTripClick = onShareTripClick,
       )
     }
@@ -454,8 +353,22 @@ fun RoamigoApp(
           onMarkerClick = { tripId -> navController.navigate(Route.tripDetails(tripId)) },
           onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
           onMapClick = {},
-          onFriendsClick = { navController.navigate(Route.FRIENDS) { launchSingleTop = true } },
+          onFriendsClick = { navigateRoot(navController, Route.FRIENDS) },
       )
     }
+  }
+}
+
+private fun redirectToAuthentication(navController: NavHostController) {
+  navController.navigate(Route.AUTHENTICATION) {
+    popUpTo(navController.graph.id)
+    launchSingleTop = true
+  }
+}
+
+private fun navigateRoot(navController: NavHostController, route: String) {
+  navController.navigate(route) {
+    popUpTo(Route.TRIPS)
+    launchSingleTop = true
   }
 }

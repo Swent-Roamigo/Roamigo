@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -32,9 +33,11 @@ import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.RoamigoApp
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import com.swent.roamigo.ui.trip.creation.TripReadyTestTags
 import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.Assert.assertEquals
@@ -84,6 +87,18 @@ class RoamigoAppMapNavigationTest {
           status = TripStatus.PLANNED,
       )
 
+  private val completedTrip =
+      mainTrip.copy(
+          uid = "rome-past",
+          name = "Rome memories",
+          destinations = listOf(TripLocation(41.9028, 12.4964, "Rome")),
+          startDate = Timestamp(0, 0),
+          endDate = Timestamp(0, 0),
+          status = TripStatus.COMPLETED,
+      )
+
+  private val locationRepository = TestLocationRepository()
+
   @Before
   fun setUp() {
     val destinationRepository =
@@ -92,7 +107,7 @@ class RoamigoAppMapNavigationTest {
 
           override suspend fun findPhoto(destination: Destination): DestinationPhoto? = null
         }
-    val tripRepository = FakeTripRepository(trips = listOf(mainTrip, otherTrip))
+    val tripRepository = FakeTripRepository(trips = listOf(mainTrip, otherTrip, completedTrip))
     composeRule.setContent {
       navController = rememberNavController()
       RoamigoTheme {
@@ -102,7 +117,7 @@ class RoamigoAppMapNavigationTest {
             authRepository = authRepository,
             destinationRepository = destinationRepository,
             navController = navController,
-            locationRepository = IdleLocationRepository,
+            locationRepository = locationRepository,
         )
       }
     }
@@ -115,52 +130,35 @@ class RoamigoAppMapNavigationTest {
   }
 
   @Test
-  fun mapTabFromFriendsOpensMapAndBackReturnsToFriends() {
+  fun mapTabFromFriendsOpensMapAndBackReturnsToTrips() {
     composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
     waitForTag(C.Tag.friends_screen)
-    assertMapOpensAndBackReturnsTo(Route.FRIENDS)
+    assertMapOpensAndBackReturnsTo(Route.TRIPS)
   }
 
   @Test
-  fun mapTabFromProfileOpensMapAndBackReturnsToProfile() {
+  fun mapTabFromProfileOpensMapAndBackReturnsToTrips() {
     composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
     waitForTag(C.Tag.profile_title)
-    assertMapOpensAndBackReturnsTo(Route.PROFILE)
+    assertMapOpensAndBackReturnsTo(Route.TRIPS)
   }
 
   @Test
-  fun mapTabFromHistoryOpensMapAndBackReturnsToHistory() {
+  fun mapTabFromHistoryOpensMapAndBackReturnsToTrips() {
     composeRule.onNodeWithTag(C.Tag.trips_history_button).performClick()
     waitForTag(C.Tag.trip_history_screen)
-    assertMapOpensAndBackReturnsTo(Route.TRIP_HISTORY)
+    assertMapOpensAndBackReturnsTo(Route.TRIPS)
   }
 
   @Test
-  fun mapTabFromTripDetailsOpensMapAndBackReturnsToDetails() {
+  fun mapCardOpensThatTripsMapAndBackReturnsToTrips() {
     openMainTripDetails()
-    assertMapOpensAndBackReturnsTo(Route.TRIP_DETAILS)
-  }
-
-  @Test
-  fun mapTabFromVotesOpensMapAndBackReturnsToVotes() {
-    openMainTripDetails()
-    composeRule
-        .onNodeWithText(composeRule.activity.getString(R.string.trip_details_votes))
-        .performClick()
-    waitForRoute(Route.VOTES)
-    assertMapOpensAndBackReturnsTo(Route.VOTES)
-  }
-
-  @Test
-  fun mapCardFromTripDetailsOpensThatTripsMapAndBackReturnsToDetails() {
-    openMainTripDetails()
-    val detailsEntryId = composeRule.runOnIdle { navController.currentBackStackEntry?.id }
 
     composeRule
         .onNodeWithText(composeRule.activity.getString(R.string.trip_details_map))
         .performClick()
 
-    waitForRoute(Route.TRIP_MAP)
+    waitForRoute(Route.TRIP_DETAILS)
     composeRule.runOnIdle {
       assertEquals(
           mainTrip.uid,
@@ -175,8 +173,7 @@ class RoamigoAppMapNavigationTest {
     composeRule.onNodeWithTag(C.Tag.trip_map_error).assertDoesNotExist()
 
     pressBack()
-    waitForRoute(Route.TRIP_DETAILS)
-    composeRule.runOnIdle { assertEquals(detailsEntryId, navController.currentBackStackEntry?.id) }
+    waitForRoute(Route.TRIPS)
   }
 
   @Test
@@ -209,9 +206,108 @@ class RoamigoAppMapNavigationTest {
       )
     }
     pressBack()
+    waitForRoute(Route.TRIPS)
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).assertIsSelected()
+  }
+
+  @Test
+  fun sharingCanBePausedAfterSwitchingFromMapToVotes() {
+    openMainTripDetails()
+    composeRule
+        .onNodeWithText(composeRule.activity.getString(R.string.trip_details_map))
+        .performClick()
+    waitForTag(C.Tag.trip_map_sharing_banner)
+    val pause = composeRule.activity.getString(R.string.trip_map_pause_sharing)
+    composeRule.runOnIdle { locationRepository.sharing.value = true }
+    composeRule.onNodeWithText(pause).assertIsDisplayed()
+
+    composeRule.onNodeWithText("Votes").performClick()
+    composeRule.onNodeWithText(pause).performClick()
+
+    composeRule.waitUntil(timeoutMillis = MAP_TEST_TIMEOUT_MILLIS) {
+      locationRepository.stoppedTrip.value == mainTrip.uid
+    }
+    composeRule.onNodeWithText(pause).assertDoesNotExist()
+  }
+
+  @Test
+  fun globalMapFromTripNavigationReturnsToTripsOnBack() {
+    openMainTripDetails()
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_map).performClick()
+
     waitForRoute(Route.TRIP_OVERVIEW_MAP)
     composeRule.loadLocalMapStyle()
     composeRule.onNodeWithTag(C.Tag.trips_navigation_map).assertIsSelected()
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertDoesNotExist()
+
+    pressBack()
+
+    waitForRoute(Route.TRIPS)
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+  }
+
+  @Test
+  fun tripReadyLocationShortcutOpensTheCreatedTripsMapTab() {
+    composeRule.runOnUiThread { navController.navigate(Route.tripReady(mainTrip.uid)) }
+    waitForTag(TripReadyTestTags.LOCATION_CARD)
+
+    composeRule.onNodeWithTag(TripReadyTestTags.LOCATION_CARD).performScrollTo().performClick()
+
+    waitForRoute(Route.TRIP_DETAILS)
+    composeRule.runOnIdle {
+      assertEquals(
+          mainTrip.uid,
+          navController.currentBackStackEntry?.arguments?.getString("tripId"),
+      )
+      assertEquals(
+          "map",
+          navController.currentBackStackEntry?.arguments?.getString("initialTab"),
+      )
+    }
+    waitForTag(C.Tag.trip_map_map)
+    composeRule.loadLocalMapStyle()
+    composeRule.onNodeWithTag(C.Tag.trip_map_map).assertIsDisplayed()
+  }
+
+  @Test
+  fun completedTripOpenedFromGlobalMapStaysReadOnlyAcrossTripTabs() {
+    openMap()
+    val markerTag = TripMarkerTestTags.markerFor(completedTrip.toTripMarkerUiStates().single().id)
+    waitForTag(markerTag)
+    composeRule.onNodeWithTag(markerTag).performClick()
+
+    waitForRoute(Route.TRIP_DETAILS)
+    composeRule.runOnIdle {
+      assertEquals(
+          completedTrip.uid,
+          navController.currentBackStackEntry?.arguments?.getString("tripId"),
+      )
+    }
+
+    composeRule
+        .onNodeWithText(composeRule.activity.getString(R.string.trip_details_map))
+        .performClick()
+    waitForTag(C.Tag.trip_map_map)
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_banner).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertDoesNotExist()
+
+    composeRule.onNodeWithText("Votes").performClick()
+    composeRule.onNodeWithText("New vote").assertDoesNotExist()
+
+    composeRule.onNodeWithText("Photos").performClick()
+    waitForTag(C.Tag.photos_screen)
+    composeRule.onNodeWithTag(C.Tag.photos_take_photo).assertDoesNotExist()
+    composeRule.runOnIdle {
+      assertEquals(
+          completedTrip.uid,
+          navController.currentBackStackEntry?.arguments?.getString("tripId"),
+      )
+    }
+
+    pressBack()
+    waitForRoute(Route.TRIPS)
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
   }
 
   @Test
@@ -230,8 +326,10 @@ class RoamigoAppMapNavigationTest {
   }
 
   @Test
-  fun tripsTabOnMapReturnsToRootInsteadOfThePreviousTripDetails() {
+  fun tripsTabOnGlobalMapReturnsToTripsRoot() {
     openMainTripDetails()
+    pressBack()
+    waitForRoute(Route.TRIPS)
     openMap()
 
     composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
@@ -244,7 +342,7 @@ class RoamigoAppMapNavigationTest {
   }
 
   @Test
-  fun friendsTabOnMapOpensFriendsAndBackRestoresTheMap() {
+  fun friendsTabOnMapOpensFriendsAndBackReturnsToTrips() {
     openMap()
 
     composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
@@ -253,9 +351,8 @@ class RoamigoAppMapNavigationTest {
     composeRule.onNodeWithTag(C.Tag.friends_screen).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).assertIsSelected()
     pressBack()
-    waitForRoute(Route.TRIP_OVERVIEW_MAP)
-    composeRule.loadLocalMapStyle()
-    composeRule.onNodeWithTag(C.Tag.trips_navigation_map).assertIsSelected()
+    waitForRoute(Route.TRIPS)
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).assertIsSelected()
   }
 
   private fun openMainTripDetails() {
@@ -272,11 +369,9 @@ class RoamigoAppMapNavigationTest {
   }
 
   private fun assertMapOpensAndBackReturnsTo(originRoute: String) {
-    val originEntryId = composeRule.runOnIdle { navController.currentBackStackEntry?.id }
     openMap()
     pressBack()
     waitForRoute(originRoute)
-    composeRule.runOnIdle { assertEquals(originEntryId, navController.currentBackStackEntry?.id) }
   }
 
   private fun pressBack() {
@@ -298,14 +393,20 @@ class RoamigoAppMapNavigationTest {
   }
 
   // Keeps the trip map away from the device location and the Realtime Database.
-  private object IdleLocationRepository : LocationRepository {
+  private class TestLocationRepository : LocationRepository {
+    val sharing = MutableStateFlow(false)
+    val stoppedTrip = MutableStateFlow<String?>(null)
+
     override fun hasLocationPermission(): Boolean = false
 
     override suspend fun getCurrentLocation(): DeviceLocation? = null
 
     override suspend fun startSharing(tripId: String) = Unit
 
-    override suspend fun stopSharing(tripId: String) = Unit
+    override suspend fun stopSharing(tripId: String) {
+      sharing.value = false
+      stoppedTrip.value = tripId
+    }
 
     override suspend fun stopAllSharing() = Unit
 
@@ -314,6 +415,6 @@ class RoamigoAppMapNavigationTest {
     override fun observeMemberLocations(tripId: String): Flow<List<MemberLocation>> =
         flowOf(emptyList())
 
-    override fun isSharing(tripId: String): Flow<Boolean> = flowOf(false)
+    override fun isSharing(tripId: String): Flow<Boolean> = sharing
   }
 }

@@ -83,7 +83,6 @@ class TripOverviewMapRouteTest {
             onMarkerClick = { clickedTripId = it },
             onTripsClick = { navigationActions += "trips" },
             onMapClick = { navigationActions += "map" },
-            onPhotosClick = { navigationActions += "photos" },
             onFriendsClick = { navigationActions += "friends" },
         )
       }
@@ -96,10 +95,10 @@ class TripOverviewMapRouteTest {
     composeRule.loadLocalMapStyle()
     composeRule.onNodeWithTag(C.Tag.trips_navigation_map).assertIsSelected().performClick()
     composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).assertIsNotSelected().performClick()
-    composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).performClick()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).assertIsNotSelected().performClick()
     composeRule.runOnIdle {
-      assertEquals(listOf("map", "trips", "photos", "friends"), navigationActions)
+      assertEquals(listOf("map", "trips", "friends"), navigationActions)
       pendingTrips.complete(listOf(sampleTrip))
     }
 
@@ -126,9 +125,7 @@ class TripOverviewMapRouteTest {
         }
     composeRule.setContent {
       RoamigoTheme {
-        TripOverviewMapRoute(
-            viewModel = viewModel { TripOverviewMapViewModel(repository) },
-        )
+        TripOverviewMapRoute(viewModel = viewModel { TripOverviewMapViewModel(repository) })
       }
     }
 

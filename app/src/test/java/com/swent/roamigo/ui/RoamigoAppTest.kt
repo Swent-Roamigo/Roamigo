@@ -49,7 +49,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.shadows.ShadowToast
 
 /** Checks that the screens are connected as intended and that Back returns to the right one. */
 @RunWith(AndroidJUnit4::class)
@@ -128,9 +127,8 @@ class RoamigoAppTest {
   }
 
   @Test
-  fun unfinishedActionsShowFeedbackFromTripsAndProfile() {
+  fun unfinishedActionsShowFeedbackFromProfile() {
     waitForTrips()
-    composeRule.assertNotImplementedActionsShowFeedback()
     waitForTag(C.Tag.trips_profile_avatar)
     composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
     composeRule.assertNotImplementedActionsShowFeedback()
@@ -245,6 +243,8 @@ class RoamigoAppTest {
         .assertIsEnabled()
         .performClick()
     waitForTag("trip_ready")
+    composeRule.onNodeWithText("Open trip detail").performScrollTo().performClick()
+    waitForTag("trip_details_screen")
     composeRule.onAllNodesWithTag(DatesTravelersScreenTestTags.SCREEN).assertCountEquals(0)
     pressBack()
     waitForTag(C.Tag.trips_main_trip_card)
@@ -385,7 +385,7 @@ class RoamigoAppTest {
   }
 
   @Test
-  fun profileViewFriendsOpensFriendsAndBackReturnsToProfile() {
+  fun profileViewFriendsOpensFriendsAndBackReturnsToTrips() {
     waitForTrips()
 
     composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
@@ -399,12 +399,12 @@ class RoamigoAppTest {
 
     pressBack()
 
-    waitForTag(C.Tag.profile_title)
-    composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
+    waitForTrips()
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
   }
 
   @Test
-  fun friendsTabOnProfileOpensFriendsAndBackReturnsToProfile() {
+  fun friendsTabOnProfileOpensFriendsAndBackReturnsToTrips() {
     waitForTrips()
 
     composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
@@ -417,12 +417,12 @@ class RoamigoAppTest {
 
     pressBack()
 
-    waitForTag(C.Tag.profile_title)
-    composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
+    waitForTrips()
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
   }
 
   @Test
-  fun friendsTabOnTripHistoryOpensFriendsAndBackReturnsToHistory() {
+  fun friendsTabOnTripHistoryOpensFriendsAndBackReturnsToTrips() {
     waitForTrips()
 
     composeRule.onNodeWithTag(C.Tag.trips_history_button).performClick()
@@ -436,8 +436,8 @@ class RoamigoAppTest {
 
     pressBack()
 
-    waitForTag(C.Tag.trip_history_screen)
-    composeRule.onNodeWithTag(C.Tag.trip_history_screen).assertIsDisplayed()
+    waitForTrips()
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
   }
 
   @Test
@@ -455,22 +455,14 @@ class RoamigoAppTest {
   }
 
   @Test
-  fun photosTabOnFriendsShowsNotImplementedFeedback() {
+  fun friendsDoesNotExposeGlobalPhotos() {
     waitForTrips()
 
     composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
     waitForTag(C.Tag.friends_screen)
     composeRule.onNodeWithTag(C.Tag.trips_navigation_map).assert(isNotImplemented.not())
 
-    ShadowToast.reset()
-    composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).assert(isNotImplemented).performClick()
-
-    composeRule.runOnIdle {
-      assertEquals(
-          composeRule.activity.getString(R.string.feature_not_implemented),
-          ShadowToast.getTextOfLatestToast(),
-      )
-    }
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.friends_screen).assertIsDisplayed()
   }
 }
