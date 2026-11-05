@@ -291,11 +291,7 @@ class TripsScreenTest {
 
   @Test
   fun loadingStateDoesNotDisplayTripCards() {
-    composeTestRule.setContent {
-      MaterialTheme {
-        TripsScreen(uiState = TripsUiState())
-      }
-    }
+    composeTestRule.setContent { MaterialTheme { TripsScreen(uiState = TripsUiState()) } }
 
     composeTestRule.onNodeWithText("Your trips").assertIsDisplayed()
 
