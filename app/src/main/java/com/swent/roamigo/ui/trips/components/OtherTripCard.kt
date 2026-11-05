@@ -49,6 +49,11 @@ internal fun OtherTripCard(trip: OtherTripUiModel, onClick: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurface,
         )
 
+        if (trip.isInProgress) {
+          Spacer(modifier = Modifier.height(4.dp))
+          StatusPill(stringResource(R.string.trips_in_progress))
+        }
+
         Spacer(modifier = Modifier.height(3.dp))
 
         val travelersText =
