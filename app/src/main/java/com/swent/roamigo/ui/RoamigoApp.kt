@@ -128,9 +128,7 @@ fun RoamigoApp(
   val context = LocalContext.current
   val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }
   val scope = rememberCoroutineScope()
-  val onMapClick: () -> Unit = {
-    navigateRoot(navController, Route.TRIP_OVERVIEW_MAP)
-  }
+  val onMapClick: () -> Unit = { navigateRoot(navController, Route.TRIP_OVERVIEW_MAP) }
   val startDestination =
       remember(authRepository) {
         if (authRepository.getCurrentUser() == null) Route.AUTHENTICATION else Route.TRIPS
@@ -349,9 +347,7 @@ fun RoamigoApp(
                           ?: (context.applicationContext as RoamigoApplication).locationRepository
                   val connectivity =
                       connectivityRepository
-                          ?: remember(context) {
-                            DefaultConnectivityRepository(context)
-                          }
+                          ?: remember(context) { DefaultConnectivityRepository(context) }
                   TripMapScreen(
                       tripId = tripId,
                       tripMapViewModelFactory = tripMapFactory,
@@ -372,9 +368,7 @@ fun RoamigoApp(
               TripSection.Photos -> {
                 val connectivity =
                     connectivityRepository
-                        ?: remember(context) {
-                          DefaultConnectivityRepository(context)
-                        }
+                        ?: remember(context) { DefaultConnectivityRepository(context) }
                 PhotosRoute(
                     viewModel =
                         viewModel {
