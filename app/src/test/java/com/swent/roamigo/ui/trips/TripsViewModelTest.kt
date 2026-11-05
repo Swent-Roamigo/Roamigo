@@ -23,8 +23,10 @@ import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
+import com.swent.roamigo.ui.trip.history.selectCompletedTrips
 import java.time.Clock
 import java.time.Instant
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import kotlinx.coroutines.CompletableDeferred
@@ -344,7 +346,7 @@ class TripsViewModelTest {
     assertEquals(3, main.durationDays)
     assertEquals(2, main.stopCount)
     assertEquals(listOf("A", "S", "M"), main.memberInitials)
-    assertEquals("In progress", main.badge)
+    assertEquals(MainTripBadge.InProgress, main.badge)
 
     val next = state.nextActivity!!
     assertEquals("Belém Tower", next.name)
@@ -794,7 +796,7 @@ class TripsViewModelTest {
 
     advanceUntilIdle()
 
-    assertEquals("Starts today", viewModel.uiState.value.mainTrip?.badge)
+    assertEquals(MainTripBadge.StartsToday, viewModel.uiState.value.mainTrip?.badge)
   }
 
   @Test
@@ -896,6 +898,85 @@ class TripsViewModelTest {
         endingToday,
         selectMainTrip(listOf(endingToday), now),
     )
+  }
+
+  @Test
+  fun plannedTripStaysVisibleThroughItsLocalEndDateAcrossNewYear() = runTest {
+    val planned =
+        trip(
+            uid = "new-year",
+            name = "New Year trip",
+            start = "2026-12-31T23:00:00Z",
+            end = "2027-01-02T23:00:00Z",
+            status = TripStatus.PLANNED,
+        )
+    val zone = ZoneId.of("Europe/Zurich")
+    val expectations =
+        listOf(
+            "2026-12-31T22:59:00Z" to MainTripBadge.StartsIn(1),
+            "2026-12-31T23:00:00Z" to MainTripBadge.StartsToday,
+            "2027-01-01T23:00:00Z" to MainTripBadge.InProgress,
+            "2027-01-03T22:59:00Z" to MainTripBadge.InProgress,
+            "2027-01-03T23:00:00Z" to null,
+        )
+
+    for ((instant, expectedBadge) in expectations) {
+      val clock = Clock.fixed(Instant.parse(instant), zone)
+      val model =
+          TripsViewModel(
+              FakeTripRepository(trips = listOf(planned)),
+              FakeUserRepository(currentUser = alex),
+              clock,
+          )
+      advanceUntilIdle()
+
+      val state = model.uiState.value
+      assertNull(state.errorMessage)
+      assertEquals(instant, expectedBadge, state.mainTrip?.badge)
+      val history = selectCompletedTrips(listOf(planned), ZonedDateTime.now(clock).toLocalDate(), zone)
+      assertEquals(instant, expectedBadge == null, history.isNotEmpty())
+      val visibleIds =
+          listOfNotNull(state.mainTrip?.id) + state.otherTrips.map { it.id } + history.map { it.uid }
+      assertEquals(instant, listOf(planned.uid), visibleIds)
+    }
+  }
+
+  @Test
+  fun ongoingPlannedTripTakesPriorityOverUpcomingTrips() {
+    val now = ZonedDateTime.parse("2026-11-05T12:00:00Z")
+    val ongoing =
+        trip("ongoing", "Ongoing", "2026-11-04T00:00:00Z", "2026-11-07T00:00:00Z", TripStatus.PLANNED)
+    val upcoming = ongoing.copy(uid = "upcoming", startDate = timestamp("2026-11-06T00:00:00Z"))
+    val trips = listOf(upcoming, ongoing)
+
+    assertEquals(ongoing, selectMainTrip(trips, now))
+    assertEquals(listOf(upcoming), selectOtherTrips(trips, ongoing, now))
+  }
+
+  @Test
+  fun overlappingOngoingTripsStayAccessibleWhenOneIsHighlighted() {
+    val now = ZonedDateTime.parse("2026-11-05T12:00:00Z")
+    val planned =
+        trip("planned", "Planned", "2026-11-03T00:00:00Z", "2026-11-07T00:00:00Z", TripStatus.PLANNED)
+    val active = planned.copy(uid = "active", status = TripStatus.ACTIVE)
+    val secondActive = active.copy(uid = "second-active", startDate = timestamp("2026-11-04T00:00:00Z"))
+    val expired = planned.copy(uid = "expired", endDate = timestamp("2026-11-04T00:00:00Z"))
+    val trips = listOf(expired, secondActive, planned, active)
+
+    assertEquals(secondActive, selectMainTrip(trips, now))
+    assertEquals(listOf(planned, active), selectOtherTrips(trips, secondActive, now))
+  }
+
+  @Test
+  fun mostRecentlyStartedPlannedTripIsHighlightedAndOthersRemainVisible() {
+    val now = ZonedDateTime.parse("2026-11-05T12:00:00Z")
+    val older =
+        trip("older", "Older", "2026-11-02T00:00:00Z", "2026-11-07T00:00:00Z", TripStatus.PLANNED)
+    val newer = older.copy(uid = "newer", startDate = timestamp("2026-11-04T00:00:00Z"))
+    val trips = listOf(older, newer)
+
+    assertEquals(newer, selectMainTrip(trips, now))
+    assertEquals(listOf(older), selectOtherTrips(trips, newer, now))
   }
 
   private class OtherViewModel : ViewModel()

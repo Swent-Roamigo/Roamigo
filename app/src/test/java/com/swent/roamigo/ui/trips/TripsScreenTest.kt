@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
@@ -266,6 +267,33 @@ class TripsScreenTest {
 
     composeTestRule.onNodeWithText("8 Oct · 1 day · 1 stop").assertIsDisplayed()
     composeTestRule.onNodeWithText("10 Oct · 1 traveler").assertIsDisplayed()
+  }
+
+  @Test
+  fun dateBadgesDisplayInProgressTodayAndPluralCountdowns() {
+    val badge = mutableStateOf<MainTripBadge>(MainTripBadge.InProgress)
+    composeTestRule.setContent {
+      MaterialTheme {
+        TripsScreen(
+            TripsUiState(
+                isLoading = false,
+                mainTrip = MainTripUiModel("main", "Trip", "8 Oct", 1, 0, emptyList(), badge.value),
+            )
+        )
+      }
+    }
+
+    val expectations =
+        listOf(
+            MainTripBadge.InProgress to "In progress",
+            MainTripBadge.StartsToday to "Starts today",
+            MainTripBadge.StartsIn(1) to "Starts in 1 day",
+            MainTripBadge.StartsIn(2) to "Starts in 2 days",
+        )
+    for ((state, text) in expectations) {
+      composeTestRule.runOnIdle { badge.value = state }
+      composeTestRule.onNodeWithText(text).assertIsDisplayed()
+    }
   }
 
   @Test

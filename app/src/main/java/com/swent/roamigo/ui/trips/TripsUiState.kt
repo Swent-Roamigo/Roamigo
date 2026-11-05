@@ -17,7 +17,7 @@ import com.swent.roamigo.model.destination.DestinationPhoto
  * @property currentUserInitial the initial displayed in the current user's avatar.
  * @property mainTrip the trip highlighted on the screen, or `null` when none is available.
  * @property nextActivity the next accepted activity of the highlighted trip, or `null` when absent.
- * @property otherTrips the remaining upcoming trips displayed below the highlighted trip.
+ * @property otherTrips the remaining ongoing and upcoming trips below the highlighted trip.
  */
 data class TripsUiState(
     val isLoading: Boolean = true,
@@ -44,7 +44,7 @@ data class TripsUiState(
  * @property durationDays the inclusive number of calendar days in the trip.
  * @property stopCount the number of accepted activities belonging to the trip.
  * @property memberInitials up to three member initials displayed on the trip card.
- * @property badge the contextual status label, or `null` when no label should be displayed.
+ * @property badge the trip's presentation status, or `null` when no badge should be displayed.
  */
 data class MainTripUiModel(
     val id: String,
@@ -53,8 +53,17 @@ data class MainTripUiModel(
     val durationDays: Int,
     val stopCount: Int,
     val memberInitials: List<String>,
-    val badge: String?,
+    val badge: MainTripBadge?,
 )
+
+/** Trip status rendered with localized strings by the main card. */
+sealed interface MainTripBadge {
+  data object InProgress : MainTripBadge
+
+  data object StartsToday : MainTripBadge
+
+  data class StartsIn(val days: Int) : MainTripBadge
+}
 
 /**
  * Represents an upcoming activity displayed in the "Next up" section.
