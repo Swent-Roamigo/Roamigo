@@ -41,6 +41,44 @@ class VoteRepositoryFirestore(private val db: FirebaseFirestore) : VoteRepositor
     return if (snapshot.exists()) snapshot.toVote(tripId) else null
   }
 
+  override fun observeVote(tripId: String, voteId: String): Flow<Vote?> = callbackFlow {
+    requireDocumentId(voteId)
+    val registration =
+        votes(tripId).document(voteId).addSnapshotListener { snapshot, error ->
+          if (error != null) close(error)
+          else {
+            try {
+              val document = requireNotNull(snapshot) { "Missing vote snapshot" }
+              trySend(if (document.exists()) document.toVote(tripId) else null)
+            } catch (failure: Exception) {
+              close(failure)
+            }
+          }
+        }
+    awaitClose { registration.remove() }
+  }
+
+  override suspend fun closeVote(tripId: String, voteId: String) {
+    requireDocumentId(voteId)
+    val document = votes(tripId).document(voteId)
+    db.runTransaction { transaction ->
+          val snapshot = transaction.get(document)
+          if (!snapshot.exists())
+              throw FirebaseFirestoreException(
+                  "Vote not found",
+                  FirebaseFirestoreException.Code.NOT_FOUND,
+              )
+          if (snapshot.getString("status") != VoteStatus.OPEN.name)
+              throw FirebaseFirestoreException(
+                  "Vote is not open",
+                  FirebaseFirestoreException.Code.FAILED_PRECONDITION,
+              )
+          transaction.update(document, "status", VoteStatus.CLOSED.name)
+          Unit
+        }
+        .await()
+  }
+
   override suspend fun getVotes(tripId: String): List<Vote> =
       votes(tripId).get().await().documents.map { it.toVote(tripId) }
 

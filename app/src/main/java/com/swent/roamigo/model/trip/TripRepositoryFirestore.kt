@@ -7,6 +7,7 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.validCountryCodeOrNull
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.tasks.await
 
@@ -194,8 +195,12 @@ internal fun activityFromFirestore(id: String, tripId: String, data: Map<String,
         creationTime = data.requiredTimestamp("creationTime"),
     )
 
-private fun TripLocation.toFirestoreData(): Map<String, Any?> =
-    mapOf("name" to name, "latitude" to latitude, "longitude" to longitude)
+private fun TripLocation.toFirestoreData(): Map<String, Any?> = buildMap {
+  put("name", name)
+  put("latitude", latitude)
+  put("longitude", longitude)
+  countryCode?.let { put("countryCode", it) }
+}
 
 private fun tripLocationFromFirestore(value: Any?): TripLocation {
   val location = requireNotNull(value as? Map<*, *>) { "Invalid location" }
@@ -203,6 +208,8 @@ private fun tripLocationFromFirestore(value: Any?): TripLocation {
       latitude = location.requiredDouble("latitude"),
       longitude = location.requiredDouble("longitude"),
       name = location.requiredString("name"),
+      // A malformed optional code must not prevent an existing trip from loading.
+      countryCode = (location["countryCode"] as? String).validCountryCodeOrNull(),
   )
 }
 

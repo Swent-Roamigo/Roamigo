@@ -382,4 +382,11 @@
     <string name="photo_preview_save_offline">Save on this phone</string>
     <string name="photo_preview_retake">Retake</string>
     <string name="photo_preview_save_failed">Could not save the photo. Try again.</string>
+    <string name="vote_close">Close vote</string>
+    <string name="vote_closing">Closing vote…</string>
+    <string name="vote_close_title">Close this vote?</string>
+    <string name="vote_close_confirmation">Closing is permanent. Members will no longer be able to vote or change their vote.</string>
+    <string name="vote_close_cancel">Cancel</string>
+    <string name="vote_close_error">Could not close the vote. Please try again.</string>
+    <string name="vote_close_unavailable">Only the creator can close an open vote.</string>
 </resources>

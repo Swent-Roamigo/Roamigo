@@ -36,7 +36,7 @@ import com.swent.roamigo.ui.trip.voting.components.VoteOptionRow
 
 /** Standalone voting interaction; the caller owns the ViewModel and navigation. */
 @Composable
-fun VoteScreen(viewModel: VoteViewModel, onBack: () -> Unit) {
+fun VoteScreen(viewModel: VoteViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   VoteScreenContent(
       state,
@@ -44,6 +44,7 @@ fun VoteScreen(viewModel: VoteViewModel, onBack: () -> Unit) {
       viewModel::submitVote,
       viewModel::retryLoad,
       onBack,
+      modifier,
   )
 }
 
@@ -54,9 +55,11 @@ fun VoteScreenContent(
     onSubmit: () -> Unit,
     onRetry: () -> Unit,
     onBack: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
   Column(
-      Modifier.fillMaxSize()
+      modifier
+          .fillMaxSize()
           .background(MaterialTheme.colorScheme.background)
           .safeDrawingPadding()
           .padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium),

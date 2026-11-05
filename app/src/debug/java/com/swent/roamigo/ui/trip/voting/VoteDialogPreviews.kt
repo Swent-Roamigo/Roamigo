@@ -9,9 +9,80 @@ import com.swent.roamigo.model.trip.voting.VoteOption
 import com.swent.roamigo.model.trip.voting.VoteStatus
 import com.swent.roamigo.ui.theme.RoamigoTheme
 
-@Preview(name = "Vote dialog · No selection", showBackground = true, widthDp = 390, heightDp = 844)
+@Preview(
+    name = "Vote dialog · OPEN · Non-creator",
+    showBackground = true,
+    widthDp = 390,
+    heightDp = 844,
+)
 @Composable
 private fun VoteDialogNoSelectionPreview() = VoteDialogPreview(previewDinnerState())
+
+@Preview(
+    name = "Vote dialog · OPEN · Creator",
+    showBackground = true,
+    widthDp = 390,
+    heightDp = 844,
+)
+@Composable
+private fun VoteDialogCreatorPreview() =
+    VoteDialogPreview(previewDinnerState().copy(isCreator = true))
+
+@Preview(
+    name = "Close confirmation · Above Votes list",
+    showBackground = true,
+    widthDp = 390,
+    heightDp = 844,
+)
+@Composable
+private fun VoteDialogCloseConfirmationPreview() =
+    VoteDialogPreview(
+        previewDinnerState().copy(isCreator = true),
+        confirmCloseOnOpen = true,
+    )
+
+@Preview(name = "Vote dialog · Closing", showBackground = true, widthDp = 390, heightDp = 844)
+@Composable
+private fun VoteDialogClosingPreview() =
+    VoteDialogPreview(
+        previewDinnerState()
+            .copy(
+                isCreator = true,
+                persistedOptionId = "market",
+                selectedOptionId = "market",
+                closingState = VoteSubmissionState.Submitting,
+            ),
+        confirmCloseOnOpen = true,
+    )
+
+@Preview(name = "Vote dialog · Close failed", showBackground = true, widthDp = 390, heightDp = 844)
+@Composable
+private fun VoteDialogCloseFailedPreview() =
+    VoteDialogPreview(
+        previewDinnerState()
+            .copy(
+                isCreator = true,
+                persistedOptionId = "market",
+                selectedOptionId = "market",
+                closingState = VoteSubmissionState.Failed,
+            ),
+        confirmCloseOnOpen = true,
+    )
+
+@Preview(
+    name = "Votes · CLOSED after closing",
+    showBackground = true,
+    widthDp = 390,
+    heightDp = 844,
+)
+@Composable
+private fun VoteDialogClosedPreview() =
+    VotesPreview(
+        VotesUiState.Ready(
+            liveVotes = emptyList(),
+            closedVotes = listOf(previewDinnerState().vote.copy(status = VoteStatus.CLOSED)),
+        )
+    )
 
 @Preview(
     name = "Vote dialog · Restored ballot",
@@ -87,8 +158,32 @@ internal fun previewDinnerState() =
     )
 
 @Composable
-private fun VoteDialogPreview(state: VoteUiState) {
+private fun VoteDialogPreview(
+    state: VoteUiState,
+    confirmCloseOnOpen: Boolean = false,
+) {
   RoamigoTheme {
-    VoteDialogContent(state, onSelectOption = {}, onSubmit = {}, onRetry = {}, onDismiss = {})
+    val dinner = previewDinnerState()
+    VotesPreview(
+        VotesUiState.Ready(
+            liveVotes = listOf(dinner.vote),
+            closedVotes = emptyList(),
+            liveSummaries =
+                mapOf(
+                    dinner.vote.uid to
+                        LiveVoteSummary(
+                            dinner.voteCounts,
+                            hasPersistedBallot =
+                                (state as? VoteUiState.Ready)?.hasPersistedBallot == true,
+                            isCreator = (state as? VoteUiState.Ready)?.isCreator == true,
+                        )
+                ),
+        )
+    )
+    if (confirmCloseOnOpen) {
+      VoteCloseDialogContent(state, onConfirm = {}, onRetry = {}, onDismiss = {})
+    } else {
+      VoteDialogContent(state, onSelectOption = {}, onSubmit = {}, onRetry = {}, onDismiss = {})
+    }
   }
 }
