@@ -13,6 +13,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -45,6 +46,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.shadows.ShadowToast
 
 @RunWith(AndroidJUnit4::class)
 class VotesNavigationTest {
@@ -281,6 +283,43 @@ class VotesNavigationTest {
     composeRule.onNodeWithText(vote.question).assertDoesNotExist()
     composeRule.runOnIdle {
       assertEquals(Route.TRIPS, navController.currentBackStackEntry?.destination?.route)
+    }
+  }
+
+  @Test
+  fun expiredSessionOpeningTripDetailsRedirectsToAuthentication() {
+    openVotes()
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+    composeRule.runOnIdle { auth.signOut() }
+    composeRule.onNodeWithTag(C.Tag.trips_main_trip_card).performClick()
+
+    composeRule
+        .onNodeWithTag(com.swent.roamigo.ui.authentication.AuthenticationScreenTestTags.heading)
+        .assertIsDisplayed()
+    composeRule.runOnIdle {
+      assertEquals(Route.AUTHENTICATION, navController.currentBackStackEntry?.destination?.route)
+    }
+  }
+
+  @Test
+  fun tripDetailShareAndMembersPlaceholdersGiveFeedback() {
+    openVotes()
+
+    composeRule.onNodeWithText("Detail").performClick()
+    ShadowToast.reset()
+    composeRule
+        .onNodeWithContentDescription(composeRule.activity.getString(R.string.trip_details_share))
+        .performClick()
+    composeRule.runOnIdle {
+      assertEquals("Not implemented yet", ShadowToast.getTextOfLatestToast())
+    }
+
+    ShadowToast.reset()
+    composeRule.onNodeWithText("Members").performScrollTo().performClick()
+    composeRule.runOnIdle {
+      assertEquals("Not implemented yet", ShadowToast.getTextOfLatestToast())
     }
   }
 

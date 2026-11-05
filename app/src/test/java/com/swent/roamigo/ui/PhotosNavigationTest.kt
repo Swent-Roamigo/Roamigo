@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -19,6 +20,7 @@ import com.swent.roamigo.model.connectivity.FakeConnectivityRepository
 import com.swent.roamigo.model.destination.sampleDestinationRepository
 import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.photo.PhotoRepository
+import com.swent.roamigo.model.photo.TripPhoto
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
@@ -44,7 +46,10 @@ class PhotosNavigationTest {
   private val connectivity = FakeConnectivityRepository()
   private lateinit var navController: NavHostController
 
-  private fun openPhotos(photoRepository: PhotoRepository = FakePhotoRepository()) {
+  private fun openPhotos(
+      photoRepository: PhotoRepository = FakePhotoRepository(),
+      memberIds: List<String> = listOf("owner", "member"),
+  ) {
     val now = Instant.now().epochSecond
     val trip =
         Trip(
@@ -58,7 +63,7 @@ class PhotosNavigationTest {
             TravelMode.GROUP,
             2,
             "owner",
-            listOf("owner", "member"),
+            memberIds,
             TripStatus.ACTIVE,
             Timestamp(now - 7200, 0),
         )
@@ -133,6 +138,41 @@ class PhotosNavigationTest {
     composeRule.onNodeWithTag(C.Tag.photos_gallery_error).assertIsDisplayed()
     composeRule.onNodeWithText(tripName).assertIsDisplayed()
     composeRule.onNodeWithText("Trip photos").assertIsDisplayed()
+  }
+
+  @Test
+  fun photoSummaryTracksGalleryUpdatesAndCountsDistinctMembers() {
+    val repository = FakePhotoRepository()
+    openPhotos(repository, memberIds = listOf("owner", "member", "member"))
+
+    composeRule.onNodeWithText("0 photos · 2 people").assertIsDisplayed()
+
+    repository.setUploaded(listOf(TripPhoto("photo-1", "member", 0, null, null, byteArrayOf())))
+
+    composeRule.onNodeWithText("1 photo · 2 people").assertIsDisplayed()
+  }
+
+  @Test
+  fun switchingBackAcrossTripTabsKeepsTheTripAndBackButtonReturnsToTrips() {
+    openPhotos()
+
+    composeRule.onNodeWithText("Votes").performClick()
+    composeRule.onNodeWithText("Detail").performClick()
+    composeRule.onNodeWithText("Photos").performClick()
+    composeRule.onNodeWithTag(C.Tag.photos_screen).assertIsDisplayed()
+    composeRule.onNodeWithText(tripName).assertIsDisplayed()
+    composeRule.runOnIdle {
+      assertEquals(Route.TRIP_DETAILS, navController.currentBackStackEntry?.destination?.route)
+      assertEquals(tripId, navController.currentBackStackEntry?.arguments?.getString("tripId"))
+    }
+
+    composeRule
+        .onNodeWithContentDescription(
+            composeRule.activity.getString(com.swent.roamigo.R.string.trip_details_back)
+        )
+        .performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
   }
 
   @Test

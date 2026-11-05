@@ -229,6 +229,23 @@ class RoamigoAppMapNavigationTest {
   }
 
   @Test
+  fun globalMapFromTripNavigationReturnsToTripsOnBack() {
+    openMainTripDetails()
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_map).performClick()
+
+    waitForRoute(Route.TRIP_OVERVIEW_MAP)
+    composeRule.loadLocalMapStyle()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_map).assertIsSelected()
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertDoesNotExist()
+
+    pressBack()
+
+    waitForRoute(Route.TRIPS)
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+  }
+
+  @Test
   fun completedTripOpenedFromGlobalMapStaysReadOnlyAcrossTripTabs() {
     openMap()
     val markerTag = TripMarkerTestTags.markerFor(completedTrip.toTripMarkerUiStates().single().id)
