@@ -57,7 +57,6 @@ class FriendsScreenTest {
       onViewMapClick: (String) -> Unit = {},
       onTripsClick: () -> Unit = {},
       onMapClick: () -> Unit = {},
-      onPhotosClick: () -> Unit = {},
   ) {
     composeRule.setContent {
       RoamigoTheme {
@@ -67,7 +66,6 @@ class FriendsScreenTest {
             onViewMapClick = onViewMapClick,
             onTripsClick = onTripsClick,
             onMapClick = onMapClick,
-            onPhotosClick = onPhotosClick,
         )
       }
     }
