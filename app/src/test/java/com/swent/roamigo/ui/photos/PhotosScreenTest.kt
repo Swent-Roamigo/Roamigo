@@ -107,7 +107,7 @@ class PhotosScreenTest {
         )
     )
 
-    bannerText("Back online · uploading 1 photo…")
+    bannerText("Uploading 1 of 2 photos")
     composeRule.onNodeWithTag(C.Tag.photos_progress).assertIsDisplayed()
   }
 
@@ -127,6 +127,35 @@ class PhotosScreenTest {
     show(PhotosUiState(photos = waiting(2, PhotoUploadStatus.FAILED)))
 
     noBanner()
+  }
+
+  @Test
+  fun summarisesFailedPhotosAndRetriesThemAllAtOnce() {
+    show(PhotosUiState(photos = waiting(2, PhotoUploadStatus.FAILED)))
+
+    composeRule.onNodeWithTag(C.Tag.photos_failed_banner).assertIsDisplayed()
+    composeRule.onNodeWithText("2 photos didn't upload").assertIsDisplayed()
+    composeRule
+        .onNodeWithText("No connection. We'll retry when you're back online.")
+        .assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.photos_retry_all).performClick()
+
+    composeRule.runOnIdle { assertEquals(listOf("retry p0", "retry p1"), taps) }
+  }
+
+  @Test
+  fun explainsTheAutomaticRetryWhileOffline() {
+    show(PhotosUiState(isOnline = false, photos = waiting(1, PhotoUploadStatus.FAILED)))
+    composeRule.onNodeWithText("1 photo didn't upload").assertIsDisplayed()
+    composeRule
+        .onNodeWithText("No connection. We'll retry when you're back online.")
+        .assertIsDisplayed()
+  }
+
+  @Test
+  fun showsNoFailureSummaryWhenNothingFailed() {
+    show(PhotosUiState(photos = waiting(1)))
+    composeRule.onNodeWithTag(C.Tag.photos_failed_banner).assertDoesNotExist()
   }
 
   @Test

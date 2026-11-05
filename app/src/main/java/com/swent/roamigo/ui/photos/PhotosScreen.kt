@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -24,7 +25,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -82,6 +85,7 @@ fun PhotosScreen(
         verticalArrangement = Arrangement.spacedBy(Spacing.large),
     ) {
       if (!readOnly) PhotosBanner(state)
+      if (!readOnly) FailedUploadsBanner(state, onRetryClick)
       PhotosContent(
           if (readOnly) state.copy(photos = emptyList()) else state,
           fileOf,
@@ -107,6 +111,44 @@ fun PhotosScreen(
   }
 }
 
+/** Summarises the photos that failed to upload, with one action to retry them all. */
+@Composable
+private fun FailedUploadsBanner(state: PhotosUiState, onRetryClick: (String) -> Unit) {
+  val failed = state.photos.filter { it.status == PhotoUploadStatus.FAILED }
+  if (failed.isEmpty()) return
+  Surface(
+      modifier = Modifier.fillMaxWidth().testTag(C.Tag.photos_failed_banner),
+      shape = RoundedCornerShape(16.dp),
+      color = MaterialTheme.colorScheme.surfaceVariant,
+  ) {
+    Row(
+        Modifier.padding(horizontal = 14.dp, vertical = Spacing.small),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            pluralStringResource(R.plurals.photos_failed_summary, failed.size, failed.size),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        if (!state.isOnline) {
+          Text(
+              stringResource(R.string.photos_failed_offline_hint),
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
+      }
+      OutlinedButton(
+          onClick = { failed.forEach { onRetryClick(it.id) } },
+          modifier = Modifier.heightIn(min = 48.dp).testTag(C.Tag.photos_retry_all),
+      ) {
+        Text(stringResource(R.string.photos_retry_all))
+      }
+    }
+  }
+}
+
 /**
  * Tells whether the photos are waiting for a connection, being uploaded, or nothing is pending.
  * Failed photos are not counted: the list shows them with their own retry.
@@ -124,7 +166,7 @@ private fun PhotosBanner(state: PhotosUiState) {
         !state.isOnline ->
             pluralStringResource(R.plurals.photos_waiting_offline, count, count) to Warning
         uploading ->
-            pluralStringResource(R.plurals.photos_uploading, uploadingCount, uploadingCount) to
+            pluralStringResource(R.plurals.photos_uploading, count, uploadingCount, count) to
                 Success
         else -> pluralStringResource(R.plurals.photos_waiting_online, count, count) to Warning
       }

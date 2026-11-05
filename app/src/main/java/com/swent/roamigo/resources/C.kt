@@ -124,6 +124,8 @@ object C {
     const val photos_title = "photos_title"
     const val photos_banner = "photos_banner"
     const val photos_progress = "photos_progress"
+    const val photos_failed_banner = "photos_failed_banner"
+    const val photos_retry_all = "photos_retry_all"
     const val photos_empty = "photos_empty"
     const val photos_take_photo = "photos_take_photo"
     const val photos_item_prefix = "photos_item_"
