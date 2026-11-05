@@ -69,6 +69,7 @@ import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.friends.FriendsScreen
 import com.swent.roamigo.ui.friends.FriendsUiState
 import com.swent.roamigo.ui.map.LocationViewModel
+import com.swent.roamigo.ui.map.TripMapContent
 import com.swent.roamigo.ui.map.TripMapScreen
 import com.swent.roamigo.ui.map.TripMapUiState
 import com.swent.roamigo.ui.map.TripMapViewModel
