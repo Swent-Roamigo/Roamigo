@@ -311,9 +311,7 @@ fun RoamigoApp(
                     ?: (context.applicationContext as RoamigoApplication).locationRepository
             val connectivity =
                 connectivityRepository
-                    ?: remember(context) {
-                      DefaultConnectivityRepository(context)
-                    }
+                    ?: remember(context) { DefaultConnectivityRepository(context) }
             remember(tripId, userId, location, connectivity) {
               LocationViewModel.factory(tripId, userId, location, connectivity)
             }
