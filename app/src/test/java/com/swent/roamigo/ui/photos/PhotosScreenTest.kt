@@ -289,7 +289,10 @@ class PhotosScreenTest {
     noBanner()
     composeRule.onNodeWithTag(C.Tag.photos_item_prefix + "p0").assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.photos_take_photo).assertDoesNotExist()
-    composeRule.onNodeWithTag(C.Tag.photos_uploaded_prefix + "archive").assertIsDisplayed().performClick()
+    composeRule
+        .onNodeWithTag(C.Tag.photos_uploaded_prefix + "archive")
+        .assertIsDisplayed()
+        .performClick()
 
     assertEquals(listOf("photo archive"), taps)
   }
