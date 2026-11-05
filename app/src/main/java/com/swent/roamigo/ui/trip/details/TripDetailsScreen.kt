@@ -31,7 +31,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -145,26 +144,9 @@ private fun TripDetailsContent(
         Modifier.weight(1f).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(Spacing.large),
     ) {
-      Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-          Text(details.name, style = MaterialTheme.typography.titleLarge.copy(lineHeight = 38.sp))
-          val locale = LocalConfiguration.current.locales[0]
-          val travelers =
-              pluralStringResource(
-                  R.plurals.trip_details_travelers,
-                  details.travelerCount,
-                  details.travelerCount,
-              )
-          Text(
-              stringResource(
-                  R.string.trip_details_subtitle,
-                  formatTripDetailsDates(details.startDate, details.endDate, locale),
-                  travelers,
-              ),
-              style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp, lineHeight = 18.sp),
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
+      val unfinished = rememberNotImplementedAction()
+      TextButton(onClick = unfinished, modifier = Modifier.markNotImplemented(unfinished)) {
+        Text(stringResource(R.string.trip_details_itinerary))
       }
       TripDetailsSummaryCard(
           R.drawable.ic_trip_details_members,
@@ -175,7 +157,16 @@ private fun TripDetailsContent(
               details.memberCount,
           ),
           onClick = onMembersClick,
-      ) {}
+      ) {
+        Box(
+            Modifier.size(48.dp)
+                .markNotImplemented(unfinished)
+                .clickable(role = Role.Button, onClick = unfinished),
+            contentAlignment = Alignment.CenterEnd,
+        ) {
+          TripDetailsBadge(stringResource(R.string.trip_details_invite))
+        }
+      }
       TripDetailsSummaryCard(
           R.drawable.ic_trip_details_places,
           stringResource(R.string.trip_details_places),
@@ -227,7 +218,9 @@ private fun TripDetailsSummaryCard(
           Modifier.fillMaxWidth()
               .then(
                   if (onClick == null) Modifier
-                  else Modifier.clickable(role = Role.Button, onClick = onClick)
+                  else
+                      Modifier.markNotImplemented(onClick)
+                          .clickable(role = Role.Button, onClick = onClick)
               ),
       shape = MaterialTheme.shapes.small,
       color = MaterialTheme.colorScheme.surfaceVariant,

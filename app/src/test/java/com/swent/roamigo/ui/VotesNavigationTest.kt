@@ -388,14 +388,4 @@ class VotesNavigationTest {
       assertEquals(1, repository.maximumObservers)
     }
   }
-
-  @Test
-  fun closingMembersKeepsTheSelectedTripDetail() {
-    openVotes()
-    composeRule.onNodeWithText("Detail").performClick()
-    composeRule.onNodeWithText("Members").performScrollTo().performClick()
-    composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
-    composeRule.onNodeWithText("Detail").assertIsSelected()
-    composeRule.onNodeWithText(tripName).assertIsDisplayed()
-  }
 }

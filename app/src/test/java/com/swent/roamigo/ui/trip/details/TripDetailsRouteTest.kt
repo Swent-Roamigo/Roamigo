@@ -42,7 +42,6 @@ class TripDetailsRouteTest {
         )
       }
     }
-    composeRule.onNodeWithText("Lisbon & Porto").assertIsDisplayed()
     composeRule.onNodeWithText("Members").performScrollTo().performClick()
     composeRule.onNodeWithText("Live votes").performScrollTo().performClick()
     composeRule.onNodeWithText("Open trip map").performClick()
@@ -82,7 +81,6 @@ class TripDetailsRouteTest {
     assertTrue(backed)
     composeRule.runOnIdle { fails = false }
     composeRule.onNodeWithText("Retry").performClick()
-    composeRule.onNodeWithText("Lisbon & Porto").assertIsDisplayed()
     composeRule.onNodeWithText("Live votes").performScrollTo().performClick()
     assertEquals(listOf("Lisbon & Porto"), votedTripNames)
   }

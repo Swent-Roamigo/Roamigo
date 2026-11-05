@@ -13,10 +13,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -33,9 +34,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.ClearCredentialException
@@ -64,6 +65,7 @@ import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.ui.authentication.AuthenticationScreen
 import com.swent.roamigo.ui.authentication.AuthenticationViewModel
+import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.friends.FriendsScreen
 import com.swent.roamigo.ui.friends.FriendsUiState
@@ -99,6 +101,9 @@ import com.swent.roamigo.ui.trip.voting.VotesViewModel
 import com.swent.roamigo.ui.trips.TripsRoute
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
@@ -274,7 +279,7 @@ fun RoamigoApp(
             else TripSection.Detail
         )
       }
-      var membersOpen by rememberSaveable { mutableStateOf(false) }
+      val notImplemented = rememberNotImplementedAction()
       val back: () -> Unit = {
         if (fromHistory) navController.popBackStack()
         else navController.popBackStack(Route.TRIPS, false)
@@ -314,11 +319,54 @@ fun RoamigoApp(
         viewModel(key = "trip_map_location_$tripId", factory = it)
       }
       val locationState = locationModel?.uiState?.collectAsState()?.value
+      val photosCount by
+          remember(tripId, tab) {
+                if (tab == TripSection.Photos) {
+                  photoRepository.tripPhotos(tripId).map { it.size as Int? }.catch { emit(null) }
+                } else kotlinx.coroutines.flow.flowOf(null)
+              }
+              .collectAsState(initial = null)
       val tabState = rememberSaveableStateHolder()
       BackHandler(onBack = back)
       Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-          TextButton(onClick = back) { Text(stringResource(R.string.trip_details_back)) }
+          IconButton(onClick = back) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.trip_details_back),
+            )
+          }
+          Column(Modifier.weight(1f)) {
+            val trip = loaded?.trip
+            if (trip != null) {
+              Text(trip.name, style = MaterialTheme.typography.headlineMedium)
+              val locale = LocalConfiguration.current.locales[0]
+              val formatter = DateTimeFormatter.ofPattern("EEE d MMM", locale)
+              val start = trip.startDate.toDate().toInstant().atZone(zone).toLocalDate()
+              val end = trip.endDate.toDate().toInstant().atZone(zone).toLocalDate()
+              val subtitle =
+                  when (tab) {
+                    TripSection.Detail -> "${formatter.format(start)} – ${formatter.format(end)}"
+                    TripSection.Map -> formatter.format(LocalDate.now(zone))
+                    TripSection.Votes -> stringResource(R.string.votes_title)
+                    TripSection.Photos ->
+                        photosCount?.let { count ->
+                          stringResource(
+                              R.string.trip_photo_summary,
+                              count,
+                              trip.memberIds.distinct().size,
+                          )
+                        } ?: stringResource(R.string.photos_title)
+                  }
+              Text(subtitle, style = MaterialTheme.typography.bodyMedium)
+            }
+          }
+          val share = rememberNotImplementedAction()
+          if (tab == TripSection.Detail) {
+            TextButton(onClick = share, modifier = Modifier.markNotImplemented(share)) {
+              Text(stringResource(R.string.trip_details_share))
+            }
+          }
           if (tab != TripSection.Map && locationModel != null && locationState?.isSharing == true) {
             TextButton(onClick = locationModel::stopSharing) {
               Text(stringResource(R.string.trip_map_pause_sharing))
@@ -353,7 +401,7 @@ fun RoamigoApp(
                         else tab = TripSection.Map
                       },
                       onPhotosClick = { tab = TripSection.Photos },
-                      onMembersClick = { membersOpen = true },
+                      onMembersClick = notImplemented,
                   )
               TripSection.Map -> {
                 if (readOnly) {
@@ -405,35 +453,6 @@ fun RoamigoApp(
             }
           }
         }
-      }
-      if (membersOpen) {
-        AlertDialog(
-            onDismissRequest = { membersOpen = false },
-            title = { Text(stringResource(R.string.trip_details_members)) },
-            text = {
-              when (tripState) {
-                TripMapUiState.Loading -> CircularProgressIndicator()
-                is TripMapUiState.Error ->
-                    Column {
-                      Text(stringResource(R.string.trip_details_load_failed))
-                      TextButton(onClick = tripModel::retry) {
-                        Text(stringResource(R.string.trip_details_retry))
-                      }
-                    }
-                is TripMapUiState.Loaded ->
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                      items(loaded?.members?.values.orEmpty().toList()) { member ->
-                        Text(member.displayName)
-                      }
-                    }
-              }
-            },
-            confirmButton = {
-              TextButton(onClick = { membersOpen = false }) {
-                Text(stringResource(R.string.trip_details_back))
-              }
-            },
-        )
       }
     }
 

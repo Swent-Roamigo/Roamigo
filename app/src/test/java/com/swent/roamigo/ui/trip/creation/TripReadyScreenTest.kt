@@ -72,9 +72,9 @@ class TripReadyScreenTest {
     rule
         .onNodeWithTag(TripReadyTestTags.LOCATION, useUnmergedTree = true)
         .assertTextEquals("Share your location (optional)")
-    rule.onNodeWithTag(TripReadyTestTags.INVITE_CARD).assertDoesNotExist()
-    rule.onNodeWithTag(TripReadyTestTags.SUGGEST_CARD).assertDoesNotExist()
-    rule.onNodeWithTag(TripReadyTestTags.SHARE).assertDoesNotExist()
+    rule.onNodeWithTag(TripReadyTestTags.INVITE_CARD).performScrollTo().assertHasClickAction()
+    rule.onNodeWithTag(TripReadyTestTags.SUGGEST_CARD).performScrollTo().assertHasClickAction()
+    rule.onNodeWithTag(TripReadyTestTags.SHARE).performScrollTo().assertHasClickAction()
     rule.onNodeWithTag(TripReadyTestTags.LOCATION_CARD).performScrollTo().assertHasClickAction()
     rule
         .onNodeWithTag(TripReadyTestTags.ITINERARY)

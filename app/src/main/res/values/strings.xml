@@ -337,6 +337,7 @@
     <string name="votes_cast_vote">Vote</string>
     <string name="votes_change_vote">Change vote</string>
     <!-- Trip photos -->
+    <string name="trip_photo_summary">%1$d photos · %2$d people</string>
     <string name="photos_title">Trip photos</string>
     <string name="photos_take_photo">Take a photo</string>
     <string name="photos_no_camera">No camera app is available on this device.</string>

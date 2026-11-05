@@ -33,7 +33,6 @@ class TripDetailsScreenTest {
   @Config(qualifiers = "en-rUS-w390dp-h844dp-xhdpi")
   fun rendersRealSummariesAndLinkedFeatures() {
     composeRule.setContent { RoamigoTheme { TripDetailsScreen(readyState(), {}, {}) } }
-    composeRule.onNodeWithText("Lisbon & Porto").assertIsDisplayed()
     composeRule.onNodeWithText("1 member").assertIsDisplayed()
     composeRule.onNodeWithText("4 suggested places").assertIsDisplayed()
     composeRule.onNodeWithText("4").assertIsDisplayed()
@@ -58,7 +57,6 @@ class TripDetailsScreenTest {
     composeRule.runOnIdle { state.value = TripDetailsUiState(false, TripDetailsError.NOT_FOUND) }
     composeRule.onNodeWithText("This trip is no longer available to you.").assertIsDisplayed()
     composeRule.onNodeWithText("Retry").performClick()
-    composeRule.onNodeWithText("Lisbon & Porto").assertIsDisplayed()
   }
 
   @Test
@@ -107,7 +105,6 @@ class TripDetailsScreenTest {
         }
       }
     }
-    composeRule.onNodeWithText(name).assertIsDisplayed()
     composeRule.onNodeWithText("Open trip map").assertIsDisplayed().performClick()
     composeRule.onNodeWithText("Trip photos").performScrollTo().assertIsDisplayed()
     assertTrue(mapped)
