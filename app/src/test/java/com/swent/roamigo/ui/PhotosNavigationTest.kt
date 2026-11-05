@@ -18,6 +18,7 @@ import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.connectivity.FakeConnectivityRepository
 import com.swent.roamigo.model.destination.sampleDestinationRepository
 import com.swent.roamigo.model.photo.FakePhotoRepository
+import com.swent.roamigo.model.photo.PhotoRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
@@ -25,7 +26,9 @@ import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.navigation.Route
+import com.swent.roamigo.ui.photos.TestPhotoRepository
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import java.io.IOException
 import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -41,7 +44,7 @@ class PhotosNavigationTest {
   private val connectivity = FakeConnectivityRepository()
   private lateinit var navController: NavHostController
 
-  private fun openPhotos() {
+  private fun openPhotos(photoRepository: PhotoRepository = FakePhotoRepository()) {
     val now = Instant.now().epochSecond
     val trip =
         Trip(
@@ -84,7 +87,7 @@ class PhotosNavigationTest {
                     AuthenticatedUser("member", "Member", null, null),
                     initiallySignedIn = true,
                 ),
-            photoRepository = FakePhotoRepository(),
+            photoRepository = photoRepository,
             connectivityRepository = connectivity,
             navController = navController,
         )
@@ -117,6 +120,19 @@ class PhotosNavigationTest {
     openPhotos()
 
     composeRule.onNodeWithTag(C.Tag.photos_banner).assertIsDisplayed()
+  }
+
+  @Test
+  fun galleryFailureKeepsTheTripHeaderVisible() {
+    val repository =
+        TestPhotoRepository(composeRule.activity.cacheDir).apply {
+          galleryError = IOException("Gallery unavailable")
+        }
+    openPhotos(repository)
+
+    composeRule.onNodeWithTag(C.Tag.photos_gallery_error).assertIsDisplayed()
+    composeRule.onNodeWithText(tripName).assertIsDisplayed()
+    composeRule.onNodeWithText("Trip photos").assertIsDisplayed()
   }
 
   @Test
