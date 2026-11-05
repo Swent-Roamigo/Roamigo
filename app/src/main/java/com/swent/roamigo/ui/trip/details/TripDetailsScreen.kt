@@ -71,6 +71,7 @@ fun TripDetailsRoute(
     onItineraryClick: () -> Unit = rememberNotImplementedAction(),
     onVotesClick: (String) -> Unit,
     onMapClick: () -> Unit,
+    onTripMapClick: () -> Unit,
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   val model = viewModel(key = tripId) { TripDetailsViewModel(tripId, tripRepository) }
@@ -85,11 +86,16 @@ fun TripDetailsRoute(
       onItineraryClick = onItineraryClick,
       onVotesClick = { state.details?.let { onVotesClick(it.name) } },
       onMapClick = onMapClick,
+      onTripMapClick = onTripMapClick,
       onPhotosClick = onPhotosClick,
   )
 }
 
-/** Renders trip details and delegates navigation without depending on Firebase or Mapbox. */
+/**
+ * Renders trip details and delegates navigation without depending on Firebase or Mapbox.
+ *
+ * [onMapClick] is the bottom bar's map tab, while [onTripMapClick] opens this trip's own map.
+ */
 @Composable
 fun TripDetailsScreen(
     state: TripDetailsUiState,
@@ -101,6 +107,7 @@ fun TripDetailsScreen(
     onItineraryClick: () -> Unit = rememberNotImplementedAction(),
     onVotesClick: () -> Unit = {},
     onMapClick: () -> Unit = {},
+    onTripMapClick: () -> Unit = rememberNotImplementedAction(),
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   Scaffold(
@@ -138,7 +145,7 @@ fun TripDetailsScreen(
               onInviteClick = onInviteClick,
               onItineraryClick = onItineraryClick,
               onVotesClick = onVotesClick,
-              onMapClick = onMapClick,
+              onTripMapClick = onTripMapClick,
           )
     }
   }
@@ -153,7 +160,7 @@ private fun TripDetailsContent(
     onInviteClick: () -> Unit,
     onItineraryClick: () -> Unit,
     onVotesClick: () -> Unit,
-    onMapClick: () -> Unit,
+    onTripMapClick: () -> Unit,
 ) {
   Column(
       modifier.padding(
@@ -251,8 +258,8 @@ private fun TripDetailsContent(
       }
     }
     OutlinedButton(
-        onClick = onMapClick,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 53.dp).markNotImplemented(onMapClick),
+        onClick = onTripMapClick,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 53.dp).markNotImplemented(onTripMapClick),
         shape = MaterialTheme.shapes.small,
         border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outlineVariant),
         colors =

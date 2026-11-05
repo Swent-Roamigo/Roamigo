@@ -44,12 +44,14 @@ fun VotesScreen(
     tripName: String,
     onOpenVote: (String) -> Unit,
     onCreateVote: () -> Unit,
+    onFriendsClick: () -> Unit,
+    modifier: Modifier = Modifier,
     onOverviewClick: () -> Unit = {},
     onItineraryClick: () -> Unit = rememberNotImplementedAction(),
     onTripsClick: () -> Unit = {},
-    onFriendsClick: () -> Unit,
     onMapClick: () -> Unit = {},
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
+    onCloseVote: ((String) -> Unit)? = null,
 ) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   VotesScreenContent(
@@ -64,6 +66,8 @@ fun VotesScreen(
       onFriendsClick = onFriendsClick,
       onMapClick = onMapClick,
       onPhotosClick = onPhotosClick,
+      onCloseVote = onCloseVote,
+      modifier = modifier,
   )
 }
 
@@ -75,14 +79,17 @@ fun VotesScreenContent(
     onOpenVote: (String) -> Unit,
     onCreateVote: () -> Unit,
     onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
     onOverviewClick: () -> Unit = {},
     onItineraryClick: () -> Unit = rememberNotImplementedAction(),
     onTripsClick: () -> Unit = {},
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
     onMapClick: () -> Unit = {},
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
+    onCloseVote: ((String) -> Unit)? = null,
 ) {
   Scaffold(
+      modifier = modifier,
       containerColor = MaterialTheme.colorScheme.background,
       bottomBar = {
         AppBottomBar(
@@ -151,7 +158,7 @@ fun VotesScreenContent(
                 )
               }
           VotesUiState.Error -> VoteErrorContent(R.string.votes_load_error, onRetry)
-          is VotesUiState.Ready -> VotesList(state, onOpenVote, onRetry)
+          is VotesUiState.Ready -> VotesList(state, onOpenVote, onRetry, onCloseVote = onCloseVote)
         }
       }
       if (state is VotesUiState.Empty || state is VotesUiState.Ready) {

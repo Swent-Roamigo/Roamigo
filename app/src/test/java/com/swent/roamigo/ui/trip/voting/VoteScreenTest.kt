@@ -1,13 +1,19 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.trip.voting
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.InternalComposeApi
 import androidx.compose.runtime.currentComposer
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.reflect.getDeclaredComposableMethod
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -16,24 +22,107 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelStore
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.trip.voting.VoteBallot
 import com.swent.roamigo.model.trip.voting.VoteOption
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import com.swent.roamigo.ui.trip.voting.components.VoteCard
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.GraphicsMode
 
 @RunWith(AndroidJUnit4::class)
 class VoteScreenTest {
   @get:Rule val composeRule = createComposeRule()
 
   private fun loaded() = VoteUiState.Ready(vote = interactionVote())
+
+  @Test
+  @GraphicsMode(GraphicsMode.Mode.NATIVE)
+  fun narrowCreatorCardWrapsSecondaryActionBelowPrimaryAtLargeFont() {
+    composeRule.setContent {
+      RoamigoTheme {
+        CompositionLocalProvider(
+            LocalDensity provides Density(LocalDensity.current.density, 1.5f)
+        ) {
+          Box(Modifier.width(260.dp)) {
+            VoteCard(
+                interactionVote(),
+                {},
+                summary = LiveVoteSummary(emptyMap(), true, true),
+                onCloseVote = {},
+            )
+          }
+        }
+      }
+    }
+    val primary =
+        composeRule
+            .onNodeWithTag("vote_action_vote")
+            .assertIsDisplayed()
+            .fetchSemanticsNode()
+            .boundsInRoot
+    val secondary =
+        composeRule
+            .onNodeWithTag("close_vote_vote")
+            .assertIsDisplayed()
+            .fetchSemanticsNode()
+            .boundsInRoot
+    org.junit.Assert.assertTrue(
+        "Primary: $primary; secondary: $secondary; density: ${composeRule.density}",
+        secondary.top >= primary.bottom,
+    )
+    composeRule.onNodeWithTag("vote_action_vote").assertHeightIsAtLeast(48.dp)
+    composeRule.onNodeWithTag("close_vote_vote").assertHeightIsAtLeast(48.dp)
+  }
+
+  @Test
+  fun liveCardCloseActionIsCreatorOnlyAndDisappearsWhenClosed() {
+    var creator by mutableStateOf(true)
+    var vote by mutableStateOf(interactionVote())
+    var requests = 0
+    composeRule.setContent {
+      RoamigoTheme {
+        VoteCard(
+            vote,
+            {},
+            summary = LiveVoteSummary(emptyMap(), false, isCreator = creator),
+            onCloseVote = { requests++ },
+        )
+      }
+    }
+    composeRule.onNodeWithText("Close vote").assertIsDisplayed().performClick()
+    composeRule.runOnIdle {
+      assertEquals(1, requests)
+      creator = false
+    }
+    composeRule.onNodeWithText("Close vote").assertDoesNotExist()
+    composeRule.runOnIdle {
+      creator = true
+      vote = vote.copy(status = com.swent.roamigo.model.trip.voting.VoteStatus.CLOSED)
+    }
+    composeRule.onNodeWithText("Close vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Cast vote").assertDoesNotExist()
+  }
+
+  @Test
+  fun creatorVotingDialogHasOnlyBallotActions() {
+    composeRule.setContent {
+      RoamigoTheme { VoteDialogContent(loaded().copy(isCreator = true), {}, {}, {}, {}) }
+    }
+    composeRule.onNodeWithText("Close vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Submit vote").assertIsDisplayed()
+    composeRule.onNodeWithText("Back").assertIsDisplayed()
+  }
 
   @Test
   fun displaysQuestionOptionsAndSelectionEnablesSubmit() {

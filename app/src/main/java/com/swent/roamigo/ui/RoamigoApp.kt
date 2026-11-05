@@ -25,11 +25,13 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.swent.roamigo.RoamigoApplication
 import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.authentication.AuthRepositoryFirebase
 import com.swent.roamigo.model.connectivity.ConnectivityRepository
 import com.swent.roamigo.model.connectivity.DefaultConnectivityRepository
 import com.swent.roamigo.model.destination.DestinationRepository
+import com.swent.roamigo.model.location.LocationRepository
 import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.photo.PhotoRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
@@ -43,6 +45,9 @@ import com.swent.roamigo.ui.authentication.AuthenticationViewModel
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.friends.FriendsScreen
 import com.swent.roamigo.ui.friends.FriendsUiState
+import com.swent.roamigo.ui.map.LocationViewModel
+import com.swent.roamigo.ui.map.TripMapScreen
+import com.swent.roamigo.ui.map.TripMapViewModel
 import com.swent.roamigo.ui.map.TripOverviewMapRoute
 import com.swent.roamigo.ui.map.TripOverviewMapViewModel
 import com.swent.roamigo.ui.navigation.Route
@@ -60,6 +65,7 @@ import com.swent.roamigo.ui.trip.details.TripDetailsRoute
 import com.swent.roamigo.ui.trip.history.TripHistoryRoute
 import com.swent.roamigo.ui.trip.voting.CreateVoteScreen
 import com.swent.roamigo.ui.trip.voting.CreateVoteViewModel
+import com.swent.roamigo.ui.trip.voting.VoteCloseDialog
 import com.swent.roamigo.ui.trip.voting.VoteDialog
 import com.swent.roamigo.ui.trip.voting.VoteScreen
 import com.swent.roamigo.ui.trip.voting.VoteViewModel
@@ -78,6 +84,8 @@ import kotlinx.coroutines.launch
  * @param voteRepository Shared backend for trip vote discovery, creation, and individual ballots.
  * @param photoRepository Takes trip photos and keeps them until they are uploaded.
  * @param connectivityRepository Tells whether the device is online; the device's own by default.
+ * @param locationRepository Shares the user's location on a trip map; the app-wide instance of
+ *   [RoamigoApplication] by default, since sharing must go through a single instance.
  */
 @Composable
 fun RoamigoApp(
@@ -90,6 +98,7 @@ fun RoamigoApp(
     destinationRepository: DestinationRepository,
     photoRepository: PhotoRepository = remember { FakePhotoRepository() },
     connectivityRepository: ConnectivityRepository? = null,
+    locationRepository: LocationRepository? = null,
 ) {
   val context = LocalContext.current
   val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }
@@ -152,6 +161,7 @@ fun RoamigoApp(
       val tripId = requireNotNull(entry.arguments?.getString("tripId"))
       val tripName = entry.arguments?.getString("tripName").orEmpty()
       var selectedVoteId by rememberSaveable { mutableStateOf<String?>(null) }
+      var confirmVoteClose by rememberSaveable { mutableStateOf(false) }
       val votesViewModel = viewModel {
         VotesViewModel(voteRepository, tripId, authRepository.getCurrentUser()?.uid.orEmpty())
       }
@@ -159,9 +169,14 @@ fun RoamigoApp(
           viewModel = votesViewModel,
           tripName = tripName,
           onOpenVote = { voteId ->
+            confirmVoteClose = false
             val ready = votesViewModel.uiState.value as? VotesUiState.Ready
             if (ready?.liveVotes?.any { it.uid == voteId } == true) selectedVoteId = voteId
             else navController.navigate(Route.vote(tripId, voteId))
+          },
+          onCloseVote = { voteId ->
+            confirmVoteClose = true
+            selectedVoteId = voteId
           },
           onCreateVote = { navController.navigate(Route.newVote(tripId)) },
           onOverviewClick = {
@@ -182,8 +197,18 @@ fun RoamigoApp(
             navController.navigate(Route.AUTHENTICATION) { popUpTo(navController.graph.id) }
           }
         } else {
-          VoteDialog(voteId, { VoteViewModel(voteRepository, tripId, it, userId) }) {
-            selectedVoteId = null
+          if (confirmVoteClose) {
+            VoteCloseDialog(
+                voteId,
+                { VoteViewModel(voteRepository, tripId, it, userId) },
+                onDismiss = { selectedVoteId = null },
+            )
+          } else {
+            VoteDialog(
+                voteId,
+                { VoteViewModel(voteRepository, tripId, it, userId) },
+                onDismiss = { selectedVoteId = null },
+            )
           }
         }
       }
@@ -306,8 +331,34 @@ fun RoamigoApp(
           onItineraryClick = rememberNotImplementedAction(),
           onVotesClick = { tripName -> navController.navigate(Route.votes(tripId, tripName)) },
           onMapClick = onMapClick,
+          onTripMapClick = { navController.navigate(Route.tripMap(tripId)) },
           onPhotosClick = rememberNotImplementedAction(),
       )
+    }
+
+    composable(Route.TRIP_MAP) { entry ->
+      val tripId = requireNotNull(entry.arguments?.getString("tripId"))
+      val userId = authRepository.getCurrentUser()?.uid
+      if (userId == null) {
+        LaunchedEffect(Unit) {
+          navController.navigate(Route.AUTHENTICATION) { popUpTo(navController.graph.id) }
+        }
+      } else {
+        val location =
+            locationRepository
+                ?: remember(context) {
+                  (context.applicationContext as RoamigoApplication).locationRepository
+                }
+        val connectivity =
+            connectivityRepository ?: remember(context) { DefaultConnectivityRepository(context) }
+        TripMapScreen(
+            tripId = tripId,
+            tripMapViewModelFactory =
+                TripMapViewModel.factory(tripId, tripRepository, userRepository),
+            locationViewModelFactory =
+                LocationViewModel.factory(tripId, userId, location, connectivity),
+        )
+      }
     }
 
     composable(Route.TRIP_READY) { entry ->

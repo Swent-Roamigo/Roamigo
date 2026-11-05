@@ -18,9 +18,12 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestResult
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -100,6 +103,19 @@ class LocationViewModelTest {
         }
     return ViewModelProvider(viewModelStore, factory)[
         "viewModel${createdViewModels++}", LocationViewModel::class.java]
+  }
+
+  /** Collects the effects of [viewModel] for the rest of the test, as soon as they are sent. */
+  private fun TestScope.collectEffects(viewModel: LocationViewModel): List<LocationEffect> {
+    val effects = mutableListOf<LocationEffect>()
+    viewModel.effects
+        .onEach { effects += it }
+        .launchIn(
+            CoroutineScope(
+                backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)
+            )
+        )
+    return effects
   }
 
   /** A permission result: whether it was granted, and whether the rationale should be shown. */
@@ -945,6 +961,229 @@ class LocationViewModelTest {
     assertFalse(viewModel.uiState.value.isOffline)
     assertEquals(listOf(TRIP_ID), repository.startSharingCalls)
     assertTrue(repository.stopSharingCalls.isEmpty())
+  }
+
+  @Test
+  fun turnOnSharing_withPermission_showsRationaleThenContinueSharesWithoutRequest() =
+      runLocationTest {
+        val viewModel = createViewModel(hasPermission = true)
+        val effects = collectEffects(viewModel)
+
+        viewModel.onTurnOnSharingClick(permissionGranted = true)
+        runCurrent()
+
+        assertEquals(LocationPermissionSheet.Rationale, viewModel.uiState.value.permissionSheet)
+        assertFalse(viewModel.uiState.value.isSharing)
+        assertTrue(repository.startSharingCalls.isEmpty())
+
+        viewModel.onRationaleContinue(permissionGranted = true)
+        runCurrent()
+
+        assertEquals(LocationPermissionSheet.None, viewModel.uiState.value.permissionSheet)
+        assertTrue(viewModel.uiState.value.isSharing)
+        assertEquals(listOf(TRIP_ID), repository.startSharingCalls)
+        assertTrue(effects.isEmpty())
+      }
+
+  @Test
+  fun turnOnSharing_whileRevoked_showsBlockedWithoutRequesting() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = false)
+    val effects = collectEffects(viewModel)
+    viewModel.onTurnOnSharingClick(permissionGranted = false)
+    viewModel.onRationaleContinue(permissionGranted = false)
+    viewModel.onPermissionResult(granted = false, shouldShowRationale = false)
+    viewModel.onPermissionSheetDismissed()
+
+    viewModel.onTurnOnSharingClick(permissionGranted = false)
+    runCurrent()
+
+    assertEquals(LocationPermissionSheet.Blocked, viewModel.uiState.value.permissionSheet)
+    // Only the first request, made before the permanent refusal.
+    assertEquals(listOf<LocationEffect>(LocationEffect.RequestPermission), effects)
+    assertTrue(repository.startSharingCalls.isEmpty())
+
+    // No request is pending: a later result must not open a sheet nor start sharing.
+    viewModel.onPermissionSheetDismissed()
+    repository.hasPermission = true
+    viewModel.onPermissionResult(granted = true, shouldShowRationale = false)
+    runCurrent()
+
+    assertEquals(LocationPermissionSheet.None, viewModel.uiState.value.permissionSheet)
+    assertTrue(repository.startSharingCalls.isEmpty())
+  }
+
+  @Test
+  fun turnOnSharing_afterRevokedThenGrantedOnRecheck_showsRationale() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = false)
+    viewModel.assertTransitions(DENIED_WITHOUT_RATIONALE to Revoked)
+
+    // The user allowed the permission in the settings, noticed when the screen resumes.
+    repository.hasPermission = true
+    viewModel.onPermissionChecked(granted = true)
+    viewModel.onTurnOnSharingClick(permissionGranted = true)
+    runCurrent()
+
+    assertEquals(Granted, viewModel.uiState.value.permissionState)
+    assertEquals(LocationPermissionSheet.Rationale, viewModel.uiState.value.permissionSheet)
+    assertTrue(repository.startSharingCalls.isEmpty())
+  }
+
+  @Test
+  fun turnOnSharing_withoutPermission_showsRationaleWithoutRequesting() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = false)
+    val effects = collectEffects(viewModel)
+
+    viewModel.onTurnOnSharingClick(permissionGranted = false)
+    runCurrent()
+
+    assertEquals(LocationPermissionSheet.Rationale, viewModel.uiState.value.permissionSheet)
+    assertTrue(effects.isEmpty())
+    assertTrue(repository.startSharingCalls.isEmpty())
+  }
+
+  @Test
+  fun rationaleContinue_thenGranted_startsSharing() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = false)
+    val effects = collectEffects(viewModel)
+    viewModel.onTurnOnSharingClick(permissionGranted = false)
+
+    viewModel.onRationaleContinue(permissionGranted = false)
+    runCurrent()
+
+    assertEquals(LocationPermissionSheet.None, viewModel.uiState.value.permissionSheet)
+    assertEquals(listOf<LocationEffect>(LocationEffect.RequestPermission), effects)
+
+    repository.hasPermission = true
+    viewModel.onPermissionResult(granted = true, shouldShowRationale = false)
+    runCurrent()
+
+    assertEquals(Granted, viewModel.uiState.value.permissionState)
+    assertEquals(LocationPermissionSheet.None, viewModel.uiState.value.permissionSheet)
+    assertTrue(viewModel.uiState.value.isSharing)
+    assertEquals(listOf(TRIP_ID), repository.startSharingCalls)
+  }
+
+  @Test
+  fun rationaleContinue_whenAlreadyGranted_startsSharingWithoutRequesting() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = false)
+    val effects = collectEffects(viewModel)
+    viewModel.onTurnOnSharingClick(permissionGranted = false)
+
+    // Granted outside the app while the rationale was open.
+    repository.hasPermission = true
+    viewModel.onRationaleContinue(permissionGranted = true)
+    runCurrent()
+
+    assertEquals(LocationPermissionSheet.None, viewModel.uiState.value.permissionSheet)
+    assertTrue(effects.isEmpty())
+    assertTrue(viewModel.uiState.value.isSharing)
+    assertEquals(listOf(TRIP_ID), repository.startSharingCalls)
+  }
+
+  @Test
+  fun rationaleContinue_thenDenied_showsDeniedSheet() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = false)
+    viewModel.onTurnOnSharingClick(permissionGranted = false)
+    viewModel.onRationaleContinue(permissionGranted = false)
+
+    viewModel.onPermissionResult(granted = false, shouldShowRationale = true)
+    runCurrent()
+
+    assertEquals(Denied, viewModel.uiState.value.permissionState)
+    assertEquals(LocationPermissionSheet.Denied, viewModel.uiState.value.permissionSheet)
+    assertTrue(repository.startSharingCalls.isEmpty())
+  }
+
+  @Test
+  fun rationaleContinue_thenRevoked_showsBlockedSheet() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = false)
+    viewModel.onTurnOnSharingClick(permissionGranted = false)
+    viewModel.onRationaleContinue(permissionGranted = false)
+
+    viewModel.onPermissionResult(granted = false, shouldShowRationale = false)
+    runCurrent()
+
+    assertEquals(Revoked, viewModel.uiState.value.permissionState)
+    assertEquals(LocationPermissionSheet.Blocked, viewModel.uiState.value.permissionSheet)
+    assertTrue(repository.startSharingCalls.isEmpty())
+  }
+
+  @Test
+  fun permissionSheetDismissed_hidesSheetAndRequestsNothing() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = false)
+    val effects = collectEffects(viewModel)
+    viewModel.onTurnOnSharingClick(permissionGranted = false)
+
+    viewModel.onPermissionSheetDismissed()
+    runCurrent()
+
+    assertEquals(LocationPermissionSheet.None, viewModel.uiState.value.permissionSheet)
+    assertTrue(effects.isEmpty())
+    assertTrue(repository.startSharingCalls.isEmpty())
+  }
+
+  @Test
+  fun permissionGrantedWithoutContinue_doesNotStartSharing() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = false)
+    viewModel.onTurnOnSharingClick(permissionGranted = false)
+    viewModel.onPermissionSheetDismissed()
+
+    repository.hasPermission = true
+    viewModel.onPermissionResult(granted = true, shouldShowRationale = false)
+    runCurrent()
+
+    assertEquals(Granted, viewModel.uiState.value.permissionState)
+    assertEquals(LocationPermissionSheet.None, viewModel.uiState.value.permissionSheet)
+    assertFalse(viewModel.uiState.value.isSharing)
+    assertTrue(repository.startSharingCalls.isEmpty())
+  }
+
+  @Test
+  fun permissionResult_onlyAnswersOnePendingRequest() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = false)
+    viewModel.onTurnOnSharingClick(permissionGranted = false)
+    viewModel.onRationaleContinue(permissionGranted = false)
+    viewModel.onPermissionResult(granted = false, shouldShowRationale = true)
+    viewModel.onPermissionSheetDismissed()
+
+    repository.hasPermission = true
+    viewModel.onPermissionResult(granted = true, shouldShowRationale = false)
+    runCurrent()
+
+    assertFalse(viewModel.uiState.value.isSharing)
+    assertTrue(repository.startSharingCalls.isEmpty())
+  }
+
+  @Test
+  fun openSettings_hidesSheetAndEmitsOpenSettings() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = false)
+    val effects = collectEffects(viewModel)
+    viewModel.onTurnOnSharingClick(permissionGranted = false)
+    viewModel.onRationaleContinue(permissionGranted = false)
+    viewModel.onPermissionResult(granted = false, shouldShowRationale = false)
+
+    viewModel.onOpenSettings()
+    runCurrent()
+
+    assertEquals(LocationPermissionSheet.None, viewModel.uiState.value.permissionSheet)
+    assertEquals(
+        listOf(LocationEffect.RequestPermission, LocationEffect.OpenSettings),
+        effects,
+    )
+    assertTrue(repository.startSharingCalls.isEmpty())
+  }
+
+  @Test
+  fun recheck_whileRationaleOpen_doesNotStartSharing() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = false)
+    viewModel.onTurnOnSharingClick(permissionGranted = false)
+
+    repository.hasPermission = true
+    viewModel.onPermissionChecked(granted = true)
+    runCurrent()
+
+    assertEquals(LocationPermissionSheet.Rationale, viewModel.uiState.value.permissionSheet)
+    assertTrue(repository.startSharingCalls.isEmpty())
   }
 
   private class OtherViewModel : ViewModel()

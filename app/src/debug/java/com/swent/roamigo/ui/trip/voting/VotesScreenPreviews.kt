@@ -67,7 +67,7 @@ private fun VotesReadyPreview() {
 private fun VotesEmptyPreview() = VotesPreview(VotesUiState.Empty)
 
 @Composable
-private fun VotesPreview(state: VotesUiState) {
+internal fun VotesPreview(state: VotesUiState) {
   RoamigoTheme {
     VotesScreenContent(
         state = state,
@@ -75,6 +75,7 @@ private fun VotesPreview(state: VotesUiState) {
         onOpenVote = {},
         onCreateVote = {},
         onRetry = {},
+        onCloseVote = {},
         onOverviewClick = {},
         onTripsClick = {},
         onMapClick = {},

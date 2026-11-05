@@ -298,6 +298,8 @@ class CreateVoteViewModelTest {
 }
 
 internal class FakeVoteRepository : VoteRepository {
+  override suspend fun closeVote(tripId: String, voteId: String) = error("Not used")
+
   val createCalls = mutableListOf<Vote>()
   val created = mutableListOf<Vote>()
   var gate: CompletableDeferred<Unit>? = null
@@ -313,6 +315,8 @@ internal class FakeVoteRepository : VoteRepository {
   override suspend fun getVote(tripId: String, voteId: String): Vote? = error("Not used")
 
   override suspend fun getVotes(tripId: String): List<Vote> = error("Not used")
+
+  override fun observeVote(tripId: String, voteId: String): Flow<Vote?> = error("Not used")
 
   override fun observeVotes(tripId: String): Flow<List<Vote>> = error("Not used")
 

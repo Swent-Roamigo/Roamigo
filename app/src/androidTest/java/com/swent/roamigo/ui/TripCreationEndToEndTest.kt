@@ -163,12 +163,17 @@ class TripCreationEndToEndTest {
         assertNotNull(saved.getTimestamp("createdAt"))
         val locations =
             listOf(
-                TripLocation(38.7223, -9.1393, "Lisbon"),
-                TripLocation(41.1579, -8.6291, "Porto"),
+                TripLocation(38.7223, -9.1393, "Lisbon", "PT"),
+                TripLocation(41.1579, -8.6291, "Porto", "PT"),
             )
         assertEquals(
             locations.map {
-              mapOf("name" to it.name, "latitude" to it.latitude, "longitude" to it.longitude)
+              mapOf(
+                  "name" to it.name,
+                  "latitude" to it.latitude,
+                  "longitude" to it.longitude,
+                  "countryCode" to it.countryCode,
+              )
             },
             saved.get("destinations"),
         )

@@ -1,6 +1,12 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui.map
 
+import android.Manifest
+import android.app.Activity
+import android.app.Instrumentation
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.result.ActivityResultRegistry
@@ -17,6 +23,12 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.core.app.ActivityOptionsCompat
+import androidx.lifecycle.Lifecycle
+import androidx.test.espresso.intent.Intents
+import androidx.test.espresso.intent.Intents.intended
+import androidx.test.espresso.intent.Intents.intending
+import androidx.test.espresso.intent.matcher.IntentMatchers.hasAction
+import androidx.test.espresso.intent.matcher.IntentMatchers.hasData
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.Timestamp
@@ -41,7 +53,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import org.hamcrest.Matchers.allOf
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -49,11 +63,11 @@ import org.junit.runner.RunWith
 /**
  * UI tests for [TripMapScreen] and [TripMapContent].
  *
- * Until #144 lands, the permission and sharing checks use fakes: [RecordingLocationRepository]
- * reports a fixed permission state and [RecordingActivityResultRegistry] records launches instead
- * of showing the system dialog.
- *
- * TODO(#TBD): Replace these fakes with tests that go through the real permission flow.
+ * The permission flow runs for real, but the system stays out of it:
+ * [FakeLocationPermissionChecker] answers the permission checks, [RecordingActivityResultRegistry]
+ * records the permission requests and answers them on demand instead of showing the system dialog,
+ * and the started intents are recorded instead of leaving the app, or stubbed through Espresso
+ * Intents when the screen starts them itself.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
@@ -69,6 +83,10 @@ class TripMapScreenTest {
   private val sharingOnTitle = targetContext.getString(R.string.trip_map_sharing_on_title)
   private val turnOnSharingLabel = targetContext.getString(R.string.trip_map_turn_on_sharing)
   private val pauseSharingLabel = targetContext.getString(R.string.trip_map_pause_sharing)
+
+  private val permissionChecker = FakeLocationPermissionChecker()
+  private val registry = RecordingActivityResultRegistry()
+  private val startedIntents = mutableListOf<Intent>()
 
   private val trip =
       Trip(
@@ -239,15 +257,23 @@ class TripMapScreenTest {
   }
 
   @Test
-  fun turnOnWithGrantedPermissionStartsSharingAndPauseStopsIt() {
+  fun turnOnWithGrantedPermissionShowsRationaleThenContinueStartsSharingAndPauseStopsIt() {
+    permissionChecker.granted = true
     val locationRepository = RecordingLocationRepository(hasPermission = true)
     setScreen(FakeTripRepository(trips = listOf(trip)), locationRepository)
 
     composeRule.onNodeWithText(turnOnSharingLabel).performClick()
 
+    composeRule.onNodeWithTag(C.Tag.trip_map_share_location_sheet).assertIsDisplayed()
+    composeRule.runOnIdle { assertEquals(0, locationRepository.startSharingCalls.get()) }
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_share_location_continue).performClick()
+
     waitForText(pauseSharingLabel)
     composeRule.onNodeWithText(sharingOnTitle).assertIsDisplayed()
     assertEquals(1, locationRepository.startSharingCalls.get())
+    assertNoPermissionSheet()
+    assertEquals(emptyList<Any?>(), registry.launchedInputs)
 
     composeRule.onNodeWithText(pauseSharingLabel).performClick()
 
@@ -258,16 +284,260 @@ class TripMapScreenTest {
   }
 
   @Test
-  fun turnOnWithoutPermissionDoesNothing() {
-    val locationRepository = RecordingLocationRepository(hasPermission = false)
+  fun turnOnWithoutPermissionShowsRationaleAndLaunchesNothing() {
+    val locationRepository = RecordingLocationRepository()
     setScreen(FakeTripRepository(trips = listOf(trip)), locationRepository)
 
     composeRule.onNodeWithText(turnOnSharingLabel).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_share_location_sheet).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_share_location_continue).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_share_location_not_now).assertIsDisplayed()
+    composeRule.runOnIdle {
+      assertEquals(emptyList<Any?>(), registry.launchedInputs)
+      assertEquals(0, locationRepository.startSharingCalls.get())
+    }
+  }
+
+  @Test
+  fun notNowClosesRationaleAndLaunchesNothing() {
+    val locationRepository = RecordingLocationRepository()
+    setScreen(FakeTripRepository(trips = listOf(trip)), locationRepository)
+    composeRule.onNodeWithText(turnOnSharingLabel).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_share_location_not_now).performClick()
+
+    assertNoPermissionSheet()
+    composeRule.onNodeWithText(sharingOffTitle).assertIsDisplayed()
+    composeRule.runOnIdle {
+      assertEquals(emptyList<Any?>(), registry.launchedInputs)
+      assertEquals(0, locationRepository.startSharingCalls.get())
+    }
+  }
+
+  @Test
+  fun continueRequestsFineAndCoarseLocation() {
+    setScreen(FakeTripRepository(trips = listOf(trip)), RecordingLocationRepository())
+    composeRule.onNodeWithText(turnOnSharingLabel).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_share_location_continue).performClick()
+
+    assertNoPermissionSheet()
+    composeRule.runOnIdle {
+      val requested = registry.launchedInputs.single() as Array<*>
+      assertEquals(
+          setOf(
+              Manifest.permission.ACCESS_FINE_LOCATION,
+              Manifest.permission.ACCESS_COARSE_LOCATION,
+          ),
+          requested.toSet(),
+      )
+    }
+  }
+
+  @Test
+  fun grantedResultStartsSharing() {
+    val locationRepository = RecordingLocationRepository()
+    setScreen(FakeTripRepository(trips = listOf(trip)), locationRepository)
+    requestPermissionThroughRationale()
+
+    permissionChecker.granted = true
+    answerPermissionRequest(fine = false, coarse = true)
+
+    waitForText(pauseSharingLabel)
+    composeRule.onNodeWithText(sharingOnTitle).assertIsDisplayed()
+    assertNoPermissionSheet()
+    assertEquals(1, locationRepository.startSharingCalls.get())
+  }
+
+  @Test
+  fun deniedResultShowsDeniedSheetAndGotItClosesIt() {
+    val locationRepository = RecordingLocationRepository()
+    setScreen(FakeTripRepository(trips = listOf(trip)), locationRepository)
+    requestPermissionThroughRationale()
+
+    permissionChecker.shouldShowRationale = true
+    answerPermissionRequest(fine = false, coarse = false)
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_location_denied_sheet).assertIsDisplayed()
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_location_denied_got_it).performClick()
+
+    assertNoPermissionSheet()
+    composeRule.onNodeWithText(sharingOffTitle).assertIsDisplayed()
+    composeRule.runOnIdle {
+      assertEquals(1, registry.launchedInputs.size)
+      assertEquals(0, locationRepository.startSharingCalls.get())
+    }
+  }
+
+  @Test
+  fun refusalWithoutRationaleShowsBlockedSheetAndOpenSettingsStartsSettings() {
+    val locationRepository = RecordingLocationRepository()
+    setScreen(FakeTripRepository(trips = listOf(trip)), locationRepository)
+    requestPermissionThroughRationale()
+
+    permissionChecker.shouldShowRationale = false
+    answerPermissionRequest(fine = false, coarse = false)
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_location_blocked_sheet).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_location_blocked_not_now).assertIsDisplayed()
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_location_blocked_open_settings).performClick()
+
+    assertNoPermissionSheet()
+    composeRule.runOnIdle {
+      val intent = startedIntents.single()
+      assertEquals(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, intent.action)
+      assertEquals(Uri.fromParts("package", targetContext.packageName, null), intent.data)
+      assertEquals(1, registry.launchedInputs.size)
+      assertEquals(0, locationRepository.startSharingCalls.get())
+    }
+  }
+
+  @Test
+  fun permissionGrantedWithoutContinueDoesNotStartSharing() {
+    val locationRepository = RecordingLocationRepository()
+    setScreen(FakeTripRepository(trips = listOf(trip)), locationRepository)
+    composeRule.onNodeWithText(turnOnSharingLabel).performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_map_share_location_not_now).performClick()
+    assertNoPermissionSheet()
+
+    // Granted outside the app, e.g. in the settings, then seen when the screen resumes.
+    permissionChecker.granted = true
+    composeRule.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
+    composeRule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
     composeRule.waitForIdle()
 
     composeRule.onNodeWithText(sharingOffTitle).assertIsDisplayed()
     composeRule.onNodeWithText(turnOnSharingLabel).assertIsDisplayed()
+    assertTrue(registry.launchedInputs.isEmpty())
     assertEquals(0, locationRepository.startSharingCalls.get())
+  }
+
+  @Test
+  fun openSettingsWithTheDefaultStarterOpensTheAppDetailsSettings() {
+    Intents.init()
+    try {
+      // Answered at once, so that the settings never open over the test.
+      intending(hasAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS))
+          .respondWith(Instrumentation.ActivityResult(Activity.RESULT_OK, null))
+      setScreen(
+          FakeTripRepository(trips = listOf(trip)),
+          RecordingLocationRepository(),
+          recordStartedIntents = false,
+      )
+      requestPermissionThroughRationale()
+      permissionChecker.shouldShowRationale = false
+      answerPermissionRequest(fine = false, coarse = false)
+
+      composeRule.onNodeWithTag(C.Tag.trip_map_location_blocked_open_settings).performClick()
+      composeRule.waitForIdle()
+
+      intended(
+          allOf(
+              hasAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS),
+              hasData(Uri.fromParts("package", targetContext.packageName, null)),
+          )
+      )
+      assertNoPermissionSheet()
+    } finally {
+      Intents.release()
+    }
+  }
+
+  @Test
+  fun permissionGrantedOutsideTheAppShowsRationaleThenContinueStartsSharing() {
+    val locationRepository = RecordingLocationRepository()
+    setScreen(FakeTripRepository(trips = listOf(trip)), locationRepository)
+    composeRule.onNodeWithTag(C.Tag.trip_map_map).assertIsDisplayed()
+
+    // Granted outside the app, e.g. in the settings, then seen when the screen resumes.
+    permissionChecker.granted = true
+    composeRule.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
+    composeRule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+    composeRule.waitForIdle()
+
+    composeRule.onNodeWithText(turnOnSharingLabel).performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_map_share_location_sheet).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_share_location_continue).performClick()
+
+    waitForText(pauseSharingLabel)
+    composeRule.onNodeWithText(sharingOnTitle).assertIsDisplayed()
+    assertNoPermissionSheet()
+    composeRule.runOnIdle {
+      assertTrue(registry.launchedInputs.isEmpty())
+      assertEquals(1, locationRepository.startSharingCalls.get())
+    }
+  }
+
+  @Test
+  fun turnOnAfterPermanentRefusalShowsBlockedSheetAndLaunchesNothing() {
+    val locationRepository = RecordingLocationRepository()
+    setScreen(FakeTripRepository(trips = listOf(trip)), locationRepository)
+    requestPermissionThroughRationale()
+    permissionChecker.shouldShowRationale = false
+    answerPermissionRequest(fine = false, coarse = false)
+    composeRule.onNodeWithTag(C.Tag.trip_map_location_blocked_not_now).performClick()
+    assertNoPermissionSheet()
+
+    composeRule.onNodeWithText(turnOnSharingLabel).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_location_blocked_sheet).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_share_location_sheet).assertDoesNotExist()
+    composeRule.runOnIdle {
+      // Only the first request, made before the permanent refusal.
+      assertEquals(1, registry.launchedInputs.size)
+      assertEquals(0, locationRepository.startSharingCalls.get())
+    }
+  }
+
+  @Test
+  fun permissionGrantedInSettingsAfterPermanentRefusalShowsRationaleAgain() {
+    val locationRepository = RecordingLocationRepository()
+    setScreen(FakeTripRepository(trips = listOf(trip)), locationRepository)
+    requestPermissionThroughRationale()
+    permissionChecker.shouldShowRationale = false
+    answerPermissionRequest(fine = false, coarse = false)
+    composeRule.onNodeWithTag(C.Tag.trip_map_location_blocked_not_now).performClick()
+
+    // Allowed in the settings, then seen when the screen resumes.
+    permissionChecker.granted = true
+    composeRule.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
+    composeRule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+    composeRule.waitForIdle()
+
+    composeRule.onNodeWithText(turnOnSharingLabel).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_share_location_sheet).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_location_blocked_sheet).assertDoesNotExist()
+    composeRule.runOnIdle { assertEquals(1, registry.launchedInputs.size) }
+  }
+
+  /** Taps Turn on and Continue, so that the screen launches the permission request. */
+  private fun requestPermissionThroughRationale() {
+    composeRule.onNodeWithText(turnOnSharingLabel).performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_map_share_location_continue).performClick()
+    composeRule.runOnIdle { assertEquals(1, registry.launchedInputs.size) }
+  }
+
+  /** Answers the last permission request the way the system dialog would. */
+  private fun answerPermissionRequest(fine: Boolean, coarse: Boolean) {
+    composeRule.runOnIdle {
+      registry.answerLastLaunch(
+          mapOf(
+              Manifest.permission.ACCESS_FINE_LOCATION to fine,
+              Manifest.permission.ACCESS_COARSE_LOCATION to coarse,
+          )
+      )
+    }
+    composeRule.waitForIdle()
+  }
+
+  private fun assertNoPermissionSheet() {
+    composeRule.onNodeWithTag(C.Tag.trip_map_share_location_sheet).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.trip_map_location_denied_sheet).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.trip_map_location_blocked_sheet).assertDoesNotExist()
   }
 
   private val loadedState
@@ -310,31 +580,46 @@ class TripMapScreenTest {
   private fun setScreen(
       tripRepository: TripRepository,
       locationRepository: LocationRepository,
-      activityResultRegistry: ActivityResultRegistry = RecordingActivityResultRegistry(),
+      activityResultRegistry: ActivityResultRegistry = registry,
+      recordStartedIntents: Boolean = true,
   ) {
     val registryOwner =
         object : ActivityResultRegistryOwner {
           override val activityResultRegistry = activityResultRegistry
         }
+    val tripMapViewModelFactory =
+        TripMapViewModel.factory(
+            tripId = TRIP_ID,
+            tripRepository = tripRepository,
+            userRepository = FakeUserRepository(User(USER_ID, "Alex", null)),
+        )
+    val locationViewModelFactory =
+        LocationViewModel.factory(
+            tripId = TRIP_ID,
+            currentUserId = USER_ID,
+            locationRepository = locationRepository,
+            connectivityRepository = AlwaysOnlineConnectivityRepository,
+        )
     composeRule.setContent {
       CompositionLocalProvider(LocalActivityResultRegistryOwner provides registryOwner) {
         RoamigoTheme {
-          TripMapScreen(
-              tripId = TRIP_ID,
-              tripMapViewModelFactory =
-                  TripMapViewModel.factory(
-                      tripId = TRIP_ID,
-                      tripRepository = tripRepository,
-                      userRepository = FakeUserRepository(User(USER_ID, "Alex", null)),
-                  ),
-              locationViewModelFactory =
-                  LocationViewModel.factory(
-                      tripId = TRIP_ID,
-                      currentUserId = USER_ID,
-                      locationRepository = locationRepository,
-                      connectivityRepository = AlwaysOnlineConnectivityRepository,
-                  ),
-          )
+          if (recordStartedIntents) {
+            TripMapScreen(
+                tripId = TRIP_ID,
+                tripMapViewModelFactory = tripMapViewModelFactory,
+                locationViewModelFactory = locationViewModelFactory,
+                permissionChecker = permissionChecker,
+                startActivity = { intent -> startedIntents += intent },
+            )
+          } else {
+            // Leaves the intents to the screen's default, which starts them from its context.
+            TripMapScreen(
+                tripId = TRIP_ID,
+                tripMapViewModelFactory = tripMapViewModelFactory,
+                locationViewModelFactory = locationViewModelFactory,
+                permissionChecker = permissionChecker,
+            )
+          }
         }
       }
     }
@@ -389,10 +674,11 @@ class TripMapScreenTest {
 
   /**
    * Records what the screen launches through the Activity Result API, such as a system permission
-   * request, without showing anything.
+   * request, without showing anything. [answerLastLaunch] then delivers the answer.
    */
   private class RecordingActivityResultRegistry : ActivityResultRegistry() {
     val launchedInputs = mutableListOf<Any?>()
+    private val launchedRequestCodes = mutableListOf<Int>()
 
     override fun <I, O> onLaunch(
         requestCode: Int,
@@ -401,7 +687,23 @@ class TripMapScreenTest {
         options: ActivityOptionsCompat?,
     ) {
       launchedInputs += input
+      launchedRequestCodes += requestCode
     }
+
+    /** Delivers [result] to the callback of the last launch, as the launched activity would. */
+    fun <O> answerLastLaunch(result: O) {
+      check(dispatchResult(launchedRequestCodes.last(), result)) { "No callback received it" }
+    }
+  }
+
+  /** Answers the permission checks of the screen with values the test sets. */
+  private class FakeLocationPermissionChecker(
+      var granted: Boolean = false,
+      var shouldShowRationale: Boolean = true,
+  ) : LocationPermissionChecker {
+    override fun isGranted(): Boolean = granted
+
+    override fun shouldShowRationale(): Boolean = shouldShowRationale
   }
 
   private object AlwaysOnlineConnectivityRepository : ConnectivityRepository {

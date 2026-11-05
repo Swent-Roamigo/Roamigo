@@ -37,6 +37,7 @@ import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import java.time.Instant
+import kotlinx.coroutines.flow.first
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -136,6 +137,56 @@ class VotesNavigationTest {
         .assertTextEquals(
             composeRule.activity.resources.getQuantityString(R.plurals.vote_count, b, b)
         )
+  }
+
+  @Test
+  fun cancellingCardCloseReturnsToListAndVoteStillOpensNormalDialog() {
+    repository.snapshots.value = Result.success(listOf(vote.copy(createdByUserId = "member")))
+    openVotes()
+    composeRule.onNodeWithText("Close vote").performClick()
+    composeRule.onNodeWithTag("vote_close_dialog").assertIsDisplayed()
+    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
+    composeRule.onNodeWithText("$tripName · 1 open").assertExists()
+    composeRule.onNodeWithText("Cancel").performClick()
+    composeRule.onNodeWithTag("vote_close_dialog").assertDoesNotExist()
+    composeRule.onNodeWithText("$tripName · 1 open").assertIsDisplayed()
+    composeRule.onNodeWithText("Vote").performClick()
+    composeRule.onNodeWithTag("vote_dialog").assertIsDisplayed()
+    dialogText("Close vote").assertDoesNotExist()
+    composeRule.onNodeWithTag("vote_close_dialog").assertDoesNotExist()
+    dialogText("Market").performClick()
+    composeRule.onNodeWithText("Submit vote").performClick()
+    composeRule.onNodeWithText("Back").performClick()
+    composeRule.onNodeWithText("Change vote").performClick()
+    composeRule.onNodeWithTag("vote_dialog").assertIsDisplayed()
+    composeRule.onNodeWithTag("vote_close_dialog").assertDoesNotExist()
+    composeRule.runOnIdle {
+      assertEquals(
+          VoteStatus.OPEN,
+          repository.snapshots.value.getOrThrow().single().status,
+      )
+    }
+  }
+
+  @Test
+  fun creatorClosesFromCardAndListUpdatesWithoutRefresh() {
+    repository.snapshots.value = Result.success(listOf(vote.copy(createdByUserId = "member")))
+    openVotes()
+    composeRule.onNodeWithText("Close vote").assertIsDisplayed().performClick()
+    composeRule.onNodeWithText("Close this vote?").assertIsDisplayed()
+    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
+    composeRule.onNodeWithTag("vote_close_confirm").performClick()
+    composeRule.onNodeWithText("Close vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
+    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
+    composeRule.onNodeWithTag("vote_close_dialog").assertDoesNotExist()
+    composeRule.onNodeWithText("$tripName · 0 open").assertIsDisplayed()
+    composeRule.onNodeWithText("Closed vote").assertIsDisplayed()
+    composeRule.onNodeWithText("Vote").assertDoesNotExist()
+    composeRule.runOnIdle {
+      assertEquals(VoteStatus.CLOSED, repository.snapshots.value.getOrThrow().single().status)
+      assertEquals(0, repository.activeBallotObservers[vote.uid])
+    }
   }
 
   @Test

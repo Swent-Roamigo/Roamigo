@@ -25,6 +25,8 @@ sealed interface VoteUiState {
    *   selected. May differ from [persistedOptionId] while editing or awaiting a write's echo.
    * @property submissionState The current ballot submission state.
    * @property syncState The state of realtime ballot synchronization after initial readiness.
+   * @property isCreator Whether the authenticated member created this vote.
+   * @property closingState The close operation's progress or failure, independent of ballots.
    * @property voteCounts Map from option ID to the current count derived from ballots. Options
    *   normally have an entry initialized to 0.
    */
@@ -34,6 +36,8 @@ sealed interface VoteUiState {
       val selectedOptionId: String? = persistedOptionId,
       val submissionState: VoteSubmissionState = VoteSubmissionState.Idle,
       val syncState: VoteSyncState = VoteSyncState.Synced,
+      val isCreator: Boolean = false,
+      val closingState: VoteSubmissionState = VoteSubmissionState.Idle,
       val voteCounts: Map<String, Int> = vote.options.associate { it.uid to 0 },
   ) : VoteUiState {
     val hasUnsavedSelection: Boolean
@@ -42,8 +46,18 @@ sealed interface VoteUiState {
     val isSubmitting: Boolean
       get() = submissionState == VoteSubmissionState.Submitting
 
+    val isClosing: Boolean
+      get() = closingState == VoteSubmissionState.Submitting
+
+    val canClose: Boolean
+      get() = isCreator && vote.status == VoteStatus.OPEN && canSelect
+
     val canSelect: Boolean
-      get() = syncState == VoteSyncState.Synced && !isSubmitting
+      get() =
+          vote.status == VoteStatus.OPEN &&
+              syncState == VoteSyncState.Synced &&
+              !isSubmitting &&
+              !isClosing
 
     val canSubmit: Boolean
       get() =
