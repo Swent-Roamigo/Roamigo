@@ -459,6 +459,7 @@ fun RoamigoApp(
             }
           }
         }
+        // Global destinations leave the current trip.
         AppBottomBar(
             onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
             onMapClick = onMapClick,
