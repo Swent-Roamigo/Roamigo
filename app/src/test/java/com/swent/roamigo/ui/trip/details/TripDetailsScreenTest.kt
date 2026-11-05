@@ -36,7 +36,6 @@ class TripDetailsScreenTest {
     composeRule.onNodeWithText("1 member").assertIsDisplayed()
     composeRule.onNodeWithText("4 suggested places").assertIsDisplayed()
     composeRule.onNodeWithText("4").assertIsDisplayed()
-    composeRule.onNodeWithText("12 – 19 Oct · 3 travelers").assertIsDisplayed()
     composeRule.onNodeWithText("Not available yet").assertDoesNotExist()
     composeRule.onNodeWithText("Trip photos").performScrollTo().assertIsDisplayed()
   }

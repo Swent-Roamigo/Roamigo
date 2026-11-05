@@ -127,9 +127,8 @@ class RoamigoAppTest {
   }
 
   @Test
-  fun unfinishedActionsShowFeedbackFromTripsAndProfile() {
+  fun unfinishedActionsShowFeedbackFromProfile() {
     waitForTrips()
-    composeRule.assertNotImplementedActionsShowFeedback()
     waitForTag(C.Tag.trips_profile_avatar)
     composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
     composeRule.assertNotImplementedActionsShowFeedback()

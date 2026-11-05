@@ -73,7 +73,9 @@ class PhotosNavigationTest {
                             trip.copy(
                                 uid = "other",
                                 name = "Other trip",
-                                endDate = Timestamp(now + 3600, 0),
+                                startDate = Timestamp(now + 86400, 0),
+                                endDate = Timestamp(now + 172800, 0),
+                                status = TripStatus.PLANNED,
                             ),
                             trip,
                         )
@@ -93,7 +95,7 @@ class PhotosNavigationTest {
       composeRule.onAllNodesWithTag(C.Tag.trips_main_trip_card).fetchSemanticsNodes().isNotEmpty()
     }
     composeRule.onNodeWithTag(C.Tag.trips_navigation_photos).assertDoesNotExist()
-    composeRule.onNodeWithText(tripName).performScrollTo().performClick()
+    composeRule.onNodeWithTag(C.Tag.trips_main_trip_card).performClick()
     composeRule.onNodeWithText("Votes").performClick()
     composeRule.onNodeWithText("Photos").performClick()
   }
