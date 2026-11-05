@@ -246,11 +246,11 @@ class VotesNavigationTest {
   fun detailTabFromVotesReturnsToSelectedTripAndBackReturnsToTrips() {
     openVotes()
 
-    composeRule.onNodeWithText("Detail").performClick()
+    composeRule.onNodeWithText("Plan").performClick()
 
     composeRule.onNodeWithTag("trip_details_screen").assertIsDisplayed()
     composeRule.onNodeWithText(tripName).assertIsDisplayed()
-    composeRule.onNodeWithText("Detail").assertIsSelected()
+    composeRule.onNodeWithText("Plan").assertIsSelected()
     composeRule.runOnIdle {
       assertEquals(Route.TRIP_DETAILS, navController.currentBackStackEntry?.destination?.route)
       assertEquals(tripId, navController.currentBackStackEntry?.arguments?.getString("tripId"))
@@ -310,7 +310,7 @@ class VotesNavigationTest {
   fun tripDetailShareGivesFeedbackAndMembersOpensItsScreenAndBackReturnsToTheTrip() {
     openVotes()
 
-    composeRule.onNodeWithText("Detail").performClick()
+    composeRule.onNodeWithText("Plan").performClick()
     ShadowToast.reset()
     composeRule
         .onNodeWithContentDescription(composeRule.activity.getString(R.string.trip_details_share))
@@ -492,7 +492,7 @@ class VotesNavigationTest {
   }
 
   private fun assertTripAcrossDetailAndPhotos(expectedId: String, expectedName: String) {
-    for (label in listOf("Detail", "Photos")) {
+    for (label in listOf("Plan", "Photos")) {
       composeRule.onNodeWithText(label).performClick()
       composeRule.onNodeWithText(expectedName).assertIsDisplayed()
       composeRule.runOnIdle {

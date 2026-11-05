@@ -358,7 +358,7 @@
     <string name="trip_ready_error">Could not load this trip. Please try again.</string>
     <string name="trip_ready_photo_credit">Photo credits</string>
     <!-- Trip Details -->
-    <string name="trip_details_tab">Detail</string>
+    <string name="trip_details_tab">Plan</string>
     <string name="trip_details_itinerary">Itinerary</string>
     <string name="trip_details_votes">Votes</string>
     <string name="trip_details_share">Share trip</string>

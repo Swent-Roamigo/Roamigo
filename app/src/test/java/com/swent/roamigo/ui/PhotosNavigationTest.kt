@@ -157,7 +157,7 @@ class PhotosNavigationTest {
     openPhotos()
 
     composeRule.onNodeWithText("Votes").performClick()
-    composeRule.onNodeWithText("Detail").performClick()
+    composeRule.onNodeWithText("Plan").performClick()
     composeRule.onNodeWithText("Photos").performClick()
     composeRule.onNodeWithTag(C.Tag.photos_screen).assertIsDisplayed()
     composeRule.onNodeWithText(tripName).assertIsDisplayed()
