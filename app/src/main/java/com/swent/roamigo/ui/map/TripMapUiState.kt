@@ -22,13 +22,13 @@ sealed interface TripMapUiState {
    * @property viewport camera target showing the trip's destinations.
    * @property members display information of every trip member, keyed by user ID. Until the
    *   members' profiles are loaded, or if they cannot be, each entry holds fallback information.
+   * @property activityMarkers markers for activities and suggestions belonging to the trip.
    */
   data class Loaded(
       val trip: Trip,
       val viewport: TripMapViewport,
       val members: Map<String, MemberDisplayInfo>,
       val activityMarkers: List<TripMarkerUiState> = emptyList(),
-      val suggestionMarkers: List<TripMarkerUiState> = emptyList(),
   ) : TripMapUiState
 }
 
