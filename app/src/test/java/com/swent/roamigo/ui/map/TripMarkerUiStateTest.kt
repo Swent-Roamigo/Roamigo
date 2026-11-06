@@ -116,7 +116,6 @@ class TripMarkerUiStateTest {
         )
 
     assertEquals(suggestion.toTripMarkerUiState().id, accepted.toTripMarkerUiState().id)
-
   }
 
   private fun activity(): Activity =
