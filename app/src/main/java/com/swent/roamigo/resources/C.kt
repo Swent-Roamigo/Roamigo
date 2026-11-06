@@ -78,6 +78,7 @@ object C {
     const val trip_members_row_prefix = "trip_members_row_"
     const val create_trip_discard_confirm = "create_trip_discard_confirm"
     const val friends_search = "friends_search"
+    const val profile_log_out_confirm = "profile_screen_log_out_confirm"
     const val friends_avatar_prefix = "friends_avatar_"
     const val friends_view_map_prefix = "friends_view_map_"
 

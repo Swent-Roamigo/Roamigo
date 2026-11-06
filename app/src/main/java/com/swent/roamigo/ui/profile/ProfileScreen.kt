@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -20,6 +21,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -75,6 +79,7 @@ fun ProfileScreen(
     onSignOutClick: () -> Unit = {},
     onMapClick: () -> Unit = {},
 ) {
+  var confirmingLogOut by rememberSaveable { mutableStateOf(false) }
   Scaffold(
       modifier = modifier,
       bottomBar = {
@@ -178,13 +183,40 @@ fun ProfileScreen(
         Text(stringResource(it), color = MaterialTheme.colorScheme.error)
       }
       OutlinedButton(
-          onClick = onSignOutClick,
+          onClick = { confirmingLogOut = true },
           enabled = !state.signedOut,
           modifier = Modifier.fillMaxWidth().testTag(C.Tag.profile_log_out),
       ) {
         Text(stringResource(R.string.profile_log_out))
       }
     }
+  }
+
+  if (confirmingLogOut) {
+    AlertDialog(
+        onDismissRequest = { confirmingLogOut = false },
+        title = { Text(stringResource(R.string.profile_log_out_title)) },
+        text = { Text(stringResource(R.string.profile_log_out_message)) },
+        confirmButton = {
+          TextButton(
+              onClick = {
+                confirmingLogOut = false
+                onSignOutClick()
+              },
+              modifier = Modifier.testTag(C.Tag.profile_log_out_confirm),
+          ) {
+            Text(
+                stringResource(R.string.profile_log_out),
+                color = MaterialTheme.colorScheme.error,
+            )
+          }
+        },
+        dismissButton = {
+          TextButton(onClick = { confirmingLogOut = false }) {
+            Text(stringResource(R.string.profile_log_out_cancel))
+          }
+        },
+    )
   }
 }
 

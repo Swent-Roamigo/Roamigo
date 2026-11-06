@@ -236,6 +236,9 @@
     <!-- Friends -->
     <string name="friends_title">Friends</string>
     <string name="friends_privacy_subtitle">Maps are visible to friends only</string>
+    <string name="profile_log_out_title">Log out of Roamigo?</string>
+    <string name="profile_log_out_message">Your trips stay saved. Trips you opened offline will need a connection after you sign in again.</string>
+    <string name="profile_log_out_cancel">Stay signed in</string>
     <string name="friends_search">Search friends</string>
     <plurals name="friends_count">
         <item quantity="one">%d friend</item>
