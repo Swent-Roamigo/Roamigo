@@ -2,14 +2,21 @@
 package com.swent.roamigo.ui.map
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
+import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripStatus
+import com.swent.roamigo.model.users.FakeUserRepository
+import com.swent.roamigo.model.users.User
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import java.time.Instant
 import java.util.Date
@@ -59,13 +66,46 @@ class TripMapScreenPreviews {
     )
   }
 
+  @Preview(showBackground = true, widthDp = 390, heightDp = 844)
   @Composable
-  private fun TripMapPreview(uiState: TripMapUiState, isSharing: Boolean) {
+  private fun TripMapFakeRepositoryPreview() {
+    val factory = remember {
+      TripMapViewModel.factory(
+          tripId = previewTripWithActivities.uid,
+          tripRepository =
+              FakeTripRepository(
+                  trips = listOf(previewTripWithActivities),
+                  activitiesByTripId =
+                      mapOf(previewTripWithActivities.uid to previewTripActivities),
+              ),
+          userRepository =
+              FakeUserRepository(
+                  User(
+                      uid = previewTripWithActivities.ownerId,
+                      displayName = "Alex",
+                      profilePictureUrl = null,
+                  )
+              ),
+      )
+    }
+    val tripMapViewModel: TripMapViewModel =
+        viewModel(key = "trip_map_fake_repository_preview", factory = factory)
+    val uiState by tripMapViewModel.uiState.collectAsStateWithLifecycle()
+
+    TripMapPreview(uiState = uiState, isSharing = false, onRetry = tripMapViewModel::retry)
+  }
+
+  @Composable
+  private fun TripMapPreview(
+      uiState: TripMapUiState,
+      isSharing: Boolean,
+      onRetry: () -> Unit = {},
+  ) {
     RoamigoTheme {
       TripMapScreen(
           uiState = uiState,
           isSharing = isSharing,
-          onRetry = {},
+          onRetry = onRetry,
           onTurnOnSharing = {},
           onPauseSharing = {},
       )
