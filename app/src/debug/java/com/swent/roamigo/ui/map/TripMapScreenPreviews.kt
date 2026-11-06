@@ -1,14 +1,18 @@
-// Implemented with assistance from Claude (Anthropic).
+// Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui.map
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.trip.Activity
+import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import java.time.Instant
+import java.util.Date
 
 class TripMapScreenPreviews {
   @Preview(showBackground = true, widthDp = 390, heightDp = 844)
@@ -36,6 +40,23 @@ class TripMapScreenPreviews {
   @Composable
   private fun TripMapSharingOnPreview() {
     TripMapPreview(uiState = previewTripMapLoadedState, isSharing = true)
+  }
+
+  @Preview(showBackground = true, widthDp = 390, heightDp = 844)
+  @Composable
+  private fun TripMapActivitiesAndSuggestionsPreview() {
+    val locations =
+        previewTripWithActivities.destinations + previewTripActivities.map { it.location }
+    TripMapPreview(
+        uiState =
+            previewTripMapLoadedState.copy(
+                trip = previewTripWithActivities,
+                viewport =
+                    tripMapViewportOf(locations.map { MapCoordinate(it.latitude, it.longitude) }),
+                activityMarkers = previewTripActivities.toTripMarkerUiStates(),
+            ),
+        isSharing = false,
+    )
   }
 
   @Composable
@@ -77,3 +98,71 @@ internal val previewTripMapLoadedState =
         viewport = TripMapViewport.Centered(latitude = 38.7223, longitude = -9.1393),
         members = mapOf("user_1" to memberDisplayInfo("user_1", null)),
     )
+
+private val previewTripWithActivities =
+    previewTrip.copy(
+        name = "Three days in Lisbon",
+        startDate = previewTimestamp("2026-11-10T00:00:00Z"),
+        endDate = previewTimestamp("2026-11-12T23:59:59Z"),
+        createdAt = previewTimestamp("2026-11-01T00:00:00Z"),
+    )
+
+private val previewTripActivities =
+    listOf(
+        previewActivity(
+            uid = "alfama_walk",
+            name = "Alfama walking tour",
+            location = TripLocation(latitude = 38.7111, longitude = -9.1290, name = "Alfama"),
+            startTime = "2026-11-10T10:00:00Z",
+        ),
+        previewActivity(
+            uid = "belem_tower",
+            name = "Visit Belém Tower",
+            location = TripLocation(latitude = 38.6916, longitude = -9.2160, name = "Belém Tower"),
+            startTime = "2026-11-11T10:00:00Z",
+        ),
+        previewActivity(
+            uid = "oceanarium",
+            name = "Explore the oceanarium",
+            location = TripLocation(latitude = 38.7636, longitude = -9.0938, name = "Oceanarium"),
+            startTime = "2026-11-12T10:00:00Z",
+        ),
+        previewActivity(
+            uid = "lx_factory",
+            name = "Explore LX Factory",
+            location = TripLocation(latitude = 38.7034, longitude = -9.1787, name = "LX Factory"),
+            startTime = "2026-11-11T14:00:00Z",
+            activityType = ActivityType.SUGGESTION,
+        ),
+        previewActivity(
+            uid = "gulbenkian_museum",
+            name = "Visit Gulbenkian Museum",
+            location =
+                TripLocation(latitude = 38.7379, longitude = -9.1544, name = "Gulbenkian Museum"),
+            startTime = "2026-11-12T14:00:00Z",
+            activityType = ActivityType.SUGGESTION,
+        ),
+    )
+
+private fun previewActivity(
+    uid: String,
+    name: String,
+    location: TripLocation,
+    startTime: String,
+    activityType: ActivityType = ActivityType.ACCEPTED,
+): Activity =
+    Activity(
+        uid = uid,
+        tripId = previewTripWithActivities.uid,
+        activityType = activityType,
+        name = name,
+        description = null,
+        location = location,
+        startTime = previewTimestamp(startTime),
+        endTime = null,
+        createdByUserId = previewTripWithActivities.ownerId,
+        creationTime = previewTripWithActivities.createdAt,
+    )
+
+private fun previewTimestamp(isoDateTime: String): Timestamp =
+    Timestamp(Date.from(Instant.parse(isoDateTime)))
