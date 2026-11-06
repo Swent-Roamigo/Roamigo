@@ -1,4 +1,4 @@
-// Implemented with assistance from Claude (Anthropic).
+// Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui.map
 
 import android.Manifest
@@ -14,6 +14,8 @@ import androidx.activity.result.ActivityResultRegistryOwner
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -46,6 +48,7 @@ import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.isNotImplemented
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -151,6 +154,65 @@ class TripMapScreenTest {
     composeRule.onNodeWithTag(C.Tag.trip_map_map).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.trip_map_loading).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.trip_map_error).assertDoesNotExist()
+  }
+
+  @Test
+  fun activityAndSuggestionMarkersShowPlaceholderActionsAndFollowStateChanges() {
+    val activity =
+        TripMarkerUiState(
+            id = "lisbon_activity",
+            tripId = TRIP_ID,
+            title = "Lisbon walking tour",
+            locationName = "Lisbon",
+            latitude = 38.7223,
+            longitude = -9.1393,
+            kind = TripMarkerKind.ACTIVITY,
+        )
+    val suggestion =
+        activity.copy(
+            id = "lisbon_suggestion",
+            title = "Visit the viewpoint",
+            locationName = "Viewpoint",
+            longitude = -9.13,
+            kind = TripMarkerKind.SUGGESTION,
+        )
+    val markers = listOf(activity, suggestion)
+    val state =
+        loadedState.copy(
+            viewport = tripMapViewportOf(markers.map { MapCoordinate(it.latitude, it.longitude) }),
+            activityMarkers = markers,
+        )
+    setContent(TripMapUiState.Loading)
+
+    composeRule.runOnIdle { uiState.value = state }
+
+    markers.forEach { marker ->
+      val markerTag = TripMarkerTestTags.markerFor(marker.id)
+      composeRule.waitUntil(timeoutMillis = MAP_TEST_TIMEOUT_MILLIS) {
+        composeRule.onAllNodesWithTag(markerTag).fetchSemanticsNodes().isNotEmpty()
+      }
+      composeRule
+          .onNodeWithTag(markerTag)
+          .assertIsDisplayed()
+          .assertContentDescriptionEquals(marker.locationName)
+          .assert(isNotImplemented)
+          .performClick()
+    }
+
+    composeRule.runOnIdle { uiState.value = state.copy(activityMarkers = listOf(suggestion)) }
+
+    val activityTag = TripMarkerTestTags.markerFor(activity.id)
+    val suggestionTag = TripMarkerTestTags.markerFor(suggestion.id)
+    composeRule.waitUntil(timeoutMillis = MAP_TEST_TIMEOUT_MILLIS) {
+      composeRule.onAllNodesWithTag(activityTag).fetchSemanticsNodes().isEmpty()
+    }
+    composeRule.onNodeWithTag(suggestionTag).assertIsDisplayed()
+
+    composeRule.runOnIdle { uiState.value = TripMapUiState.Loading }
+
+    composeRule.waitUntil(timeoutMillis = MAP_TEST_TIMEOUT_MILLIS) {
+      composeRule.onAllNodesWithTag(suggestionTag).fetchSemanticsNodes().isEmpty()
+    }
   }
 
   @Test
