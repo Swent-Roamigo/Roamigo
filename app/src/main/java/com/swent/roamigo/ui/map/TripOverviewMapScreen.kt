@@ -100,7 +100,7 @@ fun TripOverviewMapScreen(
                       .markNotImplemented(onMarkerClick)
                       .clickable { onMarkerClick(marker.tripId) },
           ) {
-            TripMarkerIcon(marker.locationName)
+            TripMarkerIcon(locationName = marker.locationName, kind = marker.kind)
           }
         }
       }

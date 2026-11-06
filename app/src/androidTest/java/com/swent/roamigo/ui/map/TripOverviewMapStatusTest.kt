@@ -39,7 +39,7 @@ class TripOverviewMapStatusTest {
       TripMarkerUiState(
           id = "paris_marker",
           tripId = "trip_1",
-          tripTitle = "Paris trip",
+          title = "Paris trip",
           locationName = "Paris",
           latitude = 48.8566,
           longitude = 2.3522,

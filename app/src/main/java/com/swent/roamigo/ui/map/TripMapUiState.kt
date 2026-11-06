@@ -27,6 +27,8 @@ sealed interface TripMapUiState {
       val trip: Trip,
       val viewport: TripMapViewport,
       val members: Map<String, MemberDisplayInfo>,
+      val activityMarkers: List<TripMarkerUiState> = emptyList(),
+      val suggestionMarkers: List<TripMarkerUiState> = emptyList(),
   ) : TripMapUiState
 }
 
