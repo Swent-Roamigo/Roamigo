@@ -93,7 +93,7 @@ class TripOverviewMapViewModelTest {
     assertEquals(listOf("first", "first", "second"), state.markers.map { it.tripId })
     assertEquals(
         listOf("first trip", "first trip", "second trip"),
-        state.markers.map { it.tripTitle },
+        state.markers.map { it.title },
     )
     assertEquals("first_Paris_48.8566_2.3522", state.markers.first().id)
     assertEquals(paris.latitude, state.markers.first().latitude, 0.0)
