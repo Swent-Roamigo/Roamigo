@@ -16,6 +16,7 @@ object Route {
   fun tripReady(tripId: String): String = "trip/${Uri.encode(tripId)}/ready"
 
   const val TRIP_HISTORY = "trip_history"
+  const val EXPLORED_WORLD = "explored_world"
   const val TRIP_DETAILS = "trip/{tripId}/details?readOnly={readOnly}&initialTab={initialTab}"
   const val VOTES = "trip/{tripId}/votes?tripName={tripName}"
   const val VOTE = "trip/{tripId}/vote/{voteId}?readOnly={readOnly}"

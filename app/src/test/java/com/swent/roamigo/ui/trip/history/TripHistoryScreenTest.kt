@@ -9,17 +9,15 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.heatmap.TravelHeatmapUiState
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import java.time.LocalDate
 import org.junit.Assert
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
-import org.robolectric.shadows.ShadowToast
 
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w800dp-h1600dp")
@@ -47,6 +45,7 @@ class TripHistoryScreenTest {
       onPhotosClick: () -> Unit = {},
       onFriendsClick: () -> Unit = {},
       onRetryClick: () -> Unit = {},
+      heatmapUiState: TravelHeatmapUiState = TravelHeatmapUiState.Success(mapOf("IT" to 1)),
   ) {
     composeRule.setContent {
       RoamigoTheme {
@@ -60,6 +59,7 @@ class TripHistoryScreenTest {
             onPhotosClick = onPhotosClick,
             onFriendsClick = onFriendsClick,
             onRetryClick = onRetryClick,
+            heatmapUiState = heatmapUiState,
         )
       }
     }
@@ -87,12 +87,14 @@ class TripHistoryScreenTest {
   }
 
   @Test
-  fun displaysEmptyState() {
+  fun displaysEmptyHistoryAndHeatmap() {
     show(TripHistoryUiState.Success(emptyList()))
 
     composeRule.onNodeWithText("0 completed trips").assertIsDisplayed()
+
     composeRule.onNodeWithTag(C.Tag.trip_history_empty).assertIsDisplayed()
-    composeRule.onNodeWithTag(C.Tag.trip_history_world_map).assertDoesNotExist()
+
+    composeRule.onNodeWithTag(C.Tag.trip_history_world_map).assertIsDisplayed()
   }
 
   @Test
@@ -187,29 +189,40 @@ class TripHistoryScreenTest {
   }
 
   @Test
-  fun worldMapPlaceholderShowsNotImplementedFeedback() {
-    composeRule.setContent {
-      RoamigoTheme {
-        TripHistoryScreen(
-            uiState = TripHistoryUiState.Success(listOf(rome)),
-            onOpenTrip = {},
+  fun clickingHeatmapForwardsNavigation() {
+    var clicks = 0
+
+    show(
+        state = TripHistoryUiState.Success(listOf(rome)),
+        onOpenWorldMapClick = { clicks++ },
+    )
+
+    composeRule.onNodeWithTag(C.Tag.trip_history_world_map).performClick()
+
+    Assert.assertEquals(1, clicks)
+  }
+
+  @Test
+  fun heatmapErrorDoesNotPreventOpeningTrips() {
+    var openedTrip: String? = null
+
+    show(
+        state = TripHistoryUiState.Success(listOf(rome)),
+        heatmapUiState = TravelHeatmapUiState.Error,
+        onOpenTrip = { openedTrip = it },
+    )
+
+    composeRule
+        .onNodeWithText(
+            "Explored world unavailable",
+            substring = true,
+            useUnmergedTree = true,
         )
-      }
-    }
+        .assertIsDisplayed()
 
-    ShadowToast.reset()
+    composeRule.onNodeWithTag(C.Tag.trip_history_card_prefix + "rome").performClick()
 
-    composeRule.onNodeWithTag(C.Tag.trip_history_world_map).assertIsDisplayed().performClick()
-
-    val expectedMessage =
-        RuntimeEnvironment.getApplication().getString(R.string.feature_not_implemented)
-
-    composeRule.runOnIdle {
-      Assert.assertEquals(
-          expectedMessage,
-          ShadowToast.getTextOfLatestToast(),
-      )
-    }
+    Assert.assertEquals("rome", openedTrip)
   }
 
   @Test
