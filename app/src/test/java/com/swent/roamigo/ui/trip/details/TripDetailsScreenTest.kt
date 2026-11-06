@@ -54,7 +54,9 @@ class TripDetailsScreenTest {
     }
     composeRule.onNodeWithText("Loading trip details…").assertIsDisplayed()
     composeRule.runOnIdle { state.value = TripDetailsUiState(false, TripDetailsError.NOT_FOUND) }
-    composeRule.onNodeWithText("This trip is no longer available to you.").assertIsDisplayed()
+    composeRule
+        .onNodeWithText("This trip is private. Only invited members can open it.")
+        .assertIsDisplayed()
     composeRule.onNodeWithText("Retry").performClick()
   }
 
