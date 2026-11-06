@@ -31,29 +31,10 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Restore Firebase configuration
-        env:
-          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
-        run: |
-          if [ -z "$GOOGLE_SERVICES" ]; then
-            echo "::error::Set the GOOGLE_SERVICES repository secret to the Base64-encoded google-services.json."
-            exit 1
-          fi
-          printf '%s' "$GOOGLE_SERVICES" | base64 --decode > app/google-services.json
-
-      - name: Setup JDK
-        uses: actions/setup-java@v6
+      - name: Set up Android build
+        uses: ./.github/actions/setup-android-build
         with:
-          distribution: "temurin"
-          java-version: "21"
-
-      # A workflow starts from a clean environment, so the Gradle folder is cached to avoid
-      # downloading and processing the same files on every run.
-      - name: Gradle cache
-        uses: gradle/actions/setup-gradle@v6
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x ./gradlew
+          google-services: ${{ secrets.GOOGLE_SERVICES }}
 
       - name: Run formatting, debug, and JVM checks
         run: ./gradlew ktfmtCheck assembleDebug lintDebug check --build-cache
@@ -94,27 +75,10 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Restore Firebase configuration
-        env:
-          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
-        run: |
-          if [ -z "$GOOGLE_SERVICES" ]; then
-            echo "::error::Set the GOOGLE_SERVICES repository secret to the Base64-encoded google-services.json."
-            exit 1
-          fi
-          printf '%s' "$GOOGLE_SERVICES" | base64 --decode > app/google-services.json
-
-      - name: Setup JDK
-        uses: actions/setup-java@v6
+      - name: Set up Android build
+        uses: ./.github/actions/setup-android-build
         with:
-          distribution: "temurin"
-          java-version: "21"
-
-      - name: Gradle cache
-        uses: gradle/actions/setup-gradle@v6
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x ./gradlew
+          google-services: ${{ secrets.GOOGLE_SERVICES }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -210,27 +174,10 @@ jobs:
           submodules: recursive
           fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of Sonar analysis
 
-      - name: Restore Firebase configuration
-        env:
-          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
-        run: |
-          if [ -z "$GOOGLE_SERVICES" ]; then
-            echo "::error::Set the GOOGLE_SERVICES repository secret to the Base64-encoded google-services.json."
-            exit 1
-          fi
-          printf '%s' "$GOOGLE_SERVICES" | base64 --decode > app/google-services.json
-
-      - name: Setup JDK
-        uses: actions/setup-java@v6
+      - name: Set up Android build
+        uses: ./.github/actions/setup-android-build
         with:
-          distribution: "temurin"
-          java-version: "21"
-
-      - name: Gradle cache
-        uses: gradle/actions/setup-gradle@v6
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x ./gradlew
+          google-services: ${{ secrets.GOOGLE_SERVICES }}
 
       - name: Download checks outputs
         uses: actions/download-artifact@v4
