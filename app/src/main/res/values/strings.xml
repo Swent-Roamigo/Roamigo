@@ -193,7 +193,7 @@
     <string name="vote_submission_error">Unable to create the vote. Please try again.</string>
 
     <!-- Trip History -->
-    <string name="trip_history_title">Trip history</string>
+    <string name="trip_history_title">History</string>
     <string name="trip_history_completed">Completed</string>
     <string name="trip_history_empty">No completed trips yet</string>
     <string name="trip_history_unknown_destination">Destination unavailable</string>
@@ -236,6 +236,11 @@
     <!-- Friends -->
     <string name="friends_title">Friends</string>
     <string name="friends_privacy_subtitle">Maps are visible to friends only</string>
+    <string name="friends_search">Search friends</string>
+    <plurals name="friends_count">
+        <item quantity="one">%d friend</item>
+        <item quantity="other">%d friends</item>
+    </plurals>
     <string name="friends_view_map">View map</string>
     <string name="friends_view_map_accessibility">View map for %1$s</string>
     <string name="friends_pending">Pending</string>
