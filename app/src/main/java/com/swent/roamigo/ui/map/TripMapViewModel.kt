@@ -17,9 +17,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Loads a single trip and its activity markers for the trip map, with the viewport showing its
- * destinations and the display information of its members. The trip is shown without waiting for
- * the members' profiles, which may load more slowly.
+ * Loads a single trip and its activity markers for the trip map, with a viewport covering its
+ * destinations, activities and suggestions. The trip is shown without waiting for the members'
+ * profiles, which may load more slowly.
  *
  * @param tripId identifier of the trip to show.
  * @param tripRepository the repository providing the user's trips.
@@ -57,7 +57,10 @@ class TripMapViewModel(
         }
 
         val activityMarkers = tripRepository.getActivitiesForTrip(tripId).toTripMarkerUiStates()
-        val coordinates = trip.destinations.map { MapCoordinate(it.latitude, it.longitude) }
+        val coordinates =
+            (trip.destinations.map { MapCoordinate(it.latitude, it.longitude) } +
+                    activityMarkers.map { MapCoordinate(it.latitude, it.longitude) })
+                .distinct()
         _uiState.value =
             TripMapUiState.Loaded(
                 trip = trip,

@@ -163,13 +163,84 @@ class TripMapViewModelTest {
   }
 
   @Test
-  fun tripWithoutDestination_hasNoViewport() = runTest {
+  fun tripWithoutLocations_hasNoViewport() = runTest {
     val viewModel = createViewModel(FakeTripRepository(trips = listOf(trip(TRIP_ID))))
 
     advanceUntilIdle()
 
     assertEquals(
         TripMapViewport.None,
+        (viewModel.uiState.value as TripMapUiState.Loaded).viewport,
+    )
+  }
+
+  @Test
+  fun viewportIncludesDestinationsAcceptedActivitiesAndSuggestions() = runTest {
+    val tokyo = TripLocation(latitude = 35.6762, longitude = 139.6503, name = "Tokyo")
+    val accepted = activity("accepted").copy(location = LONDON)
+    val suggestion = activity("suggestion", ActivityType.SUGGESTION).copy(location = tokyo)
+    val viewModel =
+        createViewModel(
+            FakeTripRepository(
+                trips = listOf(trip(TRIP_ID, listOf(PARIS))),
+                activitiesByTripId = mapOf(TRIP_ID to listOf(accepted, suggestion)),
+            )
+        )
+
+    advanceUntilIdle()
+
+    assertEquals(
+        TripMapViewport.FitAll(
+            listOf(
+                MapCoordinate(PARIS.latitude, PARIS.longitude),
+                MapCoordinate(LONDON.latitude, LONDON.longitude),
+                MapCoordinate(tokyo.latitude, tokyo.longitude),
+            )
+        ),
+        (viewModel.uiState.value as TripMapUiState.Loaded).viewport,
+    )
+  }
+
+  @Test
+  fun tripWithoutDestinations_centersOnItsSuggestion() = runTest {
+    val suggestion = activity("suggestion", ActivityType.SUGGESTION).copy(location = LONDON)
+    val viewModel =
+        createViewModel(
+            FakeTripRepository(
+                trips = listOf(trip(TRIP_ID)),
+                activitiesByTripId = mapOf(TRIP_ID to listOf(suggestion)),
+            )
+        )
+
+    advanceUntilIdle()
+
+    assertEquals(
+        TripMapViewport.Centered(LONDON.latitude, LONDON.longitude),
+        (viewModel.uiState.value as TripMapUiState.Loaded).viewport,
+    )
+  }
+
+  @Test
+  fun colocatedDestinationsActivitiesAndSuggestions_useOneViewportCoordinate() = runTest {
+    val viewModel =
+        createViewModel(
+            FakeTripRepository(
+                trips = listOf(trip(TRIP_ID, listOf(PARIS))),
+                activitiesByTripId =
+                    mapOf(
+                        TRIP_ID to
+                            listOf(
+                                activity("accepted"),
+                                activity("suggestion", ActivityType.SUGGESTION),
+                            )
+                    ),
+            )
+        )
+
+    advanceUntilIdle()
+
+    assertEquals(
+        TripMapViewport.Centered(PARIS.latitude, PARIS.longitude),
         (viewModel.uiState.value as TripMapUiState.Loaded).viewport,
     )
   }
