@@ -37,6 +37,13 @@ class TravelHeatmapScreenTest {
     composeRule.onNodeWithText("More visits").assertIsDisplayed()
     composeRule.onNodeWithText("1 country").assertDoesNotExist()
     composeRule.onNodeWithText("Explored world").assertDoesNotExist()
+
+    composeRule
+        .onNodeWithTag(
+            C.Tag.heatmap_loading,
+            useUnmergedTree = true,
+        )
+        .assertDoesNotExist()
   }
 
   @Test
@@ -157,6 +164,14 @@ class TravelHeatmapScreenTest {
 
     composeRule.onNodeWithTag(C.Tag.heatmap_loading).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.heatmap_empty).assertDoesNotExist()
+
+    composeRule
+        .onNodeWithTag(
+            C.Tag.heatmap_loading,
+            useUnmergedTree = true,
+        )
+        .assertIsDisplayed()
+        .assertIsDisplayed()
   }
 
   @Test

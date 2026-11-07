@@ -3,6 +3,8 @@ package com.swent.roamigo.ui.heatmap
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -12,6 +14,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 
@@ -35,12 +39,28 @@ fun TravelHeatmapPreview(
   ) {
     DottedWorldMap(visitCounts = counts)
 
-    if (uiState is TravelHeatmapUiState.Error) {
-      Text(
-          text = stringResource(R.string.heatmap_load_error),
-          modifier = Modifier.align(Alignment.Center).testTag(C.Tag.heatmap_error),
-          color = MaterialTheme.colorScheme.error,
-      )
+    when (uiState) {
+      TravelHeatmapUiState.Loading -> {
+        val loadingDescription = stringResource(R.string.heatmap_loading)
+
+        CircularProgressIndicator(
+            modifier =
+                Modifier.align(Alignment.Center)
+                    .size(28.dp)
+                    .testTag(C.Tag.heatmap_loading)
+                    .semantics { stateDescription = loadingDescription },
+        )
+      }
+
+      TravelHeatmapUiState.Error -> {
+        Text(
+            text = stringResource(R.string.heatmap_load_error),
+            modifier = Modifier.align(Alignment.Center).testTag(C.Tag.heatmap_error),
+            color = MaterialTheme.colorScheme.error,
+        )
+      }
+
+      is TravelHeatmapUiState.Success -> Unit
     }
   }
 }

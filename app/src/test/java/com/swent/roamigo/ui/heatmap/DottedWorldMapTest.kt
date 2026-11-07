@@ -1,6 +1,7 @@
 package com.swent.roamigo.ui.heatmap
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -192,11 +193,21 @@ class DottedWorldMapTest {
           parseWorldDots(reader.lineSequence())
         }
 
-    assertTrue(dots.size >= 589)
+    assertTrue(dots.isNotEmpty())
 
     val countryCodes = dots.map { it.countryCode }.toSet()
 
-    assertTrue(countryCodes.containsAll(setOf("PT", "FR", "CH", "SG", "MT", "MV")))
+    // Ensure countries mentioned in the review are represented.
+    assertTrue(countryCodes.containsAll(setOf("HK", "MU", "SC", "BH")))
+
+    // Every supported ISO country must have at least one map dot.
+    val supportedCodes = Locale.getISOCountries().toSet() + "XK"
+    val missingCodes = supportedCodes - countryCodes
+
+    assertTrue(
+        "Missing map points for: $missingCodes",
+        missingCodes.isEmpty(),
+    )
 
     assertFalse(dots.any { it.x !in 0f..1f || it.y !in 0f..1f })
   }

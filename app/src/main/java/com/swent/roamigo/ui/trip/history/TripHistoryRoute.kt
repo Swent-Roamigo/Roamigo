@@ -47,6 +47,9 @@ fun TripHistoryRoute(
       onTripsClick = onTripsClick,
       onMapClick = onMapClick,
       onFriendsClick = onFriendsClick,
-      onRetryClick = historyViewModel::refresh,
+      onRetryClick = {
+        historyViewModel.refresh()
+        heatmapViewModel.refresh()
+      },
   )
 }
