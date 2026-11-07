@@ -22,9 +22,9 @@ Roamigo uses Firebase Authentication for Google Sign-In. Cloud Firestore stores 
 The application's UI/UX mockups are available on [Figma](https://www.figma.com/design/MBdvemRiwWcgU1ELe5FVE6/Roamigo-%25E2%2580%2593-UX-Mockup--Copy-?node-id=0-1&p=f&t=ogY45RA5UUrANx5v-0).
 
 ## Download the latest APK
-Every merge into `main` builds a new debug APK and publishes it on the **[latest release](https://github.com/Swent-Roamigo/Roamigo/releases/tag/latest)** page, replacing the previous one. The release notes show the commit the APK was built from.
+The **Build Sprint APK** workflow (`.github/workflows/sprint-apk.yml`) builds a new debug APK on every merge into `main` and publishes it on the **[latest release](https://github.com/Swent-Roamigo/Roamigo/releases/tag/latest)** page, replacing the previous one. The release notes show the commit the APK was built from.
 
-The APK of each commit is also available as an artifact on its **[Build APK on main](https://github.com/Swent-Roamigo/Roamigo/actions/workflows/apk-on-main.yml)** run for 30 days. Downloading artifacts requires being signed in to GitHub, and the APK must be extracted from the downloaded ZIP.
+The APK of each commit is also available as the `roamigo-<commit>.apk` artifact on its **[Build Sprint APK](https://github.com/Swent-Roamigo/Roamigo/actions/workflows/sprint-apk.yml)** run for 90 days. Downloading artifacts requires being signed in to GitHub, and the APK must be extracted from the downloaded ZIP.
 
 To install the APK on an Android device (Android 9 or later):
 1. Open the latest release page on the device and download `roamigo-<commit>.apk`.
