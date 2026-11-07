@@ -81,7 +81,10 @@ fun RoamigoApp(
   val context = LocalContext.current
   val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }
   val scope = rememberCoroutineScope()
+  // Bottom-bar destinations are defined once so every screen switches tabs the same way.
   val onMapClick: () -> Unit = { navigateRoot(navController, Route.TRIP_OVERVIEW_MAP) }
+  val onFriendsClick: () -> Unit = { navigateRoot(navController, Route.FRIENDS) }
+  val onTripsClick: () -> Unit = { navController.popBackStack(Route.TRIPS, inclusive = false) }
   val startDestination =
       remember(authRepository) {
         if (authRepository.getCurrentUser() == null) Route.AUTHENTICATION else Route.TRIPS
@@ -123,7 +126,7 @@ fun RoamigoApp(
           authRepository = authRepository,
           onNewTripClick = { navController.navigate(Route.NEW_TRIP) },
           onProfileClick = { navController.navigate(Route.PROFILE) },
-          onFriendsClick = { navigateRoot(navController, Route.FRIENDS) },
+          onFriendsClick = onFriendsClick,
           onHistoryClick = {
             navController.navigate(Route.TRIP_HISTORY) { launchSingleTop = true }
           },
@@ -133,12 +136,7 @@ fun RoamigoApp(
     composable(Route.VOTE) { entry ->
       val tripId = requireNotNull(entry.arguments?.getString("tripId"))
       val voteId = requireNotNull(entry.arguments?.getString("voteId"))
-      val userId = authRepository.getCurrentUser()?.uid
-      if (userId == null) {
-        LaunchedEffect(Unit) {
-          navController.navigate(Route.AUTHENTICATION) { popUpTo(navController.graph.id) }
-        }
-      } else {
+      SignedIn(authRepository, navController) { userId ->
         VoteRoute(
             voteRepository = voteRepository,
             tripId = tripId,
@@ -151,12 +149,7 @@ fun RoamigoApp(
     }
     composable(Route.NEW_VOTE) { entry ->
       val tripId = requireNotNull(entry.arguments?.getString("tripId"))
-      val userId = authRepository.getCurrentUser()?.uid
-      if (userId == null) {
-        LaunchedEffect(Unit) {
-          navController.navigate(Route.AUTHENTICATION) { popUpTo(navController.graph.id) }
-        }
-      } else {
+      SignedIn(authRepository, navController) { userId ->
         CreateVoteRoute(
             voteRepository = voteRepository,
             tripId = tripId,
@@ -169,7 +162,7 @@ fun RoamigoApp(
     composable(Route.FRIENDS) {
       FriendsScreen(
           uiState = FriendsUiState(),
-          onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
+          onTripsClick = onTripsClick,
           onMapClick = onMapClick,
       )
     }
@@ -190,9 +183,9 @@ fun RoamigoApp(
               }
             }
           },
-          onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
+          onTripsClick = onTripsClick,
           onMapClick = onMapClick,
-          onFriendsClick = { navigateRoot(navController, Route.FRIENDS) },
+          onFriendsClick = onFriendsClick,
       )
     }
 
@@ -202,20 +195,15 @@ fun RoamigoApp(
           countryCounts = countryCounts,
           sharedOwner = entry,
           onBackClick = { navController.popBackStack() },
-          onTripsClick = {
-            navController.popBackStack(
-                Route.TRIPS,
-                inclusive = false,
-            )
-          },
           onMapClick = onMapClick,
+          onTripsClick = onTripsClick,
           onOpenTrip = { tripId ->
             navController.navigate(Route.tripDetails(tripId, readOnly = true))
           },
           onOpenWorldMapClick = {
             navController.navigate(Route.EXPLORED_WORLD) { launchSingleTop = true }
           },
-          onFriendsClick = { navigateRoot(navController, Route.FRIENDS) },
+          onFriendsClick = onFriendsClick,
       )
     }
 
@@ -253,9 +241,9 @@ fun RoamigoApp(
             navController.navigate(Route.vote(tripId, voteId, readOnly))
           },
           onCreateVote = { navController.navigate(Route.newVote(tripId)) },
-          onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
+          onTripsClick = onTripsClick,
           onMapClick = onMapClick,
-          onFriendsClick = { navigateRoot(navController, Route.FRIENDS) },
+          onFriendsClick = onFriendsClick,
       )
     }
 
@@ -326,11 +314,29 @@ fun RoamigoApp(
       TripOverviewMapRoute(
           tripRepository = tripRepository,
           onMarkerClick = { tripId -> navController.navigate(Route.tripDetails(tripId)) },
-          onTripsClick = { navController.popBackStack(Route.TRIPS, inclusive = false) },
+          onTripsClick = onTripsClick,
           onMapClick = {},
-          onFriendsClick = { navigateRoot(navController, Route.FRIENDS) },
+          onFriendsClick = onFriendsClick,
       )
     }
+  }
+}
+
+/**
+ * Shows [content] for the signed-in user, or sends the user to authentication when the session is
+ * gone, so routes that need an account do not each repeat the check.
+ */
+@Composable
+private fun SignedIn(
+    authRepository: AuthRepository,
+    navController: NavHostController,
+    content: @Composable (userId: String) -> Unit,
+) {
+  val userId = authRepository.getCurrentUser()?.uid
+  if (userId == null) {
+    LaunchedEffect(Unit) { redirectToAuthentication(navController) }
+  } else {
+    content(userId)
   }
 }
 
