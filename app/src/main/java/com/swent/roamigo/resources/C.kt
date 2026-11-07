@@ -40,6 +40,7 @@ object C {
     const val friends_pending_request_row = "friends_pending_request_row"
     const val friends_empty_state = "friends_empty_state"
     const val friends_add_friend = "friends_add_friend"
+    const val create_trip_discard_confirm = "create_trip_discard_confirm"
     const val friends_avatar_prefix = "friends_avatar_"
     const val friends_view_map_prefix = "friends_view_map_"
 

@@ -296,6 +296,10 @@
     <string name="profile_change">Change</string>
     <string name="profile_friends">Friends</string>
     <string name="profile_view">View</string>
+    <string name="create_trip_discard_title">Discard this trip?</string>
+    <string name="create_trip_discard_message">The destinations you chose will not be saved.</string>
+    <string name="create_trip_discard">Discard</string>
+    <string name="create_trip_keep_editing">Keep editing</string>
     <string name="profile_log_out">Log out</string>
     <string name="profile_email">%1$s · Signed in with Google</string>
     <plurals name="profile_friend_count">

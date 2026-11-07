@@ -205,6 +205,26 @@ class RoamigoAppTest {
   }
 
   @Test
+  fun leavingTheNewTripFormWithAChosenDestinationAsksBeforeDiscarding() {
+    waitForTrips()
+    composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
+    composeRule.searchSampleDestinations()
+    composeRule
+        .onNodeWithTag(DestinationCardTestTags.forDestination(sampleDestination("Lisbon").stableId))
+        .performClick()
+
+    composeRule.onNodeWithTag(CreateTripScaffoldTestTags.CLOSE).performClick()
+    composeRule.onNodeWithText("Discard this trip?").assertIsDisplayed()
+    composeRule.onNodeWithText("Keep editing").performClick()
+    composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsDisplayed()
+
+    pressBack()
+    composeRule.onNodeWithTag(C.Tag.create_trip_discard_confirm).performClick()
+    waitForTrips()
+    composeRule.onAllNodesWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertCountEquals(0)
+  }
+
+  @Test
   fun datesBackPreservesDestinationsAndOptionsAndCloseDiscardsDraft() {
     waitForTrips()
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
@@ -224,6 +244,7 @@ class RoamigoAppTest {
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).performClick()
     composeRule.onNodeWithTag(TripTypeSelectorTestTags.SOLO).performScrollTo().assertIsSelected()
     composeRule.onNodeWithTag(CreateTripScaffoldTestTags.CLOSE).performClick()
+    composeRule.onNodeWithTag(C.Tag.create_trip_discard_confirm).performClick()
     waitForTrips()
 
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
