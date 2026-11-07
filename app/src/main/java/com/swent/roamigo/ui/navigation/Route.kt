@@ -2,6 +2,7 @@
 package com.swent.roamigo.ui.navigation
 
 import android.net.Uri
+import androidx.navigation.NavBackStackEntry
 
 /** Navigation route names, defined once so screens and tests never repeat string literals. */
 object Route {
@@ -29,3 +30,17 @@ object Route {
 
   fun newVote(tripId: String): String = "trip/${Uri.encode(tripId)}/new_vote"
 }
+
+// Argument names are written in the route patterns above, so they are read back in one place.
+
+/** The trip this destination was opened for. */
+internal fun NavBackStackEntry.tripId(): String = requireNotNull(arguments?.getString("tripId"))
+
+/** The vote this destination was opened for. */
+internal fun NavBackStackEntry.voteId(): String = requireNotNull(arguments?.getString("voteId"))
+
+/** Whether the destination was opened read-only, as for a past trip. */
+internal fun NavBackStackEntry.isReadOnly(): Boolean = arguments?.getString("readOnly") == "true"
+
+/** Whether a trip should open on its Map tab. */
+internal fun NavBackStackEntry.opensMap(): Boolean = arguments?.getString("initialTab") == "map"

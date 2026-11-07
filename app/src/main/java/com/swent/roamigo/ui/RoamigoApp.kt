@@ -39,6 +39,10 @@ import com.swent.roamigo.ui.heatmap.ExploredWorldRoute
 import com.swent.roamigo.ui.heatmap.VisitedCountryCounts
 import com.swent.roamigo.ui.map.TripOverviewMapRoute
 import com.swent.roamigo.ui.navigation.Route
+import com.swent.roamigo.ui.navigation.isReadOnly
+import com.swent.roamigo.ui.navigation.opensMap
+import com.swent.roamigo.ui.navigation.tripId
+import com.swent.roamigo.ui.navigation.voteId
 import com.swent.roamigo.ui.permissions.PermissionsScreen
 import com.swent.roamigo.ui.profile.ProfileRoute
 import com.swent.roamigo.ui.trip.TripRoute
@@ -132,8 +136,8 @@ fun RoamigoApp(
       )
     }
     composable(Route.VOTE) { entry ->
-      val tripId = requireNotNull(entry.arguments?.getString("tripId"))
-      val voteId = requireNotNull(entry.arguments?.getString("voteId"))
+      val tripId = entry.tripId()
+      val voteId = entry.voteId()
       SignedIn(authRepository, navController) { userId ->
         VoteRoute(
             voteRepository = voteRepository,
@@ -141,12 +145,12 @@ fun RoamigoApp(
             voteId = voteId,
             currentUserId = userId,
             onBack = { navController.popBackStack() },
-            readOnly = entry.arguments?.getString("readOnly") == "true",
+            readOnly = entry.isReadOnly(),
         )
       }
     }
     composable(Route.NEW_VOTE) { entry ->
-      val tripId = requireNotNull(entry.arguments?.getString("tripId"))
+      val tripId = entry.tripId()
       SignedIn(authRepository, navController) { userId ->
         CreateVoteRoute(
             voteRepository = voteRepository,
@@ -158,7 +162,7 @@ fun RoamigoApp(
       }
     }
     composable(Route.MEMBERS) { entry ->
-      val tripId = requireNotNull(entry.arguments?.getString("tripId"))
+      val tripId = entry.tripId()
       SignedIn(authRepository, navController) { userId ->
         TripMembersRoute(
             tripId = tripId,
@@ -229,12 +233,12 @@ fun RoamigoApp(
     }
 
     composable(Route.TRIP_DETAILS) { entry ->
-      val tripId = requireNotNull(entry.arguments?.getString("tripId"))
-      val fromHistory = entry.arguments?.getString("readOnly") == "true"
+      val tripId = entry.tripId()
+      val fromHistory = entry.isReadOnly()
       TripRoute(
           tripId = tripId,
           fromHistory = fromHistory,
-          openMap = entry.arguments?.getString("initialTab") == "map",
+          openMap = entry.opensMap(),
           authRepository = authRepository,
           tripRepository = tripRepository,
           userRepository = userRepository,
