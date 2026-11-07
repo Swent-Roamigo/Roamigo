@@ -37,6 +37,8 @@ import com.swent.roamigo.ui.authentication.AuthenticationRoute
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.friends.FriendsScreen
 import com.swent.roamigo.ui.friends.FriendsUiState
+import com.swent.roamigo.ui.heatmap.ExploredWorldRoute
+import com.swent.roamigo.ui.heatmap.VisitedCountryCounts
 import com.swent.roamigo.ui.map.TripOverviewMapRoute
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.permissions.PermissionsScreen
@@ -74,6 +76,7 @@ fun RoamigoApp(
     photoRepository: PhotoRepository = remember { FakePhotoRepository() },
     connectivityRepository: ConnectivityRepository? = null,
     locationRepository: LocationRepository? = null,
+    countryCounts: VisitedCountryCounts = remember { VisitedCountryCounts { emptyMap() } },
 ) {
   val context = LocalContext.current
   val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }
@@ -193,21 +196,37 @@ fun RoamigoApp(
       )
     }
 
-    composable(Route.TRIP_HISTORY) {
+    composable(Route.TRIP_HISTORY) { entry ->
       TripHistoryRoute(
           tripRepository = tripRepository,
+          countryCounts = countryCounts,
+          sharedOwner = entry,
           onBackClick = { navController.popBackStack() },
-          onMapClick = onMapClick,
           onTripsClick = {
             navController.popBackStack(
                 Route.TRIPS,
                 inclusive = false,
             )
           },
+          onMapClick = onMapClick,
           onOpenTrip = { tripId ->
             navController.navigate(Route.tripDetails(tripId, readOnly = true))
           },
+          onOpenWorldMapClick = {
+            navController.navigate(Route.EXPLORED_WORLD) { launchSingleTop = true }
+          },
           onFriendsClick = { navigateRoot(navController, Route.FRIENDS) },
+      )
+    }
+
+    composable(Route.EXPLORED_WORLD) { entry ->
+      val historyEntry = remember(entry) { navController.getBackStackEntry(Route.TRIP_HISTORY) }
+
+      ExploredWorldRoute(
+          tripRepository = tripRepository,
+          countryCounts = countryCounts,
+          sharedOwner = historyEntry,
+          onBackClick = { navController.popBackStack() },
       )
     }
 

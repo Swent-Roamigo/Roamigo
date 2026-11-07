@@ -204,6 +204,29 @@
     <string name="trip_history_retry">Retry</string>
 
 
+    <!-- Heatmap -->
+    <string name="heatmap_title">Explored world</string>
+    <string name="heatmap_less">Less</string>
+    <string name="heatmap_more">More visits</string>
+    <string name="heatmap_open">Open explored world map</string>
+    <string name="heatmap_map_description">World map showing visited countries</string>
+    <string name="heatmap_loading">Loading your explored world…</string>
+    <string name="heatmap_load_error">Explored world unavailable</string>
+    <string name="heatmap_map_unavailable">World map unavailable</string>
+    <string name="heatmap_empty">No visited countries to display yet</string>
+
+    <plurals name="heatmap_country_count">
+        <item quantity="one">%1$d country</item>
+        <item quantity="other">%1$d countries</item>
+    </plurals>
+
+    <plurals name="heatmap_trip_count">
+        <item quantity="one">%1$d trip</item>
+        <item quantity="other">%1$d trips</item>
+    </plurals>
+
+
+
     <!-- Friends -->
     <string name="friends_title">Friends</string>
     <string name="friends_privacy_subtitle">Maps are visible to friends only</string>

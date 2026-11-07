@@ -26,8 +26,9 @@ import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
+import com.swent.roamigo.ui.heatmap.TravelHeatmapPreview
+import com.swent.roamigo.ui.heatmap.TravelHeatmapUiState
 import com.swent.roamigo.ui.theme.Spacing
-import com.swent.roamigo.ui.trip.history.components.OpenWorldMapButton
 import com.swent.roamigo.ui.trip.history.components.TripHistoryCard
 import com.swent.roamigo.ui.trip.history.components.TripHistoryHeader
 
@@ -36,6 +37,7 @@ fun TripHistoryScreen(
     uiState: TripHistoryUiState,
     onOpenTrip: (String) -> Unit,
     modifier: Modifier = Modifier,
+    heatmapUiState: TravelHeatmapUiState = TravelHeatmapUiState.Loading,
     onBackClick: () -> Unit = rememberNotImplementedAction(),
     onOpenWorldMapClick: () -> Unit = rememberNotImplementedAction(),
     onTripsClick: () -> Unit = rememberNotImplementedAction(),
@@ -50,18 +52,12 @@ fun TripHistoryScreen(
       modifier = modifier.testTag(C.Tag.trip_history_screen),
       containerColor = MaterialTheme.colorScheme.background,
       bottomBar = {
-        Column {
-          if (!completedTrips.isNullOrEmpty()) {
-            OpenWorldMapButton(onClick = onOpenWorldMapClick)
-          }
-
-          AppBottomBar(
-              onTripsClick = onTripsClick,
-              onMapClick = onMapClick,
-              tripsSelected = false,
-              onFriendsClick = onFriendsClick,
-          )
-        }
+        AppBottomBar(
+            onTripsClick = onTripsClick,
+            onMapClick = onMapClick,
+            tripsSelected = false,
+            onFriendsClick = onFriendsClick,
+        )
       },
   ) { innerPadding ->
     LazyColumn(
@@ -122,6 +118,12 @@ fun TripHistoryScreen(
         }
 
         is TripHistoryUiState.Success -> {
+          item(key = "heatmap_preview") {
+            TravelHeatmapPreview(
+                uiState = heatmapUiState,
+                onClick = onOpenWorldMapClick,
+            )
+          }
           if (state.trips.isEmpty()) {
             item {
               Box(

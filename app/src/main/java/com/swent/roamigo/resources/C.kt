@@ -52,6 +52,12 @@ object C {
     const val trip_history_world_map = "trip_history_world_map"
     const val trips_history_button = "trips_history_button"
     const val trip_history_retry = "trip_history_retry"
+    const val heatmap_screen = "heatmap_screen"
+    const val heatmap_back = "heatmap_back"
+    const val heatmap_empty = "heatmap_empty"
+    const val heatmap_loading = "heatmap_loading"
+    const val heatmap_error = "heatmap_error"
+    const val heatmap_country_prefix = "heatmap_country_"
 
     const val trip_map_map = "trip_map_map"
     const val trip_map_sharing_banner = "trip_map_sharing_banner"

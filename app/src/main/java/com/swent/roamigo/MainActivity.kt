@@ -13,11 +13,16 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import com.google.firebase.firestore.FirebaseFirestore
 import com.swent.roamigo.model.authentication.AuthRepositoryFirebase
+import com.swent.roamigo.model.country.CachedCountryCodeResolver
+import com.swent.roamigo.model.country.DataStoreCountryCodeCache
+import com.swent.roamigo.model.country.GeoNamesCountryCodeLookup
+import com.swent.roamigo.model.country.VisitedCountryRepository
 import com.swent.roamigo.model.destination.OnlineDestinationRepository
 import com.swent.roamigo.model.trip.TripRepositoryFirestore
 import com.swent.roamigo.model.trip.voting.VoteRepositoryFirestore
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.RoamigoApp
+import com.swent.roamigo.ui.heatmap.VisitedCountryCounts
 import com.swent.roamigo.ui.theme.RoamigoTheme
 
 class MainActivity : ComponentActivity() {
@@ -39,6 +44,24 @@ class MainActivity : ComponentActivity() {
             }
           }
           val voteRepository = remember { VoteRepositoryFirestore(FirebaseFirestore.getInstance()) }
+
+          val visitedCountryRepository =
+              remember(tripRepository) {
+                VisitedCountryRepository(
+                    tripRepository = tripRepository,
+                    resolver =
+                        CachedCountryCodeResolver(
+                            lookup = GeoNamesCountryCodeLookup(),
+                            cache = DataStoreCountryCodeCache(applicationContext),
+                        ),
+                )
+              }
+
+          val countryCounts =
+              remember(visitedCountryRepository) {
+                VisitedCountryCounts { visitedCountryRepository.visitCounts() }
+              }
+
           RoamigoApp(
               tripRepository = tripRepository,
               authRepository = authRepository,
@@ -47,6 +70,7 @@ class MainActivity : ComponentActivity() {
               photoRepository = remember { (application as RoamigoApplication).photos.repository },
               locationRepository =
                   remember { (application as RoamigoApplication).locationRepository },
+              countryCounts = countryCounts,
           )
         }
       }
