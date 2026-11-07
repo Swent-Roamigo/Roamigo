@@ -26,6 +26,8 @@ jobs:
     name: Build installable APK
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    outputs:
+      artifact: ${{ steps.apk.outputs.artifact }}
     env:
       # Push runs have no workflow_dispatch inputs, so fall back to a fixed label.
       MILESTONE: ${{ inputs.milestone || 'main' }}
@@ -112,3 +114,67 @@ jobs:
             echo "Link this successful run from the milestone wiki page:"
             echo "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # Publishing runs in its own job so only this job gets write access,
+  # never the job that builds third-party code with Gradle.
+  publish-latest:
+    name: Publish APK to the latest pre-release
+    if: github.event_name == 'push'
+    needs: apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      APK_NAME: ${{ needs.apk.outputs.artifact }}
+      TAG: latest
+    steps:
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.apk.outputs.artifact }}
+          path: apk
+
+      - name: Move the latest tag to this commit
+        run: |
+          if gh api "repos/$GH_REPO/git/ref/tags/$TAG" > /dev/null 2>&1; then
+            gh api -X PATCH "repos/$GH_REPO/git/refs/tags/$TAG" \
+              -f sha="$GITHUB_SHA" -F force=true > /dev/null
+          else
+            gh api -X POST "repos/$GH_REPO/git/refs" \
+              -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA" > /dev/null
+          fi
+
+      - name: Create or update the pre-release
+        run: |
+          apk="apk/$APK_NAME"
+          if [ ! -f "$apk" ]; then
+            echo "::error::No APK found at $apk."
+            exit 1
+          fi
+          {
+            echo "Latest debug APK built from \`main\`."
+            echo
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Commit link: $GITHUB_SERVER_URL/$GH_REPO/commit/$GITHUB_SHA"
+            echo "- Workflow run: #$GITHUB_RUN_NUMBER ($GITHUB_SERVER_URL/$GH_REPO/actions/runs/$GITHUB_RUN_ID)"
+            echo
+            echo "Minimum Android version: Android 9 (API 28)."
+          } > notes.md
+          title="Latest main build"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release edit "$TAG" --prerelease --title "$title" --notes-file notes.md
+            # Upload the new APK before removing older ones so the release always has one.
+            gh release upload "$TAG" "$apk" --clobber
+            gh release view "$TAG" --json assets --jq '.assets[].name' |
+              while read -r asset; do
+                if [ "$asset" != "$APK_NAME" ]; then
+                  gh release delete-asset "$TAG" "$asset" --yes
+                fi
+              done
+          else
+            gh release create "$TAG" "$apk" --prerelease --verify-tag \
+              --title "$title" --notes-file notes.md
+          fi
