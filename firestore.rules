@@ -181,6 +181,92 @@ service cloud.firestore {
               || (photo.longitude is number && math.abs(photo.longitude) <= 180));
     }
 
+    function isValidFriendshipIdentifier(value) {
+      return value is string && value.trim().size() > 0
+          && value.matches('[^/]+') && value != '.' && value != '..';
+    }
+
+    function friendshipUserIdPart(userId) {
+      return hashing.sha256(userId.toUtf8()).toHexString().lower();
+    }
+
+    // Fixed-length ID parts give both request directions the same unambiguous document name.
+    function friendshipDocumentId(firstId, secondId) {
+      let firstPart = friendshipUserIdPart(firstId);
+      let secondPart = friendshipUserIdPart(secondId);
+      return firstPart < secondPart
+          ? firstPart + '_' + secondPart : secondPart + '_' + firstPart;
+    }
+
+    // Creation transactions may read a missing document only when its name includes their user.
+    function isOwnFriendshipDocument(documentId) {
+      let parts = documentId.split('_');
+      return parts.size() == 2
+          && parts[0].matches('[0-9a-f]{64}') && parts[1].matches('[0-9a-f]{64}')
+          && parts[0] < parts[1]
+          && friendshipUserIdPart(request.auth.uid) in parts;
+    }
+
+    function isValidFriendship(friendship, documentId) {
+      return friendship.keys().hasAll([
+            'requestId', 'senderUserId', 'recipientUserId', 'participantIds',
+            'status', 'createdAt', 'respondedAt'
+          ])
+          && friendship.keys().hasOnly([
+            'requestId', 'senderUserId', 'recipientUserId', 'participantIds',
+            'status', 'createdAt', 'respondedAt'
+          ])
+          && isValidFriendshipIdentifier(friendship.requestId)
+          && isValidFriendshipIdentifier(friendship.senderUserId)
+          && isValidFriendshipIdentifier(friendship.recipientUserId)
+          && friendship.senderUserId != friendship.recipientUserId
+          && friendship.participantIds == [friendship.senderUserId, friendship.recipientUserId]
+          && documentId == friendshipDocumentId(friendship.senderUserId, friendship.recipientUserId)
+          && friendship.createdAt is timestamp && friendship.createdAt <= request.time
+          && ((friendship.status == 'PENDING' && friendship.respondedAt == null)
+              || (friendship.status in ['ACCEPTED', 'DECLINED']
+                  && friendship.respondedAt is timestamp
+                  && friendship.respondedAt >= friendship.createdAt
+                  && friendship.respondedAt <= request.time));
+    }
+
+    function isNewFriendRequest(friendship) {
+      return friendship.senderUserId == request.auth.uid
+          && friendship.status == 'PENDING'
+          && friendship.createdAt == request.time && friendship.respondedAt == null;
+    }
+
+    function isFriendRequestResponse(before, after) {
+      return before.status == 'PENDING'
+          && request.auth.uid == before.recipientUserId
+          && after.status in ['ACCEPTED', 'DECLINED']
+          && after.respondedAt == request.time
+          && after.diff(before).affectedKeys().hasOnly(['status', 'respondedAt']);
+    }
+
+    match /friendships/{documentId} {
+      allow get: if signedIn()
+          && ((resource == null && isOwnFriendshipDocument(documentId))
+              || (resource != null && request.auth.uid in resource.data.participantIds));
+      // All friendship queries constrain participantIds with the authenticated user's ID.
+      allow list: if signedIn() && request.auth.uid in resource.data.participantIds;
+      allow create: if signedIn()
+          && isValidFriendship(request.resource.data, documentId)
+          && isNewFriendRequest(request.resource.data);
+      allow update: if signedIn() && request.auth.uid in resource.data.participantIds
+          && isValidFriendship(request.resource.data, documentId)
+          && (request.resource.data == resource.data
+              // A crossed request is accepted by its recipient through this same transition.
+              || isFriendRequestResponse(resource.data, request.resource.data)
+              || (resource.data.status == 'DECLINED'
+                  && isNewFriendRequest(request.resource.data)
+                  && request.resource.data.requestId != resource.data.requestId
+                  && request.resource.data.participantIds.toSet()
+                      == resource.data.participantIds.toSet()));
+      allow delete: if signedIn() && request.auth.uid in resource.data.participantIds
+          && resource.data.status == 'ACCEPTED';
+    }
+
     match /trips/{tripId} {
       allow create: if signedIn() && isValidNewTrip(request.resource.data);
       // A missing trip is readable so that creation can first check whether it already exists.
