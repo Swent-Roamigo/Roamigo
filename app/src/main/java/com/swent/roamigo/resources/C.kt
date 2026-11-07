@@ -70,6 +70,7 @@ object C {
     const val trip_map_loading = "trip_map_loading"
     const val trip_map_error = "trip_map_error"
     const val trip_map_retry = "trip_map_retry"
+    const val trip_map_retry_activities = "trip_map_retry_activities"
     const val trip_map_offline = "trip_map_offline"
     const val photos_screen = "photos_screen"
     const val photos_title = "photos_title"

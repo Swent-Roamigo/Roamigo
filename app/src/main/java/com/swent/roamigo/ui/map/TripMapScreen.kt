@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -125,7 +126,8 @@ fun TripMapRoute(
   TripMapScreen(
       uiState = tripUiState,
       isSharing = locationUiState.isSharing,
-      onRetry = tripMapViewModel::retry,
+      onRetry = tripMapViewModel::retryTrip,
+      onRetryActivities = tripMapViewModel::retryActivities,
       onTurnOnSharing = { locationViewModel.onTurnOnSharingClick(permissionChecker.isGranted()) },
       onPauseSharing = locationViewModel::stopSharing,
       modifier = modifier,
@@ -146,6 +148,7 @@ fun TripMapRoute(
  * @param uiState state of the trip shown.
  * @param isSharing whether the user shares their location with the trip.
  * @param onRetry called when the user asks to load the trip again after an error.
+ * @param onRetryActivities called when the user retries loading activities and suggestions.
  * @param onTurnOnSharing called when the user asks to start sharing their location.
  * @param onPauseSharing called when the user asks to stop sharing their location.
  * @param modifier modifier applied to the screen.
@@ -155,6 +158,7 @@ fun TripMapScreen(
     uiState: TripMapUiState,
     isSharing: Boolean,
     onRetry: () -> Unit,
+    onRetryActivities: () -> Unit,
     onTurnOnSharing: () -> Unit,
     onPauseSharing: () -> Unit,
     modifier: Modifier = Modifier,
@@ -212,6 +216,27 @@ fun TripMapScreen(
           contentAlignment = Alignment.Center,
       ) {
         TripStatusOverlay(uiState = uiState, onRetry = onRetry)
+        if (
+            uiState is TripMapUiState.Loaded &&
+                uiState.activitiesLoadState == ActivitiesLoadState.ERROR
+        ) {
+          Button(
+              onClick = onRetryActivities,
+              shape = MaterialTheme.shapes.medium,
+              colors =
+                  ButtonDefaults.buttonColors(
+                      containerColor = MaterialTheme.colorScheme.primary,
+                      contentColor = MaterialTheme.colorScheme.onPrimary,
+                  ),
+              modifier =
+                  Modifier.align(Alignment.BottomCenter)
+                      .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
+                      .padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium)
+                      .testTag(C.Tag.trip_map_retry_activities),
+          ) {
+            Text(stringResource(R.string.trip_map_retry_activities))
+          }
+        }
       }
       if (!readOnly) {
         SharingButtonBar(

@@ -159,7 +159,7 @@ internal fun TripRoute(
                 tripId = tripId,
                 tripRepository = tripRepository,
                 onBack = onBack,
-                onRetryTrip = tripModel::retry,
+                onRetryTrip = tripModel::retryTrip,
                 onVotesClick = { tab = TripSection.Votes },
                 onTripMapClick = {
                   if (authRepository.getCurrentUser() == null) onAuthenticationRequired()
@@ -173,7 +173,8 @@ internal fun TripRoute(
             TripMapScreen(
                 uiState = tripState,
                 isSharing = false,
-                onRetry = tripModel::retry,
+                onRetry = tripModel::retryTrip,
+                onRetryActivities = tripModel::retryActivities,
                 onTurnOnSharing = {},
                 onPauseSharing = {},
                 readOnly = true,
