@@ -4,7 +4,6 @@
     <string name="profile_sign_out_failed">Unable to sign out. Please try again.</string>
     <string name="feature_not_implemented">Not implemented yet</string>
     <string name="app_name">Roamigo</string>
-    <string name="title_activity_main">MainActivity</string>
     <string name="title_activity_second">SecondActivity</string>
     <string name="auth_tagline">Plan together. Travel together.</string>
     <string name="auth_brand">roamigo</string>
