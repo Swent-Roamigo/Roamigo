@@ -1,0 +1,61 @@
+# AI assistance was used for implementation support.
+name: Build APK on main
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Only the APK of the latest main commit is useful, so an older run is cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    name: Build debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # The team debug keystore is the one registered in Firebase, so Google Sign-In works in
+      # this APK. The default keystore generated on the runner would not be recognized.
+      - name: Restore Firebase and signing configuration
+        env:
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
+          ANDROID_DEBUG_KEYSTORE: ${{ secrets.ANDROID_DEBUG_KEYSTORE }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES" ] || [ -z "$ANDROID_DEBUG_KEYSTORE" ]; then
+            echo "::error::Set GOOGLE_SERVICES to the Base64-encoded google-services.json and ANDROID_DEBUG_KEYSTORE to the Base64-encoded team debug keystore registered in Firebase."
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$GOOGLE_SERVICES" | base64 --decode > app/google-services.json
+          mkdir -p "$HOME/.android"
+          printf '%s' "$ANDROID_DEBUG_KEYSTORE" | base64 --decode > "$HOME/.android/debug.keystore"
+
+      - name: Setup JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Gradle cache
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Build debug APK
+        env:
+          MAPBOX_ACCESS_TOKEN: ${{ secrets.MAPBOX_ACCESS_TOKEN }}
+          GEONAMES_USERNAME: cdunoyer
+        run: |
+          if [ -z "$MAPBOX_ACCESS_TOKEN" ]; then
+            echo "::error::Set MAPBOX_ACCESS_TOKEN to the Mapbox public access token used by the app maps."
+            exit 1
+          fi
+          bash ./gradlew assembleDebug --build-cache
