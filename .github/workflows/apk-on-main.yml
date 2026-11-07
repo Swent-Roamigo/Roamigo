@@ -10,16 +10,17 @@ on:
 permissions:
   contents: read
 
-# Only the APK of the latest main commit is useful, so an older run is cancelled.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   apk:
     name: Build debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    # Only the APK of the latest commit is useful, so an older build is cancelled.
+    concurrency:
+      group: ${{ github.workflow }}-build-${{ github.ref }}
+      cancel-in-progress: true
+    outputs:
+      apk-name: ${{ steps.apk.outputs.name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -79,3 +80,62 @@ jobs:
           path: ${{ steps.apk.outputs.name }}
           if-no-files-found: error
           retention-days: 30
+
+  # A separate job keeps the write token away from the Gradle build.
+  publish:
+    name: Publish latest pre-release
+    needs: apk
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    # Publishing is never cancelled halfway, which could leave the release without an APK.
+    # Queued runs wait, and only the newest one waiting is kept, so the latest commit wins.
+    concurrency:
+      group: ${{ github.workflow }}-publish
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      APK_NAME: ${{ needs.apk.outputs.apk-name }}
+      TAG: latest
+    steps:
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.apk.outputs.apk-name }}
+
+      # The tag is moved through the API because gh release cannot retarget an existing tag.
+      - name: Point the latest tag at this commit
+        run: |
+          if gh api "repos/$GH_REPO/git/ref/tags/$TAG" --silent 2>/dev/null; then
+            gh api --method PATCH "repos/$GH_REPO/git/refs/tags/$TAG" \
+              -f sha="$GITHUB_SHA" -F force=true --silent
+          else
+            gh api --method POST "repos/$GH_REPO/git/refs" \
+              -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA" --silent
+          fi
+
+      # The new APK is uploaded before the old ones are deleted, so the release always has one.
+      - name: Create or update the release
+        run: |
+          notes="Debug APK built from the latest commit on main.
+
+          - Commit: $GITHUB_SHA
+          - Commit link: $GITHUB_SERVER_URL/$GH_REPO/commit/$GITHUB_SHA
+          - Run number: $GITHUB_RUN_NUMBER ($GITHUB_SERVER_URL/$GH_REPO/actions/runs/$GITHUB_RUN_ID)"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --prerelease --title "Latest main build" --notes "$notes"
+            gh release upload "$TAG" "$APK_NAME" --clobber
+            gh release view "$TAG" --json assets --jq '.assets[].name' |
+              while read -r asset; do
+                if [ "$asset" != "$APK_NAME" ]; then
+                  gh release delete-asset "$TAG" "$asset" --yes
+                fi
+              done
+          else
+            gh release create "$TAG" "$APK_NAME" --verify-tag --prerelease \
+              --title "Latest main build" --notes "$notes"
+          fi
