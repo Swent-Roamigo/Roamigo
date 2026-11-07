@@ -23,13 +23,23 @@ sealed interface TripMapUiState {
    * @property members display information of every trip member, keyed by user ID. Until the
    *   members' profiles are loaded, or if they cannot be, each entry holds fallback information.
    * @property activityMarkers markers for activities and suggestions belonging to the trip.
+   * @property activitiesLoadState loading status of the activities and suggestions. Existing
+   *   markers remain available while refreshing or after a failed refresh.
    */
   data class Loaded(
       val trip: Trip,
       val viewport: TripMapViewport,
       val members: Map<String, MemberDisplayInfo>,
       val activityMarkers: List<TripMarkerUiState> = emptyList(),
+      val activitiesLoadState: ActivitiesLoadState = ActivitiesLoadState.LOADING,
   ) : TripMapUiState
+}
+
+/** Loading status of a trip's activities and suggestions, independent of the trip itself. */
+enum class ActivitiesLoadState {
+  LOADING,
+  LOADED,
+  ERROR,
 }
 
 /**

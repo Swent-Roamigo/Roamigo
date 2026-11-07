@@ -10,6 +10,8 @@ import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,21 +35,24 @@ class TripMapViewModel(
   private val _uiState = MutableStateFlow<TripMapUiState>(TripMapUiState.Loading)
   val uiState: StateFlow<TripMapUiState> = _uiState.asStateFlow()
 
-  private var loadJob: Job? = null
+  private var tripLoadJob: Job? = null
+  private var activitiesLoadJob: Job? = null
 
   init {
-    retry()
+    retryTrip()
   }
 
   /**
    * Loads the trip again, cancelling any running load so only the latest one updates the UI.
    *
-   * The map is shown once the trip and its activities are loaded, with fallback information for
-   * every member. The members' profiles are filled in once they are fetched.
+   * The map is shown after the activity request finishes, even if it fails, with fallback
+   * information for every member. Activity failures leave the trip usable and can be retried
+   * separately. The members' profiles are filled in once they are fetched.
    */
-  fun retry() {
-    loadJob?.cancel()
-    loadJob = viewModelScope.launch {
+  fun retryTrip() {
+    tripLoadJob?.cancel()
+    activitiesLoadJob?.cancel()
+    tripLoadJob = viewModelScope.launch {
       _uiState.value = TripMapUiState.Loading
       try {
         val trip = tripRepository.getTrips().find { it.uid == tripId }
@@ -55,8 +60,20 @@ class TripMapViewModel(
           _uiState.value = TripMapUiState.Error(TRIP_NOT_FOUND_MESSAGE)
           return@launch
         }
-
-        val activityMarkers = tripRepository.getActivitiesForTrip(tripId).toTripMarkerUiStates()
+        // Attempt activities before framing the map, falling back to destinations on failure.
+        var activitiesLoadState = ActivitiesLoadState.LOADED
+        val activityMarkers =
+            try {
+              tripRepository.getActivitiesForTrip(tripId).toTripMarkerUiStates()
+            } catch (e: CancellationException) {
+              throw e
+            } catch (e: Exception) {
+              currentCoroutineContext().ensureActive()
+              Log.w(TAG, "Could not load activities for trip $tripId", e)
+              activitiesLoadState = ActivitiesLoadState.ERROR
+              emptyList()
+            }
+        currentCoroutineContext().ensureActive()
         val coordinates =
             (trip.destinations.map { MapCoordinate(it.latitude, it.longitude) } +
                     activityMarkers.map { MapCoordinate(it.latitude, it.longitude) })
@@ -68,6 +85,7 @@ class TripMapViewModel(
                 members =
                     trip.memberIds.associateWith { userId -> memberDisplayInfo(userId, null) },
                 activityMarkers = activityMarkers,
+                activitiesLoadState = activitiesLoadState,
             )
 
         val members = loadMembers(trip.memberIds)
@@ -84,6 +102,57 @@ class TripMapViewModel(
         // Repository messages can expose backend details, so users only see a fixed message.
         Log.w(TAG, "Could not load trip $tripId", e)
         _uiState.value = TripMapUiState.Error(LOAD_FAILED_MESSAGE)
+      }
+    }
+  }
+
+  /**
+   * Refreshes activities and suggestions for an already loaded trip without reloading the trip.
+   *
+   * Cancels the previous activity request and preserves the trip, members and existing markers
+   * while loading or on failure. Calls made before the trip is loaded have no effect.
+   */
+  fun retryActivities() {
+    if (_uiState.value !is TripMapUiState.Loaded) return
+    activitiesLoadJob?.cancel()
+    activitiesLoadJob = viewModelScope.launch {
+      _uiState.update { state ->
+        if (state is TripMapUiState.Loaded && state.trip.uid == tripId) {
+          state.copy(activitiesLoadState = ActivitiesLoadState.LOADING)
+        } else {
+          state
+        }
+      }
+      try {
+        val activityMarkers = tripRepository.getActivitiesForTrip(tripId).toTripMarkerUiStates()
+        currentCoroutineContext().ensureActive()
+        _uiState.update { state ->
+          if (state is TripMapUiState.Loaded && state.trip.uid == tripId) {
+            val coordinates =
+                (state.trip.destinations.map { MapCoordinate(it.latitude, it.longitude) } +
+                        activityMarkers.map { MapCoordinate(it.latitude, it.longitude) })
+                    .distinct()
+            state.copy(
+                activityMarkers = activityMarkers,
+                viewport = tripMapViewportOf(coordinates),
+                activitiesLoadState = ActivitiesLoadState.LOADED,
+            )
+          } else {
+            state
+          }
+        }
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        currentCoroutineContext().ensureActive()
+        Log.w(TAG, "Could not load activities for trip $tripId", e)
+        _uiState.update { state ->
+          if (state is TripMapUiState.Loaded && state.trip.uid == tripId) {
+            state.copy(activitiesLoadState = ActivitiesLoadState.ERROR)
+          } else {
+            state
+          }
+        }
       }
     }
   }

@@ -18,6 +18,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -40,6 +41,8 @@ import com.swent.roamigo.model.connectivity.ConnectivityRepository
 import com.swent.roamigo.model.location.DeviceLocation
 import com.swent.roamigo.model.location.LocationRepository
 import com.swent.roamigo.model.location.MemberLocation
+import com.swent.roamigo.model.trip.Activity as TripActivity
+import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
@@ -51,6 +54,7 @@ import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.isNotImplemented
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -136,6 +140,60 @@ class TripMapScreenTest {
     composeRule.onNodeWithTag(C.Tag.trip_map_retry).performClick()
 
     composeRule.runOnIdle { assertEquals(1, retryRequests) }
+  }
+
+  @Test
+  fun activitiesRetryIsVisibleOnlyForActivityErrorsAndInvokesItsOwnCallback() {
+    var tripRetries = 0
+    var activityRetries = 0
+    setContent(
+        loadedState.copy(activitiesLoadState = ActivitiesLoadState.LOADING),
+        onRetry = { tripRetries++ },
+        onRetryActivities = { activityRetries++ },
+    )
+    composeRule.onNodeWithTag(C.Tag.trip_map_retry_activities).assertDoesNotExist()
+
+    composeRule.runOnIdle {
+      uiState.value = loadedState.copy(activitiesLoadState = ActivitiesLoadState.ERROR)
+    }
+
+    composeRule
+        .onNodeWithTag(C.Tag.trip_map_retry_activities)
+        .assertIsDisplayed()
+        .assertTextEquals(targetContext.getString(R.string.trip_map_retry_activities))
+        .performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_map_map).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_error).assertDoesNotExist()
+    composeRule.runOnIdle {
+      assertEquals(1, activityRetries)
+      assertEquals(0, tripRetries)
+    }
+
+    listOf(
+            loadedState.copy(activitiesLoadState = ActivitiesLoadState.LOADING),
+            loadedState.copy(activitiesLoadState = ActivitiesLoadState.LOADED),
+            TripMapUiState.Loading,
+            TripMapUiState.Error("Trip unavailable"),
+        )
+        .forEach { state ->
+          composeRule.runOnIdle { uiState.value = state }
+          composeRule.onNodeWithTag(C.Tag.trip_map_retry_activities).assertDoesNotExist()
+        }
+  }
+
+  @Test
+  fun activitiesRetryRemainsAvailableOnReadOnlyMaps() {
+    var activityRetries = 0
+    setContent(
+        loadedState.copy(activitiesLoadState = ActivitiesLoadState.ERROR),
+        onRetryActivities = { activityRetries++ },
+        readOnly = true,
+    )
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_retry_activities).assertIsDisplayed().performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertDoesNotExist()
+    composeRule.runOnIdle { assertEquals(1, activityRetries) }
   }
 
   @Test
@@ -233,6 +291,69 @@ class TripMapScreenTest {
     composeRule.onNodeWithTag(C.Tag.trip_map_loading).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.trip_map_map).assertIsDisplayed()
     assertEquals(2, tripRepository.getTripsCalls.get())
+  }
+
+  @Test
+  fun activityRetryDisplaysDistantMarkersWithoutReloadingTheTrip() {
+    val activities = distantActivities()
+    val pendingActivities = CompletableDeferred<List<TripActivity>>()
+    val tripRequests = AtomicInteger(0)
+    val activityRequests = AtomicInteger(0)
+    val repository =
+        object : TripRepository by FakeTripRepository(trips = listOf(trip)) {
+          override suspend fun getTrips(): List<Trip> {
+            tripRequests.incrementAndGet()
+            return listOf(trip)
+          }
+
+          override suspend fun getActivitiesForTrip(tripId: String): List<TripActivity> {
+            assertEquals(TRIP_ID, tripId)
+            if (activityRequests.incrementAndGet() == 1) error("Activities unavailable")
+            return pendingActivities.await()
+          }
+        }
+    setScreen(repository, RecordingLocationRepository())
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_retry_activities).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_error).assertDoesNotExist()
+    activities.forEach {
+      composeRule
+          .onNodeWithTag(TripMarkerTestTags.markerFor(it.toTripMarkerUiState().id))
+          .assertDoesNotExist()
+    }
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_retry_activities).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_retry_activities).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.trip_map_loading).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.trip_map_map).assertIsDisplayed()
+    assertEquals(1, tripRequests.get())
+    assertEquals(2, activityRequests.get())
+
+    composeRule.runOnIdle { pendingActivities.complete(activities) }
+    assertActivityMarkersDisplayed(activities)
+    composeRule.onNodeWithTag(C.Tag.trip_map_retry_activities).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.trip_map_error).assertDoesNotExist()
+    assertEquals(1, tripRequests.get())
+    assertEquals(2, activityRequests.get())
+  }
+
+  @Test
+  fun delayedInitialLoadDisplaysDistantActivityAndSuggestionMarkers() {
+    val activities = distantActivities()
+    val pendingActivities = CompletableDeferred<List<TripActivity>>()
+    val repository =
+        object : TripRepository by FakeTripRepository(trips = listOf(trip)) {
+          override suspend fun getActivitiesForTrip(tripId: String): List<TripActivity> =
+              pendingActivities.await()
+        }
+    setScreen(repository, RecordingLocationRepository())
+    composeRule.onNodeWithTag(C.Tag.trip_map_loading).assertIsDisplayed()
+
+    composeRule.runOnIdle { pendingActivities.complete(activities) }
+
+    assertActivityMarkersDisplayed(activities)
+    composeRule.onNodeWithTag(C.Tag.trip_map_loading).assertDoesNotExist()
   }
 
   @Test
@@ -614,8 +735,10 @@ class TripMapScreenTest {
       initialState: TripMapUiState,
       sharing: Boolean = false,
       onRetry: () -> Unit = {},
+      onRetryActivities: () -> Unit = {},
       onTurnOnSharing: () -> Unit = {},
       onPauseSharing: () -> Unit = {},
+      readOnly: Boolean = false,
   ) {
     uiState.value = initialState
     isSharing.value = sharing
@@ -625,8 +748,10 @@ class TripMapScreenTest {
             uiState = uiState.value,
             isSharing = isSharing.value,
             onRetry = onRetry,
+            onRetryActivities = onRetryActivities,
             onTurnOnSharing = onTurnOnSharing,
             onPauseSharing = onPauseSharing,
+            readOnly = readOnly,
         )
       }
     }
@@ -686,6 +811,54 @@ class TripMapScreenTest {
       }
     }
     composeRule.loadLocalMapStyle()
+  }
+
+  private fun distantActivities(): List<TripActivity> =
+      listOf(
+          activity(
+              uid = "london",
+              location = TripLocation(latitude = 51.5074, longitude = -0.1278, name = "London"),
+              activityType = ActivityType.ACCEPTED,
+          ),
+          activity(
+              uid = "rome",
+              location = TripLocation(latitude = 41.9028, longitude = 12.4964, name = "Rome"),
+              activityType = ActivityType.SUGGESTION,
+          ),
+      )
+
+  private fun activity(
+      uid: String,
+      location: TripLocation,
+      activityType: ActivityType,
+  ): TripActivity =
+      TripActivity(
+          uid = uid,
+          tripId = TRIP_ID,
+          activityType = activityType,
+          name = "Visit ${location.name}",
+          description = null,
+          location = location,
+          startTime = trip.startDate,
+          endTime = null,
+          createdByUserId = USER_ID,
+          creationTime = trip.createdAt,
+      )
+
+  private fun assertActivityMarkersDisplayed(activities: List<TripActivity>) {
+    composeRule.waitUntil(timeoutMillis = MAP_TEST_TIMEOUT_MILLIS) {
+      activities.all { activity ->
+        val tag = TripMarkerTestTags.markerFor(activity.toTripMarkerUiState().id)
+        composeRule.onNodeWithTag(tag).isDisplayed()
+      }
+    }
+    activities.forEach { activity ->
+      val tag = TripMarkerTestTags.markerFor(activity.toTripMarkerUiState().id)
+      composeRule
+          .onNodeWithTag(tag)
+          .assertIsDisplayed()
+          .assertContentDescriptionEquals(activity.location.name)
+    }
   }
 
   private class FailingOnceTripRepository(private val delegate: TripRepository) :

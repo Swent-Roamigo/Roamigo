@@ -14,6 +14,7 @@ import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
+import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
@@ -70,14 +71,25 @@ class TripMapScreenPreviews {
   @Composable
   private fun TripMapFakeRepositoryPreview() {
     val factory = remember {
+      val repository =
+          FakeTripRepository(
+              trips = listOf(previewTripWithActivities),
+              activitiesByTripId = mapOf(previewTripWithActivities.uid to previewTripActivities),
+          )
       TripMapViewModel.factory(
           tripId = previewTripWithActivities.uid,
           tripRepository =
-              FakeTripRepository(
-                  trips = listOf(previewTripWithActivities),
-                  activitiesByTripId =
-                      mapOf(previewTripWithActivities.uid to previewTripActivities),
-              ),
+              object : TripRepository by repository {
+                private var firstActivityRequest = true
+
+                override suspend fun getActivitiesForTrip(tripId: String): List<Activity> {
+                  if (firstActivityRequest) {
+                    firstActivityRequest = false
+                    throw IllegalStateException("Simulated activity loading failure")
+                  }
+                  return repository.getActivitiesForTrip(tripId)
+                }
+              },
           userRepository =
               FakeUserRepository(
                   User(
@@ -92,7 +104,12 @@ class TripMapScreenPreviews {
         viewModel(key = "trip_map_fake_repository_preview", factory = factory)
     val uiState by tripMapViewModel.uiState.collectAsStateWithLifecycle()
 
-    TripMapPreview(uiState = uiState, isSharing = false, onRetry = tripMapViewModel::retry)
+    TripMapPreview(
+        uiState = uiState,
+        isSharing = false,
+        onRetry = tripMapViewModel::retryTrip,
+        onRetryActivities = tripMapViewModel::retryActivities,
+    )
   }
 
   @Composable
@@ -100,12 +117,14 @@ class TripMapScreenPreviews {
       uiState: TripMapUiState,
       isSharing: Boolean,
       onRetry: () -> Unit = {},
+      onRetryActivities: () -> Unit = {},
   ) {
     RoamigoTheme {
       TripMapScreen(
           uiState = uiState,
           isSharing = isSharing,
           onRetry = onRetry,
+          onRetryActivities = onRetryActivities,
           onTurnOnSharing = {},
           onPauseSharing = {},
       )
