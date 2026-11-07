@@ -59,3 +59,23 @@ jobs:
             exit 1
           fi
           bash ./gradlew assembleDebug --build-cache
+
+      - name: Rename APK
+        id: apk
+        run: |
+          source=app/build/outputs/apk/debug/app-debug.apk
+          if [ ! -f "$source" ]; then
+            echo "::error::No APK found at $source."
+            exit 1
+          fi
+          name="roamigo-${GITHUB_SHA::7}.apk"
+          mv "$source" "$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.name }}
+          path: ${{ steps.apk.outputs.name }}
+          if-no-files-found: error
+          retention-days: 30
