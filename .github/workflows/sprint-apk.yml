@@ -2,6 +2,8 @@
 name: Build Sprint APK
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       milestone:
@@ -13,18 +15,25 @@ on:
 permissions:
   contents: read
 
+# Push runs share one group so a newer merge cancels the outdated build;
+# manual runs get their own group so a merge never cancels a milestone build.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
 jobs:
   apk:
     name: Build installable APK
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      # Push runs have no workflow_dispatch inputs, so fall back to a fixed label.
+      MILESTONE: ${{ inputs.milestone || 'main' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
       - name: Validate milestone label
-        env:
-          MILESTONE: ${{ inputs.milestone }}
         run: |
           if [[ ! "$MILESTONE" =~ ^[A-Za-z0-9._-]+$ ]]; then
             echo "::error::Use only letters, digits, dots, underscores, and hyphens for the milestone."
@@ -68,14 +77,12 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Roamigo-${{ inputs.milestone }}-${{ github.run_number }}
+          name: Roamigo-${{ env.MILESTONE }}-${{ github.run_number }}
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 90
 
       - name: Summarize artifact
-        env:
-          MILESTONE: ${{ inputs.milestone }}
         run: |
           {
             echo "## Roamigo $MILESTONE APK"
