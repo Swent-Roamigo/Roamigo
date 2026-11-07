@@ -85,4 +85,11 @@ class TripScreenTest {
       assertEquals(1, primaryClicks)
     }
   }
+
+  @Test
+  fun tripsTabStaysHighlightedInsideATrip() {
+    show()
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).assertIsSelected()
+  }
 }

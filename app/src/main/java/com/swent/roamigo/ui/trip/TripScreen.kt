@@ -121,12 +121,13 @@ internal fun TripScreen(
       }
     }
     Box(Modifier.weight(1f)) { content() }
-    // Global destinations leave the current trip.
+    // Global destinations leave the current trip. A trip belongs to the Trips destination, so that
+    // tab stays highlighted inside it.
     AppBottomBar(
         onTripsClick = onTripsClick,
         onMapClick = onMapClick,
         onFriendsClick = onFriendsClick,
-        tripsSelected = false,
+        tripsSelected = true,
     )
   }
 }
