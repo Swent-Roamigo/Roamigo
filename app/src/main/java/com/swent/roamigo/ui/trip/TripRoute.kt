@@ -28,7 +28,6 @@ import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.isCompletedOn
 import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.users.UserRepository
-import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.map.LocationViewModel
 import com.swent.roamigo.ui.map.TripMapRoute
 import com.swent.roamigo.ui.map.TripMapScreen
@@ -65,6 +64,7 @@ internal fun TripRoute(
     onAuthenticationRequired: () -> Unit,
     onOpenVote: (String, Boolean) -> Unit,
     onCreateVote: () -> Unit,
+    onMembersClick: () -> Unit,
     onTripsClick: () -> Unit,
     onMapClick: () -> Unit,
     onFriendsClick: () -> Unit,
@@ -73,7 +73,6 @@ internal fun TripRoute(
   var tab by rememberSaveable {
     mutableStateOf(if (openMap) TripSection.Map else TripSection.Detail)
   }
-  val notImplemented = rememberNotImplementedAction()
   val userId = authRepository.getCurrentUser()?.uid
   if (userId == null) {
     LaunchedEffect(Unit) { onAuthenticationRequired() }
@@ -166,7 +165,7 @@ internal fun TripRoute(
                   else tab = TripSection.Map
                 },
                 onPhotosClick = { tab = TripSection.Photos },
-                onMembersClick = notImplemented,
+                onMembersClick = onMembersClick,
             )
         TripSection.Map -> {
           if (readOnly) {

@@ -342,6 +342,12 @@
     <string name="trip_details_votes">Votes</string>
     <string name="trip_details_share">Share trip</string>
     <string name="trip_details_members">Members</string>
+    <string name="trip_members_title">Members</string>
+    <string name="trip_members_you">%1$s (you)</string>
+    <string name="trip_members_organiser">Organiser</string>
+    <string name="trip_members_member">Member</string>
+    <string name="trip_members_unknown">Unknown traveler</string>
+    <string name="trip_members_load_error">Unable to load members. Please try again.</string>
     <string name="trip_details_places">Places to visit</string>
     <string name="trip_details_live_votes">Live votes</string>
     <string name="trip_details_photos">Trip photos</string>

@@ -47,6 +47,7 @@ import com.swent.roamigo.ui.trip.TripRoute
 import com.swent.roamigo.ui.trip.creation.CreateTripRoute
 import com.swent.roamigo.ui.trip.creation.TripReadyRoute
 import com.swent.roamigo.ui.trip.history.TripHistoryRoute
+import com.swent.roamigo.ui.trip.members.TripMembersRoute
 import com.swent.roamigo.ui.trip.voting.CreateVoteRoute
 import com.swent.roamigo.ui.trip.voting.VoteRoute
 import com.swent.roamigo.ui.trips.TripsRoute
@@ -159,6 +160,18 @@ fun RoamigoApp(
         )
       }
     }
+    composable(Route.MEMBERS) { entry ->
+      val tripId = requireNotNull(entry.arguments?.getString("tripId"))
+      SignedIn(authRepository, navController) { userId ->
+        TripMembersRoute(
+            tripId = tripId,
+            currentUserId = userId,
+            tripRepository = tripRepository,
+            userRepository = userRepository,
+            onBack = { navController.popBackStack() },
+        )
+      }
+    }
     composable(Route.FRIENDS) {
       FriendsScreen(
           uiState = FriendsUiState(),
@@ -241,6 +254,7 @@ fun RoamigoApp(
             navController.navigate(Route.vote(tripId, voteId, readOnly))
           },
           onCreateVote = { navController.navigate(Route.newVote(tripId)) },
+          onMembersClick = { navController.navigate(Route.members(tripId)) },
           onTripsClick = onTripsClick,
           onMapClick = onMapClick,
           onFriendsClick = onFriendsClick,

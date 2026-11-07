@@ -306,7 +306,7 @@ class VotesNavigationTest {
   }
 
   @Test
-  fun tripDetailShareAndMembersPlaceholdersGiveFeedback() {
+  fun tripDetailShareGivesFeedbackAndMembersOpensItsScreenAndBackReturnsToTheTrip() {
     openVotes()
 
     composeRule.onNodeWithText("Detail").performClick()
@@ -318,11 +318,10 @@ class VotesNavigationTest {
       assertEquals("Not implemented yet", ShadowToast.getTextOfLatestToast())
     }
 
-    ShadowToast.reset()
     composeRule.onNodeWithText("Members").performScrollTo().performClick()
-    composeRule.runOnIdle {
-      assertEquals("Not implemented yet", ShadowToast.getTextOfLatestToast())
-    }
+    composeRule.onNodeWithTag(C.Tag.trip_members_screen).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_members_back).performClick()
+    composeRule.onNodeWithTag("trip_details_screen").assertIsDisplayed()
   }
 
   @Test

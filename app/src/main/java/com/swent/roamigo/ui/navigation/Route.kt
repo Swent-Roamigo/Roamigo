@@ -20,6 +20,7 @@ object Route {
   const val TRIP_DETAILS = "trip/{tripId}/details?readOnly={readOnly}&initialTab={initialTab}"
   const val VOTE = "trip/{tripId}/vote/{voteId}?readOnly={readOnly}"
   const val NEW_VOTE = "trip/{tripId}/new_vote"
+  const val MEMBERS = "trip/{tripId}/members"
   const val TRIP_OVERVIEW_MAP = "trip_overview_map"
 
   fun tripDetails(tripId: String, readOnly: Boolean = false, openMap: Boolean = false): String =
@@ -27,6 +28,8 @@ object Route {
 
   fun vote(tripId: String, voteId: String, readOnly: Boolean = false): String =
       "trip/${Uri.encode(tripId)}/vote/${Uri.encode(voteId)}?readOnly=$readOnly"
+
+  fun members(tripId: String): String = "trip/${Uri.encode(tripId)}/members"
 
   fun newVote(tripId: String): String = "trip/${Uri.encode(tripId)}/new_vote"
 }
