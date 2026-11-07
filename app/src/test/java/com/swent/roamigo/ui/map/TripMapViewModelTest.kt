@@ -1,10 +1,12 @@
-// Implemented with assistance from Claude (Anthropic).
+// Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui.map
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelStore
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.trip.Activity
+import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
@@ -161,13 +163,84 @@ class TripMapViewModelTest {
   }
 
   @Test
-  fun tripWithoutDestination_hasNoViewport() = runTest {
+  fun tripWithoutLocations_hasNoViewport() = runTest {
     val viewModel = createViewModel(FakeTripRepository(trips = listOf(trip(TRIP_ID))))
 
     advanceUntilIdle()
 
     assertEquals(
         TripMapViewport.None,
+        (viewModel.uiState.value as TripMapUiState.Loaded).viewport,
+    )
+  }
+
+  @Test
+  fun viewportIncludesDestinationsAcceptedActivitiesAndSuggestions() = runTest {
+    val tokyo = TripLocation(latitude = 35.6762, longitude = 139.6503, name = "Tokyo")
+    val accepted = activity("accepted").copy(location = LONDON)
+    val suggestion = activity("suggestion", ActivityType.SUGGESTION).copy(location = tokyo)
+    val viewModel =
+        createViewModel(
+            FakeTripRepository(
+                trips = listOf(trip(TRIP_ID, listOf(PARIS))),
+                activitiesByTripId = mapOf(TRIP_ID to listOf(accepted, suggestion)),
+            )
+        )
+
+    advanceUntilIdle()
+
+    assertEquals(
+        TripMapViewport.FitAll(
+            listOf(
+                MapCoordinate(PARIS.latitude, PARIS.longitude),
+                MapCoordinate(LONDON.latitude, LONDON.longitude),
+                MapCoordinate(tokyo.latitude, tokyo.longitude),
+            )
+        ),
+        (viewModel.uiState.value as TripMapUiState.Loaded).viewport,
+    )
+  }
+
+  @Test
+  fun tripWithoutDestinations_centersOnItsSuggestion() = runTest {
+    val suggestion = activity("suggestion", ActivityType.SUGGESTION).copy(location = LONDON)
+    val viewModel =
+        createViewModel(
+            FakeTripRepository(
+                trips = listOf(trip(TRIP_ID)),
+                activitiesByTripId = mapOf(TRIP_ID to listOf(suggestion)),
+            )
+        )
+
+    advanceUntilIdle()
+
+    assertEquals(
+        TripMapViewport.Centered(LONDON.latitude, LONDON.longitude),
+        (viewModel.uiState.value as TripMapUiState.Loaded).viewport,
+    )
+  }
+
+  @Test
+  fun colocatedDestinationsActivitiesAndSuggestions_useOneViewportCoordinate() = runTest {
+    val viewModel =
+        createViewModel(
+            FakeTripRepository(
+                trips = listOf(trip(TRIP_ID, listOf(PARIS))),
+                activitiesByTripId =
+                    mapOf(
+                        TRIP_ID to
+                            listOf(
+                                activity("accepted"),
+                                activity("suggestion", ActivityType.SUGGESTION),
+                            )
+                    ),
+            )
+        )
+
+    advanceUntilIdle()
+
+    assertEquals(
+        TripMapViewport.Centered(PARIS.latitude, PARIS.longitude),
         (viewModel.uiState.value as TripMapUiState.Loaded).viewport,
     )
   }
@@ -208,6 +281,159 @@ class TripMapViewModelTest {
     advanceUntilIdle()
 
     assertEquals(latest, (viewModel.uiState.value as TripMapUiState.Loaded).trip)
+  }
+
+  @Test
+  fun initialLoad_populatesActivitiesAndSuggestionsForTheSelectedTrip() = runTest {
+    val accepted = activity("accepted")
+    val suggestion = activity("suggestion", ActivityType.SUGGESTION)
+    val otherTripActivity = activity("other", tripId = OTHER_TRIP_ID)
+    val viewModel =
+        createViewModel(
+            FakeTripRepository(
+                trips = listOf(trip(TRIP_ID), trip(OTHER_TRIP_ID)),
+                activitiesByTripId =
+                    mapOf(
+                        TRIP_ID to listOf(suggestion, accepted),
+                        OTHER_TRIP_ID to listOf(otherTripActivity),
+                    ),
+            )
+        )
+
+    advanceUntilIdle()
+
+    val state = viewModel.uiState.value as TripMapUiState.Loaded
+    assertEquals(
+        listOf(suggestion.toTripMarkerUiState(), accepted.toTripMarkerUiState()),
+        state.activityMarkers,
+    )
+    assertEquals(MemberDisplayInfo("Alice", "A", ALICE_AVATAR), state.members[ALICE.uid])
+  }
+
+  @Test
+  fun slowActivityLoad_keepsLoadingUntilMarkersAreAvailable() = runTest {
+    val pendingActivities = CompletableDeferred<List<Activity>>()
+    val requestedTripIds = mutableListOf<String>()
+    val viewModel =
+        createViewModel(
+            repository(
+                loadActivities = { tripId ->
+                  requestedTripIds += tripId
+                  pendingActivities.await()
+                }
+            ) {
+              listOf(trip(TRIP_ID))
+            }
+        )
+
+    runCurrent()
+
+    assertEquals(listOf(TRIP_ID), requestedTripIds)
+    assertEquals(TripMapUiState.Loading, viewModel.uiState.value)
+
+    val suggestion = activity("suggestion", ActivityType.SUGGESTION)
+    pendingActivities.complete(listOf(suggestion))
+    advanceUntilIdle()
+
+    val state = viewModel.uiState.value as TripMapUiState.Loaded
+    assertEquals(listOf(suggestion.toTripMarkerUiState()), state.activityMarkers)
+  }
+
+  @Test
+  fun failedActivityLoad_showsFixedErrorAndRetryLoadsMarkers() = runTest {
+    val accepted = activity("accepted")
+    var activityRequests = 0
+    val viewModel =
+        createViewModel(
+            repository(
+                loadActivities = {
+                  activityRequests++
+                  if (activityRequests == 1) throw IllegalStateException("Activities unavailable")
+                  listOf(accepted)
+                }
+            ) {
+              listOf(trip(TRIP_ID))
+            }
+        )
+
+    advanceUntilIdle()
+
+    assertEquals(
+        TripMapUiState.Error(TripMapViewModel.LOAD_FAILED_MESSAGE),
+        viewModel.uiState.value,
+    )
+
+    viewModel.retry()
+    advanceUntilIdle()
+
+    val state = viewModel.uiState.value as TripMapUiState.Loaded
+    assertEquals(2, activityRequests)
+    assertEquals(listOf(accepted.toTripMarkerUiState()), state.activityMarkers)
+  }
+
+  @Test
+  fun retry_replacesOldMarkersAndUpdatesAnAcceptedSuggestion() = runTest {
+    val accepted = activity("accepted")
+    val suggestion = activity("suggestion", ActivityType.SUGGESTION)
+    var activities = listOf(accepted, suggestion)
+    val viewModel =
+        createViewModel(repository(loadActivities = { activities }) { listOf(trip(TRIP_ID)) })
+    advanceUntilIdle()
+    assertEquals(
+        listOf(accepted.toTripMarkerUiState(), suggestion.toTripMarkerUiState()),
+        (viewModel.uiState.value as TripMapUiState.Loaded).activityMarkers,
+    )
+
+    val newlyAccepted = suggestion.copy(activityType = ActivityType.ACCEPTED)
+    activities = listOf(newlyAccepted)
+    viewModel.retry()
+    advanceUntilIdle()
+
+    val state = viewModel.uiState.value as TripMapUiState.Loaded
+    assertEquals(listOf(newlyAccepted.toTripMarkerUiState()), state.activityMarkers)
+  }
+
+  @Test
+  fun retry_duringActivityLoad_cancelsItAndIgnoresItsResult() = runTest {
+    val firstActivities = CompletableDeferred<List<Activity>>()
+    val latestActivities = CompletableDeferred<List<Activity>>()
+    var firstLoadCancelled = false
+    var requests = 0
+    val viewModel =
+        createViewModel(
+            repository(
+                loadActivities = {
+                  requests++
+                  if (requests == 1) {
+                    try {
+                      firstActivities.await()
+                    } finally {
+                      firstLoadCancelled = true
+                    }
+                  } else {
+                    latestActivities.await()
+                  }
+                }
+            ) {
+              listOf(trip(TRIP_ID))
+            }
+        )
+    runCurrent()
+
+    viewModel.retry()
+    runCurrent()
+
+    assertTrue(firstLoadCancelled)
+    firstActivities.complete(listOf(activity("outdated", ActivityType.SUGGESTION)))
+    runCurrent()
+    assertEquals(TripMapUiState.Loading, viewModel.uiState.value)
+
+    val latest = activity("latest")
+    latestActivities.complete(listOf(latest))
+    advanceUntilIdle()
+
+    val state = viewModel.uiState.value as TripMapUiState.Loaded
+    assertEquals(listOf(latest.toTripMarkerUiState()), state.activityMarkers)
   }
 
   @Test
@@ -384,15 +610,39 @@ class TripMapViewModelTest {
   ): TripMapViewModel =
       TripMapViewModel(TRIP_ID, repository, userRepository).also { store.put("map", it) }
 
-  private fun repository(load: suspend () -> List<Trip>): TripRepository =
+  private fun repository(
+      loadActivities: suspend (String) -> List<Activity> = { emptyList() },
+      load: suspend () -> List<Trip>,
+  ): TripRepository =
       object : TripRepository by FakeTripRepository() {
         override suspend fun getTrips(): List<Trip> = load()
+
+        override suspend fun getActivitiesForTrip(tripId: String): List<Activity> =
+            loadActivities(tripId)
       }
 
   private fun userRepository(load: suspend () -> List<User>): UserRepository =
       object : UserRepository by FakeUserRepository(ALICE) {
         override suspend fun getUsers(userIds: Set<String>): List<User> = load()
       }
+
+  private fun activity(
+      id: String,
+      type: ActivityType = ActivityType.ACCEPTED,
+      tripId: String = TRIP_ID,
+  ): Activity =
+      Activity(
+          uid = id,
+          tripId = tripId,
+          activityType = type,
+          name = "$id activity",
+          description = null,
+          location = PARIS,
+          startTime = Timestamp(0, 0),
+          endTime = null,
+          createdByUserId = ALICE.uid,
+          creationTime = Timestamp(0, 0),
+      )
 
   private fun trip(
       id: String,
