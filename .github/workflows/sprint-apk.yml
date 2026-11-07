@@ -74,11 +74,32 @@ jobs:
           fi
           bash ./gradlew ktfmtCheck assembleDebug lintDebug check --build-cache
 
+      - name: Name APK
+        id: apk
+        run: |
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          if [ ! -f "$apk" ]; then
+            echo "::error::No APK found at $apk."
+            exit 1
+          fi
+          # Push builds are identified by commit; manual builds keep the milestone naming.
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            name="roamigo-${GITHUB_SHA::7}.apk"
+            mkdir -p "$RUNNER_TEMP/apk"
+            path="$RUNNER_TEMP/apk/$name"
+            cp "$apk" "$path"
+          else
+            name="Roamigo-$MILESTONE-$GITHUB_RUN_NUMBER"
+            path="$apk"
+          fi
+          echo "artifact=$name" >> "$GITHUB_OUTPUT"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Roamigo-${{ env.MILESTONE }}-${{ github.run_number }}
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: ${{ steps.apk.outputs.artifact }}
+          path: ${{ steps.apk.outputs.path }}
           if-no-files-found: error
           retention-days: 90
 
