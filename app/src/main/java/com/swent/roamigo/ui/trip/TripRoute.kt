@@ -28,12 +28,14 @@ import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.isCompletedOn
 import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.users.UserRepository
+import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.map.LocationViewModel
 import com.swent.roamigo.ui.map.TripMapRoute
 import com.swent.roamigo.ui.map.TripMapScreen
 import com.swent.roamigo.ui.map.TripMapUiState
 import com.swent.roamigo.ui.map.TripMapViewModel
 import com.swent.roamigo.ui.photos.PhotosRoute
+import com.swent.roamigo.ui.trip.components.AddToTripSheet
 import com.swent.roamigo.ui.trip.details.TripDetailsRoute
 import com.swent.roamigo.ui.trip.voting.VoteCloseDialog
 import com.swent.roamigo.ui.trip.voting.VoteDialog
@@ -73,6 +75,8 @@ internal fun TripRoute(
   var tab by rememberSaveable {
     mutableStateOf(if (openMap) TripSection.Map else TripSection.Detail)
   }
+  val notImplemented = rememberNotImplementedAction()
+  var showAdd by rememberSaveable { mutableStateOf(false) }
   val userId = authRepository.getCurrentUser()?.uid
   if (userId == null) {
     LaunchedEffect(Unit) { onAuthenticationRequired() }
@@ -128,6 +132,15 @@ internal fun TripRoute(
           .collectAsStateWithLifecycle(initialValue = null)
   val tabState = rememberSaveableStateHolder()
   BackHandler(onBack = onBack)
+  if (showAdd) {
+    AddToTripSheet(
+        onDismiss = { showAdd = false },
+        onActivity = notImplemented,
+        onSuggestion = notImplemented,
+        onVote = onCreateVote,
+        onPhoto = { tab = TripSection.Photos },
+    )
+  }
   TripScreen(
       trip =
           loaded?.trip?.let { trip ->
@@ -147,6 +160,7 @@ internal fun TripRoute(
         if (authRepository.getCurrentUser() == null) onAuthenticationRequired() else tab = section
       },
       onPauseSharing = { locationModel?.stopSharing() },
+      onAddClick = if (readOnly) null else ({ showAdd = true }),
       onTripsClick = onTripsClick,
       onMapClick = onMapClick,
       onFriendsClick = onFriendsClick,

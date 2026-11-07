@@ -1,8 +1,11 @@
 package com.swent.roamigo.ui.trip
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -29,6 +32,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -158,6 +162,70 @@ class TripRouteTest {
 
     composeRule.waitUntil { locationRepository.stopSharingCalls.contains(trip.uid) }
     assertTrue(locationRepository.sharedTripIds.isEmpty())
+  }
+
+  private fun showRoute(fromHistory: Boolean, onCreateVote: () -> Unit = {}) {
+    val trip =
+        trip(
+            endDate =
+                if (fromHistory) LocalDate.now(ZoneId.systemDefault()).minusDays(1)
+                else LocalDate.now(ZoneId.systemDefault()).plusDays(1)
+        )
+    composeRule.setContent {
+      RoamigoTheme {
+        TripRoute(
+            tripId = trip.uid,
+            fromHistory = fromHistory,
+            openMap = false,
+            authRepository = signedInAuth(),
+            tripRepository = FakeTripRepository(trips = listOf(trip)),
+            userRepository = FakeUserRepository(User("member", "Member", null)),
+            voteRepository = InMemoryVoteRepository(),
+            photoRepository = FakePhotoRepository(composeRule.activity.cacheDir),
+            connectivityRepository = FakeConnectivityRepository(),
+            locationRepository = FakeLocationRepository(),
+            onBack = {},
+            onAuthenticationRequired = {},
+            onOpenVote = { _, _ -> },
+            onCreateVote = onCreateVote,
+            onMembersClick = {},
+            onTripsClick = {},
+            onMapClick = {},
+            onFriendsClick = {},
+        )
+      }
+    }
+  }
+
+  @Test
+  fun addSheetOffersFourActionsAndStartsAVote() {
+    var createVoteClicks = 0
+    showRoute(fromHistory = false, onCreateVote = { createVoteClicks++ })
+
+    composeRule.onNodeWithTag(C.Tag.trip_add_button).performClick()
+    composeRule.onNodeWithText("Add an activity").assertIsDisplayed()
+    composeRule.onNodeWithText("Suggest a place").assertIsDisplayed()
+    composeRule.onNodeWithText("Take a photo").assertIsDisplayed()
+    composeRule.onNodeWithText("Start a vote").performClick()
+
+    composeRule.runOnIdle { assertEquals(1, createVoteClicks) }
+  }
+
+  @Test
+  fun addSheetTakePhotoSwitchesToThePhotosTab() {
+    showRoute(fromHistory = false)
+
+    composeRule.onNodeWithTag(C.Tag.trip_add_button).performClick()
+    composeRule.onNodeWithText("Take a photo").performClick()
+
+    composeRule.onNodeWithText("Photos").assertIsSelected()
+  }
+
+  @Test
+  fun addButtonIsHiddenOnAPastTrip() {
+    showRoute(fromHistory = true)
+
+    composeRule.onAllNodesWithTag(C.Tag.trip_add_button).assertCountEquals(0)
   }
 
   private fun signedInAuth() =

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -20,10 +21,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.swent.roamigo.R
+import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
@@ -59,6 +62,7 @@ internal fun TripScreen(
     onMapClick: () -> Unit,
     onFriendsClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onAddClick: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
   Column(modifier.fillMaxSize().safeDrawingPadding()) {
@@ -103,6 +107,11 @@ internal fun TripScreen(
               painter = painterResource(R.drawable.ic_trip_details_share),
               contentDescription = stringResource(R.string.trip_details_share),
           )
+        }
+      }
+      if (selectedTab == TripSection.Detail && onAddClick != null) {
+        IconButton(onClick = onAddClick, modifier = Modifier.testTag(C.Tag.trip_add_button)) {
+          Icon(Icons.Default.Add, contentDescription = stringResource(R.string.trip_add_menu))
         }
       }
       if (selectedTab != TripSection.Map && isSharing) {
