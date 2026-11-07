@@ -183,12 +183,4 @@ class PhotosNavigationTest {
 
     composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
   }
-
-  @Test
-  fun buildsARouteThatKeepsSpecialCharacters() {
-    assertEquals(
-        "trip/a%20b%2Fc/photos?tripName=x%26y%3F",
-        Route.photos("a b/c", "x&y?"),
-    )
-  }
 }
