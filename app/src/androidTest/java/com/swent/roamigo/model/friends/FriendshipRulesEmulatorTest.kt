@@ -18,6 +18,12 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 import java.util.UUID
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
@@ -31,7 +37,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Direct SDK writes exercise the rules without trusting repository-side validation. */
+/** Direct SDK writes test the rules, while repository tests verify the complete data path. */
 @RunWith(AndroidJUnit4::class)
 class FriendshipRulesEmulatorTest {
   private val apps = mutableListOf<FirebaseApp>()
@@ -341,7 +347,161 @@ class FriendshipRulesEmulatorTest {
     assertEquals(newId, document(alice).get(Source.SERVER).await().getString("requestId"))
   }
 
-  private class User(val id: String, val auth: FirebaseAuth, val db: FirebaseFirestore)
+  @Test
+  fun repository_roundTripLoadsRequestsAndEstablishesOneMutualFriendship() = emulatorTest {
+    val request = alice.repository.sendFriendRequest(bob.id)
+    assertEquals(FriendRequestStatus.PENDING, request.status)
+    assertEquals(listOf(request), alice.repository.getOutgoingRequests())
+    assertEquals(listOf(request), bob.repository.getIncomingRequests())
+    assertTrue(alice.repository.getFriends().isEmpty())
+    assertTrue(charlie.repository.getFriends().isEmpty())
+    val friendship = bob.repository.acceptFriendRequest(alice.id, request.uid)
+    assertEquals(request.uid, friendship.uid)
+    assertEquals(listOf(friendship), alice.repository.getFriends())
+    assertEquals(listOf(friendship), bob.repository.getFriends())
+    assertTrue(bob.repository.getIncomingRequests().isEmpty())
+    assertEquals(friendship, bob.repository.acceptFriendRequest(alice.id, request.uid))
+    assertEquals(FriendRequestStatus.ACCEPTED, alice.repository.sendFriendRequest(bob.id).status)
+  }
+
+  @Test
+  fun repository_concurrentCrossedRequestsUseOneAcceptedDocument() = emulatorTest {
+    val requests =
+        listOf(
+                async { alice.repository.sendFriendRequest(bob.id) },
+                async { bob.repository.sendFriendRequest(alice.id) },
+            )
+            .awaitAll()
+    assertEquals(1, requests.map { it.uid }.toSet().size)
+    assertEquals(1, alice.repository.getFriends().size)
+    assertEquals(alice.repository.getFriends(), bob.repository.getFriends())
+    assertTrue(alice.repository.getOutgoingRequests().isEmpty())
+    assertTrue(bob.repository.getOutgoingRequests().isEmpty())
+  }
+
+  @Test
+  fun repository_concurrentDuplicateSendsLeaveOnePendingRequest() = emulatorTest {
+    val requests = List(4) { async { alice.repository.sendFriendRequest(bob.id) } }.awaitAll()
+    assertEquals(1, requests.map { it.uid }.toSet().size)
+    assertEquals(listOf(requests.first()), bob.repository.getIncomingRequests())
+    assertTrue(alice.repository.getFriends().isEmpty())
+  }
+
+  @Test
+  fun repository_declineAllowsImmediateRequestsInEitherDirectionAndRejectsStaleActions() =
+      emulatorTest {
+        val original = alice.repository.sendFriendRequest(bob.id)
+        bob.repository.declineFriendRequest(alice.id, original.uid)
+        bob.repository.declineFriendRequest(alice.id, original.uid)
+        assertTrue(alice.repository.getOutgoingRequests().isEmpty())
+        val fresh = alice.repository.sendFriendRequest(bob.id)
+        assertNotEquals(original.uid, fresh.uid)
+        repositoryFailure<FriendRepositoryException.Conflict> {
+          bob.repository.acceptFriendRequest(alice.id, original.uid)
+        }
+        bob.repository.declineFriendRequest(alice.id, fresh.uid)
+        val reversed = bob.repository.sendFriendRequest(alice.id)
+        assertNotEquals(fresh.uid, reversed.uid)
+        assertEquals(listOf(reversed), alice.repository.getIncomingRequests())
+        repositoryFailure<FriendRepositoryException.PermissionDenied> {
+          bob.repository.acceptFriendRequest(alice.id, reversed.uid)
+        }
+        assertEquals(reversed.uid, alice.repository.acceptFriendRequest(bob.id, reversed.uid).uid)
+      }
+
+  @Test
+  fun repository_removalUpdatesBothSidesAndCannotRemoveANewerGeneration() = emulatorTest {
+    val request = alice.repository.sendFriendRequest(bob.id)
+    bob.repository.acceptFriendRequest(alice.id, request.uid)
+    alice.repository.removeFriend(bob.id, request.uid)
+    alice.repository.removeFriend(bob.id, request.uid)
+    assertTrue(alice.repository.getFriends().isEmpty())
+    assertTrue(bob.repository.getFriends().isEmpty())
+    repositoryFailure<FriendRepositoryException.Conflict> {
+      bob.repository.acceptFriendRequest(alice.id, request.uid)
+    }
+    val fresh = alice.repository.sendFriendRequest(bob.id)
+    repositoryFailure<FriendRepositoryException.Conflict> {
+      alice.repository.removeFriend(bob.id, request.uid)
+    }
+    bob.repository.acceptFriendRequest(alice.id, fresh.uid)
+    repositoryFailure<FriendRepositoryException.Conflict> {
+      alice.repository.removeFriend(bob.id, request.uid)
+    }
+    bob.repository.removeFriend(alice.id, fresh.uid)
+    assertTrue(alice.repository.getFriends().isEmpty())
+  }
+
+  @Test
+  fun repository_observesAcceptanceRemovalAndEndsOnSignOut() = emulatorTest {
+    val updates = Channel<List<Friendship>>(Channel.UNLIMITED)
+    var failure: Throwable? = null
+    val observer = launch {
+      failure =
+          runCatching {
+            alice.repository.observeFriends().collect { updates.send(it) }
+          }
+              .exceptionOrNull()
+    }
+    try {
+      assertTrue(updates.receive().isEmpty())
+      val request = alice.repository.sendFriendRequest(bob.id)
+      val friendship = bob.repository.acceptFriendRequest(alice.id, request.uid)
+      assertEquals(listOf(friendship), updates.receive())
+      alice.repository.removeFriend(bob.id, friendship.uid)
+      assertTrue(updates.receive().isEmpty())
+      alice.auth.signOut()
+      observer.join()
+      assertTrue(failure == null || failure is FriendRepositoryException.NotAuthenticated)
+      repositoryFailure<FriendRepositoryException.NotAuthenticated> {
+        alice.repository.getFriends()
+      }
+    } finally {
+      observer.cancelAndJoin()
+      updates.close()
+    }
+  }
+
+  @Test
+  fun repository_concurrentAcceptAndDeclineHaveOneWinner() = emulatorTest {
+    val request = alice.repository.sendFriendRequest(bob.id)
+    val acceptance = async {
+      runCatching { bob.repository.acceptFriendRequest(alice.id, request.uid) }
+    }
+    val decline = async {
+      runCatching { bob.repository.declineFriendRequest(alice.id, request.uid) }
+    }
+    val accepted = acceptance.await()
+    val declined = decline.await()
+    assertNotEquals(accepted.isSuccess, declined.isSuccess)
+    val failure = accepted.exceptionOrNull() ?: declined.exceptionOrNull()
+    assertTrue(
+        generateSequence(failure) { it.cause }.joinToString(" -> "),
+        failure is FriendRepositoryException.Conflict,
+    )
+    assertEquals(if (accepted.isSuccess) 1 else 0, alice.repository.getFriends().size)
+    assertEquals(alice.repository.getFriends(), bob.repository.getFriends())
+  }
+
+  @Test
+  fun repository_reportsOfflineReadsAndRecoversWhenReconnected() = emulatorTest {
+    alice.db.disableNetwork().await()
+    try {
+      repositoryFailure<FriendRepositoryException.Network> { alice.repository.getFriends() }
+    } finally {
+      alice.db.enableNetwork().await()
+    }
+    assertTrue(alice.repository.getFriends().isEmpty())
+  }
+
+  private class User(val id: String, val auth: FirebaseAuth, val db: FirebaseFirestore) {
+    val repository = FriendRepositoryFirestore(db, auth)
+  }
+
+  private suspend inline fun <reified T : Throwable> repositoryFailure(action: suspend () -> Unit) {
+    val error = runCatching { action() }.exceptionOrNull()
+    assertTrue("Expected ${T::class.java.simpleName}, got $error", error is T)
+  }
 
   private suspend fun signInUser(): User {
     val name = "friendship-rules-${UUID.randomUUID()}"
@@ -422,7 +582,7 @@ class FriendshipRulesEmulatorTest {
     )
   }
 
-  private fun emulatorTest(action: suspend () -> Unit): Unit = runBlocking {
+  private fun emulatorTest(action: suspend CoroutineScope.() -> Unit): Unit = runBlocking {
     withTimeout(30_000) { action() }
   }
 
