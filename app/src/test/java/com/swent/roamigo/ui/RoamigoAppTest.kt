@@ -265,8 +265,6 @@ class RoamigoAppTest {
         .onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION)
         .assertIsEnabled()
         .performClick()
-    waitForTag("trip_ready")
-    composeRule.onNodeWithText("Open trip detail").performScrollTo().performClick()
     waitForTag("trip_details_screen")
     composeRule.onAllNodesWithTag(DatesTravelersScreenTestTags.SCREEN).assertCountEquals(0)
     pressBack()

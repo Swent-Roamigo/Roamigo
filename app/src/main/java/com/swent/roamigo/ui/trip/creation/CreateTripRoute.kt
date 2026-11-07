@@ -19,7 +19,6 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
-import com.swent.roamigo.model.destination.DestinationPhoto
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.resources.C
@@ -37,7 +36,7 @@ fun CreateTripRoute(
     savedStateHandle: SavedStateHandle,
     onClose: () -> Unit,
     onSignIn: () -> Unit,
-    onTripCreated: (String, DestinationPhoto?) -> Unit,
+    onTripCreated: (String) -> Unit,
 ) {
   val creationViewModel = viewModel {
     CreateTripViewModel(
@@ -87,13 +86,7 @@ fun CreateTripRoute(
         },
     )
   }
-  LaunchedEffect(state.createdTripId) {
-    if (state.createdTripId != null) {
-      val first = state.selectedDestinations.firstOrNull()
-      val photo = first?.let { state.photosByDestinationId[it.stableId] }
-      onTripCreated(state.createdTripId!!, photo)
-    }
-  }
+  LaunchedEffect(state.createdTripId) { state.createdTripId?.let(onTripCreated) }
   if (datesStep) {
     DatesTravelersScreen(
         uiState = state,
