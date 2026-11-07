@@ -10,6 +10,11 @@ on:
 permissions:
   contents: read
 
+# An explicit bash shell adds pipefail, so a failing command inside a pipe fails the step.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   apk:
     name: Build debug APK
@@ -106,8 +111,21 @@ jobs:
         with:
           name: ${{ needs.apk.outputs.apk-name }}
 
+      # Re-running an older run must not replace the APK of a newer main commit.
+      - name: Check this commit is still the head of main
+        id: head
+        run: |
+          head_sha="$(gh api "repos/$GH_REPO/commits/main" --jq .sha)"
+          if [ "$head_sha" != "$GITHUB_SHA" ]; then
+            echo "::notice::Skipping publish: main is now at $head_sha, not $GITHUB_SHA."
+            echo "current=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          fi
+
       # The tag is moved through the API because gh release cannot retarget an existing tag.
       - name: Point the latest tag at this commit
+        if: steps.head.outputs.current == 'true'
         run: |
           if gh api "repos/$GH_REPO/git/ref/tags/$TAG" --silent 2>/dev/null; then
             gh api --method PATCH "repos/$GH_REPO/git/refs/tags/$TAG" \
@@ -119,6 +137,7 @@ jobs:
 
       # The new APK is uploaded before the old ones are deleted, so the release always has one.
       - name: Create or update the release
+        if: steps.head.outputs.current == 'true'
         run: |
           notes="Debug APK built from the latest commit on main.
 
