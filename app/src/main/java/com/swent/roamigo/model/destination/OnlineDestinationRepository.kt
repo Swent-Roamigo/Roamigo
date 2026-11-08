@@ -121,23 +121,18 @@ class OnlineDestinationRepository(
             .build()
     val page =
         try {
-          getJson(url, WIKIPEDIA_TIMEOUT_SECONDS)
-        } catch (error: HttpStatusException) {
-          // A title that does not exist is a 404 and a normal miss. Any other failure (a timeout,
-          // a 5xx) ends the Wikipedia step, so that Openverse is tried at once.
-          if (error.code == HTTP_NOT_FOUND) return null else throw error
+          getJson(url)
+        } catch (cancelled: CancellationException) {
+          throw cancelled
+        } catch (_: Exception) {
+          // A title that does not exist is a normal miss.
+          return null
         }
     if (page.optString("type") != "standard") return null
     val coordinates = page.optJSONObject("coordinates") ?: return null
-    // optDouble gives NaN for a missing or malformed value, and any comparison with NaN is false,
-    // so such an article would otherwise pass as "near".
-    val latitude = coordinates.optDouble("lat")
-    val longitude = coordinates.optDouble("lon")
     if (
-        !latitude.isFinite() ||
-            !longitude.isFinite() ||
-            abs(latitude - destination.latitude) > ARTICLE_MAX_DISTANCE_DEGREES ||
-            abs(longitude - destination.longitude) > ARTICLE_MAX_DISTANCE_DEGREES
+        abs(coordinates.optDouble("lat") - destination.latitude) > ARTICLE_MAX_DISTANCE_DEGREES ||
+            abs(coordinates.optDouble("lon") - destination.longitude) > ARTICLE_MAX_DISTANCE_DEGREES
     )
         return null
     val image =
@@ -279,7 +274,7 @@ class OnlineDestinationRepository(
               client.newBuilder().callTimeout(it, TimeUnit.SECONDS).build()
             } ?: client
         http.newCall(request).await().use { response ->
-          if (!response.isSuccessful) throw HttpStatusException(response.code)
+          if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
           JSONObject(response.body?.string() ?: throw IOException("Empty response"))
         }
       }
@@ -312,8 +307,6 @@ class OnlineDestinationRepository(
     private const val OPENVERSE_PAGE_SIZE = 5
     // Openverse often takes longer than the other providers, so it must not hold up a photo.
     private const val OPENVERSE_TIMEOUT_SECONDS = 4L
-    private const val WIKIPEDIA_TIMEOUT_SECONDS = 4L
-    private const val HTTP_NOT_FOUND = 404
     private const val ARTICLE_MAX_DISTANCE_DEGREES = 0.3
     private const val REQUEST_TIMEOUT_SECONDS = 12L
     private val defaultClient =
