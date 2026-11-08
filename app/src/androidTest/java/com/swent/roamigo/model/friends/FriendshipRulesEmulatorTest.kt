@@ -18,7 +18,9 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 import java.util.UUID
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelAndJoin
@@ -367,11 +369,12 @@ class FriendshipRulesEmulatorTest {
   @Test
   fun repository_concurrentCrossedRequestsUseOneAcceptedDocument() = emulatorTest {
     val requests =
-        listOf(
-                async { alice.repository.sendFriendRequest(bob.id) },
-                async { bob.repository.sendFriendRequest(alice.id) },
+        concurrently(
+            listOf(
+                { alice.repository.sendFriendRequest(bob.id) },
+                { bob.repository.sendFriendRequest(alice.id) },
             )
-            .awaitAll()
+        )
     assertEquals(1, requests.map { it.uid }.toSet().size)
     assertEquals(1, alice.repository.getFriends().size)
     assertEquals(alice.repository.getFriends(), bob.repository.getFriends())
@@ -381,7 +384,7 @@ class FriendshipRulesEmulatorTest {
 
   @Test
   fun repository_concurrentDuplicateSendsLeaveOnePendingRequest() = emulatorTest {
-    val requests = List(4) { async { alice.repository.sendFriendRequest(bob.id) } }.awaitAll()
+    val requests = concurrently(List(4) { { alice.repository.sendFriendRequest(bob.id) } })
     assertEquals(1, requests.map { it.uid }.toSet().size)
     assertEquals(listOf(requests.first()), bob.repository.getIncomingRequests())
     assertTrue(alice.repository.getFriends().isEmpty())
@@ -433,6 +436,35 @@ class FriendshipRulesEmulatorTest {
   }
 
   @Test
+  fun repository_observesIncomingAndOutgoingUntilRequestsAreAnswered() = emulatorTest {
+    val incoming = Channel<List<FriendRequest>>(Channel.UNLIMITED)
+    val outgoing = Channel<List<FriendRequest>>(Channel.UNLIMITED)
+    val receiver = launch { bob.repository.observeIncomingRequests().collect { incoming.send(it) } }
+    val sender = launch { alice.repository.observeOutgoingRequests().collect { outgoing.send(it) } }
+    try {
+      assertTrue(incoming.receive().isEmpty())
+      assertTrue(outgoing.receive().isEmpty())
+      val declined = alice.repository.sendFriendRequest(bob.id)
+      assertEquals(listOf(declined), incoming.receive())
+      assertEquals(listOf(declined), outgoing.receive())
+      bob.repository.declineFriendRequest(alice.id, declined.uid)
+      assertTrue(incoming.receive().isEmpty())
+      assertTrue(outgoing.receive().isEmpty())
+      val accepted = alice.repository.sendFriendRequest(bob.id)
+      assertEquals(listOf(accepted), incoming.receive())
+      assertEquals(listOf(accepted), outgoing.receive())
+      bob.repository.acceptFriendRequest(alice.id, accepted.uid)
+      assertTrue(incoming.receive().isEmpty())
+      assertTrue(outgoing.receive().isEmpty())
+    } finally {
+      receiver.cancelAndJoin()
+      sender.cancelAndJoin()
+      incoming.close()
+      outgoing.close()
+    }
+  }
+
+  @Test
   fun repository_observesAcceptanceRemovalAndEndsOnSignOut() = emulatorTest {
     val updates = Channel<List<Friendship>>(Channel.UNLIMITED)
     var failure: Throwable? = null
@@ -465,14 +497,13 @@ class FriendshipRulesEmulatorTest {
   @Test
   fun repository_concurrentAcceptAndDeclineHaveOneWinner() = emulatorTest {
     val request = alice.repository.sendFriendRequest(bob.id)
-    val acceptance = async {
-      runCatching { bob.repository.acceptFriendRequest(alice.id, request.uid) }
-    }
-    val decline = async {
-      runCatching { bob.repository.declineFriendRequest(alice.id, request.uid) }
-    }
-    val accepted = acceptance.await()
-    val declined = decline.await()
+    val (accepted, declined) =
+        concurrently(
+            listOf(
+                { runCatching { bob.repository.acceptFriendRequest(alice.id, request.uid) } },
+                { runCatching { bob.repository.declineFriendRequest(alice.id, request.uid) } },
+            )
+        )
     assertNotEquals(accepted.isSuccess, declined.isSuccess)
     val failure = accepted.exceptionOrNull() ?: declined.exceptionOrNull()
     assertTrue(
@@ -492,6 +523,18 @@ class FriendshipRulesEmulatorTest {
       alice.db.enableNetwork().await()
     }
     assertTrue(alice.repository.getFriends().isEmpty())
+  }
+
+  private suspend fun <T> CoroutineScope.concurrently(actions: List<suspend () -> T>): List<T> {
+    val start = CompletableDeferred<Unit>()
+    val results = actions.map { action ->
+      async(start = CoroutineStart.UNDISPATCHED) {
+        start.await()
+        action()
+      }
+    }
+    start.complete(Unit)
+    return results.awaitAll()
   }
 
   private class User(val id: String, val auth: FirebaseAuth, val db: FirebaseFirestore) {
