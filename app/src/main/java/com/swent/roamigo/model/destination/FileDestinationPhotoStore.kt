@@ -2,9 +2,6 @@
 package com.swent.roamigo.model.destination
 
 import java.io.File
-import java.io.IOException
-import java.nio.file.Files
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -12,47 +9,32 @@ import org.json.JSONObject
 /**
  * Keeps one small JSON file per destination in [directory], meant to be inside the app's cache
  * directory: the system may empty it, which only means photos are looked up again.
- *
- * @param ioDispatcher where the file work runs, replaceable in tests.
  */
-class FileDestinationPhotoStore(
-    private val directory: File,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-) : DestinationPhotoStore {
+class FileDestinationPhotoStore(private val directory: File) : DestinationPhotoStore {
   override suspend fun read(destinationId: String): CachedDestinationPhoto? =
-      withContext(ioDispatcher) {
+      withContext(Dispatchers.IO) {
         val file = fileFor(destinationId)
         if (!file.isFile) return@withContext null
         try {
-          // A file that parses but is not trusted (a link that is not https) is removed as well.
-          parse(JSONObject(file.readText())).also { if (it == null) discard(file) }
+          parse(JSONObject(file.readText()))
         } catch (_: Exception) {
           // A damaged or foreign file is dropped so that it is replaced by the next lookup.
-          discard(file)
+          file.delete()
           null
         }
       }
 
   override suspend fun write(destinationId: String, photo: CachedDestinationPhoto) {
-    withContext(ioDispatcher) {
+    withContext(Dispatchers.IO) {
       try {
         directory.mkdirs()
         // Written aside and renamed, so a reader never sees half a file.
         val temporary = File(directory, "${fileNameOf(destinationId)}.tmp")
         temporary.writeText(encode(photo))
-        if (!temporary.renameTo(fileFor(destinationId))) discard(temporary)
+        if (!temporary.renameTo(fileFor(destinationId))) temporary.delete()
       } catch (_: Exception) {
         // Only a cache: the photo is shown anyway.
       }
-    }
-  }
-
-  /** Removes [file] if it is there. It only frees space, so a failure to remove it is ignored. */
-  private fun discard(file: File) {
-    try {
-      Files.deleteIfExists(file.toPath())
-    } catch (_: IOException) {
-      // Only a cache: the file is replaced or ignored on the next lookup.
     }
   }
 

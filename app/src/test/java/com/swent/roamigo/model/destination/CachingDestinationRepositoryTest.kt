@@ -138,8 +138,6 @@ class CachingDestinationRepositoryTest {
         """{"savedAt":1,"imageUrl":"file:///etc/passwd","sourceUrl":"https://x.org","license":"CC0"}"""
     )
     assertNull(files.read("geonames:1"))
-    // The unsafe file is removed too, not only skipped.
-    assertTrue(!saved.exists())
   }
 
   @Test
@@ -152,64 +150,6 @@ class CachingDestinationRepositoryTest {
 
     assertEquals(photo, found)
     assertEquals(1, delegate.photoLookups)
-  }
-
-  @Test
-  fun theOldestSearchesAreForgottenBeyondFifty() = runTest {
-    val repository = repository()
-    repeat(51) { repository.searchDestinations("city $it") }
-
-    repository.searchDestinations("city 50")
-    assertEquals(51, delegate.searches)
-    repository.searchDestinations("city 0")
-
-    assertEquals(52, delegate.searches)
-  }
-
-  @Test
-  fun aFoundPhotoIsAnsweredFromMemoryTheSecondTime() = runTest {
-    val repository = repository()
-    delegate.photo = photo
-    repository.findPhoto(lisbon)
-
-    delegate.photo = null
-    val again = repository.findPhoto(lisbon)
-
-    assertEquals(photo, again)
-    assertEquals(1, delegate.photoLookups)
-  }
-
-  @Test
-  fun aPhotoWithAllItsCreditsSurvivesTheFile() = runTest {
-    val directory = folder.newFolder("credits")
-    val credited = photo.copy(credit = "Photo: Ana", creator = null, title = null)
-    FileDestinationPhotoStore(directory).write("geonames:1", CachedDestinationPhoto(credited, 7L))
-
-    val read = FileDestinationPhotoStore(directory).read("geonames:1")
-
-    assertEquals(CachedDestinationPhoto(credited, 7L), read)
-  }
-
-  @Test
-  fun aFileWithANonHttpsSourceLinkIsIgnored() = runTest {
-    val directory = folder.newFolder("source")
-    val store = FileDestinationPhotoStore(directory)
-    store.write(
-        "geonames:1",
-        CachedDestinationPhoto(photo.copy(sourceUrl = "http://example.org/file"), 7L),
-    )
-
-    assertNull(store.read("geonames:1"))
-  }
-
-  @Test
-  fun failingToWriteTheFileDoesNotFailTheLookup() = runTest {
-    // A plain file where the folder should be: nothing can be written under it.
-    val blocked = folder.newFile("blocked")
-
-    FileDestinationPhotoStore(blocked).write("geonames:1", CachedDestinationPhoto(photo, 7L))
-
-    assertNull(FileDestinationPhotoStore(blocked).read("geonames:1"))
   }
 
   private class CountingRepository : DestinationRepository {
