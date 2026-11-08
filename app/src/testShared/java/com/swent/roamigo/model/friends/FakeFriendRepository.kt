@@ -19,7 +19,9 @@ import kotlinx.coroutines.sync.withLock
 /**
  * In-memory friendship data for JVM and device tests, with no Firebase or network calls. Pass the
  * same [store] to different users' repositories to model their shared backend. [clock] controls
- * request and response timestamps. [failure] simulates a service failure before a write.
+ * request and response timestamps; responses are bounded by their request's creation time so
+ * different clients' clocks cannot reverse timestamp order. [failure] simulates a service failure
+ * before a write.
  */
 class FakeFriendRepository(
     initialUserId: String? = null,
@@ -115,7 +117,7 @@ class FakeFriendRepository(
               else
                   existing.copy(
                       status = FriendRequestStatus.ACCEPTED,
-                      respondedAt = clock.instant(),
+                      respondedAt = maxOf(clock.instant(), existing.createdAt),
                   )
           FriendRequestStatus.ACCEPTED -> existing
         }
@@ -157,7 +159,7 @@ class FakeFriendRepository(
     }
     val updated =
         if (request.status == status) request
-        else request.copy(status = status, respondedAt = clock.instant())
+        else request.copy(status = status, respondedAt = maxOf(clock.instant(), request.createdAt))
     store.requests.value = store.requests.value + (pair to updated)
     updated
   }

@@ -98,6 +98,58 @@ class FakeFriendRepositoryTest {
   }
 
   @Test
+  fun acceptRequest_withDifferentClocks_neverRespondsBeforeCreation() = runTest {
+    for ((responseTime, expectedTime) in
+        listOf(now.minusSeconds(60) to now, now.plusSeconds(60) to now.plusSeconds(60))) {
+      val recipient = FakeFriendRepository("bob", store, Clock.fixed(responseTime, ZoneOffset.UTC))
+      val request = alice.sendFriendRequest("bob")
+
+      val friendship = recipient.acceptFriendRequest("alice", request.uid)
+
+      assertEquals(expectedTime, friendship.acceptedAt)
+      assertEquals(listOf(friendship), alice.getFriends())
+      assertEquals(listOf(friendship), recipient.getFriends())
+      assertEquals(friendship, recipient.acceptFriendRequest("alice", request.uid))
+      alice.removeFriend("bob", friendship.uid)
+    }
+  }
+
+  @Test
+  fun declineRequest_withDifferentClocks_clearsPendingRequests() = runTest {
+    for (offset in listOf(-60L, 60L)) {
+      val recipient =
+          FakeFriendRepository("bob", store, Clock.fixed(now.plusSeconds(offset), ZoneOffset.UTC))
+      val request = alice.sendFriendRequest("bob")
+
+      recipient.declineFriendRequest("alice", request.uid)
+      recipient.declineFriendRequest("alice", request.uid)
+
+      assertTrue(alice.getOutgoingRequests().isEmpty())
+      assertTrue(recipient.getIncomingRequests().isEmpty())
+      assertTrue(alice.getFriends().isEmpty())
+      assertTrue(recipient.getFriends().isEmpty())
+    }
+  }
+
+  @Test
+  fun crossedRequest_withDifferentClocks_neverRespondsBeforeCreation() = runTest {
+    for ((responseTime, expectedTime) in
+        listOf(now.minusSeconds(60) to now, now.plusSeconds(60) to now.plusSeconds(60))) {
+      val recipient = FakeFriendRepository("bob", store, Clock.fixed(responseTime, ZoneOffset.UTC))
+      val request = alice.sendFriendRequest("bob")
+
+      val accepted = recipient.sendFriendRequest("alice")
+
+      assertEquals(request.uid, accepted.uid)
+      assertEquals(request.createdAt, accepted.createdAt)
+      assertEquals(FriendRequestStatus.ACCEPTED, accepted.status)
+      assertEquals(expectedTime, accepted.respondedAt)
+      assertEquals(alice.getFriends(), recipient.getFriends())
+      alice.removeFriend("bob", accepted.uid)
+    }
+  }
+
+  @Test
   fun declineRequest_clearsPendingListsAndDuplicateDeclineIsHarmless() = runTest {
     val request = alice.sendFriendRequest("bob")
     bob.declineFriendRequest("alice", request.uid)
