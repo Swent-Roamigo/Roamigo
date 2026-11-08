@@ -33,8 +33,22 @@ interface FriendRepository {
   /** Returns pending requests whose recipient is the current user. */
   suspend fun getIncomingRequests(): List<FriendRequest>
 
+  /**
+   * Observes initial and subsequent pending incoming requests, including empty lists. Accepted and
+   * declined requests disappear from this list. Uses the session, failure, and cleanup contract of
+   * [observeFriends].
+   */
+  fun observeIncomingRequests(): Flow<List<FriendRequest>>
+
   /** Returns pending requests whose sender is the current user. */
   suspend fun getOutgoingRequests(): List<FriendRequest>
+
+  /**
+   * Observes initial and subsequent pending outgoing requests, including empty lists. Accepted and
+   * declined requests disappear from this list. Uses the session, failure, and cleanup contract of
+   * [observeFriends].
+   */
+  fun observeOutgoingRequests(): Flow<List<FriendRequest>>
 
   /**
    * Sends a request to [otherUserId] and returns its resulting state.

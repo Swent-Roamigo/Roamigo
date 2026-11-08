@@ -65,37 +65,54 @@ class FakeFriendRepository(
     friendships(store.requests.value.values, userId)
   }
 
-  override fun observeFriends(): Flow<List<Friendship>> = flow {
-    val session = authenticatedSession()
-    val userId = requireNotNull(session.userId)
-    observerCount.incrementAndGet()
-    try {
-      combine(sessions, store.requests, failures) { _, requests, failure ->
-            if (sessions.value != session) null
-            else {
-              failure?.let { throw it }
-              friendships(requests.values, userId)
-            }
-          }
-          .takeWhile { it != null && sessions.value == session }
-          .filterNotNull()
-          .distinctUntilChanged()
-          .collect { emit(it) }
-    } finally {
-      observerCount.decrementAndGet()
-    }
-  }
+  override fun observeFriends(): Flow<List<Friendship>> = observe(::friendships)
 
   override suspend fun getIncomingRequests(): List<FriendRequest> = access { userId ->
-    store.requests.value.values.filter {
-      it.status == FriendRequestStatus.PENDING && it.recipientUserId == userId
-    }
+    incomingRequests(store.requests.value.values, userId)
   }
 
+  override fun observeIncomingRequests(): Flow<List<FriendRequest>> = observe(::incomingRequests)
+
   override suspend fun getOutgoingRequests(): List<FriendRequest> = access { userId ->
-    store.requests.value.values.filter {
-      it.status == FriendRequestStatus.PENDING && it.senderUserId == userId
-    }
+    outgoingRequests(store.requests.value.values, userId)
+  }
+
+  override fun observeOutgoingRequests(): Flow<List<FriendRequest>> = observe(::outgoingRequests)
+
+  private fun <T> observe(select: (Collection<FriendRequest>, String) -> List<T>): Flow<List<T>> =
+      flow {
+        val session = authenticatedSession()
+        val userId = requireNotNull(session.userId)
+        observerCount.incrementAndGet()
+        try {
+          combine(sessions, store.requests, failures) { _, requests, failure ->
+                if (sessions.value != session) null
+                else {
+                  failure?.let { throw it }
+                  select(requests.values, userId)
+                }
+              }
+              .takeWhile { it != null && sessions.value == session }
+              .filterNotNull()
+              .distinctUntilChanged()
+              .collect { emit(it) }
+        } finally {
+          observerCount.decrementAndGet()
+        }
+      }
+
+  private fun incomingRequests(
+      requests: Collection<FriendRequest>,
+      userId: String,
+  ): List<FriendRequest> = requests.filter {
+    it.status == FriendRequestStatus.PENDING && it.recipientUserId == userId
+  }
+
+  private fun outgoingRequests(
+      requests: Collection<FriendRequest>,
+      userId: String,
+  ): List<FriendRequest> = requests.filter {
+    it.status == FriendRequestStatus.PENDING && it.senderUserId == userId
   }
 
   override suspend fun sendFriendRequest(otherUserId: String): FriendRequest = access { userId ->

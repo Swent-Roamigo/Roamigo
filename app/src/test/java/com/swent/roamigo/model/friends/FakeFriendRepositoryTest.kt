@@ -323,6 +323,8 @@ class FakeFriendRepositoryTest {
             { signedOut.getIncomingRequests() },
             { signedOut.getOutgoingRequests() },
             { signedOut.observeFriends().first() },
+            { signedOut.observeIncomingRequests().first() },
+            { signedOut.observeOutgoingRequests().first() },
             { signedOut.sendFriendRequest("bob") },
             { signedOut.acceptFriendRequest("bob", "request") },
             { signedOut.declineFriendRequest("bob", "request") },
@@ -343,6 +345,8 @@ class FakeFriendRepositoryTest {
             { bob.getIncomingRequests() },
             { bob.getOutgoingRequests() },
             { bob.observeFriends().first() },
+            { bob.observeIncomingRequests().first() },
+            { bob.observeOutgoingRequests().first() },
             { bob.sendFriendRequest("charlie") },
             { bob.acceptFriendRequest("alice", request.uid) },
             { bob.declineFriendRequest("alice", request.uid) },
@@ -367,6 +371,154 @@ class FakeFriendRepositoryTest {
     assertEquals(listOf(request), bob.getIncomingRequests())
     assertTrue(charlie.getIncomingRequests().isEmpty())
     assertEquals(request.uid, bob.acceptFriendRequest("alice", request.uid).uid)
+  }
+
+  @Test
+  fun observeRequests_updatesBothSidesOnSendDeclineAcceptAndCrossedRequest() = runTest {
+    val incoming = mutableListOf<List<FriendRequest>>()
+    val outgoing = mutableListOf<List<FriendRequest>>()
+    val incomingObserver =
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+          bob.observeIncomingRequests().toList(incoming)
+        }
+    val outgoingObserver =
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+          alice.observeOutgoingRequests().toList(outgoing)
+        }
+    runCurrent()
+    assertEquals(listOf(emptyList<FriendRequest>()), incoming)
+    assertEquals(incoming, outgoing)
+
+    val declined = alice.sendFriendRequest("bob")
+    runCurrent()
+    bob.declineFriendRequest("alice", declined.uid)
+    runCurrent()
+    val accepted = alice.sendFriendRequest("bob")
+    runCurrent()
+    bob.acceptFriendRequest("alice", accepted.uid)
+    runCurrent()
+    alice.removeFriend("bob", accepted.uid)
+    runCurrent()
+    val crossed = alice.sendFriendRequest("bob")
+    runCurrent()
+    bob.sendFriendRequest("alice")
+    runCurrent()
+
+    assertEquals(
+        listOf(
+            emptyList(),
+            listOf(declined),
+            emptyList(),
+            listOf(accepted),
+            emptyList(),
+            listOf(crossed),
+            emptyList(),
+        ),
+        incoming,
+    )
+    assertEquals(incoming, outgoing)
+    outgoingObserver.cancelAndJoin()
+    assertEquals(0, alice.activeObservers)
+    assertEquals(1, bob.activeObservers)
+    incomingObserver.cancelAndJoin()
+    assertEquals(0, bob.activeObservers)
+  }
+
+  @Test
+  fun observeRequests_emitsExistingPendingAndIgnoresOtherDirectionsAndPairs() = runTest {
+    val request = alice.sendFriendRequest("bob")
+    bob.sendFriendRequest("charlie")
+    charlie.sendFriendRequest("alice")
+    val incoming = mutableListOf<List<FriendRequest>>()
+    val outgoing = mutableListOf<List<FriendRequest>>()
+    val incomingObserver =
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+          bob.observeIncomingRequests().toList(incoming)
+        }
+    val outgoingObserver =
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+          alice.observeOutgoingRequests().toList(outgoing)
+        }
+    runCurrent()
+    charlie.sendFriendRequest("dave")
+    runCurrent()
+
+    assertEquals(listOf(listOf(request)), incoming)
+    assertEquals(incoming, outgoing)
+    incomingObserver.cancelAndJoin()
+    outgoingObserver.cancelAndJoin()
+    assertEquals(0, alice.activeObservers)
+    assertEquals(0, bob.activeObservers)
+  }
+
+  @Test
+  fun requestObservation_failureTerminatesReleasesAndAllowsNewCollection() = runTest {
+    val request = alice.sendFriendRequest("bob")
+    for (repository in listOf(alice, bob)) {
+      val flow =
+          if (repository === alice) repository.observeOutgoingRequests()
+          else repository.observeIncomingRequests()
+      val updates = mutableListOf<List<FriendRequest>>()
+      var observedFailure: Throwable? = null
+      val observer =
+          backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            observedFailure = runCatching { flow.toList(updates) }.exceptionOrNull()
+          }
+      runCurrent()
+      val sourceFailure = IllegalStateException("Controlled observation failure")
+      val failure = FriendRepositoryException.Network(sourceFailure)
+      repository.failure = failure
+      runCurrent()
+
+      assertTrue(observer.isCompleted)
+      assertTrue(observedFailure is FriendRepositoryException.Network)
+      assertTrue(generateSequence(observedFailure) { it.cause }.any { it === sourceFailure })
+      assertEquals(listOf(listOf(request)), updates)
+      assertEquals(0, repository.activeObservers)
+      repository.failure = null
+      assertEquals(listOf(request), flow.first())
+      assertEquals(0, repository.activeObservers)
+    }
+  }
+
+  @Test
+  fun requestObservation_accountChangeOrQuickSignOutEndsBothSubscriptions() = runTest {
+    for (nextUser in listOf(null, "charlie")) {
+      val incoming = mutableListOf<List<FriendRequest>>()
+      val outgoing = mutableListOf<List<FriendRequest>>()
+      val incomingObserver =
+          backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            alice.observeIncomingRequests().toList(incoming)
+          }
+      val outgoingObserver =
+          backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            alice.observeOutgoingRequests().toList(outgoing)
+          }
+      runCurrent()
+      assertEquals(2, alice.activeObservers)
+      alice.currentUserId = nextUser
+      if (nextUser == null) alice.currentUserId = "alice"
+      runCurrent()
+
+      assertTrue(incomingObserver.isCompleted)
+      assertTrue(outgoingObserver.isCompleted)
+      assertEquals(1, incoming.size)
+      assertEquals(1, outgoing.size)
+      assertEquals(0, alice.activeObservers)
+      alice.currentUserId = "alice"
+    }
+  }
+
+  @Test
+  fun requestFlows_resolveTheAccountWhenCollectionStarts() = runTest {
+    val incoming = alice.observeIncomingRequests()
+    val outgoing = alice.observeOutgoingRequests()
+    val request = alice.sendFriendRequest("bob")
+    alice.currentUserId = "bob"
+
+    assertEquals(listOf(request), incoming.first())
+    assertTrue(outgoing.first().isEmpty())
+    assertEquals(0, alice.activeObservers)
   }
 
   @Test
