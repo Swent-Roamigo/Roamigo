@@ -26,10 +26,9 @@ data class FriendRequest(
     val respondedAt: Instant? = null,
 ) {
   init {
-    require(uid.isNotBlank()) { "Request identifier must not be blank" }
-    require(senderUserId.isNotBlank() && recipientUserId.isNotBlank()) {
-      "Request participants must not be blank"
-    }
+    requireFriendIdentifier(uid)
+    requireFriendIdentifier(senderUserId)
+    requireFriendIdentifier(recipientUserId)
     require(senderUserId != recipientUserId) { "Cannot send a friend request to oneself" }
     require((status == FriendRequestStatus.PENDING) == (respondedAt == null)) {
       "Only pending requests may have no response time"

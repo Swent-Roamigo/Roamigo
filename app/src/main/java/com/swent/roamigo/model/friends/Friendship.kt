@@ -17,10 +17,9 @@ data class Friendship(
     val acceptedAt: Instant,
 ) {
   init {
-    require(uid.isNotBlank()) { "Friendship identifier must not be blank" }
-    require(firstUserId.isNotBlank() && secondUserId.isNotBlank()) {
-      "Friendship participants must not be blank"
-    }
+    requireFriendIdentifier(uid)
+    requireFriendIdentifier(firstUserId)
+    requireFriendIdentifier(secondUserId)
     require(firstUserId != secondUserId) { "A friendship requires two distinct users" }
   }
 }

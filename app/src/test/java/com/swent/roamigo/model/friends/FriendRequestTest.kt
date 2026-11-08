@@ -2,6 +2,7 @@
 package com.swent.roamigo.model.friends
 
 import java.time.Instant
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -27,6 +28,25 @@ class FriendRequestTest {
         .forEach { invalidRequest ->
           assertThrows(IllegalArgumentException::class.java) { invalidRequest() }
         }
+  }
+
+  @Test
+  fun request_rejectsReservedAndSlashContainingIdentifiers() {
+    for (invalid in listOf(".", "..", "alice/bob")) {
+      assertThrows(IllegalArgumentException::class.java) { request(uid = invalid) }
+      assertThrows(IllegalArgumentException::class.java) { request(sender = invalid) }
+      assertThrows(IllegalArgumentException::class.java) { request(recipient = invalid) }
+    }
+  }
+
+  @Test
+  fun request_acceptsNonreservedIdentifiersWithoutChangingThem() {
+    for (valid in listOf("...", "alice.bob", "alice_bob", "alice-bob", "二", " alice ")) {
+      val result = request(uid = valid, sender = valid)
+      assertEquals(valid, result.uid)
+      assertEquals(valid, result.senderUserId)
+      assertEquals(valid, request(recipient = valid).recipientUserId)
+    }
   }
 
   @Test
