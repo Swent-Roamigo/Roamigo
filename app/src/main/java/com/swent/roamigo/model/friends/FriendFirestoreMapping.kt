@@ -18,8 +18,8 @@ private val friendshipFields =
 
 /** Matches the sorted, lowercase SHA-256 document name enforced by `firestore.rules`. */
 internal fun friendshipDocumentId(firstUserId: String, secondUserId: String): String {
-  requireFriendshipIdentifier(firstUserId)
-  requireFriendshipIdentifier(secondUserId)
+  requireFriendIdentifier(firstUserId)
+  requireFriendIdentifier(secondUserId)
   require(firstUserId != secondUserId) { "A friendship requires two distinct users" }
   return listOf(firstUserId, secondUserId)
       .map { userId ->
@@ -29,13 +29,6 @@ internal fun friendshipDocumentId(firstUserId: String, secondUserId: String): St
       }
       .sorted()
       .joinToString("_")
-}
-
-/** Validates identifiers supplied to friendship operations before a backend call. */
-internal fun requireFriendshipIdentifier(value: String) {
-  require(value.isNotBlank() && '/' !in value && value != "." && value != "..") {
-    "Invalid friendship identifier"
-  }
 }
 
 /**
@@ -93,7 +86,7 @@ internal fun friendshipFromFirestore(documentId: String, data: Map<String, Any?>
 
 private fun Map<String, Any?>.requiredIdentifier(field: String): String {
   val value = requireNotNull(this[field] as? String) { "Missing or invalid $field" }
-  requireFriendshipIdentifier(value)
+  requireFriendIdentifier(value)
   return value
 }
 

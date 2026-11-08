@@ -48,19 +48,30 @@ class FriendRepositoryFirestore(
     friendships(friendQuery(user.uid).get(Source.SERVER).await())
   }
 
-  override fun observeFriends(): Flow<List<Friendship>> = flow {
+  override fun observeFriends(): Flow<List<Friendship>> = observe(::friendQuery, ::friendships)
+
+  override fun observeIncomingRequests(): Flow<List<FriendRequest>> =
+      observe({ pendingQuery(it, "recipientUserId") }, ::requests)
+
+  override fun observeOutgoingRequests(): Flow<List<FriendRequest>> =
+      observe({ pendingQuery(it, "senderUserId") }, ::requests)
+
+  private fun <T> observe(
+      query: (String) -> Query,
+      parse: (QuerySnapshot) -> List<T>,
+  ): Flow<List<T>> = flow {
     val user = authenticatedUser()
     emitAll(
-        snapshots(user)
+        snapshots(user, query(user.uid))
             .map { snapshot ->
               ensureSession(user)
-              friendships(snapshot)
+              parse(snapshot)
             }
+            .flowOn(dispatcher)
             .distinctUntilChanged()
             .takeWhile { auth.currentUser === user }
     )
   }
-      .flowOn(dispatcher)
       .catch { error -> throw if (error is Exception) error.asRepositoryFailure() else error }
 
   override suspend fun getIncomingRequests(): List<FriendRequest> = operation { user ->
@@ -126,7 +137,7 @@ class FriendRepositoryFirestore(
 
   override suspend fun removeFriend(otherUserId: String, friendshipId: String) {
     operation { user ->
-      requireFriendshipIdentifier(friendshipId)
+      requireFriendIdentifier(friendshipId)
       val reference = document(user.uid, otherUserId)
       db.runTransaction { transaction ->
             ensureSession(user)
@@ -150,7 +161,7 @@ class FriendRepositoryFirestore(
       requestId: String,
       status: FriendRequestStatus,
   ) {
-    requireFriendshipIdentifier(requestId)
+    requireFriendIdentifier(requestId)
     try {
       db.runTransaction { transaction ->
             ensureSession(user)
@@ -171,15 +182,23 @@ class FriendRepositoryFirestore(
           .await()
     } catch (error: FirebaseFirestoreException) {
       if (error.code != FirebaseFirestoreException.Code.PERMISSION_DENIED) throw error
-      // A competing response may reach the rules before this transaction's version check.
-      // Reconcile with the server without submitting another write.
-      ensureSession(user)
-      val current = readRequest(reference, requestId)
-      if (current.recipientUserId != user.uid || current.status == FriendRequestStatus.PENDING) {
-        throw error
-      }
-      if (current.status != status) throw FriendRepositoryException.Conflict(error)
+      reconcileResponse(user, reference, requestId, status, error)
     }
+  }
+
+  private suspend fun reconcileResponse(
+      user: FirebaseUser,
+      reference: DocumentReference,
+      requestId: String,
+      status: FriendRequestStatus,
+      error: FirebaseFirestoreException,
+  ) {
+    // Rules may reject a competing response before the transaction's version check.
+    ensureSession(user)
+    val current = readRequest(reference, requestId)
+    if (current.recipientUserId != user.uid || current.status == FriendRequestStatus.PENDING)
+        throw error
+    if (current.status != status) throw FriendRepositoryException.Conflict(error)
   }
 
   private suspend fun readRequest(reference: DocumentReference, requestId: String): FriendRequest {
@@ -191,12 +210,13 @@ class FriendRepositoryFirestore(
   }
 
   private suspend fun pendingRequests(userId: String, direction: String): List<FriendRequest> =
-      query(userId, FriendRequestStatus.PENDING)
-          .whereEqualTo(direction, userId)
-          .get(Source.SERVER)
-          .await()
-          .documents
-          .map { friendRequestFromFirestore(it.id, it.data) }
+      requests(pendingQuery(userId, direction).get(Source.SERVER).await())
+
+  private fun pendingQuery(userId: String, direction: String): Query =
+      query(userId, FriendRequestStatus.PENDING).whereEqualTo(direction, userId)
+
+  private fun requests(snapshot: QuerySnapshot): List<FriendRequest> =
+      snapshot.documents.map { friendRequestFromFirestore(it.id, it.data) }
 
   private fun friendships(snapshot: QuerySnapshot): List<Friendship> =
       snapshot.documents.map { friendshipFromFirestore(it.id, it.data) }
@@ -211,14 +231,14 @@ class FriendRepositoryFirestore(
   private fun document(userId: String, otherUserId: String): DocumentReference =
       db.collection("friendships").document(friendshipDocumentId(userId, otherUserId))
 
-  private fun snapshots(user: FirebaseUser): Flow<QuerySnapshot> = callbackFlow {
+  private fun snapshots(user: FirebaseUser, query: Query): Flow<QuerySnapshot> = callbackFlow {
     val accountListener = FirebaseAuth.AuthStateListener { if (it.currentUser !== user) close() }
     var registration: ListenerRegistration? = null
     try {
       auth.addAuthStateListener(accountListener)
       ensureSession(user)
       registration =
-          friendQuery(user.uid).addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
+          query.addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
             when {
               auth.currentUser !== user -> close()
               error != null -> close(error)

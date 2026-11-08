@@ -131,12 +131,14 @@ class FriendRepositoryFirestoreTest {
         }
         .`when`(auth)
         .addAuthStateListener(any<FirebaseAuth.AuthStateListener>())
-    doAnswer {
-          listener = it.getArgument(1)
-          registration
-        }
-        .`when`(friends)
-        .addSnapshotListener(eq(MetadataChanges.INCLUDE), any<EventListener<QuerySnapshot>>())
+    for (query in listOf(friends, incoming, outgoing)) {
+      doAnswer {
+            listener = it.getArgument(1)
+            registration
+          }
+          .`when`(query)
+          .addSnapshotListener(eq(MetadataChanges.INCLUDE), any<EventListener<QuerySnapshot>>())
+    }
   }
 
   @Test
@@ -348,6 +350,12 @@ class FriendRepositoryFirestoreTest {
     currentUser = null
     expect<FriendRepositoryException.NotAuthenticated> { repository.getFriends() }
     expect<FriendRepositoryException.NotAuthenticated> { repository.observeFriends().first() }
+    expect<FriendRepositoryException.NotAuthenticated> {
+      repository.observeIncomingRequests().first()
+    }
+    expect<FriendRepositoryException.NotAuthenticated> {
+      repository.observeOutgoingRequests().first()
+    }
     expect<FriendRepositoryException.NotAuthenticated> { repository.sendFriendRequest("bob") }
     currentUser = alice
     for (invalid in listOf("alice", "", ".", "..", "bad/id")) {
@@ -371,6 +379,38 @@ class FriendRepositoryFirestoreTest {
       successfulTask(querySnapshot())
     }
     expect<FriendRepositoryException.NotAuthenticated> { repository.getFriends() }
+  }
+
+  @Test
+  fun requestObservation_usesDirectionQueriesEmitsUpdatesAndEndsOnSignOut() = runTest {
+    val repository = FriendRepositoryFirestore(db, auth, UnconfinedTestDispatcher(testScheduler))
+    for (isIncoming in listOf(true, false)) {
+      currentUser = alice
+      stored = if (isIncoming) record(sender = "bob", recipient = "alice") else record()
+      val flow =
+          if (isIncoming) repository.observeIncomingRequests()
+          else repository.observeOutgoingRequests()
+      val updates = mutableListOf<List<FriendRequest>>()
+      val observer =
+          backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { flow.toList(updates) }
+      runCurrent()
+      listener.onEvent(querySnapshot(), null)
+      runCurrent()
+      assertEquals("request-1", updates.single().single().uid)
+      stored = null
+      listener.onEvent(querySnapshot(), null)
+      runCurrent()
+      assertEquals(2, updates.size)
+      assertTrue(updates.last().isEmpty())
+      currentUser = null
+      accountListener.onAuthStateChanged(auth)
+      runCurrent()
+      assertTrue(observer.isCompleted)
+      verify(if (isIncoming) incoming else outgoing)
+          .addSnapshotListener(eq(MetadataChanges.INCLUDE), any<EventListener<QuerySnapshot>>())
+    }
+    verify(registration, times(2)).remove()
+    verify(auth, times(2)).removeAuthStateListener(any<FirebaseAuth.AuthStateListener>())
   }
 
   @Test
