@@ -134,7 +134,7 @@ class FakeFriendRepository(
 
   override suspend fun removeFriend(otherUserId: String, friendshipId: String) {
     access { userId ->
-      requireIdentifier(friendshipId)
+      requireFriendIdentifier(friendshipId)
       val pair = pair(userId, otherUserId)
       val request = store.requests.value[pair] ?: return@access
       if (request.uid != friendshipId || request.status != FriendRequestStatus.ACCEPTED) {
@@ -149,7 +149,7 @@ class FakeFriendRepository(
       requestId: String,
       status: FriendRequestStatus,
   ): FriendRequest = access { userId ->
-    requireIdentifier(requestId)
+    requireFriendIdentifier(requestId)
     val pair = pair(userId, otherUserId)
     val request = store.requests.value[pair] ?: throw FriendRepositoryException.Conflict()
     if (request.uid != requestId) throw FriendRepositoryException.Conflict()
@@ -178,15 +178,9 @@ class FakeFriendRepository(
       }
 
   private fun pair(userId: String, otherUserId: String): Set<String> {
-    requireIdentifier(otherUserId)
+    requireFriendIdentifier(otherUserId)
     require(userId != otherUserId) { "A relationship requires two distinct users" }
     return setOf(userId, otherUserId)
-  }
-
-  private fun requireIdentifier(value: String) {
-    require(value.isNotBlank() && '/' !in value && value != "." && value != "..") {
-      "Invalid relationship identifier"
-    }
   }
 
   private fun friendships(requests: Collection<FriendRequest>, userId: String): List<Friendship> =
