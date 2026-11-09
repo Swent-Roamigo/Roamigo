@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
@@ -32,7 +33,6 @@ fun AddToTripSheet(
     onActivity: () -> Unit,
     onSuggestion: () -> Unit,
     onVote: () -> Unit,
-    onPhoto: () -> Unit,
 ) {
   ModalBottomSheet(
       onDismissRequest = onDismiss,
@@ -57,10 +57,6 @@ fun AddToTripSheet(
         onDismiss()
         onVote()
       }
-      AddOption(R.string.trip_add_photo, R.string.trip_add_photo_hint) {
-        onDismiss()
-        onPhoto()
-      }
     }
   }
 }
@@ -70,7 +66,7 @@ private fun AddOption(title: Int, hint: Int, onClick: () -> Unit) {
   Column(
       Modifier.fillMaxWidth()
           .heightIn(min = 56.dp)
-          .clickable(onClick = onClick)
+          .clickable(role = Role.Button, onClick = onClick)
           .padding(horizontal = Spacing.screenPadding, vertical = Spacing.small)
   ) {
     Text(stringResource(title), style = MaterialTheme.typography.titleMedium)

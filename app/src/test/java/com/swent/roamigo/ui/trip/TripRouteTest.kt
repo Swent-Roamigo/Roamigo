@@ -3,7 +3,6 @@ package com.swent.roamigo.ui.trip
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -198,27 +197,27 @@ class TripRouteTest {
   }
 
   @Test
-  fun addSheetOffersFourActionsAndStartsAVote() {
+  fun addSheetOffersThreeActionsAndStartsAVote() {
     var createVoteClicks = 0
     showRoute(fromHistory = false, onCreateVote = { createVoteClicks++ })
 
     composeRule.onNodeWithTag(C.Tag.trip_add_button).performClick()
     composeRule.onNodeWithText("Add an activity").assertIsDisplayed()
     composeRule.onNodeWithText("Suggest a place").assertIsDisplayed()
-    composeRule.onNodeWithText("Take a photo").assertIsDisplayed()
     composeRule.onNodeWithText("Start a vote").performClick()
 
     composeRule.runOnIdle { assertEquals(1, createVoteClicks) }
   }
 
   @Test
-  fun addSheetTakePhotoSwitchesToThePhotosTab() {
+  fun addSheetHasNoPhotoShortcutUntilItCanTakeAPhotoDirectly() {
     showRoute(fromHistory = false)
 
     composeRule.onNodeWithTag(C.Tag.trip_add_button).performClick()
-    composeRule.onNodeWithText("Take a photo").performClick()
 
-    composeRule.onNodeWithText("Photos").assertIsSelected()
+    // A shortcut that only switched tabs added little, so it is not offered for now.
+    composeRule.onNodeWithTag(C.Tag.trip_add_sheet).assertIsDisplayed()
+    composeRule.onNodeWithText("Take a photo").assertDoesNotExist()
   }
 
   @Test

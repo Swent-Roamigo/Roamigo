@@ -349,8 +349,6 @@
     <string name="trip_add_suggestion_hint">The group can vote on it</string>
     <string name="trip_add_vote">Start a vote</string>
     <string name="trip_add_vote_hint">Ask the group to decide between options</string>
-    <string name="trip_add_photo">Take a photo</string>
-    <string name="trip_add_photo_hint">Saved with its place and shared with the group</string>
     <string name="trip_members_title">Members</string>
     <string name="trip_members_you">%1$s (you)</string>
     <string name="trip_members_organiser">Organiser</string>

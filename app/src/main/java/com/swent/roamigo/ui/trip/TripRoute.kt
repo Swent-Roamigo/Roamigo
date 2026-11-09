@@ -138,7 +138,6 @@ internal fun TripRoute(
         onActivity = notImplemented,
         onSuggestion = notImplemented,
         onVote = onCreateVote,
-        onPhoto = { tab = TripSection.Photos },
     )
   }
   TripScreen(

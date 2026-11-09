@@ -1,7 +1,11 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.ui.trip.components
 
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -25,26 +29,37 @@ class AddToTripSheetTest {
             onActivity = { events += "activity" },
             onSuggestion = { events += "suggestion" },
             onVote = { events += "vote" },
-            onPhoto = { events += "photo" },
         )
       }
     }
   }
 
   @Test
-  fun offersFourActionsWithAHintEach() {
+  fun offersThreeActionsWithAHintEach() {
     show()
 
     listOf(
             "Add an activity" to "Put something in the plan for a day",
             "Suggest a place" to "The group can vote on it",
             "Start a vote" to "Ask the group to decide between options",
-            "Take a photo" to "Saved with its place and shared with the group",
         )
         .forEach { (title, hint) ->
           composeRule.onNodeWithText(title).assertIsDisplayed()
           composeRule.onNodeWithText(hint).assertIsDisplayed()
         }
+  }
+
+  @Test
+  fun everyOptionIsAnnouncedAsAButton() {
+    show()
+
+    listOf("Add an activity", "Suggest a place", "Start a vote").forEach {
+      composeRule
+          .onNode(
+              hasText(it) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button)
+          )
+          .assertExists()
+    }
   }
 
   @Test
