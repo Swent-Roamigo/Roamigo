@@ -3,6 +3,9 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.trip.creation.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -39,10 +44,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.swent.roamigo.R
 import com.swent.roamigo.model.destination.Destination
 import com.swent.roamigo.model.destination.DestinationPhoto
+import com.swent.roamigo.ui.components.PHOTO_FADE_IN_MILLIS
+import com.swent.roamigo.ui.components.PHOTO_SHIMMER_MAX_MILLIS
 import com.swent.roamigo.ui.components.PhotoCreditsDialog
+import com.swent.roamigo.ui.components.PhotoShimmer
+import kotlinx.coroutines.delay
 
 internal object DestinationCardTestTags {
   const val PREFIX = "destination_card_"
@@ -63,7 +73,13 @@ fun DestinationCard(
 ) {
   var photoLoaded by remember(photo?.imageUrl) { mutableStateOf(false) }
   var showPhotoCredits by remember(photo?.imageUrl) { mutableStateOf(false) }
-  androidx.compose.runtime.LaunchedEffect(destination.stableId) { onRequestPhoto() }
+  // A city may have no photo at all, so the shimmer gives up after a while instead of spinning on.
+  var waitingForPhoto by remember(destination.stableId) { mutableStateOf(true) }
+  LaunchedEffect(destination.stableId) { onRequestPhoto() }
+  LaunchedEffect(destination.stableId) {
+    delay(PHOTO_SHIMMER_MAX_MILLIS)
+    waitingForPhoto = false
+  }
   val colors = MaterialTheme.colorScheme
   val cardDescription =
       stringResource(
@@ -90,15 +106,29 @@ fun DestinationCard(
               },
   ) {
     AsyncImage(
-        model = photo?.imageUrl,
+        model =
+            ImageRequest.Builder(LocalContext.current)
+                .data(photo?.imageUrl)
+                .crossfade(PHOTO_FADE_IN_MILLIS)
+                .build(),
         placeholder = painterResource(R.drawable.destination_placeholder),
         error = painterResource(R.drawable.destination_placeholder),
         contentDescription = null,
         contentScale = ContentScale.Crop,
         modifier = Modifier.fillMaxSize(),
         onSuccess = { photoLoaded = true },
-        onError = { photoLoaded = false },
+        onError = {
+          photoLoaded = false
+          // With no photo yet there is nothing to load, and Coil reports that as an error too.
+          if (photo != null) waitingForPhoto = false
+        },
     )
+    AnimatedVisibility(
+        visible = waitingForPhoto && !photoLoaded,
+        exit = fadeOut(tween(PHOTO_FADE_IN_MILLIS)),
+    ) {
+      PhotoShimmer()
+    }
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = PHOTO_OVERLAY_ALPHA)))
     if (selected) {
       Box(
