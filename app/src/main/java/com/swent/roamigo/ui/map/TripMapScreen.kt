@@ -305,7 +305,10 @@ fun TripMapScreen(
               MemberLocationMarker(
                   location = location,
                   // Until the trip and profiles load, the member is shown with the fallback name.
-                  member = members[location.userId] ?: memberDisplayInfo(location.userId, null),
+                  member =
+                      members.getOrElse(location.userId) {
+                        memberDisplayInfo(location.userId, null)
+                      },
                   nowMillis = nowMillis,
                   isStale = location.userId in staleMemberIds,
               )
