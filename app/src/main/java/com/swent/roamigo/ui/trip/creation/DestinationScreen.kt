@@ -25,6 +25,7 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.destination.Destination
+import com.swent.roamigo.model.destination.PopularDestinations
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffold
 import com.swent.roamigo.ui.trip.creation.components.DestinationCard
 import com.swent.roamigo.ui.trip.creation.components.DestinationScreenTestTags
@@ -72,11 +73,14 @@ fun DestinationScreen(
       Spacer(Modifier.height(20.dp))
       when (uiState.destinationSearchStatus) {
         DestinationSearchStatus.INITIAL ->
-            Text(
-                stringResource(R.string.destination_search_initial),
+            // Nothing typed yet: offer well-known cities instead of an empty screen.
+            DestinationList(
+                title = stringResource(R.string.destination_popular_title),
+                destinations = PopularDestinations.all,
+                uiState = uiState,
+                onToggleDestination = onToggleDestination,
+                onRequestPhoto = onRequestPhoto,
                 modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground,
             )
         DestinationSearchStatus.LOADING ->
             androidx.compose.foundation.layout.Box(
@@ -109,39 +113,62 @@ fun DestinationScreen(
                 Text(stringResource(R.string.destination_search_retry))
               }
             }
-        DestinationSearchStatus.RESULTS -> {
-          Text(
-              stringResource(R.string.destination_search_results),
-              style = MaterialTheme.typography.titleMedium,
-              color = MaterialTheme.colorScheme.onBackground,
-          )
-          Spacer(Modifier.height(12.dp))
-          LazyVerticalGrid(
-              columns = GridCells.Fixed(DESTINATION_GRID_COLUMNS),
-              modifier = Modifier.weight(1f).fillMaxWidth(),
-              horizontalArrangement = Arrangement.spacedBy(12.dp),
-              verticalArrangement = Arrangement.spacedBy(16.dp),
-          ) {
-            items(uiState.visibleDestinations, key = { it.stableId }) { destination ->
-              DestinationCard(
-                  destination = destination,
-                  selected =
-                      uiState.selectedDestinations.any { it.stableId == destination.stableId },
-                  photo = uiState.photosByDestinationId[destination.stableId],
-                  onRequestPhoto = { onRequestPhoto(destination) },
-                  onClick = { onToggleDestination(destination) },
-              )
-            }
-          }
-          Text(
-              stringResource(R.string.destination_geonames_credit),
-              style = MaterialTheme.typography.labelSmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
+        DestinationSearchStatus.RESULTS ->
+            DestinationList(
+                title = stringResource(R.string.destination_search_results),
+                destinations = uiState.visibleDestinations,
+                uiState = uiState,
+                onToggleDestination = onToggleDestination,
+                onRequestPhoto = onRequestPhoto,
+                modifier = Modifier.weight(1f),
+                showGeonamesCredit = true,
+            )
       }
     }
   }
 }
 
 private const val DESTINATION_GRID_COLUMNS = 2
+
+@Composable
+private fun DestinationList(
+    title: String,
+    destinations: List<Destination>,
+    uiState: CreateTripUiState,
+    onToggleDestination: (Destination) -> Unit,
+    onRequestPhoto: (Destination) -> Unit,
+    modifier: Modifier = Modifier,
+    showGeonamesCredit: Boolean = false,
+) {
+  Column(modifier = modifier.fillMaxWidth()) {
+    Text(
+        title,
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onBackground,
+    )
+    Spacer(Modifier.height(12.dp))
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(DESTINATION_GRID_COLUMNS),
+        modifier = Modifier.weight(1f).fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+      items(destinations, key = { it.stableId }) { destination ->
+        DestinationCard(
+            destination = destination,
+            selected = uiState.selectedDestinations.any { it.stableId == destination.stableId },
+            photo = uiState.photosByDestinationId[destination.stableId],
+            onRequestPhoto = { onRequestPhoto(destination) },
+            onClick = { onToggleDestination(destination) },
+        )
+      }
+    }
+    if (showGeonamesCredit) {
+      Text(
+          stringResource(R.string.destination_geonames_credit),
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+  }
+}

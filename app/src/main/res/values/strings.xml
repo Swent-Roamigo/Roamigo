@@ -48,7 +48,7 @@
     <string name="create_trip_popular_destinations">Popular with students</string>
     <string name="destination_search_hint">Search cities</string>
     <string name="destination_search_description">Search cities</string>
-    <string name="destination_search_initial">Search for a city</string>
+    <string name="destination_popular_title">Popular destinations</string>
     <string name="destination_search_empty">No destinations found. Try another search.</string>
     <string name="destination_search_error">Couldn’t load destinations. Check your connection and try again.</string>
     <string name="destination_search_not_configured">City search is temporarily unavailable. Please try again later.</string>
