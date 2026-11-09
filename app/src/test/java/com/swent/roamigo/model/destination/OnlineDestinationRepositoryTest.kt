@@ -676,6 +676,114 @@ class OnlineDestinationRepositoryTest {
     assertEquals(listOf("File:Altstadt_Zürich.jpg"), files)
   }
 
+  @Test
+  fun aWikipediaArticleWithOnlyAThumbnailStillGivesAPhoto() = runTest {
+    val client = jsonClient { request ->
+      when (request.url.host) {
+        "query.wikidata.org" -> "{}"
+        "en.wikipedia.org" ->
+            """{"type":"standard","coordinates":{"lat":10.1,"lon":20.1},"thumbnail":{"source":"https://upload.wikimedia.org/wikipedia/commons/a/af/Old_Town.jpg"}}"""
+        "commons.wikimedia.org" -> commonsInfo
+        else -> error("Unexpected API request")
+      }
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "Old Town", "Country", "CC", 1))
+
+    assertEquals("https://img.test/thumb.jpg", photo?.imageUrl)
+  }
+
+  @Test
+  fun aWikipediaArticleWithoutAnImageIsNotUsed() = runTest {
+    val client = jsonClient { request ->
+      when (request.url.host) {
+        "query.wikidata.org" -> "{}"
+        "en.wikipedia.org" -> """{"type":"standard","coordinates":{"lat":10.1,"lon":20.1}}"""
+        "api.openverse.org" -> """{"results":[]}"""
+        else -> error("Commons must not be asked when the article has no image")
+      }
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "Old Town", "Country", "CC", 1))
+
+    assertNull(photo)
+  }
+
+  @Test
+  fun aWikipediaArticleWithoutCoordinatesIsNotUsed() = runTest {
+    val client = jsonClient { request ->
+      when (request.url.host) {
+        "query.wikidata.org" -> "{}"
+        "en.wikipedia.org" ->
+            """{"type":"standard","originalimage":{"source":"https://upload.wikimedia.org/wikipedia/commons/a/af/Old_Town.jpg"}}"""
+        "api.openverse.org" -> """{"results":[]}"""
+        else -> error("Commons must not be asked for an article that cannot be placed")
+      }
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "Old Town", "Country", "CC", 1))
+
+    assertNull(photo)
+  }
+
+  @Test
+  fun anArticleTooFarAwayInLongitudeOnlyIsNotUsed() = runTest {
+    val client = jsonClient { request ->
+      when (request.url.host) {
+        "query.wikidata.org" -> "{}"
+        "en.wikipedia.org" -> wikipediaPage(lat = 10.1, lon = 40.0)
+        "api.openverse.org" -> """{"results":[]}"""
+        else -> error("Commons must not be asked for a photo of the wrong place")
+      }
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "Old Town", "Country", "CC", 1))
+
+    assertNull(photo)
+  }
+
+  @Test
+  fun theSecondTitleIsTriedWhenTheFirstArticlesImageHasNoUsableLicence() = runTest {
+    var commonsCalls = 0
+    val client = jsonClient { request ->
+      when (request.url.host) {
+        "query.wikidata.org" -> "{}"
+        "en.wikipedia.org" -> wikipediaPage()
+        "commons.wikimedia.org" ->
+            if (++commonsCalls == 1) """{"query":{"pages":{}}}""" else commonsInfo
+        else -> error("Unexpected API request")
+      }
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "Sion", "Switzerland", "CH", 1))
+
+    assertEquals(2, commonsCalls)
+    assertEquals("https://img.test/thumb.jpg", photo?.imageUrl)
+  }
+
+  @Test
+  fun openverseAnswerWithoutResultsGivesNoPhoto() = runTest {
+    val client = jsonClient { request ->
+      if (request.url.host == "api.openverse.org") "{}" else "{}"
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "Old Town", "Country", "CC", 1))
+
+    assertNull(photo)
+  }
+
   private fun wikidataImageResponse() =
       """{"results":{"bindings":[{"image":{"value":"https://commons.wikimedia.org/wiki/Special:FilePath/City.jpg"}}]}}"""
 
