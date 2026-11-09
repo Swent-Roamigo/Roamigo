@@ -146,7 +146,7 @@ class VotesNavigationTest {
     openVotes(historical = true)
 
     composeRule.onNodeWithText("New vote").assertDoesNotExist()
-    composeRule.onNodeWithTag("vote_action_${vote.uid}").performScrollTo().performClick()
+    composeRule.onNodeWithTag(C.Tag.vote_action(vote.uid)).performScrollTo().performClick()
 
     composeRule.runOnIdle {
       val entry = navController.currentBackStackEntry
@@ -174,16 +174,16 @@ class VotesNavigationTest {
   }
 
   private fun dialogText(text: String) =
-      composeRule.onNode(hasText(text) and hasAnyAncestor(hasTestTag("vote_dialog")))
+      composeRule.onNode(hasText(text) and hasAnyAncestor(hasTestTag(C.Tag.vote_dialog)))
 
   private fun assertCounts(a: Int, b: Int) {
     composeRule
-        .onNodeWithTag("vote_count_${vote.uid}_a", useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.vote_count(vote.uid, "a"), useUnmergedTree = true)
         .assertTextEquals(
             composeRule.activity.resources.getQuantityString(R.plurals.vote_count, a, a)
         )
     composeRule
-        .onNodeWithTag("vote_count_${vote.uid}_b", useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.vote_count(vote.uid, "b"), useUnmergedTree = true)
         .assertTextEquals(
             composeRule.activity.resources.getQuantityString(R.plurals.vote_count, b, b)
         )
@@ -194,22 +194,22 @@ class VotesNavigationTest {
     repository.snapshots.value = Result.success(listOf(vote.copy(createdByUserId = "member")))
     openVotes()
     composeRule.onNodeWithText("Close vote").performClick()
-    composeRule.onNodeWithTag("vote_close_dialog").assertIsDisplayed()
-    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
-    composeRule.onNodeWithTag("vote_close_dialog").assertExists()
+    composeRule.onNodeWithTag(C.Tag.vote_close_dialog).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.vote_dialog).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.vote_close_dialog).assertExists()
     composeRule.onNodeWithText("Cancel").performClick()
-    composeRule.onNodeWithTag("vote_close_dialog").assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.vote_close_dialog).assertDoesNotExist()
     composeRule.onNodeWithText(vote.question).assertIsDisplayed()
     composeRule.onNodeWithText("Vote").performClick()
-    composeRule.onNodeWithTag("vote_dialog").assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.vote_dialog).assertIsDisplayed()
     dialogText("Close vote").assertDoesNotExist()
-    composeRule.onNodeWithTag("vote_close_dialog").assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.vote_close_dialog).assertDoesNotExist()
     dialogText("Market").performClick()
     composeRule.onNodeWithText("Submit vote").performClick()
     dialogText("Back").performClick()
     composeRule.onNodeWithText("Change vote").performClick()
-    composeRule.onNodeWithTag("vote_dialog").assertIsDisplayed()
-    composeRule.onNodeWithTag("vote_close_dialog").assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.vote_dialog).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.vote_close_dialog).assertDoesNotExist()
     composeRule.runOnIdle {
       assertEquals(
           VoteStatus.OPEN,
@@ -224,12 +224,12 @@ class VotesNavigationTest {
     openVotes()
     composeRule.onNodeWithText("Close vote").assertIsDisplayed().performClick()
     composeRule.onNodeWithText("Close this vote?").assertIsDisplayed()
-    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
-    composeRule.onNodeWithTag("vote_close_confirm").performClick()
+    composeRule.onNodeWithTag(C.Tag.vote_dialog).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.vote_close_confirm).performClick()
     composeRule.onNodeWithText("Close vote").assertDoesNotExist()
     composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
-    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
-    composeRule.onNodeWithTag("vote_close_dialog").assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.vote_dialog).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.vote_close_dialog).assertDoesNotExist()
     composeRule.onNodeWithText(vote.question).assertIsDisplayed()
     composeRule.onNodeWithText("Vote closed · no votes").assertIsDisplayed()
     composeRule.onNodeWithText("Vote").assertDoesNotExist()
@@ -333,7 +333,7 @@ class VotesNavigationTest {
     composeRule.onNodeWithText("Other trip vote?").assertDoesNotExist()
     assertCounts(0, 0)
     composeRule.onNodeWithText("Vote").performClick()
-    composeRule.onNodeWithTag("vote_dialog").assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.vote_dialog).assertIsDisplayed()
     dialogText("Market").performClick()
     composeRule.onNodeWithText("Submit vote").performClick()
     composeRule.runOnIdle {
@@ -391,9 +391,9 @@ class VotesNavigationTest {
   fun newVoteReturnsToListAndAppearsThroughTheRepositoryStream() {
     openVotes()
     composeRule.onNodeWithText("New vote").performClick()
-    composeRule.onNodeWithTag("vote_question").performTextInput("Where tomorrow?")
-    composeRule.onNodeWithTag("vote_option_0").performTextInput("Park")
-    composeRule.onNodeWithTag("vote_option_1").performTextInput("Beach")
+    composeRule.onNodeWithTag(C.Tag.vote_question).performTextInput("Where tomorrow?")
+    composeRule.onNodeWithTag(C.Tag.vote_option(0)).performTextInput("Park")
+    composeRule.onNodeWithTag(C.Tag.vote_option(1)).performTextInput("Beach")
     composeRule.onNodeWithText("Start vote").performClick()
     composeRule.onNodeWithText("Where tomorrow?").assertIsDisplayed()
     composeRule.onNodeWithText(vote.question).assertIsDisplayed()
@@ -431,7 +431,7 @@ class VotesNavigationTest {
     composeRule.onNodeWithText(vote.question).performClick()
     composeRule.onNodeWithText("No votes cast · no winner").assertIsDisplayed()
     composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
-    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.vote_dialog).assertDoesNotExist()
     composeRule.runOnIdle {
       assertEquals(Route.VOTE, navController.currentBackStackEntry?.destination?.route)
       assertEquals(tripId, navController.currentBackStackEntry?.arguments?.getString("tripId"))
@@ -458,17 +458,17 @@ class VotesNavigationTest {
     composeRule.onNodeWithText("Decided").assertIsDisplayed()
     composeRule.onNodeWithText("Decided · Market · your vote").assertIsDisplayed()
     composeRule
-        .onNodeWithTag("decided_check_${vote.uid}", useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.decided_check(vote.uid), useUnmergedTree = true)
         .assertIsDisplayed()
     composeRule
-        .onNodeWithTag("decided_vote_count_${vote.uid}", useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.decided_vote_count(vote.uid), useUnmergedTree = true)
         .assertTextEquals("2 votes")
-    composeRule.onNodeWithTag("closed_vote_${vote.uid}").assertDoesNotExist()
-    composeRule.onNodeWithTag("decided_vote_${vote.uid}").performClick()
+    composeRule.onNodeWithTag(C.Tag.closed_vote(vote.uid)).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.decided_vote(vote.uid)).performClick()
     composeRule.onNodeWithText("Final results").assertIsDisplayed()
-    composeRule.onNodeWithTag("vote_result_a").assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.vote_result("a")).assertIsDisplayed()
     composeRule
-        .onNode(hasText("Market") and hasText("Winner") and hasText("2 votes"))
+        .onNode(hasText("Market · your vote") and hasText("Winner") and hasText("2 votes"))
         .assertIsDisplayed()
     composeRule.onNode(hasText("Restaurant") and hasText("0 votes")).assertIsDisplayed()
     composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
@@ -548,7 +548,7 @@ class VotesNavigationTest {
   fun cancellingCreationReturnsToTheSameObservedTrip() {
     openVotes()
     composeRule.onNodeWithText("New vote").performClick()
-    composeRule.onNodeWithTag("vote_question").assertTextEquals("Question", "")
+    composeRule.onNodeWithTag(C.Tag.vote_question).assertTextEquals("Question", "")
     composeRule.onNodeWithText("Cancel").performClick()
     composeRule.onNodeWithText(vote.question).assertIsDisplayed()
     composeRule.runOnIdle {

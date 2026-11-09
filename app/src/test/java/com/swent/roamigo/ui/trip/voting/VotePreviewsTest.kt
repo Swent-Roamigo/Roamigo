@@ -53,6 +53,15 @@ class VotePreviewsTest {
 
   @Test fun closedTieCard() = renderPreview("ClosedVoteCardPreviews", "ClosedTieCardPreview")
 
+  @Test
+  fun narrowLargeFontClosedTieCard() =
+      renderPreview(
+          "ClosedVoteCardPreviews",
+          "ClosedNarrowCardPreview",
+          widthDp = 280,
+          fontScale = 1.5f,
+      )
+
   @Test fun detailedWinnerScreen() = renderPreview("VoteResultPreviews", "ClosedWinnerPreview")
 
   @Test

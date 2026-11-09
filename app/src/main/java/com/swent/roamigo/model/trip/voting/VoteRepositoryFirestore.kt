@@ -133,23 +133,13 @@ class VoteRepositoryFirestore(private val db: FirebaseFirestore) : VoteRepositor
   ): Flow<List<VoteBallot>> = callbackFlow {
     val listener =
         EventListener<QuerySnapshot> { snapshot, error ->
-          if (error != null) close(error)
-          else {
-            val updates =
-                try {
-                  val current = requireNotNull(snapshot) { "Missing ballot snapshot" }
-                  if (
-                      serverOnly &&
-                          (current.metadata.isFromCache || current.metadata.hasPendingWrites())
-                  )
-                      return@EventListener
-                  current.documents.map { it.toBallot() }
-                } catch (error: Exception) {
-                  close(error)
-                  return@EventListener
-                }
-            trySend(updates)
+          if (error != null) {
+            close(error)
+            return@EventListener
           }
+          runCatching { requireNotNull(snapshot).confirmedBallots(serverOnly) }
+              .onSuccess { updates -> if (updates != null) trySend(updates) }
+              .onFailure { close(it) }
         }
     // Metadata updates matter when the documents are identical but become server-confirmed.
     val registration =
@@ -242,3 +232,10 @@ private fun Vote.matchesCreationRequest(request: Vote): Boolean =
         createdByUserId == request.createdByUserId &&
         creationTime == request.creationTime &&
         closingTime == request.closingTime
+
+// Cache and pending-write snapshots cannot establish a final result. Metadata-only changes
+// are included by the listener so an identical server-confirmed snapshot can complete loading.
+private fun QuerySnapshot.confirmedBallots(serverOnly: Boolean): List<VoteBallot>? {
+  if (serverOnly && (metadata.isFromCache || metadata.hasPendingWrites())) return null
+  return documents.map { it.toBallot() }
+}

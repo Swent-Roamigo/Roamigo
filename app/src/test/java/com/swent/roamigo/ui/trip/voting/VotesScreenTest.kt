@@ -20,6 +20,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.trip.voting.VoteStatus
+import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -89,16 +90,16 @@ class VotesScreenTest {
         }
       }
     }
-    composeRule.onNodeWithTag("close_vote_${other.uid}").performScrollTo().performClick()
-    composeRule.onNodeWithTag("vote_close_dialog").assertIsDisplayed()
-    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.close_vote(other.uid)).performScrollTo().performClick()
+    composeRule.onNodeWithTag(C.Tag.vote_close_dialog).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.vote_dialog).assertDoesNotExist()
     composeRule.onNodeWithText("Cancel").performClick()
-    composeRule.onNodeWithTag("close_vote_${live.uid}").performScrollTo().performClick()
-    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.close_vote(live.uid)).performScrollTo().performClick()
+    composeRule.onNodeWithTag(C.Tag.vote_dialog).assertDoesNotExist()
     composeRule.onNodeWithText("Cancel").performClick()
     composeRule.runOnIdle { assertEquals(listOf(other.uid, live.uid), requested) }
-    composeRule.onNodeWithTag("vote_close_dialog").assertDoesNotExist()
-    composeRule.onNodeWithTag("close_vote_${live.uid}").assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.vote_close_dialog).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.close_vote(live.uid)).assertIsDisplayed()
   }
 
   @Test
@@ -117,16 +118,16 @@ class VotesScreenTest {
         onOpenVote = opened::add,
     )
     composeRule
-        .onNodeWithTag("vote_count_${live.uid}_a", useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.vote_count(live.uid, "a"), useUnmergedTree = true)
         .assertTextEquals("0 votes")
     composeRule
-        .onNodeWithTag("vote_count_${live.uid}_b", useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.vote_count(live.uid, "b"), useUnmergedTree = true)
         .assertTextEquals("2 votes")
     composeRule
-        .onNodeWithTag("vote_count_${other.uid}_a", useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.vote_count(other.uid, "a"), useUnmergedTree = true)
         .assertTextEquals("1 vote")
     composeRule
-        .onNodeWithTag("vote_count_${other.uid}_b", useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.vote_count(other.uid, "b"), useUnmergedTree = true)
         .assertTextEquals("0 votes")
     for (vote in listOf(live, other)) {
       composeRule.onNodeWithText(vote.question).assertHasNoClickAction()

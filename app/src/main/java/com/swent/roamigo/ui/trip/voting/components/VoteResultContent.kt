@@ -21,6 +21,7 @@ import androidx.compose.ui.semantics.semantics
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.voting.Vote
 import com.swent.roamigo.model.trip.voting.VoteResult
+import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.Spacing
 
 /** Read-only results, with text labels as well as color to identify leading options. */
@@ -45,7 +46,7 @@ fun VoteResultContent(vote: Vote, result: VoteResult, modifier: Modifier = Modif
       val leading = option.uid in result.winningOptionIds
       Surface(
           modifier =
-              Modifier.fillMaxWidth().testTag("vote_result_${option.uid}").semantics(
+              Modifier.fillMaxWidth().testTag(C.Tag.vote_result(option.uid)).semantics(
                   mergeDescendants = true
               ) {},
           shape = MaterialTheme.shapes.small,
@@ -58,7 +59,12 @@ fun VoteResultContent(vote: Vote, result: VoteResult, modifier: Modifier = Modif
             horizontalArrangement = Arrangement.spacedBy(Spacing.small),
         ) {
           Column(Modifier.weight(1f)) {
-            Text(option.name, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                if (result.currentUserOptionId == option.uid)
+                    stringResource(R.string.vote_option_yours, option.name)
+                else option.name,
+                style = MaterialTheme.typography.bodyLarge,
+            )
             if (leading)
                 Text(
                     stringResource(

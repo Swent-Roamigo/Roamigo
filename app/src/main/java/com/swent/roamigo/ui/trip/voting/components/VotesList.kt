@@ -15,6 +15,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import com.swent.roamigo.R
+import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.voting.VotesSyncState
 import com.swent.roamigo.ui.trip.voting.VotesUiState
@@ -47,6 +48,15 @@ fun VotesList(
         )
       }
     }
+    if (state.unresolvedClosedVotes.isNotEmpty()) {
+      item {
+        Text(
+            stringResource(R.string.votes_unresolved),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.testTag(C.Tag.votes_unresolved_heading).semantics { heading() },
+        )
+      }
+    }
     items(state.unresolvedClosedVotes, key = { it.uid }) { vote ->
       VoteCard(
           vote,
@@ -59,7 +69,7 @@ fun VotesList(
         Text(
             stringResource(R.string.votes_decided),
             style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.testTag("votes_decided_heading").semantics { heading() },
+            modifier = Modifier.testTag(C.Tag.votes_decided_heading).semantics { heading() },
         )
       }
       items(state.decidedVotes, key = { it.uid }) { vote ->
