@@ -29,6 +29,15 @@ trips/{tripId}
         role: "OWNER" | "EDITOR" | "VIEWER"
         joinTime: timestamp
     activities/{activityId}
+        activityType: "SUGGESTION" | "ACCEPTED"  // clients only create "ACCEPTED" for now
+        name: string               // not blank
+        description: string | null
+        location: {name, latitude, longitude, countryCode?}  // same rules as a destination
+        startTime: timestamp
+        endTime: timestamp | null  // >= startTime
+        createdByUserId: string    // auth uid of the creator
+        creationTime: timestamp
+        // The ID and trip come from the path. Any member can create; no updates or deletes yet.
     votes/{voteId} // later feature
         ballots/{userId}
     photos/{photoId} // later feature
