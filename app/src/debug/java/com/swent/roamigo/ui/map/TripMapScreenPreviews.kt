@@ -1,17 +1,14 @@
 // Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui.map
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -28,9 +25,9 @@ import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import com.swent.roamigo.ui.theme.Spacing
 import java.time.Instant
 import java.util.Date
-import kotlin.math.roundToInt
 
 class TripMapScreenPreviews {
   @Preview(showBackground = true, widthDp = 390, heightDp = 844)
@@ -62,34 +59,35 @@ class TripMapScreenPreviews {
 
   @Preview(showBackground = true, widthDp = 390, heightDp = 844)
   @Composable
-  private fun TripMapSharingWithMembersPreview() {
-    TripMapPreview(
-        uiState = previewTripMapWithMembersState,
-        locationState = previewSharingLocationState,
-    )
-  }
-
-  @Preview(showBackground = true, widthDp = 390, heightDp = 844)
-  @Composable
-  private fun TripMapSharingOffWithMembersPreview() {
-    TripMapPreview(
-        uiState = previewTripMapWithMembersState,
-        locationState = previewSharingLocationState.copy(isSharing = false),
-    )
-  }
-
-  @Preview(showBackground = true, widthDp = 390, heightDp = 844)
-  @Composable
   private fun TripMapOfflinePreview() {
-    // Offline, every member location shown is outdated.
-    TripMapPreview(
-        uiState = previewTripMapWithMembersState,
-        locationState =
-            previewSharingLocationState.copy(
-                isOffline = true,
-                staleMemberIds = previewMemberLocations.mapTo(mutableSetOf()) { it.userId },
-            ),
-    )
+    TripMapPreview(uiState = previewTripMapLoadedState, isSharing = true, isOffline = true)
+  }
+
+  /**
+   * Mapbox only draws a placeholder in previews, so the markers are shown on their own: a live, a
+   * recent and a stale member location, then the user's own position.
+   */
+  @Preview(showBackground = true)
+  @Composable
+  private fun TripMapLocationMarkersPreview() {
+    RoamigoTheme {
+      Row(
+          modifier = Modifier.padding(Spacing.medium),
+          horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
+          verticalAlignment = Alignment.CenterVertically,
+      ) {
+        listOf("Sam" to 2_000L, "Kim" to 25_000L, "Noa" to 3 * 60_000L).forEach { (name, ageMillis)
+          ->
+          MemberLocationMarker(
+              location = MemberLocation(name, 0.0, 0.0, PREVIEW_NOW_MILLIS - ageMillis),
+              member = memberDisplayInfo(name, User(name, name, null)),
+              nowMillis = PREVIEW_NOW_MILLIS,
+              isStale = ageMillis > 60_000L,
+          )
+        }
+        MyLocationDot()
+      }
+    }
   }
 
   @Preview(showBackground = true, widthDp = 390, heightDp = 844)
@@ -160,45 +158,18 @@ class TripMapScreenPreviews {
       isSharing: Boolean,
       onRetry: () -> Unit = {},
       onRetryActivities: () -> Unit = {},
-  ) {
-    TripMapPreview(
-        uiState = uiState,
-        locationState = LocationUiState(isSharing = isSharing),
-        onRetry = onRetry,
-        onRetryActivities = onRetryActivities,
-    )
-  }
-
-  /** Passes [locationState] to the screen the way [TripMapRoute] does. */
-  @Composable
-  private fun TripMapPreview(
-      uiState: TripMapUiState,
-      locationState: LocationUiState,
-      onRetry: () -> Unit = {},
-      onRetryActivities: () -> Unit = {},
+      isOffline: Boolean = false,
   ) {
     RoamigoTheme {
-      CompositionLocalProvider(
-          LocalTripMapStandIn provides
-              { content, modifier ->
-                TripMapPreviewMap(content = content, modifier = modifier)
-              }
-      ) {
-        TripMapScreen(
-            uiState = uiState,
-            isSharing = locationState.isSharing,
-            memberLocations = locationState.memberLocations,
-            staleMemberIds = locationState.staleMemberIds,
-            myLocation = locationState.shownMyLocation,
-            locationErrorMessage = locationState.errorMessageRes,
-            isOffline = locationState.isOffline,
-            nowMillis = PREVIEW_NOW_MILLIS,
-            onRetry = onRetry,
-            onRetryActivities = onRetryActivities,
-            onTurnOnSharing = {},
-            onPauseSharing = {},
-        )
-      }
+      TripMapScreen(
+          uiState = uiState,
+          isSharing = isSharing,
+          isOffline = isOffline,
+          onRetry = onRetry,
+          onRetryActivities = onRetryActivities,
+          onTurnOnSharing = {},
+          onPauseSharing = {},
+      )
     }
   }
 }
@@ -227,49 +198,6 @@ internal val previewTripMapLoadedState =
         trip = previewTrip,
         viewport = TripMapViewport.Centered(latitude = 38.7223, longitude = -9.1393),
         members = mapOf("user_1" to memberDisplayInfo("user_1", null)),
-    )
-
-/** Fixed time of the previews, so that the freshness labels do not change between renders. */
-private const val PREVIEW_NOW_MILLIS = 1_762_768_800_000L
-
-// Members around Baixa, close enough to the destination to share the screen with it.
-private val previewMemberLocations =
-    listOf(
-        MemberLocation("user_2", 38.7238, -9.1412, PREVIEW_NOW_MILLIS - 2_000),
-        MemberLocation("user_3", 38.7205, -9.1370, PREVIEW_NOW_MILLIS - 25_000),
-        MemberLocation("user_4", 38.7250, -9.1360, PREVIEW_NOW_MILLIS - 3 * 60_000),
-    )
-
-private val previewMyLocation = MemberLocation("user_1", 38.7215, -9.1400, PREVIEW_NOW_MILLIS)
-
-/** A loaded trip map with four members, framed on the destination and every shown location. */
-private val previewTripMapWithMembersState =
-    previewTripMapLoadedState.copy(
-        trip = previewTrip.copy(memberIds = listOf("user_1", "user_2", "user_3", "user_4")),
-        viewport =
-            tripMapViewportOf(
-                (previewTrip.destinations.map { MapCoordinate(it.latitude, it.longitude) } +
-                    (previewMemberLocations + previewMyLocation).map {
-                      MapCoordinate(it.latitude, it.longitude)
-                    })
-            ),
-        members =
-            mapOf(
-                "user_1" to memberDisplayInfo("user_1", User("user_1", "Alex", null)),
-                "user_2" to memberDisplayInfo("user_2", User("user_2", "Sam", null)),
-                "user_3" to memberDisplayInfo("user_3", User("user_3", "Kim", null)),
-                "user_4" to memberDisplayInfo("user_4", User("user_4", "Noa", null)),
-            ),
-    )
-
-/** The user shares their position, and Noa's location is outdated. */
-private val previewSharingLocationState =
-    LocationUiState(
-        permissionState = LocationPermissionState.Granted,
-        isSharing = true,
-        myLocation = previewMyLocation,
-        memberLocations = previewMemberLocations,
-        staleMemberIds = setOf("user_4"),
     )
 
 private val previewTripWithActivities =
@@ -317,6 +245,9 @@ private val previewTripActivities =
         ),
     )
 
+/** Fixed time of the marker preview, so that the freshness labels do not change between renders. */
+private const val PREVIEW_NOW_MILLIS = 1_762_768_800_000L
+
 private fun previewActivity(
     uid: String,
     name: String,
@@ -339,110 +270,3 @@ private fun previewActivity(
 
 private fun previewTimestamp(isoDateTime: String): Timestamp =
     Timestamp(Date.from(Instant.parse(isoDateTime)))
-
-/**
- * Share of the stand-in's width and height kept free on each side, so that markers anchored on the
- * outermost locations stay on screen.
- */
-internal const val PREVIEW_MAP_PADDING = 0.15f
-
-/**
- * Projects coordinates linearly into a unit box, framing all of [frame] with [padding] on each
- * side. North is up. An axis along which the frame has no extent is centered.
- *
- * @param frame the coordinates that must fit in the box.
- * @param padding share of the box kept free on each side, between 0 and 0.5.
- * @return a function giving the position of a coordinate, as fractions of the box's width and
- *   height.
- */
-internal fun previewMapProjection(
-    frame: List<MapCoordinate>,
-    padding: Float = PREVIEW_MAP_PADDING,
-): (MapCoordinate) -> Offset {
-  val minLatitude = frame.minOfOrNull { it.latitude } ?: 0.0
-  val maxLatitude = frame.maxOfOrNull { it.latitude } ?: 0.0
-  val minLongitude = frame.minOfOrNull { it.longitude } ?: 0.0
-  val maxLongitude = frame.maxOfOrNull { it.longitude } ?: 0.0
-
-  fun scale(value: Double, min: Double, max: Double): Float =
-      if (max == min) 0.5f
-      else padding + ((value - min) / (max - min)).toFloat() * (1 - 2 * padding)
-
-  return { coordinate ->
-    Offset(
-        x = scale(coordinate.longitude, minLongitude, maxLongitude),
-        y = 1f - scale(coordinate.latitude, minLatitude, maxLatitude),
-    )
-  }
-}
-
-/**
- * Static stand-in for the Mapbox map of [TripMapScreen], used only in Android Studio previews.
- * Mapbox and its view annotations cannot render there, so the previews would show none of the
- * markers.
- *
- * The markers are the real map's, placed with [previewMapProjection] so that the viewport and every
- * marker are framed, and anchored like the real map's annotations.
- */
-@Composable
-internal fun TripMapPreviewMap(content: TripMapStandInContent, modifier: Modifier = Modifier) {
-  Layout(
-      content = {
-        content.activityMarkers.forEach { marker ->
-          Box(Modifier.pin(marker.latitude, marker.longitude, PinAnchor.BOTTOM)) {
-            TripMarkerIcon(locationName = marker.locationName, kind = marker.kind)
-          }
-        }
-        content.memberLocations.forEach { location ->
-          MemberLocationMarker(
-              location = location,
-              member = content.members[location.userId] ?: memberDisplayInfo(location.userId, null),
-              nowMillis = content.nowMillis,
-              isStale = location.userId in content.staleMemberIds,
-              modifier = Modifier.pin(location.latitude, location.longitude, PinAnchor.BOTTOM),
-          )
-        }
-        content.myLocation?.let { myLocation ->
-          Box(Modifier.pin(myLocation.latitude, myLocation.longitude, PinAnchor.CENTER)) {
-            MyLocationDot()
-          }
-        }
-      },
-      modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
-  ) { measurables, constraints ->
-    val pins = measurables.map { it.layoutId as Pin }
-    val project = previewMapProjection(content.viewport.coordinates() + pins.map { it.coordinate })
-    val placeables = measurables.map { it.measure(constraints.copy(minWidth = 0, minHeight = 0)) }
-    layout(constraints.maxWidth, constraints.maxHeight) {
-      placeables.zip(pins).forEach { (placeable, pin) ->
-        val position = project(pin.coordinate)
-        val anchorY =
-            when (pin.anchor) {
-              PinAnchor.BOTTOM -> placeable.height
-              PinAnchor.CENTER -> placeable.height / 2
-            }
-        placeable.place(
-            x = (position.x * constraints.maxWidth).roundToInt() - placeable.width / 2,
-            y = (position.y * constraints.maxHeight).roundToInt() - anchorY,
-        )
-      }
-    }
-  }
-}
-
-private enum class PinAnchor {
-  BOTTOM,
-  CENTER,
-}
-
-private data class Pin(val coordinate: MapCoordinate, val anchor: PinAnchor)
-
-private fun Modifier.pin(latitude: Double, longitude: Double, anchor: PinAnchor): Modifier =
-    layoutId(Pin(MapCoordinate(latitude, longitude), anchor))
-
-private fun TripMapViewport.coordinates(): List<MapCoordinate> =
-    when (this) {
-      TripMapViewport.None -> emptyList()
-      is TripMapViewport.Centered -> listOf(MapCoordinate(latitude, longitude))
-      is TripMapViewport.FitAll -> coordinates
-    }

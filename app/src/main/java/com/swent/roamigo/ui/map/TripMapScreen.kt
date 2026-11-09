@@ -43,7 +43,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -170,33 +169,6 @@ private val MyLocationDotSize = 18.dp
 private val MyLocationDotBorderWidth = 3.dp
 
 /**
- * What [TripMapScreen] hands to the map drawn by [LocalTripMapStandIn]: the same values it shows on
- * the Mapbox map.
- */
-internal data class TripMapStandInContent(
-    val viewport: TripMapViewport,
-    val activityMarkers: List<TripMarkerUiState>,
-    val memberLocations: List<MemberLocation>,
-    val members: Map<String, MemberDisplayInfo>,
-    val staleMemberIds: Set<String>,
-    val myLocation: MemberLocation?,
-    val nowMillis: Long,
-)
-
-/**
- * Map drawn by [TripMapScreen] in place of Mapbox from the given [TripMapStandInContent], or null
- * to draw Mapbox. Android Studio previews provide a static stand-in, since Mapbox cannot render
- * there and would only show its placeholder.
- */
-internal val LocalTripMapStandIn =
-    staticCompositionLocalOf<
-        (@Composable
-        (content: TripMapStandInContent, modifier: Modifier) -> Unit)?
-    > {
-      null
-    }
-
-/**
  * Renders the trip map with its activity markers and the other members' locations for [uiState],
  * with a banner telling whether the user shares their location and a button to turn sharing on or
  * pause it. The map stays interactive and visible underneath the loading and error overlays.
@@ -260,82 +232,64 @@ fun TripMapScreen(
   }
 
   Box(modifier = modifier.fillMaxSize()) {
-    val standInMap = LocalTripMapStandIn.current
-    if (standInMap != null) {
-      standInMap(
-          TripMapStandInContent(
-              viewport = viewport,
-              activityMarkers = (uiState as? TripMapUiState.Loaded)?.activityMarkers.orEmpty(),
-              memberLocations = memberLocations,
-              members = members,
-              staleMemberIds = staleMemberIds,
-              myLocation = myLocation,
-              nowMillis = nowMillis,
-          ),
-          Modifier.fillMaxSize().testTag(C.Tag.trip_map_map),
-      )
-    } else {
-      MapboxMap(
-          modifier = Modifier.fillMaxSize().testTag(C.Tag.trip_map_map),
-          mapViewportState = rememberTripMapViewportState(viewport),
-      ) {
-        if (uiState is TripMapUiState.Loaded) {
-          uiState.activityMarkers.forEach { marker ->
-            key(marker.id) {
-              ViewAnnotation(
-                  options =
-                      viewAnnotationOptions {
-                        geometry(Point.fromLngLat(marker.longitude, marker.latitude))
-                        annotationAnchor { anchor(ViewAnnotationAnchor.BOTTOM) }
-                      },
-                  modifier =
-                      Modifier.testTag(TripMarkerTestTags.markerFor(marker.id))
-                          .markNotImplemented(onMarkerClick)
-                          .clickable(onClick = onMarkerClick),
-              ) {
-                TripMarkerIcon(locationName = marker.locationName, kind = marker.kind)
-              }
-            }
-          }
-        }
-        memberLocations.forEach { location ->
-          key(location.userId) {
+    MapboxMap(
+        modifier = Modifier.fillMaxSize().testTag(C.Tag.trip_map_map),
+        mapViewportState = rememberTripMapViewportState(viewport),
+    ) {
+      if (uiState is TripMapUiState.Loaded) {
+        uiState.activityMarkers.forEach { marker ->
+          key(marker.id) {
             ViewAnnotation(
                 options =
                     viewAnnotationOptions {
-                      geometry(Point.fromLngLat(location.longitude, location.latitude))
+                      geometry(Point.fromLngLat(marker.longitude, marker.latitude))
                       annotationAnchor { anchor(ViewAnnotationAnchor.BOTTOM) }
-                      // Members travel together, so their markers often collide. Mapbox would hide
-                      // all but one of them by default.
-                      allowOverlap(true)
-                    }
+                    },
+                modifier =
+                    Modifier.testTag(TripMarkerTestTags.markerFor(marker.id))
+                        .markNotImplemented(onMarkerClick)
+                        .clickable(onClick = onMarkerClick),
             ) {
-              MemberLocationMarker(
-                  location = location,
-                  // Until the trip and profiles load, the member is shown with the fallback name.
-                  member =
-                      members.getOrElse(location.userId) {
-                        memberDisplayInfo(location.userId, null)
-                      },
-                  nowMillis = nowMillis,
-                  isStale = location.userId in staleMemberIds,
-              )
+              TripMarkerIcon(locationName = marker.locationName, kind = marker.kind)
             }
           }
         }
-        // Declared last so that it is drawn above the member markers.
-        if (myLocation != null) {
+      }
+      memberLocations.forEach { location ->
+        key(location.userId) {
           ViewAnnotation(
               options =
                   viewAnnotationOptions {
-                    geometry(Point.fromLngLat(myLocation.longitude, myLocation.latitude))
-                    annotationAnchor { anchor(ViewAnnotationAnchor.CENTER) }
-                    // Kept visible next to the members around the user.
+                    geometry(Point.fromLngLat(location.longitude, location.latitude))
+                    annotationAnchor { anchor(ViewAnnotationAnchor.BOTTOM) }
+                    // Members travel together, so their markers often collide. Mapbox would hide
+                    // all but one of them by default.
                     allowOverlap(true)
                   }
           ) {
-            MyLocationDot()
+            MemberLocationMarker(
+                location = location,
+                // Until the trip and profiles load, the member is shown with the fallback name.
+                member =
+                    members.getOrElse(location.userId) { memberDisplayInfo(location.userId, null) },
+                nowMillis = nowMillis,
+                isStale = location.userId in staleMemberIds,
+            )
           }
+        }
+      }
+      // Declared last so that it is drawn above the member markers.
+      if (myLocation != null) {
+        ViewAnnotation(
+            options =
+                viewAnnotationOptions {
+                  geometry(Point.fromLngLat(myLocation.longitude, myLocation.latitude))
+                  annotationAnchor { anchor(ViewAnnotationAnchor.CENTER) }
+                  // Kept visible next to the members around the user.
+                  allowOverlap(true)
+                }
+        ) {
+          MyLocationDot()
         }
       }
     }
@@ -420,7 +374,7 @@ fun TripMapScreen(
 
 /** Tells the user that member locations cannot be refreshed while the device is offline. */
 @Composable
-private fun OfflineBanner(modifier: Modifier = Modifier) {
+private fun OfflineBanner(modifier: Modifier) {
   Surface(
       modifier =
           modifier.fillMaxWidth().testTag(C.Tag.trip_map_offline).semantics {
