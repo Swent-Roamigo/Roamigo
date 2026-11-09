@@ -72,20 +72,15 @@ class TripMapScreenStandInTest {
   /** What the screen last gave the stand-in map. */
   private var mapInputs: MapInputs? = null
 
-  private val standInMap:
-      @Composable
-      (
-          TripMapViewport,
-          List<TripMarkerUiState>,
-          List<MemberLocation>,
-          Map<String, MemberDisplayInfo>,
-          Set<String>,
-          MemberLocation?,
-          Long,
-          Modifier,
-      ) -> Unit =
-      { _, activityMarkers, memberLocations, members, _, myLocation, _, modifier ->
-        mapInputs = MapInputs(activityMarkers, memberLocations, members, myLocation)
+  private val standInMap: @Composable (TripMapStandInContent, Modifier) -> Unit =
+      { content, modifier ->
+        mapInputs =
+            MapInputs(
+                content.activityMarkers,
+                content.memberLocations,
+                content.members,
+                content.myLocation,
+            )
         Box(modifier)
       }
 

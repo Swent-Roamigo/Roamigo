@@ -170,22 +170,28 @@ private val MyLocationDotSize = 18.dp
 private val MyLocationDotBorderWidth = 3.dp
 
 /**
- * Map drawn by [TripMapScreen] in place of Mapbox, or null to draw Mapbox. Android Studio previews
- * provide a static stand-in, since Mapbox cannot render there and would only show its placeholder.
+ * What [TripMapScreen] hands to the map drawn by [LocalTripMapStandIn]: the same values it shows on
+ * the Mapbox map.
+ */
+internal data class TripMapStandInContent(
+    val viewport: TripMapViewport,
+    val activityMarkers: List<TripMarkerUiState>,
+    val memberLocations: List<MemberLocation>,
+    val members: Map<String, MemberDisplayInfo>,
+    val staleMemberIds: Set<String>,
+    val myLocation: MemberLocation?,
+    val nowMillis: Long,
+)
+
+/**
+ * Map drawn by [TripMapScreen] in place of Mapbox from the given [TripMapStandInContent], or null
+ * to draw Mapbox. Android Studio previews provide a static stand-in, since Mapbox cannot render
+ * there and would only show its placeholder.
  */
 internal val LocalTripMapStandIn =
     staticCompositionLocalOf<
         (@Composable
-        (
-            viewport: TripMapViewport,
-            activityMarkers: List<TripMarkerUiState>,
-            memberLocations: List<MemberLocation>,
-            members: Map<String, MemberDisplayInfo>,
-            staleMemberIds: Set<String>,
-            myLocation: MemberLocation?,
-            nowMillis: Long,
-            modifier: Modifier,
-        ) -> Unit)?
+        (content: TripMapStandInContent, modifier: Modifier) -> Unit)?
     > {
       null
     }
@@ -257,13 +263,15 @@ fun TripMapScreen(
     val standInMap = LocalTripMapStandIn.current
     if (standInMap != null) {
       standInMap(
-          viewport,
-          (uiState as? TripMapUiState.Loaded)?.activityMarkers.orEmpty(),
-          memberLocations,
-          members,
-          staleMemberIds,
-          myLocation,
-          nowMillis,
+          TripMapStandInContent(
+              viewport = viewport,
+              activityMarkers = (uiState as? TripMapUiState.Loaded)?.activityMarkers.orEmpty(),
+              memberLocations = memberLocations,
+              members = members,
+              staleMemberIds = staleMemberIds,
+              myLocation = myLocation,
+              nowMillis = nowMillis,
+          ),
           Modifier.fillMaxSize().testTag(C.Tag.trip_map_map),
       )
     } else {

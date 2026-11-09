@@ -180,25 +180,8 @@ class TripMapScreenPreviews {
     RoamigoTheme {
       CompositionLocalProvider(
           LocalTripMapStandIn provides
-              {
-                  viewport,
-                  activityMarkers,
-                  memberLocations,
-                  members,
-                  staleMemberIds,
-                  myLocation,
-                  nowMillis,
-                  modifier ->
-                TripMapPreviewMap(
-                    viewport = viewport,
-                    activityMarkers = activityMarkers,
-                    memberLocations = memberLocations,
-                    members = members,
-                    staleMemberIds = staleMemberIds,
-                    myLocation = myLocation,
-                    nowMillis = nowMillis,
-                    modifier = modifier,
-                )
+              { content, modifier ->
+                TripMapPreviewMap(content = content, modifier = modifier)
               }
       ) {
         TripMapScreen(
@@ -398,37 +381,28 @@ internal fun previewMapProjection(
  * Mapbox and its view annotations cannot render there, so the previews would show none of the
  * markers.
  *
- * The markers are the real map's, placed with [previewMapProjection] so that [viewport] and every
+ * The markers are the real map's, placed with [previewMapProjection] so that the viewport and every
  * marker are framed, and anchored like the real map's annotations.
  */
 @Composable
-internal fun TripMapPreviewMap(
-    viewport: TripMapViewport,
-    activityMarkers: List<TripMarkerUiState>,
-    memberLocations: List<MemberLocation>,
-    members: Map<String, MemberDisplayInfo>,
-    staleMemberIds: Set<String>,
-    myLocation: MemberLocation?,
-    nowMillis: Long,
-    modifier: Modifier = Modifier,
-) {
+internal fun TripMapPreviewMap(content: TripMapStandInContent, modifier: Modifier = Modifier) {
   Layout(
       content = {
-        activityMarkers.forEach { marker ->
+        content.activityMarkers.forEach { marker ->
           Box(Modifier.pin(marker.latitude, marker.longitude, PinAnchor.BOTTOM)) {
             TripMarkerIcon(locationName = marker.locationName, kind = marker.kind)
           }
         }
-        memberLocations.forEach { location ->
+        content.memberLocations.forEach { location ->
           MemberLocationMarker(
               location = location,
-              member = members[location.userId] ?: memberDisplayInfo(location.userId, null),
-              nowMillis = nowMillis,
-              isStale = location.userId in staleMemberIds,
+              member = content.members[location.userId] ?: memberDisplayInfo(location.userId, null),
+              nowMillis = content.nowMillis,
+              isStale = location.userId in content.staleMemberIds,
               modifier = Modifier.pin(location.latitude, location.longitude, PinAnchor.BOTTOM),
           )
         }
-        if (myLocation != null) {
+        content.myLocation?.let { myLocation ->
           Box(Modifier.pin(myLocation.latitude, myLocation.longitude, PinAnchor.CENTER)) {
             MyLocationDot()
           }
@@ -437,7 +411,7 @@ internal fun TripMapPreviewMap(
       modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
   ) { measurables, constraints ->
     val pins = measurables.map { it.layoutId as Pin }
-    val project = previewMapProjection(viewport.coordinates() + pins.map { it.coordinate })
+    val project = previewMapProjection(content.viewport.coordinates() + pins.map { it.coordinate })
     val placeables = measurables.map { it.measure(constraints.copy(minWidth = 0, minHeight = 0)) }
     layout(constraints.maxWidth, constraints.maxHeight) {
       placeables.zip(pins).forEach { (placeable, pin) ->
