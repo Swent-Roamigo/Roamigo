@@ -2,10 +2,14 @@
 package com.swent.roamigo.ui.map
 
 import android.content.res.Resources
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import com.swent.roamigo.R
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.delay
 
 /** Age below which a location update is shown as live. */
 internal val LIVE_FRESHNESS_THRESHOLD: Duration = 5.seconds
@@ -39,4 +43,23 @@ internal fun formatLocationFreshness(
       resources.getQuantityString(R.plurals.trip_map_freshness_minutes_ago, minutes, minutes)
     }
   }
+}
+
+/**
+ * Current time, in milliseconds since the epoch, refreshed every second while [isTicking] so that
+ * the freshness texts keep up with the age of the locations.
+ *
+ * @param isTicking whether the time is refreshed. When false, it keeps its last value.
+ * @return the current time, as of the last refresh.
+ */
+@Composable
+internal fun rememberCurrentTimeMillis(isTicking: Boolean): Long {
+  val nowMillis by
+      produceState(System.currentTimeMillis(), isTicking) {
+        while (isTicking) {
+          value = System.currentTimeMillis()
+          delay(1.seconds)
+        }
+      }
+  return nowMillis
 }

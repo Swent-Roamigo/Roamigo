@@ -51,6 +51,7 @@ import com.mapbox.maps.viewannotation.annotationAnchor
 import com.mapbox.maps.viewannotation.geometry
 import com.mapbox.maps.viewannotation.viewAnnotationOptions
 import com.swent.roamigo.R
+import com.swent.roamigo.model.location.MemberLocation
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.InfoRow
 import com.swent.roamigo.ui.components.markNotImplemented
@@ -126,6 +127,8 @@ fun TripMapRoute(
   TripMapScreen(
       uiState = tripUiState,
       isSharing = locationUiState.isSharing,
+      memberLocations = locationUiState.memberLocations,
+      staleMemberIds = locationUiState.staleMemberIds,
       onRetry = tripMapViewModel::retryTrip,
       onRetryActivities = tripMapViewModel::retryActivities,
       onTurnOnSharing = { locationViewModel.onTurnOnSharingClick(permissionChecker.isGranted()) },
@@ -141,12 +144,19 @@ fun TripMapRoute(
 }
 
 /**
- * Renders the trip map and activity markers for [uiState], with a banner telling whether the user
- * shares their location and a button to turn sharing on or pause it. The map stays interactive and
- * visible underneath the loading and error overlays.
+ * Renders the trip map with its activity markers and the other members' locations for [uiState],
+ * with a banner telling whether the user shares their location and a button to turn sharing on or
+ * pause it. The map stays interactive and visible underneath the loading and error overlays.
+ *
+ * Member locations are shown whatever the user's own permission or sharing state, since seeing the
+ * group does not depend on sharing with it.
  *
  * @param uiState state of the trip shown.
  * @param isSharing whether the user shares their location with the trip.
+ * @param memberLocations locations of the other members currently sharing theirs.
+ * @param staleMemberIds identifiers of the members whose location is outdated.
+ * @param nowMillis current time, in milliseconds since the epoch, used to tell how old each member
+ *   location is. Refreshed every second by default while member locations are shown.
  * @param onRetry called when the user asks to load the trip again after an error.
  * @param onRetryActivities called when the user retries loading activities and suggestions.
  * @param onTurnOnSharing called when the user asks to start sharing their location.
@@ -163,10 +173,14 @@ fun TripMapScreen(
     onPauseSharing: () -> Unit,
     modifier: Modifier = Modifier,
     readOnly: Boolean = false,
+    memberLocations: List<MemberLocation> = emptyList(),
+    staleMemberIds: Set<String> = emptySet(),
+    nowMillis: Long = rememberCurrentTimeMillis(isTicking = memberLocations.isNotEmpty()),
 ) {
   // Until the trip is loaded the camera keeps its position, so the map stays usable underneath.
   val viewport = (uiState as? TripMapUiState.Loaded)?.viewport ?: TripMapViewport.None
   val onMarkerClick = rememberNotImplementedAction()
+  val members = (uiState as? TripMapUiState.Loaded)?.members.orEmpty()
 
   Box(modifier = modifier.fillMaxSize()) {
     MapboxMap(
@@ -189,6 +203,25 @@ fun TripMapScreen(
             ) {
               TripMarkerIcon(locationName = marker.locationName, kind = marker.kind)
             }
+          }
+        }
+      }
+      memberLocations.forEach { location ->
+        key(location.userId) {
+          ViewAnnotation(
+              options =
+                  viewAnnotationOptions {
+                    geometry(Point.fromLngLat(location.longitude, location.latitude))
+                    annotationAnchor { anchor(ViewAnnotationAnchor.BOTTOM) }
+                  }
+          ) {
+            MemberLocationMarker(
+                location = location,
+                // Until the trip and profiles load, the member is shown with the fallback name.
+                member = members[location.userId] ?: memberDisplayInfo(location.userId, null),
+                nowMillis = nowMillis,
+                isStale = location.userId in staleMemberIds,
+            )
           }
         }
       }
