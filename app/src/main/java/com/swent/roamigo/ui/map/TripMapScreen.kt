@@ -262,6 +262,9 @@ fun TripMapScreen(
                   viewAnnotationOptions {
                     geometry(Point.fromLngLat(location.longitude, location.latitude))
                     annotationAnchor { anchor(ViewAnnotationAnchor.BOTTOM) }
+                    // Members travel together, so their markers often collide. Mapbox would hide
+                    // all but one of them by default.
+                    allowOverlap(true)
                   }
           ) {
             MemberLocationMarker(
@@ -281,6 +284,8 @@ fun TripMapScreen(
                 viewAnnotationOptions {
                   geometry(Point.fromLngLat(myLocation.longitude, myLocation.latitude))
                   annotationAnchor { anchor(ViewAnnotationAnchor.CENTER) }
+                  // Kept visible next to the members around the user.
+                  allowOverlap(true)
                 }
         ) {
           MyLocationDot()
