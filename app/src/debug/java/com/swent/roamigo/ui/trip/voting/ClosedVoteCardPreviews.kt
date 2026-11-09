@@ -33,13 +33,6 @@ internal val closedDinnerPreview =
     )
 
 // Keep previews independent of repository and result-calculator implementation changes.
-internal val closedDinnerWinnerResult =
-    VoteResult(
-        counts = mapOf("market" to 2, "taberna" to 1, "riverside" to 0),
-        winningOptionIds = setOf("market"),
-        currentUserOptionId = "market",
-    )
-
 internal val closedDinnerTieResult =
     VoteResult(
         counts = mapOf("market" to 1, "taberna" to 1, "riverside" to 0),
@@ -47,28 +40,9 @@ internal val closedDinnerTieResult =
         currentUserOptionId = "market",
     )
 
-internal val closedDinnerNoVotesResult =
-    VoteResult(
-        counts = mapOf("market" to 0, "taberna" to 0, "riverside" to 0),
-        winningOptionIds = emptySet(),
-    )
-
-@Preview(name = "Decided row · Winner · Your vote", showBackground = true, widthDp = 390)
-@Composable
-private fun ClosedWinnerCardPreview() = ClosedResultCardPreview(closedDinnerWinnerResult)
-
 @Preview(name = "Closed · Tie", showBackground = true, widthDp = 390)
 @Composable
 private fun ClosedTieCardPreview() = ClosedResultCardPreview(closedDinnerTieResult)
-
-@Preview(name = "Closed · No votes", showBackground = true, widthDp = 390)
-@Composable
-private fun ClosedNoVotesCardPreview() = ClosedResultCardPreview(closedDinnerNoVotesResult)
-
-@Preview(name = "Decided row · You did not vote", showBackground = true, widthDp = 390)
-@Composable
-private fun ClosedWithoutUserVotePreview() =
-    ClosedResultCardPreview(closedDinnerWinnerResult.copy(currentUserOptionId = null))
 
 @Preview(
     name = "Closed · Three-way tie · Narrow · Large font",
@@ -95,38 +69,6 @@ private fun ClosedResultCardPreview(result: VoteResult) {
     }
   }
 }
-
-@Preview(name = "Votes tab · Decided winner", showBackground = true, widthDp = 390, heightDp = 844)
-@Composable
-private fun DecidedWinnerTabPreview() = ClosedResultsTabPreview(closedDinnerWinnerResult)
-
-@Preview(
-    name = "Votes tab · Unresolved closed tie",
-    showBackground = true,
-    widthDp = 390,
-    heightDp = 844,
-)
-@Composable
-private fun UnresolvedTieTabPreview() = ClosedResultsTabPreview(closedDinnerTieResult)
-
-@Preview(
-    name = "Votes tab · Unresolved closed no votes",
-    showBackground = true,
-    widthDp = 390,
-    heightDp = 844,
-)
-@Composable
-private fun UnresolvedNoVotesTabPreview() = ClosedResultsTabPreview(closedDinnerNoVotesResult)
-
-@Composable
-private fun ClosedResultsTabPreview(result: VoteResult) =
-    VotesPreview(
-        VotesUiState.Ready(
-            emptyList(),
-            listOf(closedDinnerPreview),
-            finalSummaries = mapOf(closedDinnerPreview.uid to result),
-        )
-    )
 
 @Preview(
     name = "Votes tab · Tie above compact Decided row",

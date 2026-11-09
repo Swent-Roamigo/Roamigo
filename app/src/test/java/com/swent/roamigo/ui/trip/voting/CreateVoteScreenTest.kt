@@ -51,8 +51,8 @@ class CreateVoteScreenTest {
     }
     composeRule.onNodeWithTag(C.Tag.vote_submit).assertIsNotEnabled()
     composeRule.onNodeWithTag(C.Tag.vote_question).performTextInput("Dinner?")
-    composeRule.onNodeWithTag(C.Tag.vote_option(0)).performTextInput("Market")
-    composeRule.onNodeWithTag(C.Tag.vote_option(1)).performTextInput("Restaurant")
+    composeRule.onNodeWithTag(C.Tag.voteOption(0)).performTextInput("Market")
+    composeRule.onNodeWithTag(C.Tag.voteOption(1)).performTextInput("Restaurant")
     composeRule.onNodeWithTag(C.Tag.vote_submit).assertIsEnabled()
     composeRule.onNodeWithText("+ Add option").performScrollTo().performClick()
     composeRule.onNodeWithTag(C.Tag.vote_submit).assertIsNotEnabled()
@@ -123,8 +123,8 @@ class CreateVoteScreenTest {
       }
     }
     composeRule.onNodeWithTag(C.Tag.vote_question).performTextInput("Dinner?")
-    composeRule.onNodeWithTag(C.Tag.vote_option(0)).performTextInput("Market")
-    composeRule.onNodeWithTag(C.Tag.vote_option(1)).performTextInput("Restaurant")
+    composeRule.onNodeWithTag(C.Tag.voteOption(0)).performTextInput("Market")
+    composeRule.onNodeWithTag(C.Tag.voteOption(1)).performTextInput("Restaurant")
     composeRule.onNodeWithTag(C.Tag.vote_submit).performClick()
     composeRule.onNodeWithText("Creating vote…").assertIsDisplayed()
 
@@ -198,7 +198,7 @@ class CreateVoteScreenTest {
     for (index in 2..9) {
       composeRule.onNodeWithText("+ Add option").performScrollTo().assertIsEnabled().performClick()
       composeRule
-          .onNodeWithTag(C.Tag.vote_option(index))
+          .onNodeWithTag(C.Tag.voteOption(index))
           .performScrollTo()
           .performTextInput("Option $index")
       composeRule.onNodeWithTag(C.Tag.vote_submit).assertIsEnabled()
@@ -207,7 +207,7 @@ class CreateVoteScreenTest {
     composeRule.runOnIdle { assertEquals(10, viewModel.uiState.value.options.size) }
     composeRule.onNodeWithContentDescription("Remove option 10").performScrollTo().performClick()
     composeRule.onNodeWithText("+ Add option").performScrollTo().assertIsEnabled().performClick()
-    composeRule.onNodeWithTag(C.Tag.vote_option(9)).performScrollTo().performTextInput("Last")
+    composeRule.onNodeWithTag(C.Tag.voteOption(9)).performScrollTo().performTextInput("Last")
     composeRule.onNodeWithTag(C.Tag.vote_submit).performClick()
     composeRule.waitForIdle()
     composeRule.runOnIdle { assertEquals(10, repository.created.single().options.size) }

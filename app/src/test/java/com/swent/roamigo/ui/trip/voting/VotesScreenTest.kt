@@ -90,16 +90,16 @@ class VotesScreenTest {
         }
       }
     }
-    composeRule.onNodeWithTag(C.Tag.close_vote(other.uid)).performScrollTo().performClick()
+    composeRule.onNodeWithTag(C.Tag.closeVote(other.uid)).performScrollTo().performClick()
     composeRule.onNodeWithTag(C.Tag.vote_close_dialog).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.vote_dialog).assertDoesNotExist()
     composeRule.onNodeWithText("Cancel").performClick()
-    composeRule.onNodeWithTag(C.Tag.close_vote(live.uid)).performScrollTo().performClick()
+    composeRule.onNodeWithTag(C.Tag.closeVote(live.uid)).performScrollTo().performClick()
     composeRule.onNodeWithTag(C.Tag.vote_dialog).assertDoesNotExist()
     composeRule.onNodeWithText("Cancel").performClick()
     composeRule.runOnIdle { assertEquals(listOf(other.uid, live.uid), requested) }
     composeRule.onNodeWithTag(C.Tag.vote_close_dialog).assertDoesNotExist()
-    composeRule.onNodeWithTag(C.Tag.close_vote(live.uid)).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.closeVote(live.uid)).assertIsDisplayed()
   }
 
   @Test
@@ -118,16 +118,16 @@ class VotesScreenTest {
         onOpenVote = opened::add,
     )
     composeRule
-        .onNodeWithTag(C.Tag.vote_count(live.uid, "a"), useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.voteCount(live.uid, "a"), useUnmergedTree = true)
         .assertTextEquals("0 votes")
     composeRule
-        .onNodeWithTag(C.Tag.vote_count(live.uid, "b"), useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.voteCount(live.uid, "b"), useUnmergedTree = true)
         .assertTextEquals("2 votes")
     composeRule
-        .onNodeWithTag(C.Tag.vote_count(other.uid, "a"), useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.voteCount(other.uid, "a"), useUnmergedTree = true)
         .assertTextEquals("1 vote")
     composeRule
-        .onNodeWithTag(C.Tag.vote_count(other.uid, "b"), useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.voteCount(other.uid, "b"), useUnmergedTree = true)
         .assertTextEquals("0 votes")
     for (vote in listOf(live, other)) {
       composeRule.onNodeWithText(vote.question).assertHasNoClickAction()

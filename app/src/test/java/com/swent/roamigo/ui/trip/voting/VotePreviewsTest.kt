@@ -49,7 +49,7 @@ class VotePreviewsTest {
 
   @Test fun openLiveCard() = renderPreview("VoteCardPreviews", "LiveVoteCastPreview")
 
-  @Test fun decidedWinnerTab() = renderPreview("ClosedVoteCardPreviews", "DecidedWinnerTabPreview")
+  @Test fun compactDecidedCard() = renderPreview("VoteCardPreviews", "ClosedVoteCardPreview")
 
   @Test fun closedTieCard() = renderPreview("ClosedVoteCardPreviews", "ClosedTieCardPreview")
 
@@ -62,13 +62,17 @@ class VotePreviewsTest {
           fontScale = 1.5f,
       )
 
+  @Test
+  fun mixedTieAndDecidedTab() =
+      renderPreview("ClosedVoteCardPreviews", "TiedAndClosedResultsTabPreview")
+
   @Test fun detailedWinnerScreen() = renderPreview("VoteResultPreviews", "ClosedWinnerPreview")
 
   @Test
-  fun narrowDetailedComponent() =
+  fun narrowDetailedScreen() =
       renderPreview(
           "VoteResultPreviews",
-          "FinalResultComponentPreview",
+          "ClosedWinnerPreview",
           widthDp = 320,
           fontScale = 1.5f,
       )

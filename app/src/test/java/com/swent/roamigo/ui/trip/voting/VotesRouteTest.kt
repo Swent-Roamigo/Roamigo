@@ -53,7 +53,7 @@ class VotesRouteTest {
   fun routesLiveAndClosedVotesToTheirRespectiveActions() {
     show()
 
-    composeRule.onNodeWithTag(C.Tag.vote_action(live.uid)).performScrollTo().performClick()
+    composeRule.onNodeWithTag(C.Tag.voteAction(live.uid)).performScrollTo().performClick()
     composeRule.onNodeWithText(closed.question).performScrollTo().performClick()
 
     composeRule.runOnIdle {
@@ -68,8 +68,8 @@ class VotesRouteTest {
     show(readOnly = true)
 
     composeRule.onNodeWithText("New vote").assertDoesNotExist()
-    composeRule.onNodeWithTag(C.Tag.close_vote(live.uid)).assertDoesNotExist()
-    composeRule.onNodeWithTag(C.Tag.vote_action(live.uid)).performScrollTo().performClick()
+    composeRule.onNodeWithTag(C.Tag.closeVote(live.uid)).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.voteAction(live.uid)).performScrollTo().performClick()
 
     composeRule.runOnIdle {
       assertEquals(listOf(live.uid), openedVotes)
@@ -89,7 +89,7 @@ class VotesRouteTest {
     composeRule.onNodeWithText("Retry").performClick()
 
     composeRule.onNodeWithText(live.question).assertIsDisplayed()
-    composeRule.onNodeWithTag(C.Tag.vote_action(live.uid)).performScrollTo().performClick()
+    composeRule.onNodeWithTag(C.Tag.voteAction(live.uid)).performScrollTo().performClick()
     composeRule.runOnIdle {
       assertEquals(listOf(live.tripId, live.tripId), repository.observedTrips)
       assertEquals(listOf(live.uid), openedDialogs)

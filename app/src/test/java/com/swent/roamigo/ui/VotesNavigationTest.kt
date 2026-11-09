@@ -146,7 +146,7 @@ class VotesNavigationTest {
     openVotes(historical = true)
 
     composeRule.onNodeWithText("New vote").assertDoesNotExist()
-    composeRule.onNodeWithTag(C.Tag.vote_action(vote.uid)).performScrollTo().performClick()
+    composeRule.onNodeWithTag(C.Tag.voteAction(vote.uid)).performScrollTo().performClick()
 
     composeRule.runOnIdle {
       val entry = navController.currentBackStackEntry
@@ -178,12 +178,12 @@ class VotesNavigationTest {
 
   private fun assertCounts(a: Int, b: Int) {
     composeRule
-        .onNodeWithTag(C.Tag.vote_count(vote.uid, "a"), useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.voteCount(vote.uid, "a"), useUnmergedTree = true)
         .assertTextEquals(
             composeRule.activity.resources.getQuantityString(R.plurals.vote_count, a, a)
         )
     composeRule
-        .onNodeWithTag(C.Tag.vote_count(vote.uid, "b"), useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.voteCount(vote.uid, "b"), useUnmergedTree = true)
         .assertTextEquals(
             composeRule.activity.resources.getQuantityString(R.plurals.vote_count, b, b)
         )
@@ -392,8 +392,8 @@ class VotesNavigationTest {
     openVotes()
     composeRule.onNodeWithText("New vote").performClick()
     composeRule.onNodeWithTag(C.Tag.vote_question).performTextInput("Where tomorrow?")
-    composeRule.onNodeWithTag(C.Tag.vote_option(0)).performTextInput("Park")
-    composeRule.onNodeWithTag(C.Tag.vote_option(1)).performTextInput("Beach")
+    composeRule.onNodeWithTag(C.Tag.voteOption(0)).performTextInput("Park")
+    composeRule.onNodeWithTag(C.Tag.voteOption(1)).performTextInput("Beach")
     composeRule.onNodeWithText("Start vote").performClick()
     composeRule.onNodeWithText("Where tomorrow?").assertIsDisplayed()
     composeRule.onNodeWithText(vote.question).assertIsDisplayed()
@@ -458,15 +458,15 @@ class VotesNavigationTest {
     composeRule.onNodeWithText("Decided").assertIsDisplayed()
     composeRule.onNodeWithText("Decided · Market · your vote").assertIsDisplayed()
     composeRule
-        .onNodeWithTag(C.Tag.decided_check(vote.uid), useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.decidedCheck(vote.uid), useUnmergedTree = true)
         .assertIsDisplayed()
     composeRule
-        .onNodeWithTag(C.Tag.decided_vote_count(vote.uid), useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.decidedVoteCount(vote.uid), useUnmergedTree = true)
         .assertTextEquals("2 votes")
-    composeRule.onNodeWithTag(C.Tag.closed_vote(vote.uid)).assertDoesNotExist()
-    composeRule.onNodeWithTag(C.Tag.decided_vote(vote.uid)).performClick()
+    composeRule.onNodeWithTag(C.Tag.closedVote(vote.uid)).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.decidedVote(vote.uid)).performClick()
     composeRule.onNodeWithText("Final results").assertIsDisplayed()
-    composeRule.onNodeWithTag(C.Tag.vote_result("a")).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.voteResult("a")).assertIsDisplayed()
     composeRule
         .onNode(hasText("Market · your vote") and hasText("Winner") and hasText("2 votes"))
         .assertIsDisplayed()

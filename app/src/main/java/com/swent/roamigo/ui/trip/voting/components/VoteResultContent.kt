@@ -46,7 +46,7 @@ fun VoteResultContent(vote: Vote, result: VoteResult, modifier: Modifier = Modif
       val leading = option.uid in result.winningOptionIds
       Surface(
           modifier =
-              Modifier.fillMaxWidth().testTag(C.Tag.vote_result(option.uid)).semantics(
+              Modifier.fillMaxWidth().testTag(C.Tag.voteResult(option.uid)).semantics(
                   mergeDescendants = true
               ) {},
           shape = MaterialTheme.shapes.small,

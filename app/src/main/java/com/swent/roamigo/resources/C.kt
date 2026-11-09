@@ -9,30 +9,30 @@ object C {
     const val vote_question = "vote_question"
     const val vote_submit = "vote_submit"
 
-    fun vote_option(index: Int) = "vote_option_" + index
+    fun voteOption(index: Int) = "vote_option_" + index
 
-    fun vote_action(voteId: String) = "vote_action_" + voteId
+    fun voteAction(voteId: String) = "vote_action_" + voteId
 
-    fun close_vote(voteId: String) = "close_vote_" + voteId
+    fun closeVote(voteId: String) = "close_vote_" + voteId
 
     const val votes_decided_heading = "votes_decided_heading"
     const val votes_unresolved_heading = "votes_unresolved_heading"
 
-    fun closed_vote(voteId: String) = "closed_vote_${voteId}"
+    fun closedVote(voteId: String) = "closed_vote_${voteId}"
 
-    fun closed_option(voteId: String, optionId: String) = "closed_option_${voteId}_${optionId}"
+    fun closedOption(voteId: String, optionId: String) = "closed_option_${voteId}_${optionId}"
 
-    fun vote_tie(voteId: String) = "vote_tie_${voteId}"
+    fun voteTie(voteId: String) = "vote_tie_${voteId}"
 
-    fun decided_vote(voteId: String) = "decided_vote_${voteId}"
+    fun decidedVote(voteId: String) = "decided_vote_${voteId}"
 
-    fun decided_check(voteId: String) = "decided_check_${voteId}"
+    fun decidedCheck(voteId: String) = "decided_check_${voteId}"
 
-    fun decided_vote_count(voteId: String) = "decided_vote_count_${voteId}"
+    fun decidedVoteCount(voteId: String) = "decided_vote_count_${voteId}"
 
-    fun vote_count(voteId: String, optionId: String) = "vote_count_${voteId}_${optionId}"
+    fun voteCount(voteId: String, optionId: String) = "vote_count_${voteId}_${optionId}"
 
-    fun vote_result(optionId: String) = "vote_result_${optionId}"
+    fun voteResult(optionId: String) = "vote_result_${optionId}"
 
     const val greeting_robo = "second_screen_greeting"
 

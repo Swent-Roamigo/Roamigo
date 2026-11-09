@@ -96,7 +96,7 @@ private fun LiveVoteCard(
         VoteCountRow(
             option.name,
             summary?.counts?.get(option.uid) ?: 0,
-            C.Tag.vote_count(vote.uid, option.uid),
+            C.Tag.voteCount(vote.uid, option.uid),
         )
       }
       FlowRow(
@@ -105,7 +105,7 @@ private fun LiveVoteCard(
       ) {
         Button(
             onClick = onClick,
-            modifier = Modifier.heightIn(min = 48.dp).testTag(C.Tag.vote_action(vote.uid)),
+            modifier = Modifier.heightIn(min = 48.dp).testTag(C.Tag.voteAction(vote.uid)),
             shape = CircleShape,
             colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Ink),
         ) {
@@ -119,7 +119,7 @@ private fun LiveVoteCard(
         if (summary?.isCreator == true && onCloseVote != null) {
           OutlinedButton(
               onClick = onCloseVote,
-              modifier = Modifier.heightIn(min = 48.dp).testTag(C.Tag.close_vote(vote.uid)),
+              modifier = Modifier.heightIn(min = 48.dp).testTag(C.Tag.closeVote(vote.uid)),
               shape = CircleShape,
               border = BorderStroke(1.dp, MaterialTheme.colorScheme.onPrimary),
               colors =
@@ -162,7 +162,7 @@ private fun ClosedVoteRow(vote: Vote, result: VoteResult, onClick: () -> Unit, m
       else winner.name
   Surface(
       onClick = onClick,
-      modifier = modifier.fillMaxWidth().testTag(C.Tag.decided_vote(vote.uid)),
+      modifier = modifier.fillMaxWidth().testTag(C.Tag.decidedVote(vote.uid)),
       color = MaterialTheme.colorScheme.surface,
   ) {
     Row(
@@ -179,7 +179,7 @@ private fun ClosedVoteRow(vote: Vote, result: VoteResult, onClick: () -> Unit, m
           Image(
               painter = painterResource(R.drawable.vote_closed_check),
               contentDescription = null,
-              modifier = Modifier.size(20.dp).testTag(C.Tag.decided_check(vote.uid)),
+              modifier = Modifier.size(20.dp).testTag(C.Tag.decidedCheck(vote.uid)),
           )
         }
       }
@@ -194,7 +194,7 @@ private fun ClosedVoteRow(vote: Vote, result: VoteResult, onClick: () -> Unit, m
       val count = result.counts.getValue(winnerId)
       Text(
           pluralStringResource(R.plurals.vote_count, count, count),
-          modifier = Modifier.testTag(C.Tag.decided_vote_count(vote.uid)),
+          modifier = Modifier.testTag(C.Tag.decidedVoteCount(vote.uid)),
           style = MaterialTheme.typography.bodySmall,
           fontWeight = FontWeight.SemiBold,
       )

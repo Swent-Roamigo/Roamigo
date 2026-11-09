@@ -116,7 +116,7 @@ fun CreateVoteScreen(
             onValueChange = { onOptionChange(index, it) },
             label = stringResource(R.string.vote_option, index + 1),
             enabled = editable,
-            modifier = Modifier.testTag(C.Tag.vote_option(index)),
+            modifier = Modifier.testTag(C.Tag.voteOption(index)),
             trailingIcon = {
               IconButton(onClick = { onRemoveOption(index) }, enabled = editable) {
                 Icon(Icons.Default.Close, stringResource(R.string.vote_remove_option, index + 1))
