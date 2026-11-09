@@ -42,6 +42,15 @@ sealed interface LocationEffect {
   data object OpenSettings : LocationEffect
 }
 
+/** Why the last start or stop of the location sharing failed. */
+enum class LocationSharingError {
+  /** Sharing was asked for without a granted location permission. */
+  PermissionRequired,
+
+  /** The repository could not start or stop the sharing. */
+  RequestFailed,
+}
+
 /**
  * State rendered by the trip map for location sharing.
  *
@@ -54,8 +63,8 @@ sealed interface LocationEffect {
  * @property memberLocations locations of the other trip members currently sharing.
  * @property staleMemberIds identifiers of the members whose location is outdated.
  * @property isOffline whether member locations cannot be refreshed because the device is offline.
- * @property sharingErrorMessage message describing why the last start or stop of the sharing
- *   failed, or null if it succeeded.
+ * @property sharingError why the last start or stop of the sharing failed, or null if it succeeded
+ *   or is still running.
  * @property observationErrorMessage message describing why the member locations could not be read,
  *   or null once they were read again.
  */
@@ -68,27 +77,23 @@ data class LocationUiState(
     val memberLocations: List<MemberLocation> = emptyList(),
     val staleMemberIds: Set<String> = emptySet(),
     val isOffline: Boolean = false,
-    val sharingErrorMessage: String? = null,
+    val sharingError: LocationSharingError? = null,
     val observationErrorMessage: String? = null,
 ) {
   /**
-   * Message describing the error to show, or null if none. A sharing error comes first, since it
-   * answers an action the user just made.
-   */
-  val errorMessage: String?
-    get() = sharingErrorMessage ?: observationErrorMessage
-
-  /**
-   * Localized message for [errorMessage], or null if there is no error. The messages themselves are
-   * not localized and may come from the repository, so only their source picks the text shown.
+   * Localized message of the error to show, or null if there is none. A [sharingError] comes first,
+   * since it answers an action the user just made. Only the kind of error picks the text:
+   * [observationErrorMessage] is not localized and may come from the repository, so it is never
+   * shown.
    */
   @get:StringRes
   val errorMessageRes: Int?
     get() =
         when {
-          sharingErrorMessage == LocationViewModel.PERMISSION_REQUIRED_MESSAGE ->
+          sharingError == LocationSharingError.PermissionRequired ->
               R.string.trip_map_error_permission_required
-          sharingErrorMessage != null -> R.string.trip_map_error_sharing_failed
+          sharingError == LocationSharingError.RequestFailed ->
+              R.string.trip_map_error_sharing_failed
           observationErrorMessage != null -> R.string.trip_map_error_locations_unavailable
           else -> null
         }
