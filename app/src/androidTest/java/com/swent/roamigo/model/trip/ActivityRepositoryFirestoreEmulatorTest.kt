@@ -57,12 +57,13 @@ class ActivityRepositoryFirestoreEmulatorTest {
   private lateinit var bob: User
 
   @Before
-  fun setUp() = runBlocking {
-    alice = signInUser()
-    bob = signInUser()
-    // Alice owns the trip. Bob is not a member until a test adds him.
-    alice.tripRepository.createTrip(tripId, tripDraft())
-  }
+  fun setUp() =
+      runBlocking<Unit> {
+        alice = signInUser()
+        bob = signInUser()
+        // Alice owns the trip. Bob is not a member until a test adds him.
+        alice.tripRepository.createTrip(tripId, tripDraft())
+      }
 
   @After
   fun tearDown() {
@@ -199,16 +200,17 @@ class ActivityRepositoryFirestoreEmulatorTest {
   }
 
   @Test
-  fun rulesAcceptEqualStartAndEndAndNullOptionalFields() = runBlocking {
-    val start = Timestamp(1_900_000_000, 0)
+  fun rulesAcceptEqualStartAndEndAndNullOptionalFields() =
+      runBlocking<Unit> {
+        val start = Timestamp(1_900_000_000, 0)
 
-    activityDocument(alice, "same-time")
-        .set(activityData(alice) + ("startTime" to start) + ("endTime" to start))
-        .await()
-    activityDocument(alice, "no-end")
-        .set(activityData(alice) + ("endTime" to null) + ("description" to null))
-        .await()
-  }
+        activityDocument(alice, "same-time")
+            .set(activityData(alice) + ("startTime" to start) + ("endTime" to start))
+            .await()
+        activityDocument(alice, "no-end")
+            .set(activityData(alice) + ("endTime" to null) + ("description" to null))
+            .await()
+      }
 
   @Test
   fun activitiesCannotBeUpdatedOrDeleted() = runBlocking {
