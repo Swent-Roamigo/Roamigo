@@ -7,6 +7,7 @@ import java.time.Instant
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -115,5 +116,26 @@ class FakeActivityRepositoryTest {
     assertThrows(IOException::class.java) {
       runBlocking { repository.observeActivities("trip-1").first() }
     }
+  }
+
+  @Test
+  fun configuredCreationExceptionIsReportedAsIs() {
+    val failure = ActivityCreationException.Network()
+    val repository = FakeActivityRepository(failure = failure)
+
+    val error =
+        assertThrows(ActivityCreationException.Network::class.java) {
+          runBlocking { repository.createActivity("trip-1", "a", draft) }
+        }
+    assertSame(failure, error)
+  }
+
+  @Test
+  fun observersOfAnotherTripDoNotSeeInitialActivitiesOfThisOne() = runBlocking {
+    val existing = runBlocking { FakeActivityRepository().createActivity("trip-1", "a", draft) }
+    val repository = FakeActivityRepository(listOf(existing))
+
+    assertEquals(listOf(existing), repository.observeActivities("trip-1").first())
+    assertTrue(repository.observeActivities("trip-2").first().isEmpty())
   }
 }
