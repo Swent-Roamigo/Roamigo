@@ -225,6 +225,20 @@ class RoamigoAppTest {
   }
 
   @Test
+  fun leavingTheNewTripFormWithoutADestinationClosesWithoutAsking() {
+    waitForTrips()
+    composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
+    composeRule.onNodeWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertIsNotEnabled()
+
+    composeRule.onNodeWithTag(CreateTripScaffoldTestTags.CLOSE).performClick()
+
+    // Nothing was chosen, so there is no draft to lose and no dialog.
+    composeRule.onAllNodesWithTag(C.Tag.create_trip_discard_confirm).assertCountEquals(0)
+    waitForTrips()
+    composeRule.onAllNodesWithTag(CreateTripScaffoldTestTags.PRIMARY_ACTION).assertCountEquals(0)
+  }
+
+  @Test
   fun datesBackPreservesDestinationsAndOptionsAndCloseDiscardsDraft() {
     waitForTrips()
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
