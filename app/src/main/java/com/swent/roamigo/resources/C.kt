@@ -72,6 +72,10 @@ object C {
     const val trip_map_location_blocked_not_now = "trip_map_location_blocked_not_now"
     // Followed by the member's user ID, which is case-sensitive and so kept as is.
     const val trip_map_member_marker_prefix = "trip_map_member_marker_"
+    const val trip_map_member_label_prefix = "trip_map_member_label_"
+    const val trip_map_member_photo_prefix = "trip_map_member_photo_"
+    const val trip_map_member_initial_prefix = "trip_map_member_initial_"
+    const val trip_map_member_default_avatar_prefix = "trip_map_member_default_avatar_"
     const val trip_map_my_location = "trip_map_my_location"
     const val trip_map_loading = "trip_map_loading"
     const val trip_map_error = "trip_map_error"
