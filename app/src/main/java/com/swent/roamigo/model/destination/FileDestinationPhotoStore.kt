@@ -25,7 +25,8 @@ class FileDestinationPhotoStore(
         val file = fileFor(destinationId)
         if (!file.isFile) return@withContext null
         try {
-          parse(JSONObject(file.readText()))
+          // A file that parses but is not trusted (a link that is not https) is removed as well.
+          parse(JSONObject(file.readText())).also { if (it == null) discard(file) }
         } catch (_: Exception) {
           // A damaged or foreign file is dropped so that it is replaced by the next lookup.
           discard(file)
@@ -34,10 +35,6 @@ class FileDestinationPhotoStore(
       }
 
   override suspend fun write(destinationId: String, photo: CachedDestinationPhoto) {
-    writeAtomically(destinationId, encode(photo))
-  }
-
-  private suspend fun writeAtomically(name: String, content: String) {
     withContext(ioDispatcher) {
       try {
         directory.mkdirs()

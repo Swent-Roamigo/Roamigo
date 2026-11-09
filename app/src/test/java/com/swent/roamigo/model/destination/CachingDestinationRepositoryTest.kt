@@ -138,6 +138,8 @@ class CachingDestinationRepositoryTest {
         """{"savedAt":1,"imageUrl":"file:///etc/passwd","sourceUrl":"https://x.org","license":"CC0"}"""
     )
     assertNull(files.read("geonames:1"))
+    // The unsafe file is removed too, not only skipped.
+    assertTrue(!saved.exists())
   }
 
   @Test
