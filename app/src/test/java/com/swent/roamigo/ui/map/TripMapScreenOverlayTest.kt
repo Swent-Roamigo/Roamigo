@@ -3,11 +3,10 @@ package com.swent.roamigo.ui.map
 
 import android.content.Context
 import androidx.annotation.StringRes
-import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -16,13 +15,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
-import com.google.firebase.Timestamp
 import com.swent.roamigo.R
-import com.swent.roamigo.model.TripLocation
-import com.swent.roamigo.model.location.MemberLocation
-import com.swent.roamigo.model.trip.TravelMode
-import com.swent.roamigo.model.trip.Trip
-import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import org.junit.Assert.assertEquals
@@ -36,123 +29,27 @@ import org.robolectric.annotation.Config
  * JVM tests for the parts of [TripMapScreen] drawn around the map: status overlays, banners,
  * sharing controls and the location error snackbar.
  *
- * Mapbox cannot render under Robolectric, so the screen draws a stand-in map provided through
- * [LocalTripMapStandIn], which records what the screen gives it. The Mapbox map itself is covered
- * by the instrumented tests.
+ * Mapbox cannot render under Robolectric, so the screen is shown in inspection mode, where Mapbox
+ * draws a static placeholder as in Android Studio previews. The Mapbox map itself is covered by the
+ * instrumented tests.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-class TripMapScreenStandInTest {
+class TripMapScreenOverlayTest {
   @get:Rule val composeRule = createComposeRule()
 
   private val context = ApplicationProvider.getApplicationContext<Context>()
-
-  private val trip =
-      Trip(
-          uid = TRIP_ID,
-          name = "Lisbon",
-          description = null,
-          destinations =
-              listOf(TripLocation(latitude = 38.7223, longitude = -9.1393, name = "Lisbon")),
-          startDate = Timestamp(0, 0),
-          endDate = Timestamp(0, 0),
-          flexibleDates = false,
-          travelMode = TravelMode.SOLO,
-          travelerCount = 1,
-          ownerId = USER_ID,
-          memberIds = listOf(USER_ID),
-          status = TripStatus.PLANNED,
-          createdAt = Timestamp(0, 0),
-      )
 
   private val uiState = mutableStateOf<TripMapUiState>(TripMapUiState.Loading)
   private val isSharing = mutableStateOf(false)
   private val locationErrorMessage = mutableStateOf<Int?>(null)
 
-  /** What the screen last gave the stand-in map. */
-  private var mapInputs: MapInputs? = null
-
-  private val standInMap: @Composable (TripMapStandInContent, Modifier) -> Unit =
-      { content, modifier ->
-        mapInputs =
-            MapInputs(
-                content.activityMarkers,
-                content.memberLocations,
-                content.members,
-                content.myLocation,
-            )
-        Box(modifier)
-      }
-
   @Test
-  fun providedStandInIsDrawnAsTheMap() {
-    setContent(TripMapUiState.Loading)
-
-    composeRule.onNodeWithTag(C.Tag.trip_map_map).assertIsDisplayed()
-    composeRule.runOnIdle {
-      assertEquals(MapInputs(emptyList(), emptyList(), emptyMap(), null), mapInputs)
-    }
-  }
-
-  @Test
-  fun activityMarkersReachTheMapOnceTheTripLoads() {
-    val marker =
-        TripMarkerUiState(
-            id = "lisbon_activity",
-            tripId = TRIP_ID,
-            title = "Lisbon walking tour",
-            locationName = "Lisbon",
-            latitude = 38.7223,
-            longitude = -9.1393,
-            kind = TripMarkerKind.ACTIVITY,
-        )
-    setContent(TripMapUiState.Loading)
-
-    composeRule.runOnIdle {
-      uiState.value =
-          TripMapUiState.Loaded(
-              trip = trip,
-              viewport = TripMapViewport.Centered(38.7223, -9.1393),
-              members = emptyMap(),
-              activityMarkers = listOf(marker),
-          )
-    }
-
-    composeRule.onNodeWithTag(C.Tag.trip_map_loading).assertDoesNotExist()
-    composeRule.runOnIdle { assertEquals(listOf(marker), mapInputs?.activityMarkers) }
-  }
-
-  @Test
-  fun memberLocationsReachTheMapWhileTheTripLoadsOrFails() {
-    val memberLocations = listOf(MemberLocation("alex", 38.72, -9.14, NOW_MILLIS))
-    val myLocation = MemberLocation(USER_ID, 38.73, -9.15, NOW_MILLIS)
-    setContent(TripMapUiState.Loading, memberLocations = memberLocations, myLocation = myLocation)
-
-    // No member profile is known before the trip loads, so the markers use fallback names.
-    composeRule.runOnIdle {
-      assertEquals(MapInputs(emptyList(), memberLocations, emptyMap(), myLocation), mapInputs)
-      uiState.value = TripMapUiState.Error("failure")
-    }
-    composeRule.onNodeWithTag(C.Tag.trip_map_error).assertIsDisplayed()
-    composeRule.runOnIdle {
-      assertEquals(MapInputs(emptyList(), memberLocations, emptyMap(), myLocation), mapInputs)
-    }
-  }
-
-  @Test
-  fun readOnlyOfflineMapShowsTheOfflineBannerWithoutSharingControls() {
+  fun readOnlyMapShowsTheLoadingOverlayAndOfflineBannerWithoutSharingControls() {
     setContent(TripMapUiState.Loading, readOnly = true, isOffline = true)
 
-    composeRule.onNodeWithTag(C.Tag.trip_map_offline).assertIsDisplayed()
-    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_banner).assertDoesNotExist()
-    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertDoesNotExist()
-  }
-
-  @Test
-  fun readOnlyLoadingMapShowsTheLoadingOverlayWithoutSharingControls() {
-    setContent(TripMapUiState.Loading, readOnly = true)
-
     composeRule.onNodeWithTag(C.Tag.trip_map_loading).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_offline).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.trip_map_map).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.trip_map_sharing_banner).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertDoesNotExist()
@@ -201,25 +98,17 @@ class TripMapScreenStandInTest {
   fun clearedLocationErrorIsShownAgainWhenItComesBack() {
     setContent(TripMapUiState.Loading)
     showError(R.string.trip_map_error_sharing_failed)
-    assertSnackbarShows(R.string.trip_map_error_sharing_failed)
-
-    showError(null)
-    assertNoSnackbarText(R.string.trip_map_error_sharing_failed)
-
-    showError(R.string.trip_map_error_sharing_failed)
-    assertSnackbarShows(R.string.trip_map_error_sharing_failed)
-  }
-
-  @Test
-  fun locationErrorClearedAfterItsDismissalIsShownAgainWhenItComesBack() {
-    setContent(TripMapUiState.Loading)
-    showError(R.string.trip_map_error_sharing_failed)
     dismissSnackbar()
 
+    // Cleared after its dismissal, so no snackbar is left to dismiss.
+    showError(null)
+    showError(R.string.trip_map_error_sharing_failed)
+    assertSnackbarShows(R.string.trip_map_error_sharing_failed)
+
+    // Cleared while shown, so its snackbar is dismissed.
     showError(null)
     assertNoSnackbarText(R.string.trip_map_error_sharing_failed)
     showError(R.string.trip_map_error_sharing_failed)
-
     assertSnackbarShows(R.string.trip_map_error_sharing_failed)
   }
 
@@ -240,32 +129,20 @@ class TripMapScreenStandInTest {
       initialState: TripMapUiState,
       readOnly: Boolean = false,
       isOffline: Boolean = false,
-      memberLocations: List<MemberLocation> = emptyList(),
-      myLocation: MemberLocation? = null,
       onRetry: () -> Unit = {},
   ) {
     uiState.value = initialState
-    composeRule.setContent {
-      Screen(
-          readOnly = readOnly,
-          isOffline = isOffline,
-          memberLocations = memberLocations,
-          myLocation = myLocation,
-          onRetry = onRetry,
-      )
-    }
+    composeRule.setContent { Screen(readOnly = readOnly, isOffline = isOffline, onRetry = onRetry) }
   }
 
   @Composable
   private fun Screen(
       readOnly: Boolean = false,
       isOffline: Boolean = false,
-      memberLocations: List<MemberLocation> = emptyList(),
-      myLocation: MemberLocation? = null,
       onRetry: () -> Unit = {},
   ) {
     RoamigoTheme {
-      CompositionLocalProvider(LocalTripMapStandIn provides standInMap) {
+      CompositionLocalProvider(LocalInspectionMode provides true) {
         TripMapScreen(
             uiState = uiState.value,
             isSharing = isSharing.value,
@@ -274,11 +151,8 @@ class TripMapScreenStandInTest {
             onTurnOnSharing = {},
             onPauseSharing = {},
             readOnly = readOnly,
-            memberLocations = memberLocations,
-            myLocation = myLocation,
             locationErrorMessage = locationErrorMessage.value,
             isOffline = isOffline,
-            nowMillis = NOW_MILLIS,
         )
       }
     }
@@ -301,18 +175,7 @@ class TripMapScreenStandInTest {
     composeRule.onNodeWithText(context.getString(message)).assertDoesNotExist()
   }
 
-  private data class MapInputs(
-      val activityMarkers: List<TripMarkerUiState>,
-      val memberLocations: List<MemberLocation>,
-      val members: Map<String, MemberDisplayInfo>,
-      val myLocation: MemberLocation?,
-  )
-
   private companion object {
-    const val TRIP_ID = "trip_lisbon"
-    const val USER_ID = "user_1"
-    const val NOW_MILLIS = 1_700_000_000_000L
-
     // Label of the snackbar's dismiss action, from Material 3.
     const val DISMISS_DESCRIPTION = "Dismiss"
   }
