@@ -75,4 +75,11 @@ data class LocationUiState(
    */
   val errorMessage: String?
     get() = sharingErrorMessage ?: observationErrorMessage
+
+  /**
+   * Own position to show on the map, or null if none. Only shown while the user shares with the
+   * permission granted: [myLocation] keeps its last value after sharing stops.
+   */
+  val shownMyLocation: MemberLocation?
+    get() = myLocation.takeIf { isSharing && permissionState == LocationPermissionState.Granted }
 }
