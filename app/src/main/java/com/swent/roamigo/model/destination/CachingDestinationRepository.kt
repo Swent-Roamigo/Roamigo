@@ -9,6 +9,8 @@ import java.util.concurrent.TimeUnit
  *
  * - City searches are kept in memory for a few minutes, so typing the same query twice, or Trips
  *   home searching a city the form has just searched, costs nothing.
+ * - Successful searches are also kept in [photoStore] for a week, so Trips home can find its city
+ *   (and then its stored photo) right after startup.
  * - Photos that were found are kept in [photoStore] for weeks, so they survive a restart.
  * - A city without a photo is remembered in memory only, and only briefly: [findPhoto] returns null
  *   both when no photo exists and when the lookup failed (for instance offline), and a failure must
@@ -39,7 +41,15 @@ class CachingDestinationRepository(
             return it.second
           }
     }
+    photoStore
+        .readSearch(key)
+        ?.takeIf { now - it.savedAtMillis < STORED_SEARCH_TTL_MILLIS }
+        ?.let { stored ->
+          synchronized(searches) { searches[key] = stored.savedAtMillis to stored.destinations }
+          return stored.destinations
+        }
     val results = delegate.searchDestinations(query)
+    if (results.isNotEmpty()) photoStore.writeSearch(key, CachedSearch(results, clock()))
     synchronized(searches) {
       searches[key] = clock() to results
       if (searches.size > MAX_CACHED_SEARCHES) searches.remove(searches.keys.first())
@@ -75,6 +85,8 @@ class CachingDestinationRepository(
 
   private companion object {
     val SEARCH_TTL_MILLIS = TimeUnit.MINUTES.toMillis(10)
+    // Long enough for Trips home to find its city at startup without the network.
+    val STORED_SEARCH_TTL_MILLIS = TimeUnit.DAYS.toMillis(7)
     val PHOTO_TTL_MILLIS = TimeUnit.DAYS.toMillis(30)
     val MISS_TTL_MILLIS = TimeUnit.MINUTES.toMillis(15)
     const val MAX_CACHED_SEARCHES = 50
@@ -84,6 +96,9 @@ class CachingDestinationRepository(
 /** A photo found for a destination and when it was saved, to know when to look it up again. */
 data class CachedDestinationPhoto(val photo: DestinationPhoto, val savedAtMillis: Long)
 
+/** A city search result and when it was saved. */
+data class CachedSearch(val destinations: List<Destination>, val savedAtMillis: Long)
+
 /** Keeps found photos between runs of the app. Reads and writes must be safe on any thread. */
 interface DestinationPhotoStore {
   /** The photo saved for [destinationId], or null when there is none or it cannot be read. */
@@ -91,4 +106,12 @@ interface DestinationPhotoStore {
 
   /** Saves [photo] for [destinationId]. Failing to save is not an error: it is only a cache. */
   suspend fun write(destinationId: String, photo: CachedDestinationPhoto)
+
+  /**
+   * The search saved for the normalized [query], or null when there is none or it is unreadable.
+   */
+  suspend fun readSearch(query: String): CachedSearch?
+
+  /** Saves [search] for the normalized [query]. Failing to save is not an error. */
+  suspend fun writeSearch(query: String, search: CachedSearch)
 }

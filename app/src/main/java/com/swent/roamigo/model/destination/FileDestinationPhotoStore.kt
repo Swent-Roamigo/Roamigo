@@ -6,6 +6,7 @@ import java.io.IOException
 import java.nio.file.Files
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -27,17 +28,76 @@ class FileDestinationPhotoStore(private val directory: File) : DestinationPhotoS
       }
 
   override suspend fun write(destinationId: String, photo: CachedDestinationPhoto) {
+    writeAtomically(destinationId, encode(photo))
+  }
+
+  private suspend fun writeAtomically(name: String, content: String) {
     withContext(Dispatchers.IO) {
       try {
         directory.mkdirs()
         // Written aside and renamed, so a reader never sees half a file.
-        val temporary = File(directory, "${fileNameOf(destinationId)}.tmp")
-        temporary.writeText(encode(photo))
-        if (!temporary.renameTo(fileFor(destinationId))) discard(temporary)
+        val temporary = File(directory, "${fileNameOf(name)}.tmp")
+        temporary.writeText(content)
+        if (!temporary.renameTo(fileFor(name))) discard(temporary)
       } catch (_: Exception) {
-        // Only a cache: the photo is shown anyway.
+        // Only a cache: the result is used anyway.
       }
     }
+  }
+
+  override suspend fun readSearch(query: String): CachedSearch? =
+      withContext(Dispatchers.IO) {
+        val file = fileFor("search_$query")
+        if (!file.isFile) return@withContext null
+        try {
+          parseSearch(JSONObject(file.readText()))
+        } catch (_: Exception) {
+          discard(file)
+          null
+        }
+      }
+
+  override suspend fun writeSearch(query: String, search: CachedSearch) {
+    writeAtomically("search_$query", encodeSearch(search))
+  }
+
+  private fun encodeSearch(search: CachedSearch): String =
+      JSONObject()
+          .put("savedAt", search.savedAtMillis)
+          .put(
+              "destinations",
+              JSONArray(
+                  search.destinations.map {
+                    JSONObject()
+                        .put("name", it.name)
+                        .put("countryName", it.countryName)
+                        .put("countryCode", it.countryCode)
+                        .put("lat", it.latitude)
+                        .put("lng", it.longitude)
+                        .put("geonameId", it.geonameId)
+                  }
+              ),
+          )
+          .toString()
+
+  private fun parseSearch(json: JSONObject): CachedSearch? {
+    val items = json.getJSONArray("destinations")
+    val destinations =
+        (0 until items.length()).map { index ->
+          val item = items.getJSONObject(index)
+          val id = item.getInt("geonameId")
+          Destination(
+              stableId = "geonames:$id",
+              kind = DestinationKind.CITY,
+              name = item.getString("name"),
+              countryName = item.getString("countryName"),
+              countryCode = item.getString("countryCode"),
+              latitude = item.getDouble("lat"),
+              longitude = item.getDouble("lng"),
+              geonameId = id,
+          )
+        }
+    return CachedSearch(destinations, json.getLong("savedAt"))
   }
 
   /** Removes [file] if it is there. It only frees space, so a failure to remove it is ignored. */

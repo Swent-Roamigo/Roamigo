@@ -210,6 +210,47 @@ class CachingDestinationRepositoryTest {
     assertNull(FileDestinationPhotoStore(blocked).read("geonames:1"))
   }
 
+  @Test
+  fun aSearchIsAnsweredFromTheStoreAfterARestart() = runTest {
+    delegate.results = listOf(lisbon)
+    repository().searchDestinations("lisbon")
+
+    now += TimeUnit.HOURS.toMillis(5)
+    val afterRestart = repository().searchDestinations("lisbon")
+
+    assertEquals(listOf(lisbon), afterRestart)
+    assertEquals(1, delegate.searches)
+  }
+
+  @Test
+  fun aStoredSearchOlderThanAWeekIsRepeated() = runTest {
+    delegate.results = listOf(lisbon)
+    repository().searchDestinations("lisbon")
+
+    now += TimeUnit.DAYS.toMillis(8)
+    repository().searchDestinations("lisbon")
+
+    assertEquals(2, delegate.searches)
+  }
+
+  @Test
+  fun anEmptySearchIsNotStored() = runTest {
+    repository().searchDestinations("nowhere")
+    repository().searchDestinations("nowhere")
+
+    assertEquals(2, delegate.searches)
+  }
+
+  @Test
+  fun theFileStoreKeepsASearchBetweenRuns() = runTest {
+    val directory = folder.newFolder("searches")
+    FileDestinationPhotoStore(directory).writeSearch("lisbon", CachedSearch(listOf(lisbon), 42L))
+
+    val read = FileDestinationPhotoStore(directory).readSearch("lisbon")
+
+    assertEquals(CachedSearch(listOf(lisbon), 42L), read)
+  }
+
   private class CountingRepository : DestinationRepository {
     var results: List<Destination> = emptyList()
     var searchError: Exception? = null
@@ -238,6 +279,14 @@ class CachingDestinationRepositoryTest {
     override suspend fun write(destinationId: String, photo: CachedDestinationPhoto) {
       writes++
       saved[destinationId] = photo
+    }
+
+    private val searches = HashMap<String, CachedSearch>()
+
+    override suspend fun readSearch(query: String) = searches[query]
+
+    override suspend fun writeSearch(query: String, search: CachedSearch) {
+      searches[query] = search
     }
   }
 }
