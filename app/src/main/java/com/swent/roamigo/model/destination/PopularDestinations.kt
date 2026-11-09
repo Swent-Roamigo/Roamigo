@@ -9,7 +9,7 @@ package com.swent.roamigo.model.destination
 object PopularDestinations {
   val all: List<Destination> =
       listOf(
-          city(5128581, "New York", "United States", "US", 40.71427, -74.00597),
+          city(5128581, "New York", UNITED_STATES, "US", 40.71427, -74.00597),
           city(2643743, "London", "United Kingdom", "GB", 51.50853, -0.12574),
           city(2988507, "Paris", "France", "FR", 48.85341, 2.3488),
           city(1850147, "Tokyo", "Japan", "JP", 35.6895, 139.69171),
@@ -26,10 +26,10 @@ object PopularDestinations {
           city(3117735, "Madrid", "Spain", "ES", 40.4165, -3.70256),
           city(2950159, "Berlin", "Germany", "DE", 52.52437, 13.41053),
           city(2147714, "Sydney", "Australia", "AU", -33.86785, 151.20732),
-          city(5368361, "Los Angeles", "United States", "US", 34.05223, -118.24368),
-          city(5391959, "San Francisco", "United States", "US", 37.77493, -122.41942),
-          city(5506956, "Las Vegas", "United States", "US", 36.17497, -115.13722),
-          city(4164138, "Miami", "United States", "US", 25.77427, -80.19366),
+          city(5368361, "Los Angeles", UNITED_STATES, "US", 34.05223, -118.24368),
+          city(5391959, "San Francisco", UNITED_STATES, "US", 37.77493, -122.41942),
+          city(5506956, "Las Vegas", UNITED_STATES, "US", 36.17497, -115.13722),
+          city(4164138, "Miami", UNITED_STATES, "US", 25.77427, -80.19366),
           city(1819729, "Hong Kong", "Hong Kong", "HK", 22.27832, 114.17469),
           city(1835848, "Seoul", "South Korea", "KR", 37.566, 126.9784),
           city(1857910, "Kyoto", "Japan", "JP", 35.02107, 135.75385),
@@ -60,6 +60,8 @@ object PopularDestinations {
           city(3553478, "Havana", "Cuba", "CU", 23.13302, -82.38304),
           city(281184, "Jerusalem", "Israel", "IL", 31.76904, 35.21633),
       )
+
+  private const val UNITED_STATES = "United States"
 
   private fun city(
       geonameId: Int,
