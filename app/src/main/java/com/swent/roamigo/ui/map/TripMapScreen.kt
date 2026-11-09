@@ -6,12 +6,14 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,19 +24,29 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -63,6 +75,7 @@ import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.MyLocationBlue
 import com.swent.roamigo.ui.theme.Spacing
+import com.swent.roamigo.ui.theme.Warning
 
 /**
  * Connects the trip and location ViewModels to [TripMapScreen] using caller-provided factories.
@@ -136,6 +149,8 @@ fun TripMapRoute(
       memberLocations = locationUiState.memberLocations,
       staleMemberIds = locationUiState.staleMemberIds,
       myLocation = locationUiState.shownMyLocation,
+      locationErrorMessage = locationUiState.errorMessageRes,
+      isOffline = locationUiState.isOffline,
       onRetry = tripMapViewModel::retryTrip,
       onRetryActivities = tripMapViewModel::retryActivities,
       onTurnOnSharing = { locationViewModel.onTurnOnSharingClick(permissionChecker.isGranted()) },
@@ -167,6 +182,9 @@ private val MyLocationDotBorderWidth = 3.dp
  * @param staleMemberIds identifiers of the members whose location is outdated.
  * @param myLocation the user's own position, shown as a blue dot, or null to hide it. The caller
  *   passes it only while the user shares their location.
+ * @param locationErrorMessage message telling why the last location request failed, shown once in a
+ *   snackbar, or null if none. The snackbar is dismissed when it becomes null.
+ * @param isOffline whether member locations cannot be refreshed because the device is offline.
  * @param nowMillis current time, in milliseconds since the epoch, used to tell how old each member
  *   location is. Refreshed every second by default while member locations are shown.
  * @param onRetry called when the user asks to load the trip again after an error.
@@ -188,12 +206,30 @@ fun TripMapScreen(
     memberLocations: List<MemberLocation> = emptyList(),
     staleMemberIds: Set<String> = emptySet(),
     myLocation: MemberLocation? = null,
+    @StringRes locationErrorMessage: Int? = null,
+    isOffline: Boolean = false,
     nowMillis: Long = rememberCurrentTimeMillis(isTicking = memberLocations.isNotEmpty()),
 ) {
   // Until the trip is loaded the camera keeps its position, so the map stays usable underneath.
   val viewport = (uiState as? TripMapUiState.Loaded)?.viewport ?: TripMapViewport.None
   val onMarkerClick = rememberNotImplementedAction()
   val members = (uiState as? TripMapUiState.Loaded)?.members.orEmpty()
+  val snackbarHostState = remember { SnackbarHostState() }
+  val resources = LocalResources.current
+  // Saved so that an error already shown is not shown again after a configuration change.
+  var shownErrorMessage by rememberSaveable { mutableStateOf<Int?>(null) }
+  LaunchedEffect(locationErrorMessage) {
+    if (locationErrorMessage == null) {
+      shownErrorMessage = null
+      snackbarHostState.currentSnackbarData?.dismiss()
+    } else if (locationErrorMessage != shownErrorMessage) {
+      shownErrorMessage = locationErrorMessage
+      snackbarHostState.showSnackbar(
+          message = resources.getString(locationErrorMessage),
+          withDismissAction = true,
+      )
+    }
+  }
 
   Box(modifier = modifier.fillMaxSize()) {
     MapboxMap(
@@ -266,6 +302,19 @@ fun TripMapScreen(
                     .padding(horizontal = Spacing.large, vertical = Spacing.cardPadding),
         )
       }
+      if (isOffline) {
+        OfflineBanner(
+            modifier =
+                Modifier.windowInsetsPadding(
+                        WindowInsets.safeDrawing.only(
+                            // Below the sharing banner, which already keeps clear of the top.
+                            if (readOnly) WindowInsetsSides.Top + WindowInsetsSides.Horizontal
+                            else WindowInsetsSides.Horizontal
+                        )
+                    )
+                    .padding(horizontal = Spacing.large)
+        )
+      }
       Box(
           modifier =
               Modifier.weight(1f)
@@ -274,25 +323,35 @@ fun TripMapScreen(
           contentAlignment = Alignment.Center,
       ) {
         TripStatusOverlay(uiState = uiState, onRetry = onRetry)
-        if (
-            uiState is TripMapUiState.Loaded &&
-                uiState.activitiesLoadState == ActivitiesLoadState.ERROR
+        // Stacked so that the snackbar never covers the retry button.
+        Column(
+            modifier =
+                Modifier.align(Alignment.BottomCenter)
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-          Button(
-              onClick = onRetryActivities,
-              shape = MaterialTheme.shapes.medium,
-              colors =
-                  ButtonDefaults.buttonColors(
-                      containerColor = MaterialTheme.colorScheme.primary,
-                      contentColor = MaterialTheme.colorScheme.onPrimary,
-                  ),
-              modifier =
-                  Modifier.align(Alignment.BottomCenter)
-                      .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
-                      .padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium)
-                      .testTag(C.Tag.trip_map_retry_activities),
+          SnackbarHost(
+              hostState = snackbarHostState,
+              modifier = Modifier.testTag(C.Tag.trip_map_location_error),
+          )
+          if (
+              uiState is TripMapUiState.Loaded &&
+                  uiState.activitiesLoadState == ActivitiesLoadState.ERROR
           ) {
-            Text(stringResource(R.string.trip_map_retry_activities))
+            Button(
+                onClick = onRetryActivities,
+                shape = MaterialTheme.shapes.medium,
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
+                modifier =
+                    Modifier.padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium)
+                        .testTag(C.Tag.trip_map_retry_activities),
+            ) {
+              Text(stringResource(R.string.trip_map_retry_activities))
+            }
           }
         }
       }
@@ -303,6 +362,33 @@ fun TripMapScreen(
             onPauseSharing = onPauseSharing,
         )
       }
+    }
+  }
+}
+
+/** Tells the user that member locations cannot be refreshed while the device is offline. */
+@Composable
+private fun OfflineBanner(modifier: Modifier = Modifier) {
+  Surface(
+      modifier =
+          modifier.fillMaxWidth().testTag(C.Tag.trip_map_offline).semantics {
+            liveRegion = LiveRegionMode.Polite
+          },
+      shape = MaterialTheme.shapes.medium,
+      color = MaterialTheme.colorScheme.surface,
+      shadowElevation = Spacing.extraSmall,
+  ) {
+    Row(
+        modifier = Modifier.padding(horizontal = Spacing.medium, vertical = Spacing.small),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.small),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Icon(imageVector = Icons.Outlined.CloudOff, contentDescription = null, tint = Warning)
+      Text(
+          text = stringResource(R.string.trip_map_offline),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurface,
+      )
     }
   }
 }

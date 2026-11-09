@@ -163,6 +163,9 @@
     <string name="trip_map_member_marker_label">%1$s · %2$s</string>
     <string name="trip_map_member_location_stale">Location outdated</string>
     <string name="trip_map_my_location">Your location</string>
+    <string name="trip_map_error_permission_required">Allow location access to share your location.</string>
+    <string name="trip_map_error_sharing_failed">Unable to update location sharing. Please try again.</string>
+    <string name="trip_map_error_locations_unavailable">Unable to load trip members\' locations.</string>
     <string name="trip_map_location_rationale_title">Share your location with the group?</string>
     <string name="trip_map_location_rationale_description">Roamigo uses your location only while sharing is on. Only trip members can see it, and you can pause any time.</string>
     <string name="trip_map_location_rationale_continue">Continue</string>
