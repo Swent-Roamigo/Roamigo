@@ -21,6 +21,7 @@ import com.swent.roamigo.model.destination.DestinationPhoto
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.destination.FakeDestinationRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
+import com.swent.roamigo.ui.components.PHOTO_SHIMMER_TAG
 import com.swent.roamigo.ui.components.PhotoCreditsDialogTestTags
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
@@ -56,6 +57,18 @@ class DestinationScreenTest {
         .onNodeWithTag(DestinationCardTestTags.forDestination(paris.stableId))
         .assertIsDisplayed()
     composeRule.onNodeWithTag(DestinationScreenTestTags.LOADING).assertDoesNotExist()
+  }
+
+  @Test
+  fun cardsShimmerWhileTheirPhotoIsStillBeingFound() {
+    val paris = destination("geonames:2988507", "Paris", "France", "FR", 2988507)
+    showRoute(FakeDestinationRepository(search = { listOf(paris) }, photo = { null }))
+
+    search("Paris")
+    waitForTag(DestinationCardTestTags.forDestination(paris.stableId))
+
+    // The card merges its children, so the shimmer is only visible in the unmerged tree.
+    composeRule.onAllNodesWithTag(PHOTO_SHIMMER_TAG, useUnmergedTree = true)[0].assertIsDisplayed()
   }
 
   @Test
