@@ -1,4 +1,4 @@
-// Implemented with assistance from Claude (Anthropic).
+// Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui.map
 
 import android.content.Intent
@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -26,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -40,10 +43,18 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.mapbox.geojson.Point
+import com.mapbox.maps.ViewAnnotationAnchor
 import com.mapbox.maps.extension.compose.MapboxMap
+import com.mapbox.maps.extension.compose.annotation.ViewAnnotation
+import com.mapbox.maps.viewannotation.annotationAnchor
+import com.mapbox.maps.viewannotation.geometry
+import com.mapbox.maps.viewannotation.viewAnnotationOptions
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.InfoRow
+import com.swent.roamigo.ui.components.markNotImplemented
+import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.Spacing
 
 /**
@@ -115,7 +126,8 @@ fun TripMapRoute(
   TripMapScreen(
       uiState = tripUiState,
       isSharing = locationUiState.isSharing,
-      onRetry = tripMapViewModel::retry,
+      onRetry = tripMapViewModel::retryTrip,
+      onRetryActivities = tripMapViewModel::retryActivities,
       onTurnOnSharing = { locationViewModel.onTurnOnSharingClick(permissionChecker.isGranted()) },
       onPauseSharing = locationViewModel::stopSharing,
       modifier = modifier,
@@ -129,13 +141,14 @@ fun TripMapRoute(
 }
 
 /**
- * Renders the trip map for [uiState], with a banner telling whether the user shares their location
- * and a button to turn sharing on or pause it. The map stays interactive and visible underneath the
- * loading and error overlays.
+ * Renders the trip map and activity markers for [uiState], with a banner telling whether the user
+ * shares their location and a button to turn sharing on or pause it. The map stays interactive and
+ * visible underneath the loading and error overlays.
  *
  * @param uiState state of the trip shown.
  * @param isSharing whether the user shares their location with the trip.
  * @param onRetry called when the user asks to load the trip again after an error.
+ * @param onRetryActivities called when the user retries loading activities and suggestions.
  * @param onTurnOnSharing called when the user asks to start sharing their location.
  * @param onPauseSharing called when the user asks to stop sharing their location.
  * @param modifier modifier applied to the screen.
@@ -145,6 +158,7 @@ fun TripMapScreen(
     uiState: TripMapUiState,
     isSharing: Boolean,
     onRetry: () -> Unit,
+    onRetryActivities: () -> Unit,
     onTurnOnSharing: () -> Unit,
     onPauseSharing: () -> Unit,
     modifier: Modifier = Modifier,
@@ -152,12 +166,33 @@ fun TripMapScreen(
 ) {
   // Until the trip is loaded the camera keeps its position, so the map stays usable underneath.
   val viewport = (uiState as? TripMapUiState.Loaded)?.viewport ?: TripMapViewport.None
+  val onMarkerClick = rememberNotImplementedAction()
 
   Box(modifier = modifier.fillMaxSize()) {
     MapboxMap(
         modifier = Modifier.fillMaxSize().testTag(C.Tag.trip_map_map),
         mapViewportState = rememberTripMapViewportState(viewport),
-    )
+    ) {
+      if (uiState is TripMapUiState.Loaded) {
+        uiState.activityMarkers.forEach { marker ->
+          key(marker.id) {
+            ViewAnnotation(
+                options =
+                    viewAnnotationOptions {
+                      geometry(Point.fromLngLat(marker.longitude, marker.latitude))
+                      annotationAnchor { anchor(ViewAnnotationAnchor.BOTTOM) }
+                    },
+                modifier =
+                    Modifier.testTag(TripMarkerTestTags.markerFor(marker.id))
+                        .markNotImplemented(onMarkerClick)
+                        .clickable(onClick = onMarkerClick),
+            ) {
+              TripMarkerIcon(locationName = marker.locationName, kind = marker.kind)
+            }
+          }
+        }
+      }
+    }
 
     // Stacked so that the status overlays never cover the banner or the sharing button.
     Column(modifier = Modifier.fillMaxSize()) {
@@ -181,6 +216,27 @@ fun TripMapScreen(
           contentAlignment = Alignment.Center,
       ) {
         TripStatusOverlay(uiState = uiState, onRetry = onRetry)
+        if (
+            uiState is TripMapUiState.Loaded &&
+                uiState.activitiesLoadState == ActivitiesLoadState.ERROR
+        ) {
+          Button(
+              onClick = onRetryActivities,
+              shape = MaterialTheme.shapes.medium,
+              colors =
+                  ButtonDefaults.buttonColors(
+                      containerColor = MaterialTheme.colorScheme.primary,
+                      contentColor = MaterialTheme.colorScheme.onPrimary,
+                  ),
+              modifier =
+                  Modifier.align(Alignment.BottomCenter)
+                      .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
+                      .padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium)
+                      .testTag(C.Tag.trip_map_retry_activities),
+          ) {
+            Text(stringResource(R.string.trip_map_retry_activities))
+          }
+        }
       }
       if (!readOnly) {
         SharingButtonBar(

@@ -36,7 +36,7 @@ class TripOverviewMapScreenTest {
             TripMarkerUiState(
                 id = "paris_marker",
                 tripId = "trip_1",
-                tripTitle = "Eurotrip",
+                title = "Eurotrip",
                 locationName = "Paris",
                 latitude = 48.8566,
                 longitude = 2.3522,
@@ -44,7 +44,7 @@ class TripOverviewMapScreenTest {
             TripMarkerUiState(
                 id = "barcelona_marker",
                 tripId = "trip_1",
-                tripTitle = "Eurotrip",
+                title = "Eurotrip",
                 locationName = "Barcelona",
                 latitude = 41.3851,
                 longitude = 2.1734,

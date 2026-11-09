@@ -34,10 +34,10 @@ sealed interface TripMapViewport {
 }
 
 /**
- * Builds the viewport showing the given destinations.
+ * Builds the viewport showing the given locations.
  *
- * @param coordinates the destinations to show.
- * @return [TripMapViewport.None] without destination, [TripMapViewport.Centered] on a single one,
+ * @param coordinates the locations to show.
+ * @return [TripMapViewport.None] without coordinates, [TripMapViewport.Centered] on a single one,
  *   and [TripMapViewport.FitAll] otherwise.
  */
 fun tripMapViewportOf(coordinates: List<MapCoordinate>): TripMapViewport =

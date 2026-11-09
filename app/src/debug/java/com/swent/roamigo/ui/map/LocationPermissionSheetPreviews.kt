@@ -175,6 +175,7 @@ class LocationPermissionSheetPreviews {
             uiState = previewTripMapLoadedState,
             isSharing = false,
             onRetry = {},
+            onRetryActivities = {},
             onTurnOnSharing = {},
             onPauseSharing = {},
         )

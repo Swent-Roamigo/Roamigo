@@ -4,7 +4,6 @@
     <string name="profile_sign_out_failed">Unable to sign out. Please try again.</string>
     <string name="feature_not_implemented">Not implemented yet</string>
     <string name="app_name">Roamigo</string>
-    <string name="title_activity_main">MainActivity</string>
     <string name="title_activity_second">SecondActivity</string>
     <string name="auth_tagline">Plan together. Travel together.</string>
     <string name="auth_brand">roamigo</string>
@@ -143,6 +142,7 @@
 
     <!-- Trip map -->
     <string name="trip_map_trip_loading">Loading trip…</string>
+    <string name="trip_map_retry_activities">Retry loading activities</string>
     <string name="trip_map_trip_load_error">Unable to load this trip. Please try again.</string>
     <string name="trip_map_sharing_off_title">Location sharing is off</string>
     <string name="trip_map_sharing_off_description">The rest of the app works. Turn it on so other trip members can see you on the map.</string>
