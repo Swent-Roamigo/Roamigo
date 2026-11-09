@@ -46,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -232,63 +233,77 @@ fun TripMapScreen(
   }
 
   Box(modifier = modifier.fillMaxSize()) {
-    MapboxMap(
-        modifier = Modifier.fillMaxSize().testTag(C.Tag.trip_map_map),
-        mapViewportState = rememberTripMapViewportState(viewport),
-    ) {
-      if (uiState is TripMapUiState.Loaded) {
-        uiState.activityMarkers.forEach { marker ->
-          key(marker.id) {
-            ViewAnnotation(
-                options =
-                    viewAnnotationOptions {
-                      geometry(Point.fromLngLat(marker.longitude, marker.latitude))
-                      annotationAnchor { anchor(ViewAnnotationAnchor.BOTTOM) }
-                    },
-                modifier =
-                    Modifier.testTag(TripMarkerTestTags.markerFor(marker.id))
-                        .markNotImplemented(onMarkerClick)
-                        .clickable(onClick = onMarkerClick),
-            ) {
-              TripMarkerIcon(locationName = marker.locationName, kind = marker.kind)
+    // Mapbox cannot render in Android Studio previews, which would only show its placeholder.
+    if (LocalInspectionMode.current) {
+      TripMapPreviewMap(
+          viewport = viewport,
+          activityMarkers = (uiState as? TripMapUiState.Loaded)?.activityMarkers.orEmpty(),
+          memberLocations = memberLocations,
+          members = members,
+          staleMemberIds = staleMemberIds,
+          myLocation = myLocation,
+          nowMillis = nowMillis,
+          modifier = Modifier.fillMaxSize().testTag(C.Tag.trip_map_map),
+      )
+    } else {
+      MapboxMap(
+          modifier = Modifier.fillMaxSize().testTag(C.Tag.trip_map_map),
+          mapViewportState = rememberTripMapViewportState(viewport),
+      ) {
+        if (uiState is TripMapUiState.Loaded) {
+          uiState.activityMarkers.forEach { marker ->
+            key(marker.id) {
+              ViewAnnotation(
+                  options =
+                      viewAnnotationOptions {
+                        geometry(Point.fromLngLat(marker.longitude, marker.latitude))
+                        annotationAnchor { anchor(ViewAnnotationAnchor.BOTTOM) }
+                      },
+                  modifier =
+                      Modifier.testTag(TripMarkerTestTags.markerFor(marker.id))
+                          .markNotImplemented(onMarkerClick)
+                          .clickable(onClick = onMarkerClick),
+              ) {
+                TripMarkerIcon(locationName = marker.locationName, kind = marker.kind)
+              }
             }
           }
         }
-      }
-      memberLocations.forEach { location ->
-        key(location.userId) {
+        memberLocations.forEach { location ->
+          key(location.userId) {
+            ViewAnnotation(
+                options =
+                    viewAnnotationOptions {
+                      geometry(Point.fromLngLat(location.longitude, location.latitude))
+                      annotationAnchor { anchor(ViewAnnotationAnchor.BOTTOM) }
+                      // Members travel together, so their markers often collide. Mapbox would hide
+                      // all but one of them by default.
+                      allowOverlap(true)
+                    }
+            ) {
+              MemberLocationMarker(
+                  location = location,
+                  // Until the trip and profiles load, the member is shown with the fallback name.
+                  member = members[location.userId] ?: memberDisplayInfo(location.userId, null),
+                  nowMillis = nowMillis,
+                  isStale = location.userId in staleMemberIds,
+              )
+            }
+          }
+        }
+        // Declared last so that it is drawn above the member markers.
+        if (myLocation != null) {
           ViewAnnotation(
               options =
                   viewAnnotationOptions {
-                    geometry(Point.fromLngLat(location.longitude, location.latitude))
-                    annotationAnchor { anchor(ViewAnnotationAnchor.BOTTOM) }
-                    // Members travel together, so their markers often collide. Mapbox would hide
-                    // all but one of them by default.
+                    geometry(Point.fromLngLat(myLocation.longitude, myLocation.latitude))
+                    annotationAnchor { anchor(ViewAnnotationAnchor.CENTER) }
+                    // Kept visible next to the members around the user.
                     allowOverlap(true)
                   }
           ) {
-            MemberLocationMarker(
-                location = location,
-                // Until the trip and profiles load, the member is shown with the fallback name.
-                member = members[location.userId] ?: memberDisplayInfo(location.userId, null),
-                nowMillis = nowMillis,
-                isStale = location.userId in staleMemberIds,
-            )
+            MyLocationDot()
           }
-        }
-      }
-      // Declared last so that it is drawn above the member markers.
-      if (myLocation != null) {
-        ViewAnnotation(
-            options =
-                viewAnnotationOptions {
-                  geometry(Point.fromLngLat(myLocation.longitude, myLocation.latitude))
-                  annotationAnchor { anchor(ViewAnnotationAnchor.CENTER) }
-                  // Kept visible next to the members around the user.
-                  allowOverlap(true)
-                }
-        ) {
-          MyLocationDot()
         }
       }
     }
@@ -400,7 +415,7 @@ private fun OfflineBanner(modifier: Modifier = Modifier) {
 
 /** The user's own position: a blue dot, unlike the members' avatar markers. */
 @Composable
-private fun MyLocationDot() {
+internal fun MyLocationDot() {
   val description = stringResource(R.string.trip_map_my_location)
   Surface(
       modifier =
