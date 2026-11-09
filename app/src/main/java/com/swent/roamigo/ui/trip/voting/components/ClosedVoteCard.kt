@@ -40,7 +40,7 @@ internal fun ClosedVoteCard(
   Column(modifier, verticalArrangement = Arrangement.spacedBy(Spacing.medium)) {
     Surface(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().testTag(C.Tag.closed_vote(vote.uid)),
+        modifier = Modifier.fillMaxWidth().testTag(C.Tag.closedVote(vote.uid)),
         shape = RoundedCornerShape(22.dp),
         color = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -70,7 +70,7 @@ internal fun ClosedVoteCard(
           Surface(
               modifier =
                   Modifier.fillMaxWidth()
-                      .testTag(C.Tag.closed_option(vote.uid, option.uid))
+                      .testTag(C.Tag.closedOption(vote.uid, option.uid))
                       .semantics(mergeDescendants = true) {},
               shape = MaterialTheme.shapes.small,
               color = MaterialTheme.colorScheme.onPrimary.copy(alpha = if (leading) 0.16f else 0f),
@@ -101,7 +101,7 @@ internal fun ClosedVoteCard(
               Text(
                   if (count == null) stringResource(R.string.vote_result_pending_count)
                   else pluralStringResource(R.plurals.vote_count, count, count),
-                  modifier = Modifier.testTag(C.Tag.vote_count(vote.uid, option.uid)),
+                  modifier = Modifier.testTag(C.Tag.voteCount(vote.uid, option.uid)),
                   style = MaterialTheme.typography.bodyMedium,
                   fontWeight = FontWeight.SemiBold,
               )
@@ -113,7 +113,7 @@ internal fun ClosedVoteCard(
     if (result?.isTie == true) {
       Surface(
           modifier =
-              Modifier.fillMaxWidth().testTag(C.Tag.vote_tie(vote.uid)).semantics(
+              Modifier.fillMaxWidth().testTag(C.Tag.voteTie(vote.uid)).semantics(
                   mergeDescendants = true
               ) {},
           shape = RoundedCornerShape(14.dp),

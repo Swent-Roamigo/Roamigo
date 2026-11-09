@@ -146,8 +146,8 @@ class VoteRouteRetentionTest {
     }
 
     composeRule.onNodeWithTag(C.Tag.vote_question).performTextInput("Where tomorrow?")
-    composeRule.onNodeWithTag(C.Tag.vote_option(0)).performTextInput("Park")
-    composeRule.onNodeWithTag(C.Tag.vote_option(1)).performTextInput("Beach")
+    composeRule.onNodeWithTag(C.Tag.voteOption(0)).performTextInput("Park")
+    composeRule.onNodeWithTag(C.Tag.voteOption(1)).performTextInput("Beach")
     composeRule.onNodeWithTag(C.Tag.vote_submit).performClick()
     composeRule.onNodeWithText("Creating vote…").assertIsDisplayed()
     composeRule.runOnIdle { visible = false }

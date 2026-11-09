@@ -77,7 +77,7 @@ class ClosedVoteCardTest {
 
   private fun count(id: String, expected: String) {
     composeRule
-        .onNodeWithTag(C.Tag.vote_count(vote.uid, id), useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.voteCount(vote.uid, id), useUnmergedTree = true)
         .performScrollTo()
         .assertIsDisplayed()
         .assertTextEquals(expected)
@@ -94,8 +94,8 @@ class ClosedVoteCardTest {
             "Owner decides",
         )
         .forEach { composeRule.onNodeWithText(it).assertDoesNotExist() }
-    composeRule.onNodeWithTag(C.Tag.vote_action(vote.uid)).assertDoesNotExist()
-    composeRule.onNodeWithTag(C.Tag.close_vote(vote.uid)).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.voteAction(vote.uid)).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.closeVote(vote.uid)).assertDoesNotExist()
   }
 
   @Test
@@ -106,17 +106,17 @@ class ClosedVoteCardTest {
     composeRule.onNodeWithText(vote.question).assertIsDisplayed()
     composeRule.onNodeWithText("Decided · Market · your vote").assertIsDisplayed()
     composeRule
-        .onNodeWithTag(C.Tag.decided_check(vote.uid), useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.decidedCheck(vote.uid), useUnmergedTree = true)
         .assertIsDisplayed()
     composeRule
-        .onNodeWithTag(C.Tag.decided_vote_count(vote.uid), useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.decidedVoteCount(vote.uid), useUnmergedTree = true)
         .assertTextEquals("2 votes")
-    composeRule.onNodeWithTag(C.Tag.closed_vote(vote.uid)).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.closedVote(vote.uid)).assertDoesNotExist()
     composeRule
-        .onNodeWithTag(C.Tag.vote_count(vote.uid, "c"), useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.voteCount(vote.uid, "c"), useUnmergedTree = true)
         .assertDoesNotExist()
     noControls()
-    val row = composeRule.onNodeWithTag(C.Tag.decided_vote(vote.uid))
+    val row = composeRule.onNodeWithTag(C.Tag.decidedVote(vote.uid))
     assertTrue(
         row.fetchSemanticsNode().boundsInRoot.height <= with(composeRule.density) { 96.dp.toPx() }
     )
@@ -129,12 +129,12 @@ class ClosedVoteCardTest {
     content(result("a", "b", "c"))
     composeRule.onNodeWithText("Vote closed · tied").assertIsDisplayed()
     composeRule.onNodeWithText("Decided").assertDoesNotExist()
-    composeRule.onNodeWithTag(C.Tag.decided_vote(vote.uid)).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.decidedVote(vote.uid)).assertDoesNotExist()
     composeRule.onAllNodesWithText("Tied for first", useUnmergedTree = true).assertCountEquals(3)
     count("a", "1 vote")
     count("b", "1 vote")
     count("c", "1 vote")
-    composeRule.onNodeWithTag(C.Tag.vote_tie(vote.uid)).performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.voteTie(vote.uid)).performScrollTo().assertIsDisplayed()
     composeRule.onNodeWithText("It’s a tie", useUnmergedTree = true).assertIsDisplayed()
     composeRule
         .onNodeWithText(
@@ -154,7 +154,7 @@ class ClosedVoteCardTest {
     listOf("a", "b", "c").forEach { count(it, "0 votes") }
     composeRule.onNodeWithText("your vote", substring = true).assertDoesNotExist()
     composeRule.onNodeWithText("Winner", useUnmergedTree = true).assertDoesNotExist()
-    composeRule.onNodeWithTag(C.Tag.vote_tie(vote.uid)).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.voteTie(vote.uid)).assertDoesNotExist()
     noControls()
   }
 
@@ -164,9 +164,9 @@ class ClosedVoteCardTest {
     composeRule.onNodeWithText("your vote", substring = true).assertDoesNotExist()
     composeRule.onNodeWithText("Decided · Restaurant").assertIsDisplayed()
     composeRule
-        .onNodeWithTag(C.Tag.decided_vote_count(vote.uid), useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.decidedVoteCount(vote.uid), useUnmergedTree = true)
         .assertTextEquals("1 vote")
-    composeRule.onNodeWithTag(C.Tag.closed_vote(vote.uid)).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.closedVote(vote.uid)).assertDoesNotExist()
   }
 
   @Test
@@ -215,18 +215,18 @@ class ClosedVoteCardTest {
     composeRule.onNodeWithText("Decided").assertIsDisplayed()
     composeRule.onNodeWithText("Decided · Restaurant · your vote").assertIsDisplayed()
     composeRule
-        .onNodeWithTag(C.Tag.decided_vote_count(vote.uid), useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.decidedVoteCount(vote.uid), useUnmergedTree = true)
         .assertTextEquals("2 votes")
-    composeRule.onNodeWithTag(C.Tag.closed_vote(vote.uid)).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.closedVote(vote.uid)).assertDoesNotExist()
     composeRule.runOnIdle { backend.emitBallots("trip", vote.uid, ballots("b", "b", "a")) }
     composeRule
-        .onNodeWithTag(C.Tag.decided_vote_count(vote.uid), useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.decidedVoteCount(vote.uid), useUnmergedTree = true)
         .assertTextEquals("2 votes")
     // A delayed snapshot that changes the outcome must also update its presentation group.
     composeRule.runOnIdle { backend.emitBallots("trip", vote.uid, ballots("b", "b", "a", "a")) }
     composeRule.onNodeWithText("Decided").assertDoesNotExist()
     composeRule.onNodeWithText("Vote closed · tied").assertIsDisplayed()
-    composeRule.onNodeWithTag(C.Tag.decided_vote(vote.uid)).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.decidedVote(vote.uid)).assertDoesNotExist()
     count("a", "2 votes")
     count("b", "2 votes")
     count("c", "0 votes")
@@ -281,18 +281,18 @@ class ClosedVoteCardTest {
         .onNodeWithTag(C.Tag.votes_decided_heading)
         .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
     val tieBounds =
-        composeRule.onNodeWithTag(C.Tag.closed_vote(vote.uid)).fetchSemanticsNode().boundsInRoot
+        composeRule.onNodeWithTag(C.Tag.closedVote(vote.uid)).fetchSemanticsNode().boundsInRoot
     val headingBounds =
         composeRule.onNodeWithTag(C.Tag.votes_decided_heading).fetchSemanticsNode().boundsInRoot
     val decidedBounds =
-        composeRule.onNodeWithTag(C.Tag.decided_vote(decided.uid)).fetchSemanticsNode().boundsInRoot
+        composeRule.onNodeWithTag(C.Tag.decidedVote(decided.uid)).fetchSemanticsNode().boundsInRoot
     assertTrue(tieBounds.bottom < headingBounds.top)
     assertTrue(headingBounds.bottom <= decidedBounds.top)
     composeRule
-        .onNodeWithTag(C.Tag.decided_check(decided.uid), useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.decidedCheck(decided.uid), useUnmergedTree = true)
         .assertIsDisplayed()
-    composeRule.onNodeWithTag(C.Tag.closed_vote(vote.uid)).performClick()
-    composeRule.onNodeWithTag(C.Tag.decided_vote(decided.uid)).performClick()
+    composeRule.onNodeWithTag(C.Tag.closedVote(vote.uid)).performClick()
+    composeRule.onNodeWithTag(C.Tag.decidedVote(decided.uid)).performClick()
     composeRule.runOnIdle { assertEquals(listOf(vote.uid, decided.uid), opened) }
     noControls()
   }
@@ -335,7 +335,7 @@ class ClosedVoteCardTest {
         .performScrollTo()
         .assertIsDisplayed()
     count("d", "1 vote")
-    composeRule.onNodeWithTag(C.Tag.vote_tie(vote.uid)).performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.voteTie(vote.uid)).performScrollTo().assertIsDisplayed()
     composeRule.onNodeWithText("New vote").assertIsDisplayed()
   }
 }

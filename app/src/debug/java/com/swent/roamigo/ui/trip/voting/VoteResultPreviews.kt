@@ -9,7 +9,6 @@ import com.swent.roamigo.model.trip.voting.VoteOption
 import com.swent.roamigo.model.trip.voting.VoteResult
 import com.swent.roamigo.model.trip.voting.VoteStatus
 import com.swent.roamigo.ui.theme.RoamigoTheme
-import com.swent.roamigo.ui.trip.voting.components.VoteResultContent
 
 private val dinnerVote =
     Vote(
@@ -35,18 +34,6 @@ private val dinnerWinnerResult =
         winningOptionIds = setOf("market"),
     )
 
-private val dinnerTieResult =
-    VoteResult(
-        counts = mapOf("market" to 1, "restaurant" to 1, "pizza" to 0),
-        winningOptionIds = setOf("market", "restaurant"),
-    )
-
-private val dinnerNoVotesResult =
-    VoteResult(
-        counts = mapOf("market" to 0, "restaurant" to 0, "pizza" to 0),
-        winningOptionIds = emptySet(),
-    )
-
 @Preview(showBackground = true, widthDp = 390, heightDp = 600)
 @Composable
 private fun ClosedWinnerPreview() {
@@ -59,22 +46,4 @@ private fun ClosedWinnerPreview() {
         {},
     )
   }
-}
-
-@Preview(showBackground = true, widthDp = 390, heightDp = 600)
-@Composable
-private fun ClosedTiePreview() {
-  RoamigoTheme { VoteScreen(VoteUiState.Closed(dinnerVote, dinnerTieResult), {}, {}, {}, {}) }
-}
-
-@Preview(showBackground = true, widthDp = 390, heightDp = 600)
-@Composable
-private fun ClosedNoVotesPreview() {
-  RoamigoTheme { VoteScreen(VoteUiState.Closed(dinnerVote, dinnerNoVotesResult), {}, {}, {}, {}) }
-}
-
-@Preview(showBackground = true, widthDp = 320, heightDp = 400, fontScale = 1.5f)
-@Composable
-private fun FinalResultComponentPreview() {
-  RoamigoTheme { VoteResultContent(dinnerVote, dinnerWinnerResult) }
 }
