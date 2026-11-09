@@ -1,7 +1,6 @@
 // Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui.map
 
-import android.content.res.Configuration
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -81,20 +80,6 @@ class TripMapScreenPreviews {
                 isOffline = true,
                 staleMemberIds = previewMemberLocations.mapTo(mutableSetOf()) { it.userId },
             ),
-    )
-  }
-
-  @Preview(
-      showBackground = true,
-      widthDp = 390,
-      heightDp = 844,
-      uiMode = Configuration.UI_MODE_NIGHT_YES,
-  )
-  @Composable
-  private fun TripMapSharingWithMembersDarkPreview() {
-    TripMapPreview(
-        uiState = previewTripMapWithMembersState,
-        locationState = previewSharingLocationState,
     )
   }
 
