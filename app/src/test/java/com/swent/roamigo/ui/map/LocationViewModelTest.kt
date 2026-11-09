@@ -424,35 +424,34 @@ class LocationViewModelTest {
   }
 
   @Test
-  fun startSharing_withoutGrantedPermission_setsPermissionRequiredAndDoesNotShare() =
-      runLocationTest {
-        val notRequested = createViewModel(hasPermission = false)
-        val denied =
-            createViewModel(hasPermission = false).apply {
-              onPermissionResult(granted = false, shouldShowRationale = true)
-            }
-        val revoked =
-            createViewModel(hasPermission = true).apply {
-              onPermissionResult(granted = false, shouldShowRationale = false)
-            }
-
-        listOf(notRequested, denied, revoked).forEach { viewModel ->
-          viewModel.startSharing()
-          advanceUntilIdle()
-
-          assertEquals(
-              LocationSharingError.PermissionRequired,
-              viewModel.uiState.value.sharingError,
-          )
-          assertEquals(
-              R.string.trip_map_error_permission_required,
-              viewModel.uiState.value.errorMessageRes,
-          )
-          assertFalse(viewModel.uiState.value.isSharing)
+  fun startSharing_withoutGrantedPermission_setsErrorAndDoesNotShare() = runLocationTest {
+    val notRequested = createViewModel(hasPermission = false)
+    val denied =
+        createViewModel(hasPermission = false).apply {
+          onPermissionResult(granted = false, shouldShowRationale = true)
         }
-        assertTrue(repository.startSharingCalls.isEmpty())
-        assertEquals(0, repository.getCurrentLocationCalls)
-      }
+    val revoked =
+        createViewModel(hasPermission = true).apply {
+          onPermissionResult(granted = false, shouldShowRationale = false)
+        }
+
+    listOf(notRequested, denied, revoked).forEach { viewModel ->
+      viewModel.startSharing()
+      advanceUntilIdle()
+
+      assertEquals(
+          LocationSharingError.PermissionRequired,
+          viewModel.uiState.value.sharingError,
+      )
+      assertEquals(
+          R.string.trip_map_error_permission_required,
+          viewModel.uiState.value.errorMessageRes,
+      )
+      assertFalse(viewModel.uiState.value.isSharing)
+    }
+    assertTrue(repository.startSharingCalls.isEmpty())
+    assertEquals(0, repository.getCurrentLocationCalls)
+  }
 
   @Test
   fun startSharing_whenRepositoryFails_setsRequestFailed() = runLocationTest {
