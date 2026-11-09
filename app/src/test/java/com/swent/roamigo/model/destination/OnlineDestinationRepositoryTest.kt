@@ -163,6 +163,69 @@ class OnlineDestinationRepositoryTest {
   }
 
   @Test
+  fun searchPutsTheExactNameFirstAndThenTheBiggestCities() = runTest {
+    val client = jsonClient { _ ->
+      """
+      {"geonames":[
+      {"geonameId":1,"name":"Warsaw","countryName":"United States","countryCode":"US",
+      "lat":"41.2","lng":"-85.8","population":15000},
+      {"geonameId":2,"name":"Warsaw Village","countryName":"Poland","countryCode":"PL",
+      "lat":"52.0","lng":"21.0","population":10},
+      {"geonameId":3,"name":"Warsaw","countryName":"Poland","countryCode":"PL",
+      "lat":"52.23","lng":"21.01","population":1702139},
+      {"geonameId":4,"name":"Warszawa Bis","countryName":"Poland","countryCode":"PL",
+      "lat":"52.2","lng":"21.0","population":900000}]}
+      """
+          .trimIndent()
+    }
+
+    val result = OnlineDestinationRepository("test-user", client).searchDestinations("warsaw")
+
+    // Exact name by size, then names starting with it, then the rest in GeoNames' order.
+    assertEquals(listOf(3, 1, 2, 4), result.map { it.geonameId })
+  }
+
+  @Test
+  fun searchDoesNotLiftBigUnrelatedCitiesAboveCloserOnes() = runTest {
+    val client = jsonClient { _ ->
+      """
+      {"geonames":[
+      {"geonameId":1,"name":"Paris","countryName":"France","countryCode":"FR",
+      "lat":"48.85","lng":"2.35","population":2138551},
+      {"geonameId":2,"name":"Kingston","countryName":"Jamaica","countryCode":"JM",
+      "lat":"18.0","lng":"-76.8","population":580000},
+      {"geonameId":3,"name":"Warsaw","countryName":"Poland","countryCode":"PL",
+      "lat":"52.23","lng":"21.01","population":1702139},
+      {"geonameId":4,"name":"Paris 14 Observatoire","countryName":"France","countryCode":"FR",
+      "lat":"48.83","lng":"2.33","population":136000}]}
+      """
+          .trimIndent()
+    }
+
+    val result = OnlineDestinationRepository("test-user", client).searchDestinations("paris")
+
+    assertEquals(listOf(1, 4, 2, 3), result.map { it.geonameId })
+  }
+
+  @Test
+  fun searchIgnoresAccentsWhenLookingForTheExactName() = runTest {
+    val client = jsonClient { _ ->
+      """
+      {"geonames":[
+      {"geonameId":1,"name":"Zurich Hill","countryName":"X","countryCode":"XX",
+      "lat":"1","lng":"1","population":5000000},
+      {"geonameId":2,"name":"Zürich","countryName":"Switzerland","countryCode":"CH",
+      "lat":"47.37","lng":"8.54","population":400000}]}
+      """
+          .trimIndent()
+    }
+
+    val result = OnlineDestinationRepository("test-user", client).searchDestinations("Zurich")
+
+    assertEquals(listOf(2, 1), result.map { it.geonameId })
+  }
+
+  @Test
   fun citySearchMakesOneRequestWithCityFilter() = runTest {
     val requests = mutableListOf<HttpUrl>()
     val client =
