@@ -1,6 +1,7 @@
 // Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui.map
 
+import android.content.res.Configuration
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -9,6 +10,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.location.MemberLocation
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.FakeTripRepository
@@ -48,6 +50,52 @@ class TripMapScreenPreviews {
   @Composable
   private fun TripMapSharingOnPreview() {
     TripMapPreview(uiState = previewTripMapLoadedState, isSharing = true)
+  }
+
+  @Preview(showBackground = true, widthDp = 390, heightDp = 844)
+  @Composable
+  private fun TripMapSharingWithMembersPreview() {
+    TripMapPreview(
+        uiState = previewTripMapWithMembersState,
+        locationState = previewSharingLocationState,
+    )
+  }
+
+  @Preview(showBackground = true, widthDp = 390, heightDp = 844)
+  @Composable
+  private fun TripMapSharingOffWithMembersPreview() {
+    TripMapPreview(
+        uiState = previewTripMapWithMembersState,
+        locationState = previewSharingLocationState.copy(isSharing = false),
+    )
+  }
+
+  @Preview(showBackground = true, widthDp = 390, heightDp = 844)
+  @Composable
+  private fun TripMapOfflinePreview() {
+    // Offline, every member location shown is outdated.
+    TripMapPreview(
+        uiState = previewTripMapWithMembersState,
+        locationState =
+            previewSharingLocationState.copy(
+                isOffline = true,
+                staleMemberIds = previewMemberLocations.mapTo(mutableSetOf()) { it.userId },
+            ),
+    )
+  }
+
+  @Preview(
+      showBackground = true,
+      widthDp = 390,
+      heightDp = 844,
+      uiMode = Configuration.UI_MODE_NIGHT_YES,
+  )
+  @Composable
+  private fun TripMapSharingWithMembersDarkPreview() {
+    TripMapPreview(
+        uiState = previewTripMapWithMembersState,
+        locationState = previewSharingLocationState,
+    )
   }
 
   @Preview(showBackground = true, widthDp = 390, heightDp = 844)
@@ -119,10 +167,32 @@ class TripMapScreenPreviews {
       onRetry: () -> Unit = {},
       onRetryActivities: () -> Unit = {},
   ) {
+    TripMapPreview(
+        uiState = uiState,
+        locationState = LocationUiState(isSharing = isSharing),
+        onRetry = onRetry,
+        onRetryActivities = onRetryActivities,
+    )
+  }
+
+  /** Passes [locationState] to the screen the way [TripMapRoute] does. */
+  @Composable
+  private fun TripMapPreview(
+      uiState: TripMapUiState,
+      locationState: LocationUiState,
+      onRetry: () -> Unit = {},
+      onRetryActivities: () -> Unit = {},
+  ) {
     RoamigoTheme {
       TripMapScreen(
           uiState = uiState,
-          isSharing = isSharing,
+          isSharing = locationState.isSharing,
+          memberLocations = locationState.memberLocations,
+          staleMemberIds = locationState.staleMemberIds,
+          myLocation = locationState.shownMyLocation,
+          locationErrorMessage = locationState.errorMessageRes,
+          isOffline = locationState.isOffline,
+          nowMillis = PREVIEW_NOW_MILLIS,
           onRetry = onRetry,
           onRetryActivities = onRetryActivities,
           onTurnOnSharing = {},
@@ -156,6 +226,49 @@ internal val previewTripMapLoadedState =
         trip = previewTrip,
         viewport = TripMapViewport.Centered(latitude = 38.7223, longitude = -9.1393),
         members = mapOf("user_1" to memberDisplayInfo("user_1", null)),
+    )
+
+/** Fixed time of the previews, so that the freshness labels do not change between renders. */
+private const val PREVIEW_NOW_MILLIS = 1_762_768_800_000L
+
+// Members around Baixa, close enough to the destination to share the screen with it.
+private val previewMemberLocations =
+    listOf(
+        MemberLocation("user_2", 38.7238, -9.1412, PREVIEW_NOW_MILLIS - 2_000),
+        MemberLocation("user_3", 38.7205, -9.1370, PREVIEW_NOW_MILLIS - 25_000),
+        MemberLocation("user_4", 38.7250, -9.1360, PREVIEW_NOW_MILLIS - 3 * 60_000),
+    )
+
+private val previewMyLocation = MemberLocation("user_1", 38.7215, -9.1400, PREVIEW_NOW_MILLIS)
+
+/** A loaded trip map with four members, framed on the destination and every shown location. */
+private val previewTripMapWithMembersState =
+    previewTripMapLoadedState.copy(
+        trip = previewTrip.copy(memberIds = listOf("user_1", "user_2", "user_3", "user_4")),
+        viewport =
+            tripMapViewportOf(
+                (previewTrip.destinations.map { MapCoordinate(it.latitude, it.longitude) } +
+                    (previewMemberLocations + previewMyLocation).map {
+                      MapCoordinate(it.latitude, it.longitude)
+                    })
+            ),
+        members =
+            mapOf(
+                "user_1" to memberDisplayInfo("user_1", User("user_1", "Alex", null)),
+                "user_2" to memberDisplayInfo("user_2", User("user_2", "Sam", null)),
+                "user_3" to memberDisplayInfo("user_3", User("user_3", "Kim", null)),
+                "user_4" to memberDisplayInfo("user_4", User("user_4", "Noa", null)),
+            ),
+    )
+
+/** The user shares their position, and Noa's location is outdated. */
+private val previewSharingLocationState =
+    LocationUiState(
+        permissionState = LocationPermissionState.Granted,
+        isSharing = true,
+        myLocation = previewMyLocation,
+        memberLocations = previewMemberLocations,
+        staleMemberIds = setOf("user_4"),
     )
 
 private val previewTripWithActivities =
