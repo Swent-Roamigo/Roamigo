@@ -43,10 +43,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -170,6 +170,27 @@ private val MyLocationDotSize = 18.dp
 private val MyLocationDotBorderWidth = 3.dp
 
 /**
+ * Map drawn by [TripMapScreen] in place of Mapbox, or null to draw Mapbox. Android Studio previews
+ * provide a static stand-in, since Mapbox cannot render there and would only show its placeholder.
+ */
+internal val LocalTripMapStandIn =
+    staticCompositionLocalOf<
+        (@Composable
+        (
+            viewport: TripMapViewport,
+            activityMarkers: List<TripMarkerUiState>,
+            memberLocations: List<MemberLocation>,
+            members: Map<String, MemberDisplayInfo>,
+            staleMemberIds: Set<String>,
+            myLocation: MemberLocation?,
+            nowMillis: Long,
+            modifier: Modifier,
+        ) -> Unit)?
+    > {
+      null
+    }
+
+/**
  * Renders the trip map with its activity markers and the other members' locations for [uiState],
  * with a banner telling whether the user shares their location and a button to turn sharing on or
  * pause it. The map stays interactive and visible underneath the loading and error overlays.
@@ -233,17 +254,17 @@ fun TripMapScreen(
   }
 
   Box(modifier = modifier.fillMaxSize()) {
-    // Mapbox cannot render in Android Studio previews, which would only show its placeholder.
-    if (LocalInspectionMode.current) {
-      TripMapPreviewMap(
-          viewport = viewport,
-          activityMarkers = (uiState as? TripMapUiState.Loaded)?.activityMarkers.orEmpty(),
-          memberLocations = memberLocations,
-          members = members,
-          staleMemberIds = staleMemberIds,
-          myLocation = myLocation,
-          nowMillis = nowMillis,
-          modifier = Modifier.fillMaxSize().testTag(C.Tag.trip_map_map),
+    val standInMap = LocalTripMapStandIn.current
+    if (standInMap != null) {
+      standInMap(
+          viewport,
+          (uiState as? TripMapUiState.Loaded)?.activityMarkers.orEmpty(),
+          memberLocations,
+          members,
+          staleMemberIds,
+          myLocation,
+          nowMillis,
+          Modifier.fillMaxSize().testTag(C.Tag.trip_map_map),
       )
     } else {
       MapboxMap(
