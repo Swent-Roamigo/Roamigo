@@ -5,18 +5,18 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.swent.roamigo.model.trip.voting.Vote
 import com.swent.roamigo.model.trip.voting.VoteRepository
+import com.swent.roamigo.model.trip.voting.VoteResult
 import com.swent.roamigo.model.trip.voting.VoteStatus
+import com.swent.roamigo.model.trip.voting.calculateVoteResult
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -24,7 +24,6 @@ import kotlinx.coroutines.launch
  * Observes the votes belonging to one trip. The repository owns data access and listener cleanup;
  * ballot summaries are collected only while the UI is subscribed. Drafts belong to [VoteViewModel].
  */
-@OptIn(ExperimentalCoroutinesApi::class)
 class VotesViewModel(
     private val voteRepository: VoteRepository,
     val tripId: String,
@@ -69,41 +68,85 @@ class VotesViewModel(
           .collectLatest { active ->
             if (!active) return@collectLatest
             try {
-              voteRepository
-                  .observeVotes(tripId)
-                  .distinctUntilChanged()
-                  .flatMapLatest { votes ->
-                    val ordered =
-                        votes.sortedWith(
-                            compareByDescending<Vote> { it.creationTime }.thenBy { it.uid }
-                        )
-                    val open = ordered.filter { it.status == VoteStatus.OPEN }
-                    val closed = ordered.filter { it.status == VoteStatus.CLOSED }
-                    if (ordered.isEmpty()) flowOf<VotesUiState>(VotesUiState.Empty)
-                    else if (open.isEmpty()) flowOf<VotesUiState>(VotesUiState.Ready(open, closed))
-                    else
-                        combine(
-                            open.map { vote ->
-                              voteRepository.observeBallots(tripId, vote.uid).map { ballots ->
-                                val counts = ballots.groupingBy { it.optionId }.eachCount()
-                                vote.uid to
-                                    LiveVoteSummary(
-                                        vote.options.associate { it.uid to (counts[it.uid] ?: 0) },
-                                        ballots.any { it.userId == userId },
-                                        isCreator = vote.createdByUserId == userId,
-                                    )
-                              }
-                            }
-                        ) { summaries ->
-                          VotesUiState.Ready(open, closed, liveSummaries = summaries.toMap())
-                        }
-                  }
-                  .collect { _uiState.value = it }
+              observeTripVotes()
             } catch (cancelled: CancellationException) {
               throw cancelled
             } catch (_: Exception) {
               val latest = _uiState.value as? VotesUiState.Ready
               _uiState.value = latest?.copy(syncState = VotesSyncState.FAILED) ?: VotesUiState.Error
+            }
+          }
+    }
+  }
+
+  private suspend fun observeTripVotes() = coroutineScope {
+    var votes = emptyList<Vote>()
+    val listeners = mutableMapOf<String, Job>()
+    val results = mutableMapOf<String, VoteResult>()
+
+    fun publish() {
+      if (votes.isEmpty()) {
+        _uiState.value = VotesUiState.Empty
+        return
+      }
+      val open = votes.filter { it.status == VoteStatus.OPEN }
+      val closed = votes.filter { it.status == VoteStatus.CLOSED }
+      _uiState.value =
+          VotesUiState.Ready(
+              open,
+              closed,
+              liveSummaries =
+                  open
+                      .mapNotNull { vote ->
+                        results[vote.uid]?.let { result ->
+                          vote.uid to
+                              LiveVoteSummary(
+                                  result.counts,
+                                  result.currentUserOptionId != null,
+                                  vote.createdByUserId == userId,
+                              )
+                        }
+                      }
+                      .toMap(),
+              finalSummaries =
+                  closed.mapNotNull { vote -> results[vote.uid]?.let { vote.uid to it } }.toMap(),
+          )
+    }
+
+    voteRepository.observeVotes(tripId).distinctUntilChanged().collect { snapshot ->
+      val next =
+          snapshot.sortedWith(compareByDescending<Vote> { it.creationTime }.thenBy { it.uid })
+      val byId = next.associateBy { it.uid }
+      val previousById = votes.associateBy { it.uid }
+      // Retain unchanged listeners. At closure, discard the live snapshot and wait for a fresh
+      // ballot observation rather than announcing its potentially stale leader as the winner.
+      listeners.keys.toList().forEach { id ->
+        val previous = previousById[id]
+        val current = byId[id]
+        if (
+            current == null ||
+                previous == null ||
+                previous.status != current.status ||
+                previous.options != current.options
+        ) {
+          listeners.remove(id)?.cancelAndJoin()
+          results.remove(id)
+        }
+      }
+      votes = next
+      publish()
+      votes
+          .filter { it.uid !in listeners }
+          .forEach { vote ->
+            listeners[vote.uid] = launch {
+              val ballotsFlow =
+                  if (vote.status == VoteStatus.CLOSED)
+                      voteRepository.observeFinalBallots(tripId, vote.uid)
+                  else voteRepository.observeBallots(tripId, vote.uid)
+              ballotsFlow.collect { ballots ->
+                results[vote.uid] = calculateVoteResult(vote.options, ballots, userId)
+                publish()
+              }
             }
           }
     }

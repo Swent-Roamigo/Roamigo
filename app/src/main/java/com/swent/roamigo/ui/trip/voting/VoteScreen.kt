@@ -20,7 +20,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
@@ -29,6 +28,7 @@ import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.voting.components.VoteActions
 import com.swent.roamigo.ui.trip.voting.components.VoteErrorContent
 import com.swent.roamigo.ui.trip.voting.components.VoteOptionRow
+import com.swent.roamigo.ui.trip.voting.components.VoteResultContent
 
 /** Connects [voteRepository] to [VoteScreen] for the selected trip, vote, and member. */
 @Composable
@@ -76,8 +76,7 @@ fun VoteScreen(
     Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
       when (state) {
         VoteUiState.Loading -> VoteLoadingContent()
-        VoteUiState.Closed ->
-            Text(stringResource(R.string.vote_closed), textAlign = TextAlign.Center)
+        is VoteUiState.Closed -> VoteResultContent(state.vote, state.result)
         is VoteUiState.LoadError ->
             VoteErrorContent(
                 messageResource =

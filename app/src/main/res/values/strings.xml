@@ -270,6 +270,22 @@
         <item quantity="one">%d vote</item>
         <item quantity="other">%d votes</item>
     </plurals>
+
+    <!-- Final vote results and decided summaries -->
+    <string name="vote_final_results">Final results</string>
+    <string name="vote_result_tie">Vote closed · tied</string>
+    <string name="vote_result_no_votes">No votes cast · no winner</string>
+    <string name="vote_result_winner">Winner</string>
+    <string name="vote_result_tied_option">Tied for first</string>
+    <string name="vote_closed_decided">Vote closed · decided</string>
+    <string name="vote_closed_no_votes">Vote closed · no votes</string>
+    <string name="vote_results_loading">Vote closed · loading results…</string>
+    <string name="vote_result_pending_count">—</string>
+    <string name="vote_option_yours">%1$s · your vote</string>
+    <string name="vote_tie_title">It’s a tie</string>
+    <string name="vote_tie_description">The highlighted options received the same highest number of votes. There is no single winner.</string>
+    <string name="vote_decided_summary">Decided · %1$s</string>
+
     <string name="create_trip_sign_in">Sign in</string>
     <string name="create_trip_retry">Retry</string>
     <string name="create_trip_auth_error">Your session has ended. Sign in to create your trip.</string>

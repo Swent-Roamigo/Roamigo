@@ -8,6 +8,7 @@ import com.swent.roamigo.model.trip.voting.Vote
 import com.swent.roamigo.model.trip.voting.VoteBallot
 import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.trip.voting.VoteStatus
+import com.swent.roamigo.model.trip.voting.calculateVoteResult
 import java.time.Clock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -48,7 +49,7 @@ class VoteViewModel(
         observationJob = viewModelScope.launch { observeBallots(state.vote) }
       }
       VoteUiState.Loading,
-      VoteUiState.Closed -> Unit
+      is VoteUiState.Closed -> Unit
     }
   }
 
@@ -69,10 +70,6 @@ class VoteViewModel(
             _uiState.value = VoteUiState.LoadError(VoteLoadError.VOTE_FAILED)
             return@launch
           }
-      if (vote.status == VoteStatus.CLOSED) {
-        _uiState.value = VoteUiState.Closed
-        return@launch
-      }
       observeBallots(vote)
     }
   }
@@ -85,8 +82,7 @@ class VoteViewModel(
     viewModelScope.launch {
       try {
         voteRepository.closeVote(tripId, voteId)
-        _uiState.value = VoteUiState.Closed
-        observationJob?.cancel()
+        loadVote()
       } catch (cancelled: CancellationException) {
         updateReady { it.copy(closingState = VoteSubmissionState.Idle) }
         throw cancelled
@@ -101,8 +97,7 @@ class VoteViewModel(
               null
             }
         if (current?.status == VoteStatus.CLOSED) {
-          _uiState.value = VoteUiState.Closed
-          observationJob?.cancel()
+          loadVote()
         } else {
           updateReady { it.copy(closingState = VoteSubmissionState.Failed) }
         }
@@ -112,22 +107,28 @@ class VoteViewModel(
 
   private suspend fun observeBallots(vote: Vote) {
     try {
-      // Observe status alongside ballots so a remote close removes actions even without a write.
+      // Keep both listeners alive after closure: the final ballot snapshot can arrive later.
       val votes =
           voteRepository.observeVote(tripId, voteId).onEach { current ->
-            if (current == null || current.status == VoteStatus.CLOSED) {
-              _uiState.value =
-                  if (current == null) VoteUiState.LoadError(VoteLoadError.NOT_FOUND)
-                  else VoteUiState.Closed
+            if (current == null) {
+              _uiState.value = VoteUiState.LoadError(VoteLoadError.NOT_FOUND)
               observationJob?.cancel()
+            } else if (current.status == VoteStatus.CLOSED && _uiState.value is VoteUiState.Ready) {
+              _uiState.value = VoteUiState.Loading
             }
           }
-      combine(votes, voteRepository.observeBallots(tripId, voteId)) { _, ballots -> ballots }
-          .collect { ballots ->
+      combine(votes, voteRepository.observeBallots(tripId, voteId)) { current, ballots ->
+            current to ballots
+          }
+          .collect { (current, ballots) ->
+            if (current == null) return@collect
+            val result = calculateVoteResult(current.options, ballots)
+            if (current.status == VoteStatus.CLOSED) {
+              _uiState.value = VoteUiState.Closed(current, result)
+              return@collect
+            }
             val persistedOptionId = ballots.firstOrNull { it.userId == userId }?.optionId
-            val countsByOption = ballots.groupingBy { it.optionId }.eachCount()
-            // Include zero-count options and ignore ballots for options absent from this vote.
-            val voteCounts = vote.options.associate { it.uid to (countsByOption[it.uid] ?: 0) }
+            val voteCounts = result.counts
             _uiState.update { state ->
               when (state) {
                 is VoteUiState.Ready -> state.withBallotSnapshot(persistedOptionId, voteCounts)
@@ -148,7 +149,6 @@ class VoteViewModel(
       _uiState.update { state ->
         when (state) {
           is VoteUiState.Ready -> state.copy(syncState = VoteSyncState.Failed)
-          VoteUiState.Closed -> state
           else -> VoteUiState.LoadError(VoteLoadError.BALLOTS_FAILED)
         }
       }
@@ -176,8 +176,7 @@ class VoteViewModel(
           return@launch
         }
         if (currentVote.status != VoteStatus.OPEN) {
-          observationJob?.cancel()
-          _uiState.value = VoteUiState.Closed
+          loadVote()
           return@launch
         }
         require(currentVote.options.any { it.uid == optionId })

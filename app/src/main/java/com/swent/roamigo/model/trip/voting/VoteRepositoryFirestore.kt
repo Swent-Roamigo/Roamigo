@@ -4,8 +4,11 @@ package com.swent.roamigo.model.trip.voting
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.EventListener
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.MetadataChanges
+import com.google.firebase.firestore.QuerySnapshot
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -118,26 +121,43 @@ class VoteRepositoryFirestore(private val db: FirebaseFirestore) : VoteRepositor
   }
 
   override fun observeBallots(tripId: String, voteId: String): Flow<List<VoteBallot>> =
-      callbackFlow {
-        val registration =
-            ballots(tripId, voteId).addSnapshotListener { snapshot, error ->
-              if (error != null) {
-                close(error)
-              } else {
-                val updates =
-                    try {
-                      requireNotNull(snapshot) { "Missing ballot snapshot" }
-                          .documents
-                          .map { it.toBallot() }
-                    } catch (error: Exception) {
-                      close(error)
-                      return@addSnapshotListener
-                    }
-                trySend(updates)
-              }
-            }
-        awaitClose { registration.remove() }
-      }
+      observeBallotSnapshots(tripId, voteId, serverOnly = false)
+
+  override fun observeFinalBallots(tripId: String, voteId: String): Flow<List<VoteBallot>> =
+      observeBallotSnapshots(tripId, voteId, serverOnly = true)
+
+  private fun observeBallotSnapshots(
+      tripId: String,
+      voteId: String,
+      serverOnly: Boolean,
+  ): Flow<List<VoteBallot>> = callbackFlow {
+    val listener =
+        EventListener<QuerySnapshot> { snapshot, error ->
+          if (error != null) close(error)
+          else {
+            val updates =
+                try {
+                  val current = requireNotNull(snapshot) { "Missing ballot snapshot" }
+                  if (
+                      serverOnly &&
+                          (current.metadata.isFromCache || current.metadata.hasPendingWrites())
+                  )
+                      return@EventListener
+                  current.documents.map { it.toBallot() }
+                } catch (error: Exception) {
+                  close(error)
+                  return@EventListener
+                }
+            trySend(updates)
+          }
+        }
+    // Metadata updates matter when the documents are identical but become server-confirmed.
+    val registration =
+        if (serverOnly)
+            ballots(tripId, voteId).addSnapshotListener(MetadataChanges.INCLUDE, listener)
+        else ballots(tripId, voteId).addSnapshotListener(listener)
+    awaitClose { registration.remove() }
+  }
 
   private fun votes(tripId: String): CollectionReference {
     requireDocumentId(tripId)

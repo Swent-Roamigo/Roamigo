@@ -174,16 +174,31 @@ class VotesScreenTest {
   }
 
   @Test
-  fun multipleVotesRenderWithLiveLabelsAndCompactDecidedRows() {
-    content(VotesUiState.Ready(listOf(live, other), listOf(closed)))
+  fun multipleVotesRenderLiveAndUnresolvedClosedCards() {
+    content(
+        VotesUiState.Ready(
+            listOf(live, other),
+            listOf(closed),
+            finalSummaries =
+                mapOf(
+                    closed.uid to
+                        com.swent.roamigo.model.trip.voting.calculateVoteResult(
+                            closed.options,
+                            emptyList(),
+                        )
+                ),
+        )
+    )
     composeRule.onNodeWithText("New vote").assertIsDisplayed()
     composeRule.onNodeWithText("Live").assertDoesNotExist()
     composeRule.onAllNodesWithText("Live vote").assertCountEquals(2)
     composeRule.onNodeWithText(live.question).assertIsDisplayed()
     composeRule.onNodeWithText(other.question).assertIsDisplayed()
-    composeRule.onNodeWithText("Decided").assertIsDisplayed()
-    composeRule.onNodeWithText(closed.question).assertIsDisplayed()
-    composeRule.onNode(hasText(closed.question) and hasText("Closed vote")).assertIsDisplayed()
+    composeRule.onNodeWithText("Decided").assertDoesNotExist()
+    composeRule.onNodeWithText(closed.question).performScrollTo().assertIsDisplayed()
+    composeRule
+        .onNode(hasText(closed.question) and hasText("Vote closed · no votes"))
+        .assertIsDisplayed()
   }
 
   @Test
@@ -199,7 +214,7 @@ class VotesScreenTest {
     )
     composeRule.onNodeWithText("Vote").performClick()
     composeRule.onNodeWithText("Change vote").performClick()
-    composeRule.onNodeWithText(closed.question).performClick()
+    composeRule.onNodeWithText(closed.question).performScrollTo().performClick()
     composeRule.runOnIdle { assertEquals(listOf(live.uid, other.uid, closed.uid), opened) }
   }
 
@@ -207,7 +222,8 @@ class VotesScreenTest {
   fun closedOnlySnapshotDoesNotShowLiveSectionOrInventResults() {
     content(VotesUiState.Ready(emptyList(), listOf(closed)))
     composeRule.onNodeWithText("Live").assertDoesNotExist()
-    composeRule.onNodeWithText("Decided").assertIsDisplayed()
+    composeRule.onNodeWithText("Decided").assertDoesNotExist()
+    composeRule.onNodeWithText("Vote closed · loading results…").assertIsDisplayed()
     composeRule.onNodeWithText(closed.question).assertIsDisplayed()
     composeRule.onNodeWithText("agreed", substring = true).assertDoesNotExist()
     composeRule.onNodeWithText("majority", substring = true).assertDoesNotExist()
