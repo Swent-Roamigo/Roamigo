@@ -38,68 +38,30 @@ class LocationFreshnessTest {
       )
 
   @Test
-  fun justUpdatedLocationIsLive() {
-    assertEquals("live", freshnessForAge(0))
+  fun freshnessIsLiveThenInWholeSecondsThenInWholeMinutes() {
+    // Age of the location in milliseconds, with the text expected for it.
+    listOf(
+            // Dated in the future, e.g. because the member's clock is ahead.
+            -3_000L to "live",
+            0L to "live",
+            4_999L to "live",
+            5_000L to "5 s ago",
+            10_999L to "10 s ago",
+            59_999L to "59 s ago",
+            60_000L to "1 min ago",
+            119_999L to "1 min ago",
+            120_000L to "2 min ago",
+            90 * 60_000L to "90 min ago",
+            // Dated at the epoch.
+            NOW to "28333333 min ago",
+        )
+        .forEach { (ageMillis, expected) ->
+          assertEquals("age of $ageMillis ms", expected, freshnessForAge(ageMillis))
+        }
   }
 
   @Test
-  fun locationDatedInTheFutureIsLive() {
-    assertEquals("live", freshnessForAge(-3_000))
-  }
-
-  @Test
-  fun lastMillisecondBeforeLiveThresholdIsLive() {
-    assertEquals("live", freshnessForAge(4_999))
-  }
-
-  @Test
-  fun liveThresholdSwitchesToSeconds() {
-    assertEquals("5 s ago", freshnessForAge(5_000))
-  }
-
-  @Test
-  fun secondsAreRoundedDown() {
-    assertEquals("10 s ago", freshnessForAge(10_999))
-  }
-
-  @Test
-  fun lastSecondBeforeAMinuteIsShownInSeconds() {
-    assertEquals("59 s ago", freshnessForAge(59_999))
-  }
-
-  @Test
-  fun oneMinuteSwitchesToMinutes() {
-    assertEquals("1 min ago", freshnessForAge(60_000))
-  }
-
-  @Test
-  fun minutesAreRoundedDown() {
-    assertEquals("1 min ago", freshnessForAge(119_999))
-    assertEquals("2 min ago", freshnessForAge(120_000))
-  }
-
-  @Test
-  fun longAgesAreStillShownInMinutes() {
-    assertEquals("90 min ago", freshnessForAge(90 * 60_000L))
-  }
-
-  @Test
-  fun locationDatedAtTheEpochIsShownInMinutes() {
-    assertEquals("28333333 min ago", freshnessForAge(NOW))
-  }
-
-  @Test
-  fun timeDoesNotChangeWhileNotTicking() {
-    showCurrentTime(ticking = false)
-    assertShownTime(NOW)
-
-    advanceBy(5_000)
-
-    assertShownTime(NOW)
-  }
-
-  @Test
-  fun timeIsRefreshedEverySecondWhileTicking() {
+  fun timeIsRefreshedEverySecondWhileTickingAndKeptOnceItStops() {
     showCurrentTime(ticking = true)
     assertShownTime(NOW)
 
@@ -111,22 +73,15 @@ class LocationFreshnessTest {
 
     advanceBy(1_000)
     assertShownTime(NOW + 2_000)
-  }
-
-  @Test
-  fun timeKeepsItsLastValueOnceTickingStops() {
-    showCurrentTime(ticking = true)
-    advanceBy(1_000)
-    assertShownTime(NOW + 1_000)
 
     setTicking(false)
     advanceBy(5_000)
 
-    assertShownTime(NOW + 1_000)
+    assertShownTime(NOW + 2_000)
   }
 
   @Test
-  fun timeIsRefreshedAgainOnceTickingStarts() {
+  fun timeIsRefreshedOnlyOnceTickingStarts() {
     showCurrentTime(ticking = false)
     advanceBy(3_000)
     assertShownTime(NOW)
