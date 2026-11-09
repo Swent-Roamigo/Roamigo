@@ -12,6 +12,10 @@ object Route {
   const val PROFILE = "profile"
   const val FRIENDS = "friends"
   const val NEW_TRIP = "new_trip"
+  const val TRIP_READY = "trip/{tripId}/ready"
+
+  fun tripReady(tripId: String): String = "trip/${Uri.encode(tripId)}/ready"
+
   const val TRIP_HISTORY = "trip_history"
   const val EXPLORED_WORLD = "explored_world"
   const val TRIP_DETAILS = "trip/{tripId}/details?readOnly={readOnly}&initialTab={initialTab}"

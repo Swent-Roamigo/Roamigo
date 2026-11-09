@@ -250,7 +250,7 @@ class DestinationScreenTest {
             savedStateHandle = savedStateHandle,
             onClose = {},
             onSignIn = {},
-            onTripCreated = {},
+            onTripCreated = { _, _ -> },
         )
       }
     }

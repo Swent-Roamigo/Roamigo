@@ -3,6 +3,7 @@
 // Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui
 
+import android.os.Bundle
 import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -33,6 +34,7 @@ import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.ui.authentication.AuthenticationRoute
+import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.friends.FriendsScreen
 import com.swent.roamigo.ui.friends.FriendsUiState
 import com.swent.roamigo.ui.heatmap.ExploredWorldRoute
@@ -47,6 +49,7 @@ import com.swent.roamigo.ui.permissions.PermissionsScreen
 import com.swent.roamigo.ui.profile.ProfileRoute
 import com.swent.roamigo.ui.trip.TripRoute
 import com.swent.roamigo.ui.trip.creation.CreateTripRoute
+import com.swent.roamigo.ui.trip.creation.TripReadyRoute
 import com.swent.roamigo.ui.trip.history.TripHistoryRoute
 import com.swent.roamigo.ui.trip.members.TripMembersRoute
 import com.swent.roamigo.ui.trip.voting.CreateVoteRoute
@@ -262,6 +265,31 @@ fun RoamigoApp(
       )
     }
 
+    composable(Route.TRIP_READY) { entry ->
+      val id = entry.tripId()
+      val photo by
+          entry.savedStateHandle.getStateFlow<Bundle?>("ready_photo", null).collectAsState()
+      val onInviteClick = rememberNotImplementedAction()
+      val onSuggestClick = rememberNotImplementedAction()
+      fun openTrip(openMap: Boolean) {
+        navController.navigate(Route.tripDetails(id, openMap = openMap)) {
+          popUpTo(Route.TRIP_READY) { inclusive = true }
+          launchSingleTop = true
+        }
+      }
+      val onShareTripClick = rememberNotImplementedAction()
+      TripReadyRoute(
+          tripRepository = tripRepository,
+          tripId = id,
+          photo = photo,
+          onInviteClick = onInviteClick,
+          onSuggestClick = onSuggestClick,
+          onShareLocationClick = { openTrip(openMap = true) },
+          onOpenItineraryClick = { openTrip(openMap = false) },
+          onShareTripClick = onShareTripClick,
+      )
+    }
+
     composable(Route.NEW_TRIP) { entry ->
       CreateTripRoute(
           tripRepository = tripRepository,
@@ -274,12 +302,27 @@ fun RoamigoApp(
               launchSingleTop = true
             }
           },
-          onTripCreated = { tripId ->
+          onTripCreated = { tripId, photo ->
             navController.getBackStackEntry(Route.TRIPS).savedStateHandle["trip_created"] = true
-            // The form leaves the stack, so Back from the new trip returns to Trips home.
-            navController.navigate(Route.tripDetails(tripId)) {
+            navController.navigate(Route.tripReady(tripId)) {
               popUpTo(Route.NEW_TRIP) { inclusive = true }
               launchSingleTop = true
+            }
+            if (photo != null) {
+              navController.currentBackStackEntry
+                  ?.savedStateHandle
+                  ?.set(
+                      "ready_photo",
+                      Bundle().apply {
+                        putString("url", photo.imageUrl)
+                        putString("creator", photo.creator)
+                        putString("source", photo.sourceUrl)
+                        putString("license", photo.license)
+                        putString("licenseUrl", photo.licenseUrl)
+                        putString("title", photo.title)
+                        putString("credit", photo.credit)
+                      },
+                  )
             }
           },
       )

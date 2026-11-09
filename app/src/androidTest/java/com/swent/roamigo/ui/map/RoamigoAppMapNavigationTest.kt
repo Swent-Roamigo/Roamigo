@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -32,6 +33,7 @@ import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.RoamigoApp
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import com.swent.roamigo.ui.trip.creation.TripReadyTestTags
 import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -243,6 +245,29 @@ class RoamigoAppMapNavigationTest {
 
     waitForRoute(Route.TRIPS)
     composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+  }
+
+  @Test
+  fun tripReadyLocationShortcutOpensTheCreatedTripsMapTab() {
+    composeRule.runOnUiThread { navController.navigate(Route.tripReady(mainTrip.uid)) }
+    waitForTag(TripReadyTestTags.LOCATION_CARD)
+
+    composeRule.onNodeWithTag(TripReadyTestTags.LOCATION_CARD).performScrollTo().performClick()
+
+    waitForRoute(Route.TRIP_DETAILS)
+    composeRule.runOnIdle {
+      assertEquals(
+          mainTrip.uid,
+          navController.currentBackStackEntry?.arguments?.getString("tripId"),
+      )
+      assertEquals(
+          "map",
+          navController.currentBackStackEntry?.arguments?.getString("initialTab"),
+      )
+    }
+    waitForTag(C.Tag.trip_map_map)
+    composeRule.loadLocalMapStyle()
+    composeRule.onNodeWithTag(C.Tag.trip_map_map).assertIsDisplayed()
   }
 
   @Test
