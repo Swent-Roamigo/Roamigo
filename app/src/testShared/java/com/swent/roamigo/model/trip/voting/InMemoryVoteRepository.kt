@@ -76,6 +76,11 @@ class InMemoryVoteRepository(initialVotes: List<Vote> = emptyList()) : VoteRepos
     stream.value = stream.value.filterNot { it.userId == ballot.userId } + ballot
   }
 
+  /** Emits a controlled read snapshot, including delayed delivery of pre-close ballots. */
+  fun emitBallots(tripId: String, voteId: String, snapshot: List<VoteBallot>) {
+    ballotStream(tripId, voteId).value = snapshot
+  }
+
   private fun ballotStream(tripId: String, voteId: String): MutableStateFlow<List<VoteBallot>> =
       ballots.getOrPut(tripId to voteId) { MutableStateFlow(emptyList()) }
 }

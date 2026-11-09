@@ -35,6 +35,7 @@ import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.model.trip.voting.Vote
+import com.swent.roamigo.model.trip.voting.VoteBallot
 import com.swent.roamigo.model.trip.voting.VoteOption
 import com.swent.roamigo.model.trip.voting.VoteStatus
 import com.swent.roamigo.resources.C
@@ -230,14 +231,14 @@ class VotesNavigationTest {
     composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
     composeRule.onNodeWithTag("vote_close_dialog").assertDoesNotExist()
     composeRule.onNodeWithText(vote.question).assertIsDisplayed()
-    composeRule.onNodeWithText("Closed vote").assertIsDisplayed()
+    composeRule.onNodeWithText("Vote closed · no votes").assertIsDisplayed()
     composeRule.onNodeWithText("Vote").assertDoesNotExist()
     composeRule.runOnIdle {
       assertEquals(
           VoteStatus.CLOSED,
           repository.snapshots.value.getOrThrow().single { it.tripId == tripId }.status,
       )
-      assertEquals(0, repository.activeBallotObservers[vote.uid])
+      assertEquals(1, repository.activeBallotObservers[vote.uid])
     }
   }
 
@@ -426,9 +427,9 @@ class VotesNavigationTest {
     composeRule.runOnIdle {
       repository.snapshots.value = Result.success(listOf(vote.copy(status = VoteStatus.CLOSED)))
     }
-    composeRule.onNodeWithText("Decided").assertIsDisplayed()
+    composeRule.onNodeWithText("Decided").assertDoesNotExist()
     composeRule.onNodeWithText(vote.question).performClick()
-    composeRule.onNodeWithText("This vote is closed.").assertIsDisplayed()
+    composeRule.onNodeWithText("No votes cast · no winner").assertIsDisplayed()
     composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
     composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
     composeRule.runOnIdle {
@@ -436,6 +437,43 @@ class VotesNavigationTest {
       assertEquals(tripId, navController.currentBackStackEntry?.arguments?.getString("tripId"))
       assertEquals(vote.uid, navController.currentBackStackEntry?.arguments?.getString("voteId"))
     }
+    composeRule.onNodeWithText("Back").performClick()
+    composeRule.onNodeWithText("Decided").assertDoesNotExist()
+    composeRule.onNodeWithText(vote.question).performClick()
+    composeRule.onNodeWithText("No votes cast · no winner").assertIsDisplayed()
+  }
+
+  @Test
+  fun closedResultCardAndDetailedScreenShowTheSameBallotDerivedWinner() {
+    repository.snapshots.value = Result.success(listOf(vote.copy(status = VoteStatus.CLOSED)))
+    repository.emitBallots(
+        tripId,
+        vote.uid,
+        listOf(
+            VoteBallot("member", "a", Timestamp(1, 0)),
+            VoteBallot("other", "a", Timestamp(1, 0)),
+        ),
+    )
+    openVotes()
+    composeRule.onNodeWithText("Decided").assertIsDisplayed()
+    composeRule.onNodeWithText("Decided · Market · your vote").assertIsDisplayed()
+    composeRule
+        .onNodeWithTag("decided_check_${vote.uid}", useUnmergedTree = true)
+        .assertIsDisplayed()
+    composeRule
+        .onNodeWithTag("decided_vote_count_${vote.uid}", useUnmergedTree = true)
+        .assertTextEquals("2 votes")
+    composeRule.onNodeWithTag("closed_vote_${vote.uid}").assertDoesNotExist()
+    composeRule.onNodeWithTag("decided_vote_${vote.uid}").performClick()
+    composeRule.onNodeWithText("Final results").assertIsDisplayed()
+    composeRule.onNodeWithTag("vote_result_a").assertIsDisplayed()
+    composeRule
+        .onNode(hasText("Market") and hasText("Winner") and hasText("2 votes"))
+        .assertIsDisplayed()
+    composeRule.onNode(hasText("Restaurant") and hasText("0 votes")).assertIsDisplayed()
+    composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Back").performClick()
+    composeRule.onNodeWithText("Decided · Market · your vote").assertIsDisplayed()
   }
 
   @Test

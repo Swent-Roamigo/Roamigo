@@ -106,8 +106,8 @@ internal fun VoteCloseDialogContent(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-  LaunchedEffect(state) { if (state == VoteUiState.Closed) onDismiss() }
-  if (state == VoteUiState.Closed) return
+  LaunchedEffect(state) { if (state is VoteUiState.Closed) onDismiss() }
+  if (state is VoteUiState.Closed) return
   VoteCloseConfirmation(state, onConfirm, onRetry, onDismiss, modifier)
 }
 
@@ -134,7 +134,7 @@ internal fun VoteCloseConfirmation(
               CircularProgressIndicator()
               Text(stringResource(R.string.vote_loading))
             }
-            VoteUiState.Closed -> Text(stringResource(R.string.vote_closed))
+            is VoteUiState.Closed -> Text(stringResource(R.string.vote_closed))
             is VoteUiState.LoadError ->
                 VoteErrorContent(
                     if (state.reason == VoteLoadError.NOT_FOUND) R.string.vote_not_found

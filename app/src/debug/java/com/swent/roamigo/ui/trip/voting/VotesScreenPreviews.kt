@@ -6,6 +6,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.trip.voting.Vote
 import com.swent.roamigo.model.trip.voting.VoteOption
+import com.swent.roamigo.model.trip.voting.VoteResult
 import com.swent.roamigo.model.trip.voting.VoteStatus
 import com.swent.roamigo.ui.theme.RoamigoTheme
 
@@ -57,6 +58,15 @@ private fun VotesReadyPreview() {
                       status = VoteStatus.CLOSED,
                       creationTime = Timestamp(1_791_637_200, 0),
                   )
+              ),
+          finalSummaries =
+              mapOf(
+                  "lx-factory" to
+                      VoteResult(
+                          counts = mapOf("afternoon" to 2, "evening" to 1),
+                          winningOptionIds = setOf("afternoon"),
+                          currentUserOptionId = "afternoon",
+                      )
               ),
       )
   )

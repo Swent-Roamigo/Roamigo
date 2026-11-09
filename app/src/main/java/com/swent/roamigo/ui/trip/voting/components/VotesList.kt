@@ -10,6 +10,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -46,16 +47,27 @@ fun VotesList(
         )
       }
     }
-    if (state.closedVotes.isNotEmpty()) {
+    items(state.unresolvedClosedVotes, key = { it.uid }) { vote ->
+      VoteCard(
+          vote,
+          onClick = { onOpenVote(vote.uid) },
+          finalResult = state.finalSummaries[vote.uid],
+      )
+    }
+    if (state.decidedVotes.isNotEmpty()) {
       item {
         Text(
             stringResource(R.string.votes_decided),
             style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.semantics { heading() },
+            modifier = Modifier.testTag("votes_decided_heading").semantics { heading() },
         )
       }
-      items(state.closedVotes, key = { it.uid }) { vote ->
-        VoteCard(vote, onClick = { onOpenVote(vote.uid) })
+      items(state.decidedVotes, key = { it.uid }) { vote ->
+        VoteCard(
+            vote,
+            onClick = { onOpenVote(vote.uid) },
+            finalResult = state.finalSummaries[vote.uid],
+        )
       }
     }
   }

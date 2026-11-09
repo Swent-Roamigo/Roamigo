@@ -34,3 +34,8 @@ val MyLocationBlue = Color(0xFF1A73E8)
 val FriendAvatarBlue = Color(0xFF4676A8)
 val FriendAvatarRose = Color(0xFFA85071)
 val FriendAvatarGreen = Color(0xFF507F60)
+
+// Closed-vote tie notice from Figma S30 (2398:313).
+val VoteTieSurface = Color(0xFFFDF3E1)
+val VoteTieBorder = Color(0xFFF0DCB0)
+val VoteTieContent = Color(0xFF6B4A0F)
