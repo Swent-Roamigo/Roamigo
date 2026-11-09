@@ -286,7 +286,9 @@ class TripMapLocationLayerTest {
   fun locationErrorIsShownInASnackbarWithoutHidingTheMap() {
     setContent(
         LocationUiState(
-            sharingErrorMessage = "Backend detail that must not be shown",
+            sharingError = LocationSharingError.RequestFailed,
+            // Also shows that a sharing error comes before an observation error.
+            observationErrorMessage = "Backend detail that must not be shown",
             memberLocations = listOf(memberLocation("alex")),
         )
     )
@@ -306,8 +308,7 @@ class TripMapLocationLayerTest {
     waitForText(targetContext.getString(R.string.trip_map_error_locations_unavailable))
 
     composeRule.runOnIdle {
-      locationState.value =
-          LocationUiState(sharingErrorMessage = LocationViewModel.PERMISSION_REQUIRED_MESSAGE)
+      locationState.value = LocationUiState(sharingError = LocationSharingError.PermissionRequired)
     }
     waitForText(targetContext.getString(R.string.trip_map_error_permission_required))
   }
