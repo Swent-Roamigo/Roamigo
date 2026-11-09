@@ -2,6 +2,8 @@
 package com.swent.roamigo.model.destination
 
 import java.io.File
+import java.io.IOException
+import java.nio.file.Files
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -19,7 +21,7 @@ class FileDestinationPhotoStore(private val directory: File) : DestinationPhotoS
           parse(JSONObject(file.readText()))
         } catch (_: Exception) {
           // A damaged or foreign file is dropped so that it is replaced by the next lookup.
-          file.delete()
+          discard(file)
           null
         }
       }
@@ -31,10 +33,19 @@ class FileDestinationPhotoStore(private val directory: File) : DestinationPhotoS
         // Written aside and renamed, so a reader never sees half a file.
         val temporary = File(directory, "${fileNameOf(destinationId)}.tmp")
         temporary.writeText(encode(photo))
-        if (!temporary.renameTo(fileFor(destinationId))) temporary.delete()
+        if (!temporary.renameTo(fileFor(destinationId))) discard(temporary)
       } catch (_: Exception) {
         // Only a cache: the photo is shown anyway.
       }
+    }
+  }
+
+  /** Removes [file] if it is there. It only frees space, so a failure to remove it is ignored. */
+  private fun discard(file: File) {
+    try {
+      Files.deleteIfExists(file.toPath())
+    } catch (_: IOException) {
+      // Only a cache: the file is replaced or ignored on the next lookup.
     }
   }
 
