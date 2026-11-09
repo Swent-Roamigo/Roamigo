@@ -1,6 +1,8 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui.map
 
+import androidx.annotation.StringRes
+import com.swent.roamigo.R
 import com.swent.roamigo.model.location.MemberLocation
 
 /** Location permission state of the current user, as seen by the trip map. */
@@ -75,6 +77,21 @@ data class LocationUiState(
    */
   val errorMessage: String?
     get() = sharingErrorMessage ?: observationErrorMessage
+
+  /**
+   * Localized message for [errorMessage], or null if there is no error. The messages themselves are
+   * not localized and may come from the repository, so only their source picks the text shown.
+   */
+  @get:StringRes
+  val errorMessageRes: Int?
+    get() =
+        when {
+          sharingErrorMessage == LocationViewModel.PERMISSION_REQUIRED_MESSAGE ->
+              R.string.trip_map_error_permission_required
+          sharingErrorMessage != null -> R.string.trip_map_error_sharing_failed
+          observationErrorMessage != null -> R.string.trip_map_error_locations_unavailable
+          else -> null
+        }
 
   /**
    * Own position to show on the map, or null if none. Only shown while the user shares with the
