@@ -81,6 +81,8 @@ class VotesViewModel(
 
   private suspend fun observeTripVotes() = coroutineScope {
     var votes = emptyList<Vote>()
+    // Mutations stay on the ViewModel Main dispatcher in this structured scope and its
+    // children, so ordinary mutable maps are safe without synchronization.
     val listeners = mutableMapOf<String, Job>()
     val results = mutableMapOf<String, VoteResult>()
 

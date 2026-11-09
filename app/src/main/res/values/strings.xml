@@ -334,7 +334,7 @@
     </plurals>
     <string name="votes_decided">Decided</string>
     <string name="votes_live_vote">Live vote</string>
-    <string name="votes_closed_vote">Closed vote</string>
+    <string name="votes_unresolved">Unresolved</string>
     <string name="votes_loading">Loading votes…</string>
     <string name="votes_empty_title">No votes yet</string>
     <string name="votes_empty_description">Start a vote to decide together with your trip members.</string>

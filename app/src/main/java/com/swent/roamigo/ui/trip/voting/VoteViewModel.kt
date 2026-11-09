@@ -15,8 +15,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -44,9 +44,13 @@ class VoteViewModel(
       is VoteUiState.LoadError -> if (state.canRetry) loadVote()
       is VoteUiState.Ready -> {
         if (state.syncState != VoteSyncState.Failed || state.isSubmitting || state.isClosing) return
-        observationJob?.cancel()
+        val previous = observationJob
+        previous?.cancel()
         updateReady { it.copy(syncState = VoteSyncState.Retrying) }
-        observationJob = viewModelScope.launch { observeBallots(state.vote) }
+        observationJob = viewModelScope.launch {
+          previous?.join()
+          observeBallots()
+        }
       }
       VoteUiState.Loading,
       is VoteUiState.Closed -> Unit
@@ -54,23 +58,24 @@ class VoteViewModel(
   }
 
   private fun loadVote() {
-    observationJob?.cancel()
+    val previous = observationJob
+    previous?.cancel()
     _uiState.value = VoteUiState.Loading
     observationJob = viewModelScope.launch {
-      val vote =
-          try {
-            voteRepository.getVote(tripId, voteId)
-                ?: run {
-                  _uiState.value = VoteUiState.LoadError(VoteLoadError.NOT_FOUND)
-                  return@launch
-                }
-          } catch (cancelled: CancellationException) {
-            throw cancelled
-          } catch (_: Exception) {
-            _uiState.value = VoteUiState.LoadError(VoteLoadError.VOTE_FAILED)
-            return@launch
-          }
-      observeBallots(vote)
+      previous?.join()
+      try {
+        voteRepository.getVote(tripId, voteId)
+            ?: run {
+              _uiState.value = VoteUiState.LoadError(VoteLoadError.NOT_FOUND)
+              return@launch
+            }
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (_: Exception) {
+        _uiState.value = VoteUiState.LoadError(VoteLoadError.VOTE_FAILED)
+        return@launch
+      }
+      observeBallots()
     }
   }
 
@@ -105,44 +110,15 @@ class VoteViewModel(
     }
   }
 
-  private suspend fun observeBallots(vote: Vote) {
+  private suspend fun observeBallots() {
     try {
-      // Keep both listeners alive after closure: the final ballot snapshot can arrive later.
-      val votes =
-          voteRepository.observeVote(tripId, voteId).onEach { current ->
-            if (current == null) {
-              _uiState.value = VoteUiState.LoadError(VoteLoadError.NOT_FOUND)
-              observationJob?.cancel()
-            } else if (current.status == VoteStatus.CLOSED && _uiState.value is VoteUiState.Ready) {
-              _uiState.value = VoteUiState.Loading
-            }
-          }
-      combine(votes, voteRepository.observeBallots(tripId, voteId)) { current, ballots ->
-            current to ballots
-          }
-          .collect { (current, ballots) ->
-            if (current == null) return@collect
-            val result = calculateVoteResult(current.options, ballots)
-            if (current.status == VoteStatus.CLOSED) {
-              _uiState.value = VoteUiState.Closed(current, result)
-              return@collect
-            }
-            val persistedOptionId = ballots.firstOrNull { it.userId == userId }?.optionId
-            val voteCounts = result.counts
-            _uiState.update { state ->
-              when (state) {
-                is VoteUiState.Ready -> state.withBallotSnapshot(persistedOptionId, voteCounts)
-                VoteUiState.Loading ->
-                    VoteUiState.Ready(
-                        vote,
-                        persistedOptionId,
-                        isCreator = vote.createdByUserId == userId,
-                        voteCounts = voteCounts,
-                    )
-                else -> state
-              }
-            }
-          }
+      voteRepository.observeVote(tripId, voteId).distinctUntilChanged().collectLatest { current ->
+        if (current == null) {
+          _uiState.value = VoteUiState.LoadError(VoteLoadError.NOT_FOUND)
+          return@collectLatest
+        }
+        observeCurrentBallots(current)
+      }
     } catch (cancelled: CancellationException) {
       throw cancelled
     } catch (_: Exception) {
@@ -151,6 +127,38 @@ class VoteViewModel(
           is VoteUiState.Ready -> state.copy(syncState = VoteSyncState.Failed)
           else -> VoteUiState.LoadError(VoteLoadError.BALLOTS_FAILED)
         }
+      }
+    }
+  }
+
+  private suspend fun observeCurrentBallots(current: Vote) {
+    val closed = current.status == VoteStatus.CLOSED
+    if (closed) _uiState.value = VoteUiState.Loading
+    // Final results intentionally require server confirmation, including when offline.
+    // Never promote the previous live/cache snapshot to a final result while waiting.
+    val ballotsFlow =
+        if (closed) voteRepository.observeFinalBallots(tripId, voteId)
+        else voteRepository.observeBallots(tripId, voteId)
+    ballotsFlow.collect { ballots -> publishBallots(current, ballots) }
+  }
+
+  private fun publishBallots(current: Vote, ballots: List<VoteBallot>) {
+    val result = calculateVoteResult(current.options, ballots, userId)
+    if (current.status == VoteStatus.CLOSED) {
+      _uiState.value = VoteUiState.Closed(current, result)
+      return
+    }
+    _uiState.update { state ->
+      when (state) {
+        is VoteUiState.Ready -> state.withBallotSnapshot(result.currentUserOptionId, result.counts)
+        VoteUiState.Loading ->
+            VoteUiState.Ready(
+                current,
+                result.currentUserOptionId,
+                isCreator = current.createdByUserId == userId,
+                voteCounts = result.counts,
+            )
+        else -> state
       }
     }
   }

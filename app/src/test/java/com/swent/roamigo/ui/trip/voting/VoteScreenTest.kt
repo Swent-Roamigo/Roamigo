@@ -465,6 +465,43 @@ class VoteScreenTest {
   }
 
   @Test
+  fun detailedResultMarksOnlyCurrentUsersPersistedOption() {
+    val vote = interactionVote().copy(status = VoteStatus.CLOSED)
+    content(
+        VoteUiState.Closed(
+            vote,
+            calculateVoteResult(
+                vote.options,
+                listOf(
+                    VoteBallot("member", "a", Timestamp(1, 0)),
+                    VoteBallot("other", "b", Timestamp(1, 0)),
+                ),
+                "member",
+            ),
+        )
+    )
+    composeRule.onNodeWithText("Market · your vote").assertIsDisplayed()
+    composeRule.onNodeWithText("Restaurant · your vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Restaurant").assertIsDisplayed()
+  }
+
+  @Test
+  fun detailedResultHasNoMarkerWhenCurrentUserDidNotVote() {
+    val vote = interactionVote().copy(status = VoteStatus.CLOSED)
+    content(
+        VoteUiState.Closed(
+            vote,
+            calculateVoteResult(
+                vote.options,
+                listOf(VoteBallot("other", "b", Timestamp(1, 0))),
+                "member",
+            ),
+        )
+    )
+    composeRule.onNodeWithText("your vote", substring = true).assertDoesNotExist()
+  }
+
+  @Test
   fun routeTransitionsToFinalResultsIncludingLateBallots() {
     val repository = InteractionVoteRepository()
     composeRule.setContent { RoamigoTheme { VoteRoute(repository, "trip", "vote", "member", {}) } }
