@@ -17,9 +17,6 @@ import com.swent.roamigo.model.country.CachedCountryCodeResolver
 import com.swent.roamigo.model.country.DataStoreCountryCodeCache
 import com.swent.roamigo.model.country.GeoNamesCountryCodeLookup
 import com.swent.roamigo.model.country.VisitedCountryRepository
-import com.swent.roamigo.model.destination.CachingDestinationRepository
-import com.swent.roamigo.model.destination.FileDestinationPhotoStore
-import com.swent.roamigo.model.destination.OnlineDestinationRepository
 import com.swent.roamigo.model.trip.TripRepositoryFirestore
 import com.swent.roamigo.model.trip.voting.VoteRepositoryFirestore
 import com.swent.roamigo.resources.C
@@ -68,13 +65,7 @@ class MainActivity : ComponentActivity() {
               tripRepository = tripRepository,
               authRepository = authRepository,
               voteRepository = voteRepository,
-              destinationRepository =
-                  remember {
-                    CachingDestinationRepository(
-                        OnlineDestinationRepository(),
-                        FileDestinationPhotoStore(cacheDir.resolve("destination_photo_lookups")),
-                    )
-                  },
+              destinationRepository = (application as RoamigoApplication).destinationRepository,
               photoRepository = remember { (application as RoamigoApplication).photos.repository },
               locationRepository =
                   remember { (application as RoamigoApplication).locationRepository },

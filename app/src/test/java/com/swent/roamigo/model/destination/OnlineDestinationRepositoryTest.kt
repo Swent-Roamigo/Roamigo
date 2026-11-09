@@ -374,9 +374,9 @@ class OnlineDestinationRepositoryTest {
             .findPhoto(destinationFixture("geonames:1", "City", "Country", "CC", 1))
 
     assertNull(photo)
-    // Wikipedia is tried under the city's name, then under its name and country.
+    // A failed article lookup ends the Wikipedia step, so Openverse follows at once.
     assertEquals(
-        listOf("query.wikidata.org", "en.wikipedia.org", "en.wikipedia.org", "api.openverse.org"),
+        listOf("query.wikidata.org", "en.wikipedia.org", "api.openverse.org"),
         hosts,
     )
   }
@@ -775,6 +775,89 @@ class OnlineDestinationRepositoryTest {
   fun openverseAnswerWithoutResultsGivesNoPhoto() = runTest {
     val client = jsonClient { request ->
       if (request.url.host == "api.openverse.org") "{}" else "{}"
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "Old Town", "Country", "CC", 1))
+
+    assertNull(photo)
+  }
+
+  private fun statusClient(answer: (okhttp3.Request) -> Pair<Int, String>): OkHttpClient =
+      OkHttpClient.Builder()
+          .addInterceptor { chain ->
+            val request = chain.request()
+            val (code, body) = answer(request)
+            Response.Builder()
+                .request(request)
+                .protocol(Protocol.HTTP_1_1)
+                .code(code)
+                .message("status")
+                .body(body.toResponseBody("application/json".toMediaType()))
+                .build()
+          }
+          .build()
+
+  @Test
+  fun aMissingArticleTitleMovesOnToTheTitleWithTheCountry() = runTest {
+    val titles = mutableListOf<String>()
+    val client = statusClient { request ->
+      when (request.url.host) {
+        "query.wikidata.org" -> 200 to "{}"
+        "en.wikipedia.org" -> {
+          titles += request.url.pathSegments.last()
+          if (titles.size == 1) 404 to "{}" else 200 to wikipediaPage()
+        }
+        "commons.wikimedia.org" -> 200 to commonsInfo
+        else -> error("Unexpected API request")
+      }
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "Sion", "Switzerland", "CH", 1))
+
+    assertEquals(listOf("Sion", "Sion,_Switzerland"), titles)
+    assertEquals("https://img.test/thumb.jpg", photo?.imageUrl)
+  }
+
+  @Test
+  fun aServerFailureOnTheFirstTitleSkipsStraightToOpenverse() = runTest {
+    val hosts = mutableListOf<String>()
+    val titles = mutableListOf<String>()
+    val client = statusClient { request ->
+      hosts += request.url.host
+      when (request.url.host) {
+        "query.wikidata.org" -> 200 to "{}"
+        "en.wikipedia.org" -> {
+          titles += request.url.pathSegments.last()
+          503 to "{}"
+        }
+        "api.openverse.org" -> 200 to """{"results":[]}"""
+        else -> error("Commons must not be asked after a failed article lookup")
+      }
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "Sion", "Switzerland", "CH", 1))
+
+    assertNull(photo)
+    assertEquals(listOf("Sion"), titles)
+    assertTrue("api.openverse.org" in hosts)
+  }
+
+  @Test
+  fun anArticleWithMalformedCoordinatesIsNotUsed() = runTest {
+    val client = jsonClient { request ->
+      when (request.url.host) {
+        "query.wikidata.org" -> "{}"
+        "en.wikipedia.org" ->
+            """{"type":"standard","coordinates":{"lat":"n/a"},"originalimage":{"source":"https://upload.wikimedia.org/wikipedia/commons/a/af/Old_Town.jpg"}}"""
+        "api.openverse.org" -> """{"results":[]}"""
+        else -> error("Commons must not be asked for an article that cannot be placed")
+      }
     }
 
     val photo =
