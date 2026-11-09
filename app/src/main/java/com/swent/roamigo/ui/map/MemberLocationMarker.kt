@@ -51,7 +51,6 @@ private const val STALE_ALPHA = 0.5f
  * @param nowMillis current time, in milliseconds since the epoch, used to describe the location's
  *   age.
  * @param isStale whether the location is outdated.
- * @param modifier modifier applied to the marker.
  */
 @Composable
 fun MemberLocationMarker(
@@ -59,7 +58,6 @@ fun MemberLocationMarker(
     member: MemberDisplayInfo,
     nowMillis: Long,
     isStale: Boolean,
-    modifier: Modifier = Modifier,
 ) {
   val userId = location.userId
   val freshness =
@@ -72,7 +70,7 @@ fun MemberLocationMarker(
 
   Column(
       modifier =
-          modifier.alpha(if (isStale) STALE_ALPHA else 1f).semantics(mergeDescendants = true) {
+          Modifier.alpha(if (isStale) STALE_ALPHA else 1f).semantics(mergeDescendants = true) {
             testTag = C.Tag.trip_map_member_marker_prefix + userId
             if (isStale) stateDescription = staleDescription
           },
