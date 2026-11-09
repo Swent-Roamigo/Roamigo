@@ -27,6 +27,9 @@ val Success = Color(0xFF4F8A6A)
 // Something is waiting on the user or the connection, but nothing is wrong yet.
 val Warning = Color(0xFFB87819)
 
+// The user's own position on maps, kept apart from the palette so it never reads as a member.
+val MyLocationBlue = Color(0xFF1A73E8)
+
 // Friend avatar colors inspired by the Friends Figma design.
 val FriendAvatarBlue = Color(0xFF4676A8)
 val FriendAvatarRose = Color(0xFFA85071)

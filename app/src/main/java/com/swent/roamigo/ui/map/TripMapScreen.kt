@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,7 +19,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -35,9 +38,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -56,6 +61,7 @@ import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.InfoRow
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
+import com.swent.roamigo.ui.theme.MyLocationBlue
 import com.swent.roamigo.ui.theme.Spacing
 
 /**
@@ -129,6 +135,7 @@ fun TripMapRoute(
       isSharing = locationUiState.isSharing,
       memberLocations = locationUiState.memberLocations,
       staleMemberIds = locationUiState.staleMemberIds,
+      myLocation = locationUiState.shownMyLocation,
       onRetry = tripMapViewModel::retryTrip,
       onRetryActivities = tripMapViewModel::retryActivities,
       onTurnOnSharing = { locationViewModel.onTurnOnSharingClick(permissionChecker.isGranted()) },
@@ -143,6 +150,9 @@ fun TripMapRoute(
   )
 }
 
+private val MyLocationDotSize = 18.dp
+private val MyLocationDotBorderWidth = 3.dp
+
 /**
  * Renders the trip map with its activity markers and the other members' locations for [uiState],
  * with a banner telling whether the user shares their location and a button to turn sharing on or
@@ -155,6 +165,8 @@ fun TripMapRoute(
  * @param isSharing whether the user shares their location with the trip.
  * @param memberLocations locations of the other members currently sharing theirs.
  * @param staleMemberIds identifiers of the members whose location is outdated.
+ * @param myLocation the user's own position, shown as a blue dot, or null to hide it. The caller
+ *   passes it only while the user shares their location.
  * @param nowMillis current time, in milliseconds since the epoch, used to tell how old each member
  *   location is. Refreshed every second by default while member locations are shown.
  * @param onRetry called when the user asks to load the trip again after an error.
@@ -175,6 +187,7 @@ fun TripMapScreen(
     readOnly: Boolean = false,
     memberLocations: List<MemberLocation> = emptyList(),
     staleMemberIds: Set<String> = emptySet(),
+    myLocation: MemberLocation? = null,
     nowMillis: Long = rememberCurrentTimeMillis(isTicking = memberLocations.isNotEmpty()),
 ) {
   // Until the trip is loaded the camera keeps its position, so the map stays usable underneath.
@@ -223,6 +236,18 @@ fun TripMapScreen(
                 isStale = location.userId in staleMemberIds,
             )
           }
+        }
+      }
+      // Declared last so that it is drawn above the member markers.
+      if (myLocation != null) {
+        ViewAnnotation(
+            options =
+                viewAnnotationOptions {
+                  geometry(Point.fromLngLat(myLocation.longitude, myLocation.latitude))
+                  annotationAnchor { anchor(ViewAnnotationAnchor.CENTER) }
+                }
+        ) {
+          MyLocationDot()
         }
       }
     }
@@ -280,6 +305,22 @@ fun TripMapScreen(
       }
     }
   }
+}
+
+/** The user's own position: a blue dot, unlike the members' avatar markers. */
+@Composable
+private fun MyLocationDot() {
+  val description = stringResource(R.string.trip_map_my_location)
+  Surface(
+      modifier =
+          Modifier.size(MyLocationDotSize)
+              .semantics { contentDescription = description }
+              .testTag(C.Tag.trip_map_my_location),
+      shape = CircleShape,
+      color = MyLocationBlue,
+      border = BorderStroke(MyLocationDotBorderWidth, MaterialTheme.colorScheme.surface),
+      shadowElevation = Spacing.extraSmall,
+  ) {}
 }
 
 @Composable
