@@ -84,6 +84,7 @@ class TripMapLocationLayerTest {
       )
 
   private val locationState = mutableStateOf(LocationUiState())
+  private val tripUiState = mutableStateOf<TripMapUiState>(tripState)
 
   @Test
   fun noSharingMemberShowsNoMemberMarker() {
@@ -152,6 +153,22 @@ class TripMapLocationLayerTest {
     composeRule
         .onNodeWithTag(C.Tag.trip_map_member_label_prefix + "zoe", useUnmergedTree = true)
         .assertTextEquals(targetContext.getString(R.string.trip_map_member_marker_label, "Z", live))
+  }
+
+  @Test
+  fun membersAreShownWithTheFallbackNameWhileTheTripReloadsOrFails() {
+    setContent(LocationUiState(memberLocations = listOf(memberLocation("alex"))))
+    waitForMemberLabel("alex", "Alex")
+
+    // The camera keeps its position, so the marker stays on screen.
+    composeRule.runOnIdle { tripUiState.value = TripMapUiState.Loading }
+    waitForMemberLabel("alex", "A")
+    composeRule.onNodeWithTag(memberMarkerTag("alex")).assertIsDisplayed()
+
+    composeRule.runOnIdle { tripUiState.value = TripMapUiState.Error("failure") }
+    composeRule.onNodeWithTag(C.Tag.trip_map_error).assertIsDisplayed()
+    waitForMemberLabel("alex", "A")
+    composeRule.onNodeWithTag(memberMarkerTag("alex")).assertIsDisplayed()
   }
 
   @Test
@@ -349,7 +366,7 @@ class TripMapLocationLayerTest {
       RoamigoTheme {
         // Mirrors how TripMapRoute passes the location state to the screen.
         TripMapScreen(
-            uiState = tripState,
+            uiState = tripUiState.value,
             isSharing = state.isSharing,
             memberLocations = state.memberLocations,
             staleMemberIds = state.staleMemberIds,
@@ -371,6 +388,16 @@ class TripMapLocationLayerTest {
   private fun waitForMemberMarker(userId: String) {
     composeRule.waitUntil(timeoutMillis = MAP_TEST_TIMEOUT_MILLIS) {
       composeRule.onAllNodesWithTag(memberMarkerTag(userId)).fetchSemanticsNodes().isNotEmpty()
+    }
+  }
+
+  private fun waitForMemberLabel(userId: String, name: String) {
+    val label = targetContext.getString(R.string.trip_map_member_marker_label, name, live)
+    composeRule.waitUntil(timeoutMillis = MAP_TEST_TIMEOUT_MILLIS) {
+      composeRule
+          .onAllNodesWithTag(C.Tag.trip_map_member_label_prefix + userId, useUnmergedTree = true)
+          .fetchSemanticsNodes()
+          .any { node -> node.config.getOrNull(SemanticsProperties.Text)?.joinToString() == label }
     }
   }
 

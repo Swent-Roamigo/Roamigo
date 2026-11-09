@@ -50,14 +50,18 @@ internal fun formatLocationFreshness(
  * the freshness texts keep up with the age of the locations.
  *
  * @param isTicking whether the time is refreshed. When false, it keeps its last value.
+ * @param currentTimeMillis source of the current time, replaceable so that tests control it.
  * @return the current time, as of the last refresh.
  */
 @Composable
-internal fun rememberCurrentTimeMillis(isTicking: Boolean): Long {
+internal fun rememberCurrentTimeMillis(
+    isTicking: Boolean,
+    currentTimeMillis: () -> Long = System::currentTimeMillis,
+): Long {
   val nowMillis by
-      produceState(System.currentTimeMillis(), isTicking) {
+      produceState(currentTimeMillis(), isTicking) {
         while (isTicking) {
-          value = System.currentTimeMillis()
+          value = currentTimeMillis()
           delay(1.seconds)
         }
       }
