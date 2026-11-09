@@ -8,6 +8,8 @@ import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.users.UserRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,6 +37,8 @@ class TripMembersViewModel(
     private val tripId: String,
     private val tripRepository: TripRepository,
     private val userRepository: UserRepository,
+    private val currentUserId: String? = null,
+    private val currentUserName: String? = null,
 ) : ViewModel() {
   private val _uiState = MutableStateFlow<TripMembersUiState>(TripMembersUiState.Loading)
   val uiState: StateFlow<TripMembersUiState> = _uiState.asStateFlow()
@@ -53,11 +57,20 @@ class TripMembersViewModel(
       _uiState.value = TripMembersUiState.Loading
       _uiState.value =
           try {
-            val ownerId = tripRepository.getTrip(tripId)?.ownerId
-            val ids = tripRepository.getMembersForTrip(tripId).map { it.userId }.distinct()
+            // The trip and its members do not depend on each other, so they load together.
+            val (trip, members) =
+                coroutineScope {
+                  val trip = async { tripRepository.getTrip(tripId) }
+                  val members = async { tripRepository.getMembersForTrip(tripId) }
+                  trip.await() to members.await()
+                }
+            // A missing trip (deleted, or the user is not a member) is a failure, not an empty
+            // list.
+            checkNotNull(trip) { "Trip $tripId was not found" }
+            val ids = members.map { it.userId }.distinct()
             val names = userRepository.getUsers(ids.toSet()).associate { it.uid to it.displayName }
             TripMembersUiState.Loaded(
-                ids.map { TripMemberUiModel(it, names[it].orEmpty(), it == ownerId) }
+                ids.map { TripMemberUiModel(it, nameOf(it, names), it == trip.ownerId) }
             )
           } catch (exception: CancellationException) {
             throw exception
@@ -67,17 +80,36 @@ class TripMembersViewModel(
     }
   }
 
+  /**
+   * The profile name, or for the signed-in user the account's own name when the profile source does
+   * not know them yet, so that they never appear as an unknown traveller.
+   */
+  private fun nameOf(userId: String, profileNames: Map<String, String>): String {
+    val profile = profileNames[userId]
+    if (!profile.isNullOrBlank()) return profile
+    return if (userId == currentUserId) currentUserName.orEmpty() else ""
+  }
+
   companion object {
     fun factory(
         tripId: String,
         tripRepository: TripRepository,
         userRepository: UserRepository,
+        currentUserId: String? = null,
+        currentUserName: String? = null,
     ): ViewModelProvider.Factory =
         object : ViewModelProvider.Factory {
           @Suppress("UNCHECKED_CAST")
           override fun <T : ViewModel> create(modelClass: Class<T>): T {
             require(modelClass.isAssignableFrom(TripMembersViewModel::class.java))
-            return TripMembersViewModel(tripId, tripRepository, userRepository) as T
+            return TripMembersViewModel(
+                tripId,
+                tripRepository,
+                userRepository,
+                currentUserId,
+                currentUserName,
+            )
+                as T
           }
         }
   }

@@ -34,6 +34,18 @@ class TripMembersScreenTest {
   }
 
   @Test
+  fun anEmojiAtTheStartOfANameIsShownWholeAsTheInitial() {
+    show(
+        TripMembersUiState.Loaded(
+            listOf(TripMemberUiModel("sam", "\uD83D\uDE00 Sam", isOrganiser = false))
+        )
+    )
+
+    // The initial is the whole emoji, not half of its surrogate pair.
+    composeRule.onNodeWithText("\uD83D\uDE00", useUnmergedTree = true).assertIsDisplayed()
+  }
+
+  @Test
   fun listsMembersWithRolesAndMarksTheCurrentUser() {
     show(
         TripMembersUiState.Loaded(

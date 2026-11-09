@@ -173,6 +173,8 @@ fun RoamigoApp(
             tripRepository = tripRepository,
             userRepository = userRepository,
             onBack = { navController.popBackStack() },
+            // The profile source may not know the signed-in user; their account name does.
+            currentUserName = authRepository.getCurrentUser()?.displayName,
         )
       }
     }

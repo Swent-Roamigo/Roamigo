@@ -86,4 +86,69 @@ class TripMembersViewModelTest {
 
         assertEquals(TripMembersUiState.Error, model.uiState.value)
       }
+
+  @Test
+  fun aMissingTripIsAnErrorAndNotAnEmptyMemberList() =
+      runTest(dispatcher) {
+        val model =
+            TripMembersViewModel(
+                "trip",
+                FakeTripRepository(trips = emptyList(), membersByTripId = mapOf("trip" to members)),
+                FakeUserRepository(User("alex", "Alex", null), listOf(User("sam", "Sam", null))),
+            )
+        advanceUntilIdle()
+
+        assertEquals(TripMembersUiState.Error, model.uiState.value)
+      }
+
+  @Test
+  fun theSignedInUserKeepsTheirAccountNameWhenTheProfileSourceDoesNotKnowThem() =
+      runTest(dispatcher) {
+        val model =
+            TripMembersViewModel(
+                "trip",
+                FakeTripRepository(
+                    trips = listOf(trip),
+                    membersByTripId = mapOf("trip" to members),
+                ),
+                // Knows Sam only, like the placeholder repository that does not know the account.
+                FakeUserRepository(
+                    User("someone", "Someone", null),
+                    listOf(User("sam", "Sam", null)),
+                ),
+                currentUserId = "alex",
+                currentUserName = "Alex Account",
+            )
+        advanceUntilIdle()
+
+        assertEquals(
+            TripMembersUiState.Loaded(
+                listOf(
+                    TripMemberUiModel("alex", "Alex Account", isOrganiser = true),
+                    TripMemberUiModel("sam", "Sam", isOrganiser = false),
+                )
+            ),
+            model.uiState.value,
+        )
+      }
+
+  @Test
+  fun aProfileNameIsPreferredOverTheAccountName() =
+      runTest(dispatcher) {
+        val model =
+            TripMembersViewModel(
+                "trip",
+                FakeTripRepository(
+                    trips = listOf(trip),
+                    membersByTripId = mapOf("trip" to members),
+                ),
+                FakeUserRepository(User("alex", "Alex", null), listOf(User("sam", "Sam", null))),
+                currentUserId = "alex",
+                currentUserName = "Account Name",
+            )
+        advanceUntilIdle()
+
+        val loaded = model.uiState.value as TripMembersUiState.Loaded
+        assertEquals("Alex", loaded.members.first().name)
+      }
 }

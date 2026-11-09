@@ -50,11 +50,19 @@ fun TripMembersRoute(
     tripRepository: TripRepository,
     userRepository: UserRepository,
     onBack: () -> Unit,
+    currentUserName: String? = null,
 ) {
   val viewModel: TripMembersViewModel =
       viewModel(
           key = "trip_members_$tripId",
-          factory = TripMembersViewModel.factory(tripId, tripRepository, userRepository),
+          factory =
+              TripMembersViewModel.factory(
+                  tripId,
+                  tripRepository,
+                  userRepository,
+                  currentUserId,
+                  currentUserName,
+              ),
       )
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   TripMembersScreen(state, currentUserId, onBack, viewModel::retry)
@@ -131,7 +139,8 @@ private fun MemberRow(member: TripMemberUiModel, isYou: Boolean) {
         contentAlignment = Alignment.Center,
     ) {
       Text(
-          text = name.first().uppercase(),
+          // A code point, not a UTF-16 char: an emoji at the start of a name must not be split.
+          text = name.substring(0, name.offsetByCodePoints(0, 1)).uppercase(),
           style = MaterialTheme.typography.titleMedium,
           color = Paper,
       )
