@@ -1,0 +1,13 @@
+/.idea/
+.DS_Store
+.gradle
+/local.properties
+/app/google-services.json
+/base64_google_services.txt
+/firebase-debug.log
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+*-debug.log

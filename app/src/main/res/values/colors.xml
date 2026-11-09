@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="roamigo_slate">#404B53</color>
+    <color name="roamigo_ink">#2C353B</color>
+    <color name="roamigo_paper">#FDFDFA</color>
+    <color name="roamigo_ochre">#E2A04A</color>
+</resources>

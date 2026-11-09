@@ -1,0 +1,422 @@
+// AI assistance was used for implementation support and code review.
+package com.swent.roamigo.ui.trip.voting
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.InternalComposeApi
+import androidx.compose.runtime.currentComposer
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.reflect.getDeclaredComposableMethod
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasProgressBarRangeInfo
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.google.firebase.Timestamp
+import com.swent.roamigo.model.trip.voting.VoteBallot
+import com.swent.roamigo.model.trip.voting.VoteOption
+import com.swent.roamigo.ui.theme.RoamigoTheme
+import com.swent.roamigo.ui.trip.voting.components.VoteCard
+import org.junit.Assert.assertEquals
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.annotation.GraphicsMode
+
+@RunWith(AndroidJUnit4::class)
+class VoteScreenTest {
+  @get:Rule val composeRule = createComposeRule()
+
+  private fun loaded() = VoteUiState.Ready(vote = interactionVote())
+
+  @Test
+  @GraphicsMode(GraphicsMode.Mode.NATIVE)
+  fun narrowCreatorCardWrapsSecondaryActionBelowPrimaryAtLargeFont() {
+    composeRule.setContent {
+      RoamigoTheme {
+        CompositionLocalProvider(
+            LocalDensity provides Density(LocalDensity.current.density, 1.5f)
+        ) {
+          Box(Modifier.width(260.dp)) {
+            VoteCard(
+                interactionVote(),
+                {},
+                summary = LiveVoteSummary(emptyMap(), true, true),
+                onCloseVote = {},
+            )
+          }
+        }
+      }
+    }
+    val primary =
+        composeRule
+            .onNodeWithTag("vote_action_vote")
+            .assertIsDisplayed()
+            .fetchSemanticsNode()
+            .boundsInRoot
+    val secondary =
+        composeRule
+            .onNodeWithTag("close_vote_vote")
+            .assertIsDisplayed()
+            .fetchSemanticsNode()
+            .boundsInRoot
+    org.junit.Assert.assertTrue(
+        "Primary: $primary; secondary: $secondary; density: ${composeRule.density}",
+        secondary.top >= primary.bottom,
+    )
+    composeRule.onNodeWithTag("vote_action_vote").assertHeightIsAtLeast(48.dp)
+    composeRule.onNodeWithTag("close_vote_vote").assertHeightIsAtLeast(48.dp)
+  }
+
+  @Test
+  fun liveCardCloseActionIsCreatorOnlyAndDisappearsWhenClosed() {
+    var creator by mutableStateOf(true)
+    var vote by mutableStateOf(interactionVote())
+    var requests = 0
+    composeRule.setContent {
+      RoamigoTheme {
+        VoteCard(
+            vote,
+            {},
+            summary = LiveVoteSummary(emptyMap(), false, isCreator = creator),
+            onCloseVote = { requests++ },
+        )
+      }
+    }
+    composeRule.onNodeWithText("Close vote").assertIsDisplayed().performClick()
+    composeRule.runOnIdle {
+      assertEquals(1, requests)
+      creator = false
+    }
+    composeRule.onNodeWithText("Close vote").assertDoesNotExist()
+    composeRule.runOnIdle {
+      creator = true
+      vote = vote.copy(status = com.swent.roamigo.model.trip.voting.VoteStatus.CLOSED)
+    }
+    composeRule.onNodeWithText("Close vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Cast vote").assertDoesNotExist()
+  }
+
+  @Test
+  fun creatorVotingDialogHasOnlyBallotActions() {
+    composeRule.setContent {
+      RoamigoTheme { VoteDialogContent(loaded().copy(isCreator = true), {}, {}, {}, {}) }
+    }
+    composeRule.onNodeWithText("Close vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Submit vote").assertIsDisplayed()
+    composeRule.onNodeWithText("Back").assertIsDisplayed()
+  }
+
+  @Test
+  fun displaysQuestionOptionsAndSelectionEnablesSubmit() {
+    var state by mutableStateOf(loaded())
+    var submissions = 0
+    composeRule.setContent {
+      RoamigoTheme {
+        VoteScreen(
+            state,
+            { state = state.copy(selectedOptionId = it) },
+            { submissions++ },
+            {},
+            {},
+        )
+      }
+    }
+    composeRule.onNodeWithText("Dinner?").assertIsDisplayed()
+    composeRule.onNodeWithText("Market").assertIsDisplayed().assertIsNotSelected()
+    composeRule.onNodeWithText("Restaurant").assertIsDisplayed().assertIsNotSelected()
+    composeRule.onNodeWithText("Submit vote").assertIsNotEnabled()
+    composeRule.onNodeWithText("Market").performClick().assertIsSelected()
+    composeRule.onNodeWithText("Submit vote").assertIsEnabled()
+    composeRule.onNodeWithText("Restaurant").performClick().assertIsSelected()
+    composeRule.onNodeWithText("Market").assertIsNotSelected()
+    composeRule.onNodeWithText("Submit vote").performClick()
+    composeRule.runOnIdle { assertEquals(1, submissions) }
+  }
+
+  @Test
+  fun existingBallotAppearsSelectedAndOffersUpdate() {
+    content(
+        loaded()
+            .copy(
+                selectedOptionId = "b",
+                persistedOptionId = "b",
+            )
+    )
+    composeRule.onNodeWithText("Restaurant").assertIsSelected()
+    composeRule.onNodeWithText("Market").assertIsNotSelected()
+    composeRule.onNodeWithText("Update vote").assertIsEnabled()
+  }
+
+  @Test
+  fun routeRestoresRepositoryBallotAndSubmitsChangedChoice() {
+    val repository = InteractionVoteRepository()
+    repository.ballots.value = listOf(VoteBallot("member", "a", Timestamp(1, 0)))
+    composeRule.setContent {
+      RoamigoTheme {
+        VoteRoute(
+            voteRepository = repository,
+            tripId = "trip",
+            voteId = "vote",
+            currentUserId = "member",
+            onBack = {},
+        )
+      }
+    }
+    composeRule.onNodeWithText("Market").assertIsSelected()
+    assertCount("Market", "1 vote")
+    assertCount("Restaurant", "0 votes")
+    composeRule.runOnIdle {
+      repository.ballots.value =
+          repository.ballots.value + VoteBallot("other", "b", Timestamp(1, 0))
+    }
+    assertCount("Restaurant", "1 vote")
+    composeRule.onNodeWithText("Restaurant").performClick().assertIsSelected()
+    composeRule.onNodeWithText("Update vote").performClick()
+    composeRule.runOnIdle {
+      assertEquals("member", repository.calls.single().third.userId)
+      assertEquals("b", repository.calls.single().third.optionId)
+    }
+    assertCount("Market", "0 votes")
+    assertCount("Restaurant", "2 votes")
+  }
+
+  @Test
+  fun submittingDisablesOptionsAndActionAndShowsProgress() {
+    content(loaded().copy(selectedOptionId = "a", submissionState = VoteSubmissionState.Submitting))
+    composeRule.onNodeWithText("Market").assertIsSelected().assertIsNotEnabled()
+    composeRule.onNodeWithText("Restaurant").assertIsNotEnabled()
+    composeRule.onNodeWithText("Submitting vote…").assertIsNotEnabled()
+    composeRule.onNodeWithText("Back").assertIsNotEnabled()
+    composeRule
+        .onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate))
+        .assertIsDisplayed()
+  }
+
+  @Test
+  fun loadingBlocksSubmissionAndShowsProgress() {
+    content(VoteUiState.Loading)
+    composeRule.onNodeWithText("Loading vote…").assertIsDisplayed()
+    composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
+    composeRule
+        .onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate))
+        .assertIsDisplayed()
+  }
+
+  @Test
+  fun submissionErrorKeepsChoiceAndEnabledRetrySubmission() {
+    content(
+        loaded()
+            .copy(
+                selectedOptionId = "a",
+                submissionState = VoteSubmissionState.Failed,
+                voteCounts = mapOf("a" to 2, "b" to 1),
+            )
+    )
+    assertCount("Market", "2 votes")
+    assertCount("Restaurant", "1 vote")
+    composeRule.onNodeWithText("Unable to submit your vote. Please try again.").assertIsDisplayed()
+    composeRule.onNodeWithText("Market").assertIsSelected()
+    composeRule.onNodeWithText("Submit vote").assertIsEnabled()
+  }
+
+  @Test
+  fun loadingErrorOffersRetry() {
+    var retries = 0
+    composeRule.setContent {
+      RoamigoTheme {
+        VoteScreen(
+            VoteUiState.LoadError(VoteLoadError.BALLOTS_FAILED),
+            {},
+            {},
+            { retries++ },
+            {},
+        )
+      }
+    }
+    composeRule.onNodeWithText("Unable to load the vote. Please try again.").assertIsDisplayed()
+    composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Retry").performClick()
+    composeRule.runOnIdle { assertEquals(1, retries) }
+  }
+
+  @Test
+  fun voteLookupErrorUsesSameInitialErrorContent() {
+    content(VoteUiState.LoadError(VoteLoadError.VOTE_FAILED))
+    composeRule.onNodeWithText("Unable to load the vote. Please try again.").assertIsDisplayed()
+    composeRule.onNodeWithText("Retry").assertIsEnabled()
+    composeRule.onNodeWithText("Dinner?").assertDoesNotExist()
+  }
+
+  @Test
+  fun listenerFailureKeepsQuestionAndDraftVisibleButDisablesInteraction() {
+    content(
+        loaded()
+            .copy(
+                persistedOptionId = "a",
+                selectedOptionId = "b",
+                syncState = VoteSyncState.Failed,
+                voteCounts = mapOf("a" to 2, "b" to 1),
+            )
+    )
+    composeRule.onNodeWithText("Dinner?").assertIsDisplayed()
+    composeRule.onNodeWithText("Loading vote…").assertDoesNotExist()
+    composeRule.onNodeWithText("Restaurant").assertIsSelected().assertIsNotEnabled()
+    composeRule.onNodeWithText("Market").assertIsNotEnabled()
+    composeRule.onNodeWithText("Update vote").assertIsNotEnabled()
+    assertCount("Market", "2 votes")
+    assertCount("Restaurant", "1 vote")
+    composeRule.onNodeWithText("Retry").assertIsEnabled()
+    composeRule
+        .onNodeWithText("Unable to load your vote selection. Please try again.")
+        .assertIsDisplayed()
+  }
+
+  @Test
+  fun listenerRetryRetainsSelectionWithoutInitialLoading() {
+    content(
+        loaded()
+            .copy(
+                persistedOptionId = "a",
+                selectedOptionId = "b",
+                syncState = VoteSyncState.Retrying,
+            )
+    )
+    composeRule.onNodeWithText("Dinner?").assertIsDisplayed()
+    composeRule.onNodeWithText("Restaurant").assertIsSelected().assertIsNotEnabled()
+    composeRule.onNodeWithText("Update vote").assertIsNotEnabled()
+    composeRule.onNodeWithText("Loading vote…").assertDoesNotExist()
+    composeRule.onNodeWithText("Reconnecting…").assertIsDisplayed()
+  }
+
+  @Test
+  fun closedVoteShowsOnlyTerminalContentAndBack() {
+    content(VoteUiState.Closed)
+    composeRule.onNodeWithText("This vote is closed.").assertIsDisplayed()
+    composeRule.onNodeWithText("Dinner?").assertDoesNotExist()
+    composeRule.onNodeWithText("Market").assertDoesNotExist()
+    composeRule.onNodeWithText("Restaurant").assertDoesNotExist()
+    composeRule.onNodeWithText("Update vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Back").assertIsEnabled()
+  }
+
+  @Test
+  fun notFoundHasNoRetryOrVotingControls() {
+    content(VoteUiState.LoadError(VoteLoadError.NOT_FOUND))
+    composeRule.onNodeWithText("This vote could not be found.").assertIsDisplayed()
+    composeRule.onNodeWithText("Retry").assertDoesNotExist()
+    composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Back").assertIsEnabled()
+  }
+
+  @Test
+  fun everyOptionShowsItsCountWithCorrectPluralsAndKeepsSelection() {
+    content(
+        loaded()
+            .copy(
+                vote =
+                    interactionVote()
+                        .copy(options = interactionVote().options + VoteOption("c", "Cafe")),
+                persistedOptionId = "b",
+                selectedOptionId = "b",
+                voteCounts = mapOf("a" to 0, "b" to 1, "c" to 3),
+            )
+    )
+    assertCount("Market", "0 votes")
+    assertCount("Restaurant", "1 vote")
+    assertCount("Cafe", "3 votes")
+    composeRule.onNodeWithText("Restaurant").assertIsSelected()
+    composeRule.onNodeWithText("Update vote").assertIsEnabled()
+  }
+
+  @Test
+  fun optionWithMissingCountDisplaysZeroVotes() {
+    content(loaded().copy(voteCounts = mapOf("a" to 2)))
+
+    assertCount("Market", "2 votes")
+    assertCount("Restaurant", "0 votes")
+  }
+
+  @Test
+  fun resultStateUpdateChangesCountsWithoutDiscardingLocalSelection() {
+    var state by
+        mutableStateOf(
+            loaded().copy(selectedOptionId = "b", voteCounts = mapOf("a" to 1, "b" to 0))
+        )
+    composeRule.setContent { RoamigoTheme { VoteScreen(state, {}, {}, {}, {}) } }
+    assertCount("Market", "1 vote")
+    assertCount("Restaurant", "0 votes")
+    composeRule.runOnIdle { state = state.copy(voteCounts = mapOf("a" to 0, "b" to 2)) }
+    assertCount("Market", "0 votes")
+    assertCount("Restaurant", "2 votes")
+    composeRule.onNodeWithText("Restaurant").assertIsSelected()
+    composeRule.onNodeWithText("Submit vote").assertIsEnabled()
+    composeRule.onNodeWithText("Loading vote…").assertDoesNotExist()
+  }
+
+  @Test
+  fun noVotePreviewShowsLiveCountsWithoutSelectingAnOption() {
+    previewContent("NoVotePreview")
+
+    composeRule.onNodeWithText("Where should we have dinner?").assertIsDisplayed()
+    assertCount("Local market", "0 votes")
+    assertCount("Restaurant", "1 vote")
+    assertCount("Pizza place", "5 votes")
+    composeRule.onNodeWithText("Local market").assertIsNotSelected()
+    composeRule.onNodeWithText("Restaurant").assertIsNotSelected()
+    composeRule.onNodeWithText("Pizza place").assertIsNotSelected()
+    composeRule.onNodeWithText("Submit vote").assertIsNotEnabled()
+    composeRule.onNodeWithText("Back").assertIsEnabled()
+  }
+
+  @Test
+  fun existingVotePreviewShowsPersistedChoiceWithLiveCountsAndUpdateAction() {
+    previewContent("ExistingVotePreview")
+
+    composeRule.onNodeWithText("Where should we have dinner?").assertIsDisplayed()
+    assertCount("Local market", "0 votes")
+    assertCount("Restaurant", "1 vote")
+    assertCount("Pizza place", "5 votes")
+    composeRule.onNodeWithText("Local market").assertIsNotSelected()
+    composeRule.onNodeWithText("Restaurant").assertIsSelected()
+    composeRule.onNodeWithText("Pizza place").assertIsNotSelected()
+    composeRule.onNodeWithText("Update vote").assertIsEnabled()
+    composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Back").assertIsEnabled()
+  }
+
+  @OptIn(InternalComposeApi::class)
+  private fun previewContent(name: String) {
+    // Render the actual private @Preview entry points without exposing test-only production APIs.
+    val preview =
+        Class.forName("com.swent.roamigo.ui.trip.voting.VoteScreenPreviewsKt")
+            .getDeclaredComposableMethod(name)
+    preview.asMethod().isAccessible = true
+    composeRule.setContent { preview(currentComposer, null) }
+  }
+
+  private fun assertCount(option: String, count: String) {
+    composeRule.onNode(hasText(option) and hasText(count)).assertIsDisplayed()
+  }
+
+  private fun content(state: VoteUiState) {
+    composeRule.setContent { RoamigoTheme { VoteScreen(state, {}, {}, {}, {}) } }
+  }
+}

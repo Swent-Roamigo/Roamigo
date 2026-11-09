@@ -1,0 +1,275 @@
+# AI assistance was used for implementation support.
+name: CI - Test Runner
+
+# Run the workflow when commits are pushed on main or when a PR is modified
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  MAPBOX_ACCESS_TOKEN: ${{ secrets.MAPBOX_ACCESS_TOKEN }}
+
+jobs:
+  # Fast checks that need neither Node, Firebase, KVM, nor an Android emulator.
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Restore Firebase configuration
+        env:
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES" ]; then
+            echo "::error::Set the GOOGLE_SERVICES repository secret to the Base64-encoded google-services.json."
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES" | base64 --decode > app/google-services.json
+
+      - name: Setup JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      # A workflow starts from a clean environment, so the Gradle folder is cached to avoid
+      # downloading and processing the same files on every run.
+      - name: Gradle cache
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      - name: Run formatting, debug, and JVM checks
+        run: ./gradlew ktfmtCheck assembleDebug lintDebug check --build-cache
+
+      # The report job reads these, but it does not recompile or rerun the unit tests.
+      - name: Collect unit test coverage inputs
+        if: always()
+        run: |
+          tar czf checks-outputs.tgz --ignore-failed-read \
+            app/build/outputs/unit_test_code_coverage \
+            app/build/test-results/testDebugUnitTest \
+            app/build/reports/lint-results-debug.xml \
+            app/build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes \
+            app/build/tmp/kotlin-classes/debug
+
+      - name: Upload checks outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checks-outputs
+          if-no-files-found: warn
+          path: checks-outputs.tgz
+
+  # Runs at the same time as the checks job instead of after it.
+  connected-tests:
+    name: Connected tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Mapbox access token
+        run: |
+          if [ -z "$MAPBOX_ACCESS_TOKEN" ]; then
+            echo "::error::Set the MAPBOX_ACCESS_TOKEN repository secret to a Mapbox public access token."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Restore Firebase configuration
+        env:
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES" ]; then
+            echo "::error::Set the GOOGLE_SERVICES repository secret to the Base64-encoded google-services.json."
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES" | base64 --decode > app/google-services.json
+
+      - name: Setup JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - name: Gradle cache
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@15.33.0
+
+      - name: Validate Firebase emulators config
+        run: |
+          if [ ! -f "firebase.json" ]; then
+            echo "::error::firebase.json is missing. Please run firebase init emulators."
+            exit 1
+          fi
+          if ! jq -e '.emulators.auth.port == 9099' firebase.json >/dev/null; then
+            echo "::error::firebase.json must configure the Authentication Emulator on port 9099."
+            exit 1
+          fi
+
+      - name: Enable KVM group perms
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Cache the Emulator, if the cache does not hit, create the emulator.
+      # API 34 matches targetSdk. compileSdk 37 is only the compile platform.
+      - name: AVD cache
+        uses: actions/cache@v6
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-34
+
+      - name: create AVD and generate snapshot for caching
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "Generated AVD snapshot for caching."
+
+      - name: Run connected tests
+        timeout-minutes: 25
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            bash -o pipefail -c "firebase emulators:exec --only auth,database,firestore --project demo-roamigo --non-interactive 'node --test tests/firestore/vote-closing.test.mjs && ./gradlew connectedCheck --build-cache' 2>&1 | tee firebase-emulator.log"
+
+      - name: Upload connected test results and Firebase logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: connected-test-results-and-firebase-logs
+          if-no-files-found: warn
+          path: |
+            firebase-emulator.log
+            app/build/reports/androidTests/connected/**
+            app/build/outputs/androidTest-results/connected/**
+
+      - name: Collect connected test coverage
+        run: tar czf connected-coverage.tgz app/build/outputs/code_coverage
+
+      - name: Upload connected test coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: connected-coverage
+          if-no-files-found: error
+          path: connected-coverage.tgz
+
+  # Merges both coverage sources and sends them to SonarCloud once both jobs have passed.
+  report:
+    name: Coverage report
+    needs: [checks, connected-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of Sonar analysis
+
+      - name: Restore Firebase configuration
+        env:
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES" ]; then
+            echo "::error::Set the GOOGLE_SERVICES repository secret to the Base64-encoded google-services.json."
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES" | base64 --decode > app/google-services.json
+
+      - name: Setup JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - name: Gradle cache
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      - name: Download checks outputs
+        uses: actions/download-artifact@v4
+        with:
+          name: checks-outputs
+
+      - name: Download connected test coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: connected-coverage
+
+      - name: Restore build outputs
+        run: |
+          tar xzf checks-outputs.tgz
+          tar xzf connected-coverage.tgz
+
+      - name: Generate Coverage Report
+        run: ./gradlew jacocoTestReport
+
+      - name: Upload report to SonarCloud
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: ./gradlew sonar --build-cache
+
+  # Branch protection requires a status check named "CI", which was the single job before the
+  # split. This job keeps that name and passes only if every job above succeeded. It must run
+  # even when a needed job fails or is skipped: a skipped required check would count as passing.
+  ci:
+    name: CI
+    needs: [checks, connected-tests, report]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every job to succeed
+        env:
+          CHECKS: ${{ needs.checks.result }}
+          CONNECTED: ${{ needs.connected-tests.result }}
+          REPORT: ${{ needs.report.result }}
+        run: |
+          echo "checks=$CHECKS connected-tests=$CONNECTED report=$REPORT"
+          [ "$CHECKS" = success ] && [ "$CONNECTED" = success ] && [ "$REPORT" = success ]

@@ -1,0 +1,1096 @@
+// AI assistance was used for implementation support and code review.
+
+package com.swent.roamigo.ui.trips
+
+import androidx.lifecycle.ViewModel
+import com.google.firebase.Timestamp
+import com.swent.roamigo.R
+import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.authentication.AuthenticatedUser
+import com.swent.roamigo.model.authentication.FakeAuthRepository
+import com.swent.roamigo.model.destination.Destination
+import com.swent.roamigo.model.destination.DestinationKind
+import com.swent.roamigo.model.destination.DestinationPhoto
+import com.swent.roamigo.model.destination.DestinationRepository
+import com.swent.roamigo.model.trip.Activity
+import com.swent.roamigo.model.trip.ActivityType
+import com.swent.roamigo.model.trip.FakeTripRepository
+import com.swent.roamigo.model.trip.TravelMode
+import com.swent.roamigo.model.trip.Trip
+import com.swent.roamigo.model.trip.TripMember
+import com.swent.roamigo.model.trip.TripMemberRole
+import com.swent.roamigo.model.trip.TripRepository
+import com.swent.roamigo.model.trip.TripStatus
+import com.swent.roamigo.model.users.FakeUserRepository
+import com.swent.roamigo.model.users.User
+import com.swent.roamigo.ui.trip.history.selectCompletedTrips
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class TripsViewModelTest {
+
+  private val testDispatcher = StandardTestDispatcher()
+
+  private val location =
+      TripLocation(
+          latitude = 38.7223,
+          longitude = -9.1393,
+          name = "Lisbon",
+      )
+
+  private val alex =
+      User(
+          uid = "alex",
+          displayName = "Alex Johnson",
+          profilePictureUrl = null,
+      )
+
+  private val sarah =
+      User(
+          uid = "sarah",
+          displayName = "Sarah",
+          profilePictureUrl = null,
+      )
+
+  private val marc =
+      User(
+          uid = "marc",
+          displayName = "Marc",
+          profilePictureUrl = null,
+      )
+
+  private val unnamed =
+      User(
+          uid = "unnamed",
+          displayName = "   ",
+          profilePictureUrl = null,
+      )
+
+  @Before
+  fun setUp() {
+    Dispatchers.setMain(testDispatcher)
+  }
+
+  @After
+  fun tearDown() {
+    Dispatchers.resetMain()
+  }
+
+  @Test
+  fun selectMainTripPrefersActiveTrip() {
+    val now = ZonedDateTime.parse("2026-10-08T14:00:00Z")
+
+    val planned =
+        trip(
+            uid = "planned",
+            name = "Planned trip",
+            start = "2026-10-09T08:00:00Z",
+            end = "2026-10-10T08:00:00Z",
+            status = TripStatus.PLANNED,
+        )
+
+    val active =
+        trip(
+            uid = "active",
+            name = "Active trip",
+            start = "2026-10-07T08:00:00Z",
+            end = "2026-10-10T08:00:00Z",
+            status = TripStatus.ACTIVE,
+        )
+
+    assertEquals(active, selectMainTrip(listOf(planned, active), now))
+  }
+
+  @Test
+  fun selectMainTripIncludesPlannedTripStartingToday() {
+    val now = ZonedDateTime.parse("2026-10-08T14:00:00Z")
+
+    // The trip started earlier today but is still today's planned trip.
+    val today =
+        trip(
+            uid = "today",
+            name = "Today's trip",
+            start = "2026-10-08T08:00:00Z",
+            end = "2026-10-09T20:00:00Z",
+            status = TripStatus.PLANNED,
+        )
+
+    assertEquals(today, selectMainTrip(listOf(today), now))
+  }
+
+  @Test
+  fun selectNextActivityReturnsClosestFutureAcceptedActivity() {
+    val now = ZonedDateTime.parse("2026-10-08T10:00:00Z")
+
+    val pastAccepted =
+        activity(
+            uid = "past",
+            type = ActivityType.ACCEPTED,
+            start = "2026-10-08T09:00:00Z",
+        )
+
+    val futureSuggestion =
+        activity(
+            uid = "suggestion",
+            type = ActivityType.SUGGESTION,
+            start = "2026-10-08T10:30:00Z",
+        )
+
+    val closestAccepted =
+        activity(
+            uid = "closest",
+            type = ActivityType.ACCEPTED,
+            start = "2026-10-08T11:00:00Z",
+        )
+
+    val laterAccepted =
+        activity(
+            uid = "later",
+            type = ActivityType.ACCEPTED,
+            start = "2026-10-08T15:00:00Z",
+        )
+
+    val result =
+        selectNextActivity(
+            listOf(pastAccepted, futureSuggestion, laterAccepted, closestAccepted),
+            now,
+        )
+
+    assertEquals(closestAccepted, result)
+  }
+
+  @Test
+  fun selectOtherTripsFiltersAndSortsTrips() {
+    val now = ZonedDateTime.parse("2026-10-08T14:00:00Z")
+
+    val main =
+        trip(
+            uid = "main",
+            name = "Main",
+            start = "2026-10-08T08:00:00Z",
+            end = "2026-10-09T08:00:00Z",
+            status = TripStatus.ACTIVE,
+        )
+
+    val tomorrow =
+        trip(
+            uid = "tomorrow",
+            name = "Tomorrow",
+            start = "2026-10-09T08:00:00Z",
+            end = "2026-10-10T08:00:00Z",
+            status = TripStatus.PLANNED,
+        )
+
+    val nextWeek =
+        trip(
+            uid = "next-week",
+            name = "Next week",
+            start = "2026-10-15T08:00:00Z",
+            end = "2026-10-17T08:00:00Z",
+            status = TripStatus.PLANNED,
+        )
+
+    val past =
+        trip(
+            uid = "past",
+            name = "Past",
+            start = "2026-10-07T08:00:00Z",
+            end = "2026-10-07T20:00:00Z",
+            status = TripStatus.PLANNED,
+        )
+
+    val completed =
+        trip(
+            uid = "completed",
+            name = "Completed",
+            start = "2026-10-09T08:00:00Z",
+            end = "2026-10-10T08:00:00Z",
+            status = TripStatus.COMPLETED,
+        )
+
+    val result =
+        selectOtherTrips(
+            trips = listOf(nextWeek, completed, main, tomorrow, past),
+            mainTrip = main,
+            now = now,
+        )
+
+    assertEquals(listOf(completed, tomorrow, nextWeek), result)
+  }
+
+  @Test
+  fun viewModelBuildsPresentationStateFromRepositories() = runTest {
+    val now = Instant.parse("2026-10-08T10:00:00Z")
+
+    val mainTrip =
+        trip(
+            uid = "lisbon",
+            name = "Lisbon & Porto",
+            start = "2026-10-08T00:00:00Z",
+            end = "2026-10-10T23:00:00Z",
+            status = TripStatus.ACTIVE,
+        )
+
+    val otherTrip =
+        trip(
+            uid = "berlin",
+            name = "Berlin weekend",
+            start = "2026-10-30T08:00:00Z",
+            end = "2026-11-02T20:00:00Z",
+            status = TripStatus.PLANNED,
+        )
+
+    val nextActivity =
+        activity(
+            uid = "belem",
+            tripId = mainTrip.uid,
+            name = "Belém Tower",
+            type = ActivityType.ACCEPTED,
+            start = "2026-10-09T09:30:00Z",
+        )
+
+    val secondAcceptedActivity =
+        activity(
+            uid = "museum",
+            tripId = mainTrip.uid,
+            name = "Museum",
+            type = ActivityType.ACCEPTED,
+            start = "2026-10-10T11:00:00Z",
+        )
+
+    val suggestion =
+        activity(
+            uid = "suggestion",
+            tripId = mainTrip.uid,
+            name = "Suggestion",
+            type = ActivityType.SUGGESTION,
+            start = "2026-10-08T12:00:00Z",
+        )
+
+    val repository =
+        FakeTripRepository(
+            trips = listOf(mainTrip, otherTrip),
+            activitiesByTripId =
+                mapOf(
+                    mainTrip.uid to
+                        listOf(
+                            suggestion,
+                            secondAcceptedActivity,
+                            nextActivity,
+                        )
+                ),
+            membersByTripId =
+                mapOf(
+                    mainTrip.uid to
+                        listOf(
+                            member(alex.uid),
+                            member(sarah.uid),
+                            member(marc.uid),
+                            member(unnamed.uid),
+                        ),
+                    otherTrip.uid to
+                        listOf(
+                            member(alex.uid),
+                            member(sarah.uid),
+                        ),
+                ),
+        )
+
+    val userRepository =
+        FakeUserRepository(
+            currentUser = alex,
+            users = listOf(sarah, marc, unnamed),
+        )
+
+    val viewModel =
+        TripsViewModel(
+            tripRepository = repository,
+            userRepository = userRepository,
+            clock = Clock.fixed(now, ZoneOffset.UTC),
+        )
+
+    advanceUntilIdle()
+
+    val state = viewModel.uiState.value
+
+    assertEquals(false, state.isLoading)
+    assertNull(state.errorMessage)
+
+    assertEquals("Good morning", state.greeting)
+    assertEquals("Alex", state.currentUserName)
+    assertEquals("A", state.currentUserInitial)
+
+    val main = state.mainTrip!!
+    assertEquals("Lisbon & Porto", main.name)
+    assertEquals("8 – 10 Oct", main.dateRange)
+    assertEquals(3, main.durationDays)
+    assertEquals(2, main.stopCount)
+    assertEquals(listOf("A", "S", "M"), main.memberInitials)
+    assertEquals(MainTripBadge.InProgress, main.badge)
+
+    val next = state.nextActivity!!
+    assertEquals("Belém Tower", next.name)
+    assertTrue(next.subtitle.startsWith("Day 2"))
+    assertTrue(next.subtitle.endsWith("09:30"))
+
+    assertEquals(1, state.otherTrips.size)
+    assertEquals("Berlin weekend", state.otherTrips.single().name)
+    assertEquals("30 Oct – 2 Nov", state.otherTrips.single().dateRange)
+    assertEquals(2, state.otherTrips.single().memberCount)
+  }
+
+  @Test
+  fun photoLookupMatchesCoordinatesAndDoesNotBlockTripsOnFailure() = runTest {
+    val main =
+        trip("lisbon", "Lisbon", "2026-10-08T00:00:00Z", "2026-10-10T23:00:00Z", TripStatus.ACTIVE)
+    val correct =
+        Destination(
+            "correct",
+            DestinationKind.CITY,
+            "Lisbon",
+            "Portugal",
+            "PT",
+            38.7223,
+            -9.1393,
+            1,
+        )
+    val wrong = correct.copy(stableId = "wrong", latitude = 40.0)
+    val photo =
+        DestinationPhoto(
+            "https://example.com/photo.jpg",
+            "Author",
+            "https://example.com",
+            "CC BY",
+            null,
+        )
+    var fail = true
+    var searchCount = 0
+    val destinations =
+        object : DestinationRepository {
+          override suspend fun searchDestinations(query: String): List<Destination> {
+            searchCount++
+            if (fail) error("offline")
+            return listOf(wrong, correct)
+          }
+
+          override suspend fun findPhoto(destination: Destination): DestinationPhoto? {
+            assertEquals(correct, destination)
+            return photo
+          }
+        }
+    val vm =
+        TripsViewModel(
+            FakeTripRepository(trips = listOf(main)),
+            FakeUserRepository(currentUser = alex),
+            Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+            destinations,
+        )
+    advanceUntilIdle()
+    assertEquals("lisbon", vm.uiState.value.mainTrip?.id)
+    assertNull(vm.uiState.value.mainTripPhoto)
+    assertNull(vm.uiState.value.errorMessage)
+    fail = false
+    vm.refresh()
+    advanceUntilIdle()
+    assertEquals(photo, vm.uiState.value.mainTripPhoto)
+    fail = true
+    vm.refresh()
+    advanceUntilIdle()
+    assertEquals(photo, vm.uiState.value.mainTripPhoto)
+    assertEquals(2, searchCount)
+  }
+
+  @Test
+  fun photoLookupUsesNearestMatchingDestinationAndSkipsDistantNamesakes() = runTest {
+    val main =
+        trip("lisbon", "Lisbon", "2026-10-08T00:00:00Z", "2026-10-10T23:00:00Z", TripStatus.ACTIVE)
+    val exact =
+        Destination("exact", DestinationKind.CITY, "Lisbon", "Portugal", "PT", 38.7223, -9.1393, 1)
+    val distant = exact.copy(stableId = "distant", longitude = 4.0)
+    val nearby = exact.copy(stableId = "nearby", latitude = 38.73)
+    val photo =
+        DestinationPhoto("https://example.com/image", null, "https://example.com", "CC0", null)
+    var requested: Destination? = null
+    val destinations =
+        object : DestinationRepository {
+          override suspend fun searchDestinations(query: String): List<Destination> {
+            assertEquals("Lisbon", query)
+            return listOf(distant, nearby, exact)
+          }
+
+          override suspend fun findPhoto(destination: Destination): DestinationPhoto? {
+            requested = destination
+            return photo
+          }
+        }
+    val vm =
+        TripsViewModel(
+            FakeTripRepository(trips = listOf(main)),
+            FakeUserRepository(alex),
+            Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+            destinations,
+        )
+    advanceUntilIdle()
+    assertEquals(exact, requested)
+    assertEquals(photo, vm.uiState.value.mainTripPhoto)
+  }
+
+  @Test
+  fun noNearbyMatchOrDestinationKeepsTripVisibleWithoutRequestingPhoto() = runTest {
+    val main =
+        trip("lisbon", "Lisbon", "2026-10-08T00:00:00Z", "2026-10-10T23:00:00Z", TripStatus.ACTIVE)
+    val distant = Destination("other", DestinationKind.CITY, "Lisbon", "US", "US", 39.0, -9.1393, 2)
+    var searches = 0
+    var photoRequests = 0
+    val destinations =
+        object : DestinationRepository {
+          override suspend fun searchDestinations(query: String): List<Destination> {
+            searches++
+            return listOf(distant)
+          }
+
+          override suspend fun findPhoto(destination: Destination): DestinationPhoto? {
+            photoRequests++
+            return null
+          }
+        }
+    val now = Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC)
+    val vm =
+        TripsViewModel(
+            FakeTripRepository(trips = listOf(main)),
+            FakeUserRepository(alex),
+            now,
+            destinations,
+        )
+    advanceUntilIdle()
+    assertEquals("lisbon", vm.uiState.value.mainTrip?.id)
+    assertNull(vm.uiState.value.mainTripPhoto)
+    assertEquals(1, searches)
+    assertEquals(0, photoRequests)
+    val withoutLocation =
+        TripsViewModel(
+            FakeTripRepository(trips = listOf(main.copy(destinations = emptyList()))),
+            FakeUserRepository(alex),
+            now,
+            destinations,
+        )
+    advanceUntilIdle()
+    assertEquals("lisbon", withoutLocation.uiState.value.mainTrip?.id)
+    assertNull(withoutLocation.uiState.value.mainTripPhoto)
+    assertEquals(1, searches)
+  }
+
+  @Test
+  fun refreshingCancelsPreviousPhotoLookupAndKeepsNewerResult() = runTest {
+    val main =
+        trip("lisbon", "Lisbon", "2026-10-08T00:00:00Z", "2026-10-10T23:00:00Z", TripStatus.ACTIVE)
+    val destination =
+        Destination("lisbon", DestinationKind.CITY, "Lisbon", "Portugal", "PT", 38.7223, -9.1393, 1)
+    val latest =
+        DestinationPhoto("https://example.com/new", null, "https://example.com", "CC0", null)
+    val pending = CompletableDeferred<DestinationPhoto?>()
+    var attempts = 0
+    val destinations =
+        object : DestinationRepository {
+          override suspend fun searchDestinations(query: String) = listOf(destination)
+
+          override suspend fun findPhoto(destination: Destination): DestinationPhoto? {
+            attempts++
+            return if (attempts == 1) pending.await() else latest
+          }
+        }
+    val vm =
+        TripsViewModel(
+            FakeTripRepository(trips = listOf(main)),
+            FakeUserRepository(alex),
+            Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+            destinations,
+        )
+    runCurrent()
+    assertEquals("lisbon", vm.uiState.value.mainTrip?.id)
+    assertNull(vm.uiState.value.mainTripPhoto)
+    vm.refresh()
+    advanceUntilIdle()
+    assertEquals(2, attempts)
+    assertEquals(latest, vm.uiState.value.mainTripPhoto)
+    assertNull(vm.uiState.value.errorMessage)
+  }
+
+  @Test
+  fun refreshReusesPhotoForSameTripAndReloadsWhenDestinationChanges() = runTest {
+    val main =
+        trip("lisbon", "Lisbon", "2026-10-08T00:00:00Z", "2026-10-10T23:00:00Z", TripStatus.ACTIVE)
+    val lisbon =
+        Destination("lisbon", DestinationKind.CITY, "Lisbon", "Portugal", "PT", 38.7223, -9.1393, 1)
+    val porto =
+        Destination("porto", DestinationKind.CITY, "Porto", "Portugal", "PT", 41.1496, -8.6109, 2)
+    val photo =
+        DestinationPhoto(
+            "https://example.com/lisbon",
+            "Author",
+            "https://example.com",
+            "CC BY",
+            null,
+        )
+    val newPhoto = photo.copy(imageUrl = "https://example.com/porto")
+    val delegate = FakeTripRepository(trips = listOf(main))
+    var trips = listOf(main)
+    val repository =
+        object : TripRepository by delegate {
+          override suspend fun getTrips() = trips
+        }
+    var searches = 0
+    var lookups = 0
+    val destinations =
+        object : DestinationRepository {
+          override suspend fun searchDestinations(query: String): List<Destination> {
+            searches++
+            return listOf(lisbon, porto)
+          }
+
+          override suspend fun findPhoto(destination: Destination): DestinationPhoto? {
+            lookups++
+            return if (destination == lisbon) photo else newPhoto
+          }
+        }
+    val vm =
+        TripsViewModel(
+            repository,
+            FakeUserRepository(alex),
+            Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+            destinations,
+        )
+    advanceUntilIdle()
+    assertEquals(photo, vm.uiState.value.mainTripPhoto)
+    trips = listOf(main.copy(name = "Renamed trip"))
+    vm.refresh()
+    runCurrent()
+    assertEquals("Renamed trip", vm.uiState.value.mainTrip?.name)
+    assertEquals(photo, vm.uiState.value.mainTripPhoto)
+    assertEquals(1, searches)
+    assertEquals(1, lookups)
+    trips =
+        listOf(
+            main.copy(
+                destinations = listOf(TripLocation(porto.latitude, porto.longitude, porto.name))
+            )
+        )
+    vm.refresh()
+    advanceUntilIdle()
+    assertEquals(newPhoto, vm.uiState.value.mainTripPhoto)
+    assertEquals(2, searches)
+    assertEquals(2, lookups)
+    trips = listOf(trips.single().copy(uid = "new-trip"))
+    vm.refresh()
+    advanceUntilIdle()
+    assertEquals("new-trip", vm.uiState.value.mainTrip?.id)
+    assertEquals(newPhoto, vm.uiState.value.mainTripPhoto)
+    assertEquals(3, searches)
+    assertEquals(3, lookups)
+    trips = emptyList()
+    vm.refresh()
+    advanceUntilIdle()
+    assertNull(vm.uiState.value.mainTrip)
+    assertNull(vm.uiState.value.mainTripPhoto)
+  }
+
+  @Test
+  fun refreshKeepsExistingTripsWhileLoadingAndAfterFailureThenRecovers() = runTest {
+    val main =
+        trip("lisbon", "Lisbon", "2026-10-08T00:00:00Z", "2026-10-10T23:00:00Z", TripStatus.ACTIVE)
+    val delegate = FakeTripRepository(trips = listOf(main))
+    var result = CompletableDeferred<List<Trip>>().apply { complete(listOf(main)) }
+    val repository =
+        object : TripRepository by delegate {
+          override suspend fun getTrips(): List<Trip> = result.await()
+        }
+    val vm =
+        TripsViewModel(
+            repository,
+            FakeUserRepository(alex),
+            Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+        )
+    advanceUntilIdle()
+    assertEquals("lisbon", vm.uiState.value.mainTrip?.id)
+    result = CompletableDeferred()
+    vm.refresh()
+    runCurrent()
+    assertEquals("lisbon", vm.uiState.value.mainTrip?.id)
+    assertTrue(vm.uiState.value.isRefreshing)
+    assertEquals(false, vm.uiState.value.isLoading)
+    result.completeExceptionally(IllegalStateException("offline"))
+    advanceUntilIdle()
+    assertEquals("lisbon", vm.uiState.value.mainTrip?.id)
+    assertEquals(R.string.trips_refresh_error, vm.uiState.value.refreshError)
+    assertNull(vm.uiState.value.errorMessage)
+    assertEquals(false, vm.uiState.value.isRefreshing)
+    result = CompletableDeferred<List<Trip>>().apply { complete(emptyList()) }
+    vm.refresh()
+    advanceUntilIdle()
+    assertNull(vm.uiState.value.mainTrip)
+    assertNull(vm.uiState.value.refreshError)
+    assertEquals(false, vm.uiState.value.isRefreshing)
+  }
+
+  @Test
+  fun usesAuthenticatedAccountForGreetingAndPhotoInsteadOfPlaceholderUser() = runTest {
+    val account = AuthenticatedUser("user", "Marie Martin", null, "https://example.com/avatar.jpg")
+    val vm =
+        TripsViewModel(
+            tripRepository = FakeTripRepository(),
+            userRepository = FakeUserRepository(currentUser = alex),
+            clock = Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+            authRepository = FakeAuthRepository(account, initiallySignedIn = true),
+        )
+    advanceUntilIdle()
+    assertEquals("Marie", vm.uiState.value.currentUserName)
+    assertEquals("M", vm.uiState.value.currentUserInitial)
+    assertEquals(account.photoUrl, vm.uiState.value.currentUserPhotoUrl)
+  }
+
+  @Test
+  fun initialTripFailureKeepsAuthenticatedProfile() = runTest {
+    val account = AuthenticatedUser("user", "Marie Martin", null, "https://example.com/avatar.jpg")
+    val vm =
+        TripsViewModel(
+            tripRepository = FakeTripRepository(failure = IllegalStateException("offline")),
+            userRepository = FakeUserRepository(currentUser = alex),
+            authRepository = FakeAuthRepository(account, initiallySignedIn = true),
+        )
+    advanceUntilIdle()
+    assertEquals(R.string.trips_load_error, vm.uiState.value.errorMessage)
+    assertEquals("Marie", vm.uiState.value.currentUserName)
+    assertEquals("M", vm.uiState.value.currentUserInitial)
+    assertEquals(account.photoUrl, vm.uiState.value.currentUserPhotoUrl)
+  }
+
+  @Test
+  fun countryCodeFiltersNearbyCandidatesAndLegacyTripsStillUseCoordinates() = runTest {
+    val main =
+        trip("lisbon", "Lisbon", "2026-10-08T00:00:00Z", "2026-10-10T23:00:00Z", TripStatus.ACTIVE)
+    val foreign =
+        Destination("foreign", DestinationKind.CITY, "Lisbon", "Spain", "ES", 38.7223, -9.1393, 1)
+    val local = foreign.copy(stableId = "local", countryCode = "PT", latitude = 38.723)
+    val requested = mutableListOf<Destination>()
+    val destinations =
+        object : DestinationRepository {
+          override suspend fun searchDestinations(query: String) = listOf(foreign, local)
+
+          override suspend fun findPhoto(destination: Destination): DestinationPhoto? {
+            requested.add(destination)
+            return null
+          }
+        }
+    val clock = Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC)
+    TripsViewModel(
+        FakeTripRepository(
+            trips = listOf(main.copy(destinations = listOf(location.copy(countryCode = "PT"))))
+        ),
+        FakeUserRepository(alex),
+        clock,
+        destinations,
+    )
+    advanceUntilIdle()
+    assertEquals(local, requested.single())
+    requested.clear()
+    TripsViewModel(
+        FakeTripRepository(trips = listOf(main)),
+        FakeUserRepository(alex),
+        clock,
+        destinations,
+    )
+    advanceUntilIdle()
+    assertEquals(foreign, requested.single())
+  }
+
+  @Test
+  fun failedPhotoIsLookedUpAgainOnNextRefresh() = runTest {
+    val main =
+        trip("lisbon", "Lisbon", "2026-10-08T00:00:00Z", "2026-10-10T23:00:00Z", TripStatus.ACTIVE)
+    val destination =
+        Destination("lisbon", DestinationKind.CITY, "Lisbon", "Portugal", "PT", 38.7223, -9.1393, 1)
+    val photo =
+        DestinationPhoto("https://example.com/image", null, "https://example.com", "CC0", null)
+    var searches = 0
+    val destinations =
+        object : DestinationRepository {
+          override suspend fun searchDestinations(query: String): List<Destination> {
+            searches++
+            return listOf(destination)
+          }
+
+          override suspend fun findPhoto(destination: Destination) = photo
+        }
+    val vm =
+        TripsViewModel(
+            FakeTripRepository(trips = listOf(main)),
+            FakeUserRepository(alex),
+            Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+            destinations,
+        )
+    advanceUntilIdle()
+    val firstAttempt = vm.uiState.value.mainTripPhotoAttempt
+    vm.onPhotoLoadError(photo)
+    assertEquals(1, searches)
+    vm.refresh()
+    advanceUntilIdle()
+    assertEquals(2, searches)
+    assertEquals(firstAttempt + 1, vm.uiState.value.mainTripPhotoAttempt)
+    assertEquals(photo, vm.uiState.value.mainTripPhoto)
+  }
+
+  @Test
+  fun authenticatedAccountWithoutNameOrPhotoUsesTravelerFallback() = runTest {
+    val account = AuthenticatedUser("user", "  ", null, null)
+    val vm =
+        TripsViewModel(
+            tripRepository = FakeTripRepository(),
+            userRepository = FakeUserRepository(currentUser = alex),
+            authRepository = FakeAuthRepository(account, initiallySignedIn = true),
+        )
+    advanceUntilIdle()
+    assertEquals("Traveler", vm.uiState.value.currentUserName)
+    assertEquals("T", vm.uiState.value.currentUserInitial)
+    assertNull(vm.uiState.value.currentUserPhotoUrl)
+  }
+
+  @Test
+  fun viewModelUsesTodayBadgeForPlannedTripStartingEarlierToday() = runTest {
+    val now = Instant.parse("2026-10-08T14:00:00Z")
+
+    val planned =
+        trip(
+            uid = "planned",
+            name = "Lisbon",
+            start = "2026-10-08T08:00:00Z",
+            end = "2026-10-10T20:00:00Z",
+            status = TripStatus.PLANNED,
+        )
+
+    val viewModel =
+        TripsViewModel(
+            tripRepository = FakeTripRepository(trips = listOf(planned)),
+            userRepository = FakeUserRepository(currentUser = alex),
+            clock = Clock.fixed(now, ZoneOffset.UTC),
+        )
+
+    advanceUntilIdle()
+
+    assertEquals(MainTripBadge.StartsToday, viewModel.uiState.value.mainTrip?.badge)
+  }
+
+  @Test
+  fun viewModelUsesFallbackNameWhenDisplayNameIsBlank() = runTest {
+    val blankUser =
+        User(
+            uid = "blank",
+            displayName = "   ",
+            profilePictureUrl = null,
+        )
+
+    val viewModel =
+        TripsViewModel(
+            tripRepository = FakeTripRepository(),
+            userRepository = FakeUserRepository(currentUser = blankUser),
+            clock =
+                Clock.fixed(
+                    Instant.parse("2026-10-08T20:00:00Z"),
+                    ZoneOffset.UTC,
+                ),
+        )
+
+    advanceUntilIdle()
+
+    val state = viewModel.uiState.value
+
+    assertEquals("Traveler", state.currentUserName)
+    assertEquals("T", state.currentUserInitial)
+    assertEquals("Good evening", state.greeting)
+    assertNull(state.mainTrip)
+    assertNull(state.nextActivity)
+    assertTrue(state.otherTrips.isEmpty())
+  }
+
+  @Test
+  fun repositoryFailureProducesErrorState() = runTest {
+    val viewModel =
+        TripsViewModel(
+            tripRepository = FakeTripRepository(failure = IllegalStateException("Failure")),
+            userRepository = FakeUserRepository(currentUser = alex),
+            clock =
+                Clock.fixed(
+                    Instant.parse("2026-10-08T14:00:00Z"),
+                    ZoneOffset.UTC,
+                ),
+        )
+
+    advanceUntilIdle()
+
+    val state = viewModel.uiState.value
+
+    assertEquals(false, state.isLoading)
+    assertEquals(R.string.trips_load_error, state.errorMessage)
+  }
+
+  @Test
+  fun factoryRejectsUnknownViewModelClass() {
+    val factory =
+        TripsViewModel.factory(
+            tripRepository = FakeTripRepository(),
+            userRepository = FakeUserRepository(currentUser = alex),
+        )
+
+    assertThrows(IllegalArgumentException::class.java) {
+      factory.create(OtherViewModel::class.java)
+    }
+  }
+
+  @Test
+  fun selectMainTripExcludesExpiredActiveTrip() {
+    val now = ZonedDateTime.parse("2026-10-08T14:00:00Z")
+
+    val expired =
+        trip(
+            uid = "expired",
+            name = "Expired active trip",
+            start = "2026-10-04T08:00:00Z",
+            end = "2026-10-07T20:00:00Z",
+            status = TripStatus.ACTIVE,
+        )
+
+    assertNull(selectMainTrip(listOf(expired), now))
+  }
+
+  @Test
+  fun selectMainTripKeepsActiveTripEndingToday() {
+    val now = ZonedDateTime.parse("2026-10-08T14:00:00Z")
+
+    val endingToday =
+        trip(
+            uid = "ending-today",
+            name = "Trip ending today",
+            start = "2026-10-06T08:00:00Z",
+            end = "2026-10-08T08:00:00Z",
+            status = TripStatus.ACTIVE,
+        )
+
+    assertEquals(
+        endingToday,
+        selectMainTrip(listOf(endingToday), now),
+    )
+  }
+
+  @Test
+  fun tripStaysVisibleThroughItsLocalEndDateDespiteEarlyCompletedStatus() = runTest {
+    val planned =
+        trip(
+            uid = "new-year",
+            name = "New Year trip",
+            start = "2026-12-31T23:00:00Z",
+            end = "2027-01-02T23:00:00Z",
+            status = TripStatus.PLANNED,
+        )
+    val zone = ZoneId.of("Europe/Zurich")
+    val expectations =
+        listOf(
+            "2026-12-31T22:59:00Z" to MainTripBadge.StartsIn(1),
+            "2026-12-31T23:00:00Z" to MainTripBadge.StartsToday,
+            "2027-01-01T23:00:00Z" to MainTripBadge.InProgress,
+            "2027-01-03T22:59:00Z" to MainTripBadge.InProgress,
+            "2027-01-03T23:00:00Z" to null,
+        )
+
+    for (status in listOf(TripStatus.PLANNED, TripStatus.COMPLETED)) {
+      val storedTrip = planned.copy(status = status)
+      for ((instant, expectedBadge) in expectations) {
+        val clock = Clock.fixed(Instant.parse(instant), zone)
+        val model =
+            TripsViewModel(
+                FakeTripRepository(trips = listOf(storedTrip)),
+                FakeUserRepository(currentUser = alex),
+                clock,
+            )
+        advanceUntilIdle()
+
+        val state = model.uiState.value
+        assertNull(state.errorMessage)
+        assertEquals(instant, expectedBadge, state.mainTrip?.badge)
+        val history =
+            selectCompletedTrips(listOf(storedTrip), ZonedDateTime.now(clock).toLocalDate(), zone)
+        assertEquals(instant, expectedBadge == null, history.isNotEmpty())
+        val visibleIds =
+            listOfNotNull(state.mainTrip?.id) +
+                state.otherTrips.map { it.id } +
+                history.map { it.uid }
+        assertEquals(instant, listOf(planned.uid), visibleIds)
+      }
+    }
+  }
+
+  @Test
+  fun secondaryCardsIdentifyOngoingTripsAcrossLocalDateBoundaries() = runTest {
+    val zone = ZoneId.of("Europe/Zurich")
+    val clock = Clock.fixed(Instant.parse("2026-11-04T23:30:00Z"), zone)
+    val ongoing =
+        trip(
+            "ongoing",
+            "Ongoing",
+            "2026-11-03T00:00:00Z",
+            "2026-11-07T00:00:00Z",
+            TripStatus.PLANNED,
+        )
+    val active = ongoing.copy(uid = "active", status = TripStatus.ACTIVE)
+    val featured = active.copy(uid = "featured", startDate = timestamp("2026-11-04T00:00:00Z"))
+    val today = ongoing.copy(uid = "today", startDate = timestamp("2026-11-04T23:00:00Z"))
+    val upcoming = ongoing.copy(uid = "upcoming", startDate = timestamp("2026-11-05T23:00:00Z"))
+    val completed = ongoing.copy(uid = "completed", status = TripStatus.COMPLETED)
+    val expired = ongoing.copy(uid = "expired", endDate = timestamp("2026-11-04T22:59:00Z"))
+    val trips = listOf(featured, active, ongoing, today, upcoming, completed, expired)
+    val model = TripsViewModel(FakeTripRepository(trips = trips), FakeUserRepository(alex), clock)
+    advanceUntilIdle()
+
+    assertEquals(featured.uid, model.uiState.value.mainTrip?.id)
+    assertEquals(
+        mapOf(
+            "active" to true,
+            "ongoing" to true,
+            "today" to true,
+            "upcoming" to false,
+            "completed" to true,
+        ),
+        model.uiState.value.otherTrips.associate { it.id to it.isInProgress },
+    )
+    assertEquals(
+        listOf(expired),
+        selectCompletedTrips(trips, ZonedDateTime.now(clock).toLocalDate(), zone),
+    )
+  }
+
+  @Test
+  fun ongoingPlannedTripTakesPriorityOverUpcomingTrips() {
+    val now = ZonedDateTime.parse("2026-11-05T12:00:00Z")
+    val ongoing =
+        trip(
+            "ongoing",
+            "Ongoing",
+            "2026-11-04T00:00:00Z",
+            "2026-11-07T00:00:00Z",
+            TripStatus.PLANNED,
+        )
+    val upcoming = ongoing.copy(uid = "upcoming", startDate = timestamp("2026-11-06T00:00:00Z"))
+    val trips = listOf(upcoming, ongoing)
+
+    assertEquals(ongoing, selectMainTrip(trips, now))
+    assertEquals(listOf(upcoming), selectOtherTrips(trips, ongoing, now))
+  }
+
+  @Test
+  fun overlappingOngoingTripsStayAccessibleWhenOneIsHighlighted() {
+    val now = ZonedDateTime.parse("2026-11-05T12:00:00Z")
+    val planned =
+        trip(
+            "planned",
+            "Planned",
+            "2026-11-03T00:00:00Z",
+            "2026-11-07T00:00:00Z",
+            TripStatus.PLANNED,
+        )
+    val active = planned.copy(uid = "active", status = TripStatus.ACTIVE)
+    val secondActive =
+        active.copy(uid = "second-active", startDate = timestamp("2026-11-04T00:00:00Z"))
+    val expired = planned.copy(uid = "expired", endDate = timestamp("2026-11-04T00:00:00Z"))
+    val trips = listOf(expired, secondActive, planned, active)
+
+    assertEquals(secondActive, selectMainTrip(trips, now))
+    assertEquals(listOf(planned, active), selectOtherTrips(trips, secondActive, now))
+  }
+
+  @Test
+  fun mostRecentlyStartedPlannedTripIsHighlightedAndOthersRemainVisible() {
+    val now = ZonedDateTime.parse("2026-11-05T12:00:00Z")
+    val older =
+        trip("older", "Older", "2026-11-02T00:00:00Z", "2026-11-07T00:00:00Z", TripStatus.PLANNED)
+    val newer = older.copy(uid = "newer", startDate = timestamp("2026-11-04T00:00:00Z"))
+    val trips = listOf(older, newer)
+
+    assertEquals(newer, selectMainTrip(trips, now))
+    assertEquals(listOf(older), selectOtherTrips(trips, newer, now))
+  }
+
+  private class OtherViewModel : ViewModel()
+
+  private fun trip(
+      uid: String,
+      name: String,
+      start: String,
+      end: String,
+      status: TripStatus,
+  ): Trip =
+      Trip(
+          uid = uid,
+          name = name,
+          description = null,
+          destinations = listOf(location),
+          startDate = timestamp(start),
+          endDate = timestamp(end),
+          flexibleDates = false,
+          travelMode = TravelMode.SOLO,
+          travelerCount = 1,
+          ownerId = alex.uid,
+          memberIds = listOf(alex.uid),
+          status = status,
+          createdAt = timestamp("2026-10-01T10:00:00Z"),
+      )
+
+  private fun activity(
+      uid: String,
+      tripId: String = "trip",
+      name: String = uid,
+      type: ActivityType,
+      start: String,
+  ): Activity =
+      Activity(
+          uid = uid,
+          tripId = tripId,
+          activityType = type,
+          name = name,
+          description = null,
+          location = location,
+          startTime = timestamp(start),
+          endTime = null,
+          createdByUserId = alex.uid,
+          creationTime = timestamp("2026-10-01T10:00:00Z"),
+      )
+
+  private fun member(userId: String): TripMember =
+      TripMember(
+          userId = userId,
+          role = TripMemberRole.EDITOR,
+          joinTime = timestamp("2026-10-01T10:00:00Z"),
+      )
+
+  private fun timestamp(instant: String): Timestamp {
+    val parsed = Instant.parse(instant)
+    return Timestamp(parsed.epochSecond, parsed.nano)
+  }
+}

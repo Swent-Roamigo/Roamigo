@@ -1,0 +1,297 @@
+// Author : Constantin Dunoyer de Segonzac
+// Co-author : ChatGPT-Codex
+import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+plugins {
+  alias(libs.plugins.androidApplication)
+  alias(libs.plugins.kotlinCompose)
+  alias(libs.plugins.ktfmt)
+  alias(libs.plugins.sonar)
+  alias(libs.plugins.googleServices)
+  id("jacoco")
+}
+
+val localProps =
+    Properties().apply {
+      val f = rootProject.file("local.properties")
+      if (f.exists()) f.inputStream().use { load(it) }
+    }
+val mapboxToken: String =
+    localProps.getProperty("MAPBOX_ACCESS_TOKEN") ?: System.getenv("MAPBOX_ACCESS_TOKEN") ?: ""
+
+android {
+  namespace = "com.swent.roamigo"
+  compileSdk = 37
+
+  defaultConfig {
+    applicationId = "com.swent.roamigo"
+    minSdk = 28
+    targetSdk = 34
+    versionCode = 1
+    versionName = "1.0"
+
+    val geonamesUsername =
+        providers
+            .gradleProperty("GEONAMES_USERNAME")
+            .orElse(providers.environmentVariable("GEONAMES_USERNAME"))
+            .orElse("")
+            .get()
+    buildConfigField("String", "GEONAMES_USERNAME", "\"$geonamesUsername\"")
+
+    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    vectorDrawables { useSupportLibrary = true }
+
+    resValue("string", "mapbox_access_token", mapboxToken)
+  }
+
+  buildTypes {
+    release {
+      isMinifyEnabled = false
+      proguardFiles(
+          getDefaultProguardFile("proguard-android-optimize.txt"),
+          "proguard-rules.pro",
+      )
+    }
+
+    debug {
+      enableUnitTestCoverage = true
+      enableAndroidTestCoverage = true
+    }
+  }
+
+  testCoverage { jacocoVersion = "0.8.11" }
+
+  buildFeatures {
+    compose = true
+    resValues = true
+    buildConfig = true
+  }
+
+  compileOptions {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+  }
+
+  packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
+
+  testOptions {
+    unitTests {
+      isIncludeAndroidResources = true
+      isReturnDefaultValues = true
+    }
+  }
+
+  // Robolectric needs to be run only in debug. But its tests are placed in the shared source set
+  // (test)
+  // The next lines transfers the src/test/* from shared to the testDebug one
+  //
+  // This prevent errors from occurring during unit tests
+  sourceSets.getByName("testDebug") {
+    val test = sourceSets.getByName("test")
+
+    java.directories.clear()
+    java.directories.addAll(test.java.directories)
+    res.directories.clear()
+    res.directories.addAll(test.res.directories)
+    resources.directories.clear()
+    resources.directories.addAll(test.resources.directories)
+  }
+
+  sourceSets.getByName("test") {
+    java.directories.clear()
+    res.directories.clear()
+    resources.directories.clear()
+  }
+
+  // Share test fakes between JVM and instrumented tests without including them in the app.
+  sourceSets.getByName("testDebug").kotlin.srcDir("src/testShared/java")
+  sourceSets.getByName("androidTest").kotlin.srcDir("src/testShared/java")
+}
+
+dependencyLocking { lockAllConfigurations() }
+
+// With AGP 9+ the JVM target is set outside the Android block.
+kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
+
+// Match CI and use a JVM supported by Mockito's bytecode instrumentation.
+val testJavaLauncher = javaToolchains.launcherFor {
+  languageVersion.set(JavaLanguageVersion.of(21))
+}
+
+tasks.withType<Test>().configureEach { javaLauncher.set(testJavaLauncher) }
+
+sonar {
+  properties {
+    property("sonar.projectKey", "Swent-Roamigo_Roamigo")
+    property("sonar.projectName", "Roamigo")
+    property("sonar.organization", "swent-roamigo")
+    property("sonar.host.url", "https://sonarcloud.io")
+    // Comma-separated paths to the various directories containing the *.xml JUnit report files.
+    // Each path may be absolute or relative to the project base directory.
+    property(
+        "sonar.junit.reportPaths",
+        "${project.layout.buildDirectory.get()}/test-results/testDebugUnitTest/",
+    )
+    // Paths to xml files with Android Lint issues. If the main flavor is changed, this file will
+    // have to be changed too.
+    property(
+        "sonar.androidLint.reportPaths",
+        "${project.layout.buildDirectory.get()}/reports/lint-results-debug.xml",
+    )
+    // Paths to JaCoCo XML coverage report files.
+    property(
+        "sonar.coverage.jacoco.xmlReportPaths",
+        "${project.layout.buildDirectory.get()}/reports/jacoco/jacocoTestReport/jacocoTestReport.xml",
+    )
+
+    // Data holders and theme setup contain little behavior to exercise in unit tests.
+    // Previews are design-time examples, not production behavior.
+    property(
+        "sonar.coverage.exclusions",
+        listOf(
+                "**/com/swent/roamigo/model/TripLocation.kt",
+                "**/com/swent/roamigo/model/trip/Activity.kt",
+                "**/com/swent/roamigo/model/trip/Trip.kt",
+                "**/com/swent/roamigo/model/trip/TripMember.kt",
+                "**/com/swent/roamigo/model/trip/inviting/TripInvitation.kt",
+                "**/com/swent/roamigo/model/trip/voting/Vote.kt",
+                "**/com/swent/roamigo/model/trip/voting/VoteBallot.kt",
+                "**/com/swent/roamigo/model/trip/voting/VoteOption.kt",
+                "**/com/swent/roamigo/model/users/User.kt",
+                "**/com/swent/roamigo/ui/theme/Theme.kt",
+                "**/*Previews.kt",
+            )
+            .joinToString(","),
+    )
+  }
+}
+
+// When a library is used both by robolectric and connected tests, use this function
+fun DependencyHandlerScope.globalTestImplementation(dep: Any) {
+  androidTestImplementation(dep)
+  testImplementation(dep)
+}
+
+// Espresso's accessibility checks bring the obsolete protobuf-lite, whose classes clash with the
+// protobuf-javalite that Firestore needs and crash Firestore in connected tests.
+configurations.configureEach {
+  if (name.contains("androidTest", ignoreCase = true)) {
+    exclude(group = "com.google.protobuf", module = "protobuf-lite")
+  }
+}
+
+dependencies {
+  implementation(platform(libs.firebase.bom))
+  implementation(libs.firebase.firestore)
+  implementation(libs.firebase.auth)
+  implementation(libs.firebase.database)
+  implementation(libs.androidx.credentials)
+  implementation(libs.androidx.credentials.play.services.auth)
+  implementation(libs.google.id)
+  implementation(libs.coroutines.play.services)
+  testImplementation(libs.mockito.core)
+  implementation(libs.kotlinx.coroutines.play.services)
+  implementation(libs.androidx.datastore.preferences)
+  implementation(libs.okhttp)
+  implementation(libs.coil)
+  implementation(libs.coil.compose)
+  implementation(libs.androidx.work.runtime)
+  testImplementation(libs.androidx.work.testing)
+
+  implementation(libs.androidx.core.ktx)
+  implementation(libs.androidx.appcompat)
+  implementation(libs.material)
+  implementation(libs.androidx.lifecycle.runtime.ktx)
+  implementation(libs.androidx.lifecycle.runtime.compose)
+  implementation(platform(libs.compose.bom))
+  testImplementation(libs.junit)
+  testImplementation(libs.mockito.core)
+  testImplementation(libs.kotlinx.coroutines.test)
+  globalTestImplementation(libs.androidx.junit)
+  globalTestImplementation(libs.androidx.espresso.core)
+  androidTestImplementation(libs.androidx.espresso.intents)
+
+  // ------------- Mapbox ------------------
+  implementation(libs.mapbox.maps)
+  implementation(libs.mapbox.compose)
+
+  // ------------- Jetpack Compose ------------------
+  val composeBom = platform(libs.compose.bom)
+  implementation(composeBom)
+  globalTestImplementation(composeBom)
+
+  implementation(libs.compose.ui)
+  implementation(libs.compose.ui.graphics)
+  // Material Design 3
+  implementation(libs.compose.material3)
+
+  implementation(libs.compose.material.icons.extended)
+  // Integration with activities
+  implementation(libs.compose.activity)
+  // Integration with ViewModels
+  implementation(libs.compose.viewmodel)
+  // In-app navigation between screens
+  implementation(libs.compose.navigation)
+  // Android Studio Preview support
+  implementation(libs.compose.preview)
+  debugImplementation(libs.compose.tooling)
+  // UI Tests
+  globalTestImplementation(libs.compose.test.junit)
+  debugImplementation(libs.compose.test.manifest)
+
+  // --------- Kaspresso test framework ----------
+  globalTestImplementation(libs.kaspresso)
+  globalTestImplementation(libs.kaspresso.compose)
+
+  // ----------       Robolectric     ------------
+  testImplementation(libs.robolectric)
+}
+
+tasks.withType<Test> {
+  // Configure Jacoco for each tests
+  configure<JacocoTaskExtension> {
+    isIncludeNoLocationClasses = true
+    excludes = listOf("jdk.internal.*")
+  }
+}
+
+tasks.register("jacocoTestReport", JacocoReport::class) {
+  mustRunAfter("testDebugUnitTest", "connectedDebugAndroidTest")
+
+  reports {
+    xml.required = true
+    html.required = true
+  }
+
+  val fileFilter =
+      listOf(
+          "**/R.class",
+          "**/R$*.class",
+          "**/BuildConfig.*",
+          "**/Manifest*.*",
+          "**/*Test*.*",
+          "android/**/*.*",
+      )
+
+  val kotlinClassDirs =
+      listOf(
+          "tmp/kotlin-classes/debug", // standalone Kotlin plugin
+          "intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes", // AGP 9 built-in
+          // Kotlin
+      )
+  val debugTrees = kotlinClassDirs.map { dir ->
+    fileTree(layout.buildDirectory.dir(dir)) { exclude(fileFilter) }
+  }
+
+  val mainSrc = listOf("src/main/java", "src/main/kotlin").map { layout.projectDirectory.dir(it) }
+  sourceDirectories.setFrom(files(mainSrc))
+  classDirectories.setFrom(files(debugTrees))
+  executionData.setFrom(
+      fileTree(project.layout.buildDirectory.get()) {
+        include("outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec")
+        include("outputs/code_coverage/debugAndroidTest/connected/*/coverage.ec")
+        include("outputs/code_coverage/authentication/*.ec")
+      }
+  )
+}

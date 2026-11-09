@@ -1,0 +1,202 @@
+// Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
+package com.swent.roamigo.ui.profile
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import com.swent.roamigo.R
+import com.swent.roamigo.model.authentication.AuthRepository
+import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.components.AppBottomBar
+import com.swent.roamigo.ui.components.InfoRow
+import com.swent.roamigo.ui.components.markNotImplemented
+import com.swent.roamigo.ui.components.rememberNotImplementedAction
+import com.swent.roamigo.ui.theme.Ochre
+import com.swent.roamigo.ui.theme.Paper
+import com.swent.roamigo.ui.theme.Spacing
+
+/** Connects [authRepository] to [ProfileScreen] and forwards successful sign-out. */
+@Composable
+fun ProfileRoute(
+    authRepository: AuthRepository,
+    onSignedOut: () -> Unit,
+    modifier: Modifier = Modifier,
+    onTripsClick: () -> Unit = rememberNotImplementedAction(),
+    onFriendsClick: () -> Unit = rememberNotImplementedAction(),
+    onMapClick: () -> Unit = {},
+) {
+  val viewModel = viewModel { ProfileViewModel(authRepository) }
+  val state by viewModel.uiState.collectAsStateWithLifecycle()
+  LaunchedEffect(state.signedOut) { if (state.signedOut) onSignedOut() }
+  ProfileScreen(
+      state = state,
+      modifier = modifier,
+      onTripsClick = onTripsClick,
+      onFriendsClick = onFriendsClick,
+      onSignOutClick = viewModel::signOut,
+      onMapClick = onMapClick,
+  )
+}
+
+@Composable
+fun ProfileScreen(
+    state: ProfileUiState,
+    modifier: Modifier = Modifier,
+    onTripsClick: () -> Unit = rememberNotImplementedAction(),
+    onFriendsClick: () -> Unit = rememberNotImplementedAction(),
+    onSignOutClick: () -> Unit = {},
+    onMapClick: () -> Unit = {},
+) {
+  Scaffold(
+      modifier = modifier,
+      bottomBar = {
+        AppBottomBar(
+            onTripsClick = onTripsClick,
+            onMapClick = onMapClick,
+            tripsSelected = false,
+            onFriendsClick = onFriendsClick,
+        )
+      },
+  ) { padding ->
+    // Scaffold reports the footer height so the content is not drawn underneath it.
+    Column(
+        modifier = Modifier.fillMaxSize().padding(padding).padding(Spacing.screenPadding),
+        verticalArrangement = Arrangement.spacedBy(Spacing.medium),
+    ) {
+      // Only the content scrolls, so the button stays reachable with large fonts or small screens.
+      Column(
+          modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+          verticalArrangement = Arrangement.spacedBy(Spacing.medium),
+      ) {
+        Text(
+            stringResource(R.string.profile_title),
+            modifier = Modifier.testTag(C.Tag.profile_title),
+            style = MaterialTheme.typography.headlineMedium,
+        )
+        Text(
+            stringResource(R.string.profile_description),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+          Box(
+              modifier = Modifier.size(88.dp).background(Ochre, CircleShape),
+              contentAlignment = Alignment.Center,
+          ) {
+            Text(
+                state.user.displayName.take(1),
+                modifier = Modifier.testTag(C.Tag.profile_avatar),
+                style = MaterialTheme.typography.displaySmall,
+                color = Paper,
+            )
+            // Drawn over the initial, which stays visible while loading or if the photo fails.
+            state.user.profilePictureUrl?.let { url ->
+              AsyncImage(
+                  model = url,
+                  contentDescription = null,
+                  contentScale = ContentScale.Crop,
+                  modifier = Modifier.fillMaxSize().clip(CircleShape).testTag(C.Tag.profile_photo),
+              )
+            }
+          }
+          Text(
+              state.user.displayName,
+              modifier = Modifier.testTag(C.Tag.profile_name),
+              style = MaterialTheme.typography.titleLarge,
+          )
+          state.email?.let { email ->
+            Text(
+                stringResource(R.string.profile_email, email),
+                modifier = Modifier.testTag(C.Tag.profile_email),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+          }
+        }
+        InfoRow(
+            R.drawable.ic_user,
+            stringResource(R.string.profile_display_name),
+            state.user.displayName,
+        ) {
+          EditAction(stringResource(R.string.profile_edit))
+        }
+        InfoRow(
+            R.drawable.ic_camera,
+            stringResource(R.string.profile_picture),
+            stringResource(R.string.profile_picture_description),
+        ) {
+          EditAction(stringResource(R.string.profile_change))
+        }
+        InfoRow(
+            R.drawable.ic_users,
+            stringResource(R.string.profile_friends),
+            pluralStringResource(
+                R.plurals.profile_friend_count,
+                state.friendCount,
+                state.friendCount,
+            ),
+            Modifier.testTag(C.Tag.profile_friends_row),
+        ) {
+          EditAction(
+              label = stringResource(R.string.profile_view),
+              onClick = onFriendsClick,
+          )
+        }
+      }
+      state.errorMessageRes?.let {
+        Text(stringResource(it), color = MaterialTheme.colorScheme.error)
+      }
+      OutlinedButton(
+          onClick = onSignOutClick,
+          enabled = !state.signedOut,
+          modifier = Modifier.fillMaxWidth().testTag(C.Tag.profile_log_out),
+      ) {
+        Text(stringResource(R.string.profile_log_out))
+      }
+    }
+  }
+}
+
+@Composable
+private fun EditAction(
+    label: String,
+    onClick: () -> Unit = rememberNotImplementedAction(),
+) {
+  TextButton(
+      onClick = onClick,
+      modifier = Modifier.markNotImplemented(onClick).testTag(C.Tag.profile_action),
+  ) {
+    Text(label)
+  }
+}

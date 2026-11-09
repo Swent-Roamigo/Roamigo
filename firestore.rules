@@ -1,0 +1,335 @@
+rules_version = '2';
+
+// AI assistance was used for implementation support and code review.
+//
+// Membership model: a trip document lists its members in memberIds, and ownerId is the
+// authoritative owner. Only members can read a trip and its subcollections. A client may only
+// create a new trip it owns, together with its own OWNER member document, in one transaction.
+// Trips and members cannot be changed or deleted by clients yet. Photos can be added by members
+// and read by members, and never changed.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isMember(tripId) {
+      return signedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds;
+    }
+
+    // Mirrors TravelMode.allowedTravelerCounts in model/trip/Trip.kt.
+    function hasValidTravelerCount(trip) {
+      return (trip.travelMode == 'SOLO' && trip.travelerCount == 1)
+          || (trip.travelMode == 'GROUP' && trip.travelerCount >= 2 && trip.travelerCount <= 10);
+    }
+
+    // Mirrors the coordinate constants in model/TripLocation.kt. Kept compact because every
+    // destination is checked against the 1000-expression limit of a single request.
+    function isValidDestination(destination) {
+      return destination is map
+          && destination.keys().hasAll(['name', 'latitude', 'longitude'])
+          && destination.keys().hasOnly(['name', 'latitude', 'longitude', 'countryCode'])
+          && destination.name is string
+          && destination.name.trim().size() > 0
+          && destination.latitude is number
+          && math.abs(destination.latitude) <= 90
+          && destination.longitude is number
+          && math.abs(destination.longitude) <= 180
+          // Missing countryCode is allowed for legacy trips.
+          // Explicit null is rejected; the Kotlin serializer omits absent codes.
+          && (!('countryCode' in destination)
+              || (destination.countryCode is string
+                  && destination.countryCode.matches('^[A-Z]{2}$')));
+    }
+
+    // Rules have no loops, so each index up to MAX_DESTINATIONS (model/trip/Trip.kt) is checked.
+    function hasValidDestinations(destinations) {
+      return destinations is list
+          && destinations.size() >= 1
+          && destinations.size() <= 10
+          && isValidDestination(destinations[0])
+          && (destinations.size() <= 1 || isValidDestination(destinations[1]))
+          && (destinations.size() <= 2 || isValidDestination(destinations[2]))
+          && (destinations.size() <= 3 || isValidDestination(destinations[3]))
+          && (destinations.size() <= 4 || isValidDestination(destinations[4]))
+          && (destinations.size() <= 5 || isValidDestination(destinations[5]))
+          && (destinations.size() <= 6 || isValidDestination(destinations[6]))
+          && (destinations.size() <= 7 || isValidDestination(destinations[7]))
+          && (destinations.size() <= 8 || isValidDestination(destinations[8]))
+          && (destinations.size() <= 9 || isValidDestination(destinations[9]));
+    }
+
+    function isValidNewTrip(trip) {
+      return trip.keys().hasAll([
+            'name', 'description', 'destinations', 'startDate', 'endDate', 'flexibleDates',
+            'travelMode', 'travelerCount', 'ownerId', 'memberIds', 'status', 'createdAt'
+          ])
+          && trip.keys().hasOnly([
+            'name', 'description', 'destinations', 'startDate', 'endDate', 'flexibleDates',
+            'travelMode', 'travelerCount', 'ownerId', 'memberIds', 'status', 'createdAt'
+          ])
+          && trip.name is string
+          && (trip.description == null || trip.description is string)
+          && hasValidDestinations(trip.destinations)
+          && trip.startDate is timestamp
+          && trip.endDate is timestamp
+          // Both dates are stored even when flexibleDates is true, so their order always holds.
+          && trip.endDate >= trip.startDate
+          && trip.flexibleDates is bool
+          && trip.travelerCount is int
+          && hasValidTravelerCount(trip)
+          && trip.ownerId == request.auth.uid
+          && trip.memberIds == [request.auth.uid]
+          && trip.status == 'PLANNED'
+          && trip.createdAt is timestamp;
+    }
+
+    function isValidVoteOption(option) {
+      return option is map
+          && option.keys().hasAll(['uid', 'name'])
+          && option.keys().hasOnly(['uid', 'name'])
+          && option.uid is string
+          && option.uid.trim().size() > 0
+          && option.name is string
+          && option.name.trim().size() > 0;
+    }
+
+    // Mirrors MIN_VOTE_OPTIONS / MAX_VOTE_OPTIONS in model/trip/voting/VoteOption.kt.
+    // Rules have no loops; short-circuit guards keep optional indices in bounds.
+    function hasValidVoteOptions(options) {
+      return options is list
+          && options.size() >= 2
+          && options.size() <= 10
+          && isValidVoteOption(options[0])
+          && isValidVoteOption(options[1])
+          && (options.size() <= 2 || isValidVoteOption(options[2]))
+          && (options.size() <= 3 || isValidVoteOption(options[3]))
+          && (options.size() <= 4 || isValidVoteOption(options[4]))
+          && (options.size() <= 5 || isValidVoteOption(options[5]))
+          && (options.size() <= 6 || isValidVoteOption(options[6]))
+          && (options.size() <= 7 || isValidVoteOption(options[7]))
+          && (options.size() <= 8 || isValidVoteOption(options[8]))
+          && (options.size() <= 9 || isValidVoteOption(options[9]));
+    }
+
+    function isValidNewVote(vote, tripId, voteId) {
+      return vote.keys().hasAll([
+            'uid', 'tripId', 'question', 'options', 'createdByUserId', 'status',
+            'creationTime', 'closingTime', 'winningOptionId'
+          ])
+          && vote.keys().hasOnly([
+            'uid', 'tripId', 'question', 'options', 'createdByUserId', 'status',
+            'creationTime', 'closingTime', 'winningOptionId'
+          ])
+          && vote.uid == voteId
+          && vote.tripId == tripId
+          && vote.createdByUserId == request.auth.uid
+          && vote.question is string
+          && vote.question.trim().size() > 0
+          && hasValidVoteOptions(vote.options)
+          && vote.status == 'OPEN'
+          && vote.creationTime is timestamp
+          // Current creation has no closing schedule or persisted result.
+          && vote.closingTime == null
+          && vote.winningOptionId == null;
+    }
+
+    // Options are bounded by MAX_VOTE_OPTIONS; guard each optional index.
+    function containsVoteOption(options, optionId) {
+      return options[0].uid == optionId
+          || options[1].uid == optionId
+          || (options.size() > 2 && options[2].uid == optionId)
+          || (options.size() > 3 && options[3].uid == optionId)
+          || (options.size() > 4 && options[4].uid == optionId)
+          || (options.size() > 5 && options[5].uid == optionId)
+          || (options.size() > 6 && options[6].uid == optionId)
+          || (options.size() > 7 && options[7].uid == optionId)
+          || (options.size() > 8 && options[8].uid == optionId)
+          || (options.size() > 9 && options[9].uid == optionId);
+    }
+
+    function acceptsBallot(tripId, voteId, optionId) {
+      let vote = get(/databases/$(database)/documents/trips/$(tripId)/votes/$(voteId)).data;
+      return vote.status == 'OPEN' && containsVoteOption(vote.options, optionId);
+    }
+
+    function isValidBallot(ballot) {
+      return ballot.keys().hasAll(['userId', 'optionId', 'updatedAt'])
+          && ballot.keys().hasOnly(['userId', 'optionId', 'updatedAt'])
+          && ballot.userId == request.auth.uid
+          && ballot.optionId is string
+          && ballot.optionId.trim().size() > 0
+          && ballot.updatedAt is timestamp;
+    }
+
+    // A trip photo is stored as a small JPEG in the document, because Cloud Storage needs a paid
+    // plan. Mirrors BitmapPhotoCompressor.MAX_BYTES (model/photo), with room to spare under the
+    // 1 MiB limit of a document.
+    function isValidNewPhoto(photo) {
+      return photo.keys().hasAll(['uploadedBy', 'takenAt', 'image'])
+          && photo.keys().hasOnly(['uploadedBy', 'takenAt', 'image', 'latitude', 'longitude'])
+          && photo.uploadedBy == request.auth.uid
+          && photo.takenAt is int
+          && photo.image is bytes
+          && photo.image.size() > 0
+          && photo.image.size() <= 800000
+          && ('latitude' in photo) == ('longitude' in photo)
+          && (!('latitude' in photo) || (photo.latitude is number && math.abs(photo.latitude) <= 90))
+          && (!('longitude' in photo)
+              || (photo.longitude is number && math.abs(photo.longitude) <= 180));
+    }
+
+    function isValidFriendshipIdentifier(value) {
+      return value is string && value.trim().size() > 0
+          && value.matches('[^/]+') && value != '.' && value != '..';
+    }
+
+    function friendshipUserIdPart(userId) {
+      return hashing.sha256(userId.toUtf8()).toHexString().lower();
+    }
+
+    // Fixed-length ID parts give both request directions the same unambiguous document name.
+    function friendshipDocumentId(firstId, secondId) {
+      let firstPart = friendshipUserIdPart(firstId);
+      let secondPart = friendshipUserIdPart(secondId);
+      return firstPart < secondPart
+          ? firstPart + '_' + secondPart : secondPart + '_' + firstPart;
+    }
+
+    // Creation transactions may read a missing document only when its name includes their user.
+    function isOwnFriendshipDocument(documentId) {
+      let parts = documentId.split('_');
+      return parts.size() == 2
+          && parts[0].matches('[0-9a-f]{64}') && parts[1].matches('[0-9a-f]{64}')
+          && parts[0] < parts[1]
+          && friendshipUserIdPart(request.auth.uid) in parts;
+    }
+
+    function isValidFriendship(friendship, documentId) {
+      return friendship.keys().hasAll([
+            'requestId', 'senderUserId', 'recipientUserId', 'participantIds',
+            'status', 'createdAt', 'respondedAt'
+          ])
+          && friendship.keys().hasOnly([
+            'requestId', 'senderUserId', 'recipientUserId', 'participantIds',
+            'status', 'createdAt', 'respondedAt'
+          ])
+          && isValidFriendshipIdentifier(friendship.requestId)
+          && isValidFriendshipIdentifier(friendship.senderUserId)
+          && isValidFriendshipIdentifier(friendship.recipientUserId)
+          && friendship.senderUserId != friendship.recipientUserId
+          && friendship.participantIds == [friendship.senderUserId, friendship.recipientUserId]
+          && documentId == friendshipDocumentId(friendship.senderUserId, friendship.recipientUserId)
+          && friendship.createdAt is timestamp && friendship.createdAt <= request.time
+          && ((friendship.status == 'PENDING' && friendship.respondedAt == null)
+              || (friendship.status in ['ACCEPTED', 'DECLINED']
+                  && friendship.respondedAt is timestamp
+                  && friendship.respondedAt >= friendship.createdAt
+                  && friendship.respondedAt <= request.time));
+    }
+
+    function isNewFriendRequest(friendship) {
+      return friendship.senderUserId == request.auth.uid
+          && friendship.status == 'PENDING'
+          && friendship.createdAt == request.time && friendship.respondedAt == null;
+    }
+
+    function isFriendRequestResponse(before, after) {
+      return before.status == 'PENDING'
+          && request.auth.uid == before.recipientUserId
+          && after.status in ['ACCEPTED', 'DECLINED']
+          && after.respondedAt == request.time
+          && after.diff(before).affectedKeys().hasOnly(['status', 'respondedAt']);
+    }
+
+    match /friendships/{documentId} {
+      allow get: if signedIn()
+          && ((resource == null && isOwnFriendshipDocument(documentId))
+              || (resource != null && request.auth.uid in resource.data.participantIds));
+      // All friendship queries constrain participantIds with the authenticated user's ID.
+      allow list: if signedIn() && request.auth.uid in resource.data.participantIds;
+      allow create: if signedIn()
+          && isValidFriendship(request.resource.data, documentId)
+          && isNewFriendRequest(request.resource.data);
+      allow update: if signedIn() && request.auth.uid in resource.data.participantIds
+          && isValidFriendship(request.resource.data, documentId)
+          && (request.resource.data == resource.data
+              // A crossed request is accepted by its recipient through this same transition.
+              || isFriendRequestResponse(resource.data, request.resource.data)
+              || (resource.data.status == 'DECLINED'
+                  && isNewFriendRequest(request.resource.data)
+                  && request.resource.data.requestId != resource.data.requestId
+                  && request.resource.data.participantIds.toSet()
+                      == resource.data.participantIds.toSet()));
+      allow delete: if signedIn() && request.auth.uid in resource.data.participantIds
+          && resource.data.status == 'ACCEPTED';
+    }
+
+    match /trips/{tripId} {
+      allow create: if signedIn() && isValidNewTrip(request.resource.data);
+      // A missing trip is readable so that creation can first check whether it already exists.
+      allow get: if signedIn()
+          && (resource == null || request.auth.uid in resource.data.memberIds);
+      allow list: if signedIn() && request.auth.uid in resource.data.memberIds;
+      allow update, delete: if false;
+
+      match /members/{userId} {
+        allow create: if signedIn()
+            && userId == request.auth.uid
+            && request.resource.data.keys().hasAll(['userId', 'role', 'joinTime'])
+            && request.resource.data.keys().hasOnly(['userId', 'role', 'joinTime'])
+            && request.resource.data.userId == userId
+            && request.resource.data.role == 'OWNER'
+            && request.resource.data.joinTime is timestamp
+            && getAfter(/databases/$(database)/documents/trips/$(tripId)).data.ownerId
+                == request.auth.uid;
+        allow read: if isMember(tripId);
+        allow update, delete: if false;
+      }
+
+      match /activities/{activityId} {
+        allow read: if isMember(tripId);
+        allow write: if false;
+      }
+
+      match /photos/{photoId} {
+        allow read: if isMember(tripId);
+        allow create: if isMember(tripId) && isValidNewPhoto(request.resource.data);
+        // Uploading again a photo whose first answer was lost writes the same content. Anything
+        // else is a change, which is not allowed.
+        allow update: if isMember(tripId) && request.resource.data == resource.data;
+        allow delete: if false;
+      }
+
+      match /votes/{voteId} {
+        // Includes missing-document reads used by the vote creation transaction.
+        allow read: if isMember(tripId);
+        allow create: if isMember(tripId)
+            && isValidNewVote(request.resource.data, tripId, voteId);
+        allow update: if isMember(tripId)
+            && resource.data.createdByUserId == request.auth.uid
+            && resource.data.status == 'OPEN'
+            && request.resource.data.status == 'CLOSED'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+        allow delete: if false;
+
+        match /ballots/{userId} {
+          allow read: if isMember(tripId);
+          allow create, update: if isMember(tripId)
+              && userId == request.auth.uid
+              && exists(/databases/$(database)/documents/trips/$(tripId)/votes/$(voteId))
+              && isValidBallot(request.resource.data)
+              && acceptsBallot(tripId, voteId, request.resource.data.optionId);
+          allow delete: if false;
+        }
+      }
+    }
+
+    // Everything else stays closed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

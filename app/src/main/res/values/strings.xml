@@ -1,0 +1,434 @@
+<!-- Author : Constantin Dunoyer de Segonzac -->
+<!-- Co-author : ChatGPT-Codex -->
+<resources>
+    <string name="profile_sign_out_failed">Unable to sign out. Please try again.</string>
+    <string name="feature_not_implemented">Not implemented yet</string>
+    <string name="app_name">Roamigo</string>
+    <string name="title_activity_second">SecondActivity</string>
+    <string name="auth_tagline">Plan together. Travel together.</string>
+    <string name="auth_brand">roamigo</string>
+    <string name="auth_signing_in">Signing in with Google</string>
+    <string name="auth_heading">Decide together. Stay together.</string>
+    <string name="auth_description">Shared itineraries, live voting and a group map for friends travelling together.</string>
+    <string name="auth_google_sign_in">Continue with Google</string>
+    <string name="auth_sign_in_failed">Sign-in failed. Try again.</string>
+    <string name="auth_sign_in_cancelled">Sign-in cancelled</string>
+    <string name="auth_no_credentials">No Google credentials available. Try signing in again.</string>
+    <string name="auth_credentials_failed">Unable to access your Google account. Please try again.</string>
+    <string name="auth_network_error">We couldn’t sign you in with Google. Check your connection and try again.</string>
+    <string name="auth_invalid_credential">We couldn’t verify your Google sign-in. Please sign in again.</string>
+    <string name="auth_terms">By continuing you agree to the Terms and Privacy Policy.</string>
+    <string name="auth_error_title">Sign-in didn’t work</string>
+    <string name="auth_error_description">We couldn’t sign you in with Google. Please try again.</string>
+    <string name="auth_cancelled_description">No problem. Continue with Google when you’re ready.</string>
+    <string name="auth_try_again">Try again</string>
+    <string name="auth_lisbon" translatable="false">Lisbon</string>
+    <string name="auth_porto" translatable="false">Porto</string>
+    <string name="auth_barcelona" translatable="false">Barcelona</string>
+    <string name="auth_prague" translatable="false">Prague</string>
+    <string name="auth_rome" translatable="false">Rome</string>
+    <string name="auth_amsterdam" translatable="false">Amsterdam</string>
+    <string name="auth_belem" translatable="false">Belém Tower</string>
+    <string name="auth_market" translatable="false">Time Out Market</string>
+    <string name="auth_lx_factory" translatable="false">LX Factory</string>
+    <string name="auth_monte" translatable="false">Senhora do Monte</string>
+    <string name="auth_tram" translatable="false">Tram 28</string>
+    <string name="auth_bridge" translatable="false">Dom Luís I Bridge</string>
+
+    <!-- Shared trip creation -->
+    <string name="create_trip_back">Back</string>
+    <string name="create_trip_close">Close</string>
+    <string name="create_trip_step">Step %1$d of %2$d</string>
+    <string name="create_trip_destination_title">Where to?</string>
+    <string name="create_trip_destination_subtitle">Add one city or a whole route. You can change it later.</string>
+    <plurals name="create_trip_destination_continue">
+        <item quantity="one">Continue · %1$d stop</item>
+        <item quantity="other">Continue · %1$d stops</item>
+    </plurals>
+    <string name="create_trip_popular_destinations">Popular with students</string>
+    <string name="destination_search_hint">Search cities</string>
+    <string name="destination_search_description">Search cities</string>
+    <string name="destination_popular_title">Popular destinations</string>
+    <string name="destination_search_empty">No destinations found. Try another search.</string>
+    <string name="destination_search_error">Couldn’t load destinations. Check your connection and try again.</string>
+    <string name="destination_search_not_configured">City search is temporarily unavailable. Please try again later.</string>
+    <string name="destination_search_retry">Try again</string>
+    <string name="destination_search_results">Search results</string>
+    <string name="destination_geonames_credit">Place data © GeoNames</string>
+    <string name="destination_remove_description">Remove %1$s, %2$s</string>
+    <string name="destination_card_description">%1$s, %2$s</string>
+    <string name="destination_card_description_selected">%1$s, %2$s, selected</string>
+    <string name="destination_photo_info_description">Photo credits for %1$s</string>
+    <string name="destination_photo_credits_title">Photo credits</string>
+    <string name="destination_photo_creator">Photo: %1$s</string>
+    <string name="destination_photo_public_domain_creator">Public domain</string>
+    <string name="destination_photo_license_cropped">%1$s · Cropped for display</string>
+    <string name="destination_photo_view_original">View original</string>
+    <string name="destination_photo_view_license">View license</string>
+    <string name="preview_step_content">Step content</string>
+
+    <!-- C2 dates and travelers -->
+    <string name="c2_title">When are you going?</string>
+    <string name="c2_flexible_dates">Flexible ±2 days</string>
+    <string name="c2_who_is_coming">Who’s coming?</string>
+    <string name="c2_solo">Solo</string>
+    <string name="c2_group">Group</string>
+    <string name="c2_travelers">Travelers</string>
+    <string name="c2_create_trip">Create trip</string>
+    <string name="c2_date_range">%1$s → %2$s</string>
+    <string name="c2_duration_summary">%1$s · %2$s</string>
+    <string name="c2_previous_month">Previous month</string>
+    <string name="c2_next_month">Next month</string>
+    <string name="c2_select_end_date">Select your end date</string>
+    <string name="c2_decrease_travelers">Decrease travelers</string>
+    <string name="c2_increase_travelers">Increase travelers</string>
+
+    <plurals name="c2_trip_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <plurals name="c2_trip_nights">
+        <item quantity="one">%d night</item>
+        <item quantity="other">%d nights</item>
+    </plurals>
+
+
+    <!-- Trips Home -->
+    <string name="trips_title">Your trips</string>
+    <string name="trips_next_up">Next up</string>
+    <string name="trips_other_trips">Other trips</string>
+    <string name="trips_in_progress">In progress</string>
+    <string name="trips_starts_today">Starts today</string>
+    <plurals name="trips_starts_in_days">
+        <item quantity="one">Starts in %1$d day</item>
+        <item quantity="other">Starts in %1$d days</item>
+    </plurals>
+    <string name="trips_new_trip">New trip</string>
+    <string name="trips_retry">Retry</string>
+    <string name="trips_load_error">Unable to load trips.</string>
+    <string name="trips_refresh_error">Unable to refresh trips.</string>
+    <string name="trips_empty">No upcoming trips yet. Create a trip to get started.</string>
+    <string name="trips_invite">Invite</string>
+    <string name="trips_confirmed">Confirmed</string>
+    <string name="trips_shared">Shared</string>
+
+    <string name="trips_nav_trips">Trips</string>
+    <string name="trips_nav_map">Map</string>
+    <string name="trips_nav_photos">Photos</string>
+    <string name="trips_nav_friends">Friends</string>
+
+    <string name="trips_greeting">%1$s, %2$s</string>
+    <string name="trips_open_profile">Open profile</string>
+
+    <plurals name="trips_duration_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+
+    <plurals name="trips_stop_count">
+        <item quantity="one">%d stop</item>
+        <item quantity="other">%d stops</item>
+    </plurals>
+
+    <plurals name="trips_traveler_count">
+        <item quantity="one">%d traveler</item>
+        <item quantity="other">%d travelers</item>
+    </plurals>
+    <!-- Trip overview map -->
+    <string name="trip_map_loading">Loading trip destinations…</string>
+    <string name="trip_map_empty">No trip destinations yet</string>
+    <string name="trip_map_load_error">Unable to load trip destinations. Please try again.</string>
+    <string name="trip_map_retry">Retry</string>
+
+    <!-- Trip map -->
+    <string name="trip_map_trip_loading">Loading trip…</string>
+    <string name="trip_map_retry_activities">Retry loading activities</string>
+    <string name="trip_map_trip_load_error">Unable to load this trip. Please try again.</string>
+    <string name="trip_map_sharing_off_title">Location sharing is off</string>
+    <string name="trip_map_sharing_off_description">The rest of the app works. Turn it on so other trip members can see you on the map.</string>
+    <string name="trip_map_sharing_on_title">Location sharing is on</string>
+    <string name="trip_map_sharing_on_description">Trip members can see you on the map.</string>
+    <string name="trip_map_turn_on_sharing">Turn on sharing</string>
+    <string name="trip_map_pause_sharing">Pause sharing</string>
+    <string name="trip_map_offline">You are offline · saved plan only. Live locations, votes and new updates need internet.</string>
+    <string name="trip_map_freshness_live">live</string>
+    <plurals name="trip_map_freshness_seconds_ago">
+        <item quantity="one">%1$d s ago</item>
+        <item quantity="other">%1$d s ago</item>
+    </plurals>
+    <plurals name="trip_map_freshness_minutes_ago">
+        <item quantity="one">%1$d min ago</item>
+        <item quantity="other">%1$d min ago</item>
+    </plurals>
+    <string name="trip_map_member_marker_label">%1$s · %2$s</string>
+    <string name="trip_map_location_rationale_title">Share your location with the group?</string>
+    <string name="trip_map_location_rationale_description">Roamigo uses your location only while sharing is on. Only trip members can see it, and you can pause any time.</string>
+    <string name="trip_map_location_rationale_continue">Continue</string>
+    <string name="trip_map_location_denied_title">Location stays off</string>
+    <string name="trip_map_location_denied_description">The rest of the app works. You can turn sharing on any time from the map.</string>
+    <string name="trip_map_location_denied_got_it">Got it</string>
+    <string name="trip_map_location_blocked_title">Location is blocked</string>
+    <string name="trip_map_location_blocked_description">Turn it on in Settings › Permissions › Location to share with your group.</string>
+    <string name="trip_map_location_blocked_open_settings">Open Settings</string>
+    <string name="trip_map_location_not_now">Not now</string>
+
+    <!-- Vote creation -->
+    <string name="vote_new">New vote</string>
+    <string name="vote_question">Question</string>
+    <string name="vote_option">Option %1$d</string>
+    <string name="vote_remove_option">Remove option %1$d</string>
+    <string name="vote_add_option">+ Add option</string>
+    <string name="vote_options_hint">Add 2–10 options. Fill in or remove any empty options.</string>
+    <string name="vote_start">Start vote</string>
+    <string name="vote_creating">Creating vote…</string>
+    <string name="vote_cancel">Cancel</string>
+    <string name="vote_invalid">Enter a question and 2–10 non-empty options.</string>
+    <string name="vote_submission_error">Unable to create the vote. Please try again.</string>
+
+    <!-- Trip History -->
+    <string name="trip_history_title">Trip history</string>
+    <string name="trip_history_completed">Completed</string>
+    <string name="trip_history_empty">No completed trips yet</string>
+    <string name="trip_history_unknown_destination">Destination unavailable</string>
+    <string name="trip_history_world_map">Open explored world map</string>
+    <string name="trip_history_back">Back</string>
+
+    <plurals name="trip_history_count">
+        <item quantity="one">%1$d completed trip</item>
+        <item quantity="other">%1$d completed trips</item>
+    </plurals>
+
+    <string name="trips_history">History</string>
+    <string name="trip_history_load_error">Unable to load trip history.</string>
+    <string name="trip_history_retry">Retry</string>
+
+
+    <!-- Heatmap -->
+    <string name="heatmap_title">Explored world</string>
+    <string name="heatmap_less">Less</string>
+    <string name="heatmap_more">More visits</string>
+    <string name="heatmap_open">Open explored world map</string>
+    <string name="heatmap_map_description">World map showing visited countries</string>
+    <string name="heatmap_loading">Loading your explored world…</string>
+    <string name="heatmap_load_error">Explored world unavailable</string>
+    <string name="heatmap_map_unavailable">World map unavailable</string>
+    <string name="heatmap_empty">No visited countries to display yet</string>
+
+    <plurals name="heatmap_country_count">
+        <item quantity="one">%1$d country</item>
+        <item quantity="other">%1$d countries</item>
+    </plurals>
+
+    <plurals name="heatmap_trip_count">
+        <item quantity="one">%1$d trip</item>
+        <item quantity="other">%1$d trips</item>
+    </plurals>
+
+
+
+    <!-- Friends -->
+    <string name="friends_title">Friends</string>
+    <string name="friends_privacy_subtitle">Maps are visible to friends only</string>
+    <string name="friends_view_map">View map</string>
+    <string name="friends_view_map_accessibility">View map for %1$s</string>
+    <string name="friends_pending">Pending</string>
+    <string name="friends_request_sent">request sent</string>
+    <string name="friends_add_friend">Add a friend</string>
+    <string name="friends_empty_title">No friends yet</string>
+    <string name="friends_empty_description">Add a friend to see them here.</string>
+    <string name="friends_metadata">%1$s · %2$s</string>
+    <string name="friends_request_metadata">%1$s · %2$s</string>
+
+    <plurals name="friends_country_count">
+        <item quantity="one">%d country</item>
+        <item quantity="other">%d countries</item>
+    </plurals>
+
+    <plurals name="friends_trip_together_count">
+        <item quantity="one">%d trip together</item>
+        <item quantity="other">%d trips together</item>
+    </plurals>
+    <!-- Existing vote interaction -->
+    <string name="vote_submit">Submit vote</string>
+    <string name="vote_update">Update vote</string>
+    <string name="vote_submitting">Submitting vote…</string>
+    <string name="vote_syncing">Reconnecting…</string>
+    <string name="vote_loading">Loading vote…</string>
+    <string name="vote_closed">This vote is closed.</string>
+    <string name="vote_not_found">This vote could not be found.</string>
+    <string name="vote_load_error">Unable to load the vote. Please try again.</string>
+    <string name="vote_ballots_error">Unable to load your vote selection. Please try again.</string>
+    <string name="vote_ballot_submission_error">Unable to submit your vote. Please try again.</string>
+    <string name="vote_retry">Retry</string>
+    <string name="vote_back">Back</string>
+    <plurals name="vote_count">
+        <item quantity="one">%d vote</item>
+        <item quantity="other">%d votes</item>
+    </plurals>
+    <string name="create_trip_sign_in">Sign in</string>
+    <string name="create_trip_retry">Retry</string>
+    <string name="create_trip_auth_error">Your session has ended. Sign in to create your trip.</string>
+    <string name="create_trip_permission_error">Your account cannot save this trip. Please try again later.</string>
+    <string name="create_trip_validation_error">Check your destinations, dates, and travelers.</string>
+    <string name="create_trip_network_error">Could not connect. Check your connection and retry.</string>
+    <string name="create_trip_unknown_error">Could not save your trip. Please retry.</string>
+
+    <!-- Permissions explainer -->
+    <string name="permissions_location_title">Location sharing</string>
+    <string name="permissions_location_description">Off until you turn it on · only trip members see it</string>
+    <string name="permissions_camera_title">Camera</string>
+    <string name="permissions_camera_description">Asked when you take a trip photo</string>
+    <string name="permissions_notifications_title">Notifications</string>
+    <string name="permissions_notifications_description">Asked when you turn on vote alerts</string>
+    <string name="permissions_members_title">Trip members only</string>
+    <string name="permissions_members_description">Only invited friends can see or edit a trip</string>
+    <string name="permissions_title">We ask only when needed</string>
+    <string name="permissions_description">No permissions up front. Roamigo asks in the moment, and you can review them any time in Settings.</string>
+    <string name="permissions_continue">Continue</string>
+
+    <!-- Profile -->
+    <string name="profile_title">Profile</string>
+    <string name="profile_description">The account you signed in with</string>
+    <string name="profile_display_name">Display name</string>
+    <string name="profile_edit">Edit</string>
+    <string name="profile_picture">Profile picture</string>
+    <string name="profile_picture_description">Shown to your trip members</string>
+    <string name="profile_change">Change</string>
+    <string name="profile_friends">Friends</string>
+    <string name="profile_view">View</string>
+    <string name="profile_log_out">Log out</string>
+    <string name="profile_email">%1$s · Signed in with Google</string>
+    <plurals name="profile_friend_count">
+        <item quantity="one">%1$d friend · heatmaps visible to friends only</item>
+        <item quantity="other">%1$d friends · heatmaps visible to friends only</item>
+    </plurals>
+    <!-- Trip Votes tab -->
+    <string name="votes_title">Votes</string>
+    <string name="trip_tab_overview">Overview</string>
+    <string name="trip_tab_itinerary">Itinerary</string>
+    <string name="votes_trip_summary">%1$s · %2$s</string>
+    <plurals name="votes_open_count">
+        <item quantity="one">%d open</item>
+        <item quantity="other">%d open</item>
+    </plurals>
+    <string name="votes_decided">Decided</string>
+    <string name="votes_live_vote">Live vote</string>
+    <string name="votes_closed_vote">Closed vote</string>
+    <string name="votes_loading">Loading votes…</string>
+    <string name="votes_empty_title">No votes yet</string>
+    <string name="votes_empty_description">Start a vote to decide together with your trip members.</string>
+    <string name="votes_load_error">Unable to load votes. Please try again.</string>
+    <string name="votes_sync_error">Unable to update votes. Showing the last available votes.</string>
+    <string name="trip_ready_title">Your trip is ready!</string>
+    <string name="trip_ready_dates">%1$s · %2$s – %3$s</string>
+    <string name="trip_ready_summary">%1$s · %2$s</string>
+    <string name="trip_ready_invite">Invite your friends</string>
+    <string name="trip_ready_invite_detail">Invitations will be available in a future update</string>
+    <string name="trip_ready_suggest">Suggest places</string>
+    <string name="trip_ready_suggest_detail">Add sights and hotels for the group to vote on</string>
+    <string name="trip_ready_location">Share your location (optional)</string>
+    <string name="trip_ready_location_detail">Off by default · trip members only</string>
+    <string name="trip_ready_itinerary">Open trip detail</string>
+    <string name="trip_ready_share">Share trip</string>
+    <string name="trip_ready_error">Could not load this trip. Please try again.</string>
+    <string name="trip_ready_photo_credit">Photo credits</string>
+    <!-- Trip Details -->
+    <string name="trip_details_tab">Detail</string>
+    <string name="trip_details_itinerary">Itinerary</string>
+    <string name="trip_details_votes">Votes</string>
+    <string name="trip_details_share">Share trip</string>
+    <string name="trip_details_members">Members</string>
+    <string name="trip_details_places">Places to visit</string>
+    <string name="trip_details_live_votes">Live votes</string>
+    <string name="trip_details_photos">Trip photos</string>
+    <string name="trip_details_unavailable">Not available yet</string>
+    <string name="trip_details_unavailable_count">—</string>
+    <string name="trip_details_invite">Invite</string>
+    <string name="trip_details_map">Open trip map</string>
+    <string name="trip_details_loading">Loading trip details…</string>
+    <string name="trip_details_load_failed">Unable to load trip details.</string>
+    <string name="trip_details_not_found">This trip is no longer available to you.</string>
+    <string name="trip_details_retry">Retry</string>
+    <string name="trip_details_back">Back</string>
+    <string name="trip_details_subtitle">%1$s · %2$s</string>
+    <plurals name="trip_details_travelers">
+        <item quantity="one">%1$d traveler</item>
+        <item quantity="other">%1$d travelers</item>
+    </plurals>
+    <plurals name="trip_details_member_count">
+        <item quantity="one">%1$d member</item>
+        <item quantity="other">%1$d members</item>
+    </plurals>
+    <plurals name="trip_details_suggestions">
+        <item quantity="one">%1$d suggested place</item>
+        <item quantity="other">%1$d suggested places</item>
+    </plurals>
+    <string name="votes_cast_vote">Vote</string>
+    <string name="votes_change_vote">Change vote</string>
+    <!-- Trip photos -->
+    <string name="trip_photo_summary">%1$s · %2$s</string>
+    <plurals name="trip_photo_count">
+        <item quantity="one">%d photo</item>
+        <item quantity="other">%d photos</item>
+    </plurals>
+    <plurals name="trip_person_count">
+        <item quantity="one">%d person</item>
+        <item quantity="other">%d people</item>
+    </plurals>
+    <string name="photos_title">Trip photos</string>
+    <string name="photos_take_photo">Take a photo</string>
+    <string name="photos_no_camera">No camera app is available on this device.</string>
+    <string name="photos_offline_empty">You’re offline · photos you take are saved on this phone</string>
+    <plurals name="photos_waiting_offline">
+        <item quantity="one">%d photo saved on this phone · waiting for a connection</item>
+        <item quantity="other">%d photos saved on this phone · waiting for a connection</item>
+    </plurals>
+    <plurals name="photos_waiting_online">
+        <item quantity="one">%d photo waiting to upload</item>
+        <item quantity="other">%d photos waiting to upload</item>
+    </plurals>
+    <plurals name="photos_uploading">
+        <item quantity="one">Back online · uploading %d photo…</item>
+        <item quantity="other">Back online · uploading %d photos…</item>
+    </plurals>
+    <string name="photos_empty_title">No photos yet</string>
+    <string name="photos_empty_description">Photos you take are shared with the trip, and uploaded by themselves once you are online.</string>
+    <string name="photos_item_description">Photo taken at %1$s</string>
+    <string name="photos_status_waiting">%1$s · Waiting to upload</string>
+    <string name="photos_status_uploading">%1$s · Uploading…</string>
+    <string name="photos_status_failed">%1$s · Upload failed</string>
+    <string name="photos_retry">Retry</string>
+    <string name="photos_uploaded_title">Shared with the trip</string>
+    <string name="photos_uploaded_by_you">You · %1$s</string>
+    <string name="photos_uploaded_by_member">A member · %1$s</string>
+    <string name="photos_uploaded_description">Photo taken at %1$s</string>
+    <string name="photos_gallery_loading">Loading the trip’s photos…</string>
+    <string name="photos_gallery_error">Could not load the trip’s photos.</string>
+    <string name="photo_viewer_close">Close</string>
+    <string name="camera_rationale_title">Take photos for the trip?</string>
+    <string name="camera_rationale_description">Roamigo uses the camera only while you take a photo. Photos are shared with trip members only.</string>
+    <string name="camera_rationale_continue">Continue</string>
+    <string name="camera_rationale_not_now">Not now</string>
+    <string name="camera_denied_title">Camera stays off</string>
+    <string name="camera_denied_description">You can allow the camera the next time you take a photo.</string>
+    <string name="camera_denied_got_it">Got it</string>
+    <string name="camera_blocked_title">Camera is blocked</string>
+    <string name="camera_blocked_description">Turn it on in Settings › Permissions › Camera to take photos.</string>
+    <string name="camera_blocked_open_settings">Open Settings</string>
+    <string name="photo_preview_description">The photo you just took</string>
+    <string name="photo_preview_cancel">Cancel</string>
+    <string name="photo_preview_offline">You’re offline · it will be saved on this phone</string>
+    <string name="photo_preview_note_online">Shared with the group once saved</string>
+    <string name="photo_preview_note_offline">It will upload when you’re back online</string>
+    <string name="photo_preview_save_online">Save to trip</string>
+    <string name="photo_preview_save_offline">Save on this phone</string>
+    <string name="photo_preview_retake">Retake</string>
+    <string name="photo_preview_save_failed">Could not save the photo. Try again.</string>
+    <string name="vote_close">Close vote</string>
+    <string name="vote_closing">Closing vote…</string>
+    <string name="vote_close_title">Close this vote?</string>
+    <string name="vote_close_confirmation">Closing is permanent. Members will no longer be able to vote or change their vote.</string>
+    <string name="vote_close_cancel">Cancel</string>
+    <string name="vote_close_error">Could not close the vote. Please try again.</string>
+    <string name="vote_close_unavailable">Only the creator can close an open vote.</string>
+</resources>

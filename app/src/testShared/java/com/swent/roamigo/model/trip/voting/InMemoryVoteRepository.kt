@@ -1,0 +1,81 @@
+// AI assistance was used for implementation support and code review.
+package com.swent.roamigo.model.trip.voting
+
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flow
+
+/** Shared test backend with trip isolation and controllable realtime snapshots/failures. */
+class InMemoryVoteRepository(initialVotes: List<Vote> = emptyList()) : VoteRepository {
+  val snapshots = MutableStateFlow<Result<List<Vote>>>(Result.success(initialVotes))
+  val observedTrips = mutableListOf<String>()
+  val lookups = mutableListOf<Pair<String, String>>()
+  val submissions = mutableListOf<Triple<String, String, VoteBallot>>()
+  var activeObservers = 0
+    private set
+  var maximumObservers = 0
+    private set
+  val ballotObserverStarts = mutableMapOf<String, Int>()
+  val activeBallotObservers = mutableMapOf<String, Int>()
+  private val ballots = mutableMapOf<Pair<String, String>, MutableStateFlow<List<VoteBallot>>>()
+
+  override fun observeVote(tripId: String, voteId: String): Flow<Vote?> =
+      snapshots.map { result -> result.getOrThrow().firstOrNull { it.tripId == tripId && it.uid == voteId } }.distinctUntilChanged()
+
+  override fun observeVotes(tripId: String): Flow<List<Vote>> = flow {
+    observedTrips += tripId
+    activeObservers++
+    maximumObservers = maxOf(maximumObservers, activeObservers)
+    try {
+      snapshots.collect { result -> emit(result.getOrThrow().filter { it.tripId == tripId }) }
+    } finally {
+      activeObservers--
+    }
+  }
+
+  override suspend fun createVote(vote: Vote) {
+    snapshots.value = Result.success(snapshots.value.getOrThrow() + vote)
+  }
+
+  override suspend fun closeVote(tripId: String, voteId: String) {
+    val vote = requireNotNull(getVote(tripId, voteId))
+    check(vote.status == VoteStatus.OPEN)
+    snapshots.value =
+        Result.success(
+            snapshots.value.getOrThrow().map {
+              if (it.tripId == tripId && it.uid == voteId) it.copy(status = VoteStatus.CLOSED) else it
+            }
+        )
+  }
+
+  override suspend fun getVote(tripId: String, voteId: String): Vote? {
+    lookups += tripId to voteId
+    return getVotes(tripId).firstOrNull { it.uid == voteId }
+  }
+
+  override suspend fun getVotes(tripId: String): List<Vote> =
+      snapshots.value.getOrThrow().filter { it.tripId == tripId }
+
+  override fun observeBallots(tripId: String, voteId: String): Flow<List<VoteBallot>> =
+      flow {
+        ballotObserverStarts[voteId] = (ballotObserverStarts[voteId] ?: 0) + 1
+        activeBallotObservers[voteId] = (activeBallotObservers[voteId] ?: 0) + 1
+        try {
+          ballotStream(tripId, voteId).collect { emit(it) }
+        } finally {
+          activeBallotObservers[voteId] = activeBallotObservers.getValue(voteId) - 1
+        }
+      }
+
+  override suspend fun submitBallot(tripId: String, voteId: String, ballot: VoteBallot) {
+    check(getVotes(tripId).firstOrNull { it.uid == voteId }?.status == VoteStatus.OPEN)
+    submissions += Triple(tripId, voteId, ballot)
+    val stream = ballotStream(tripId, voteId)
+    stream.value = stream.value.filterNot { it.userId == ballot.userId } + ballot
+  }
+
+  private fun ballotStream(tripId: String, voteId: String): MutableStateFlow<List<VoteBallot>> =
+      ballots.getOrPut(tripId to voteId) { MutableStateFlow(emptyList()) }
+}

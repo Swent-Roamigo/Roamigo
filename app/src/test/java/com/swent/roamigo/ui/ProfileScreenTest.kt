@@ -1,0 +1,164 @@
+// Implemented with assistance from Claude (Anthropic).
+package com.swent.roamigo.ui
+
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.dp
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.swent.roamigo.model.users.User
+import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.profile.ProfileScreen
+import com.swent.roamigo.ui.profile.ProfileUiState
+import com.swent.roamigo.ui.theme.RoamigoTheme
+import org.junit.Assert.assertEquals
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+
+@RunWith(AndroidJUnit4::class)
+class ProfileScreenTest {
+  @get:Rule val composeRule = createComposeRule()
+
+  private val state = ProfileUiState(User("u1", "Sam", null), "sam@epfl.ch", 2)
+
+  private fun show(
+      modifier: Modifier = Modifier,
+      onTripsClick: () -> Unit = {},
+      onFriendsClick: () -> Unit = {},
+  ) {
+    composeRule.setContent {
+      RoamigoTheme {
+        ProfileScreen(
+            state,
+            onTripsClick = onTripsClick,
+            onFriendsClick = onFriendsClick,
+            modifier = modifier,
+        )
+      }
+    }
+  }
+
+  @Test
+  fun showsAccountDetailsFromState() {
+    show()
+    composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.profile_avatar).assertTextEquals(state.user.displayName.take(1))
+    composeRule.onNodeWithTag(C.Tag.profile_name).assertTextEquals(state.user.displayName)
+    composeRule
+        .onNodeWithTag(C.Tag.profile_email)
+        .assertTextContains(requireNotNull(state.email), substring = true)
+    // The row only carries the tag; its text lives in child nodes.
+    composeRule
+        .onNodeWithTag(C.Tag.profile_friends_row)
+        .assert(hasAnyDescendant(hasText(state.friendCount.toString(), substring = true)))
+  }
+
+  @Test
+  fun showsThePhotoWhenTheAccountHasOne() {
+    val withPhoto = state.copy(user = User("u1", "Sam", "https://img/sam.png"))
+    composeRule.setContent { RoamigoTheme { ProfileScreen(withPhoto) } }
+
+    composeRule.onNodeWithTag(C.Tag.profile_photo).assertExists()
+    composeRule.onNodeWithTag(C.Tag.profile_avatar).assertIsDisplayed()
+  }
+
+  @Test
+  fun showsNoPhotoWhenTheAccountHasNone() {
+    show()
+    composeRule.onAllNodesWithTag(C.Tag.profile_photo).assertCountEquals(0)
+  }
+
+  @Test
+  fun hidesTheEmailWhenTheAccountHasNone() {
+    composeRule.setContent { RoamigoTheme { ProfileScreen(state.copy(email = null)) } }
+
+    composeRule.onNodeWithTag(C.Tag.profile_name).assertIsDisplayed()
+    composeRule.onAllNodesWithTag(C.Tag.profile_email).assertCountEquals(0)
+  }
+
+  @Test
+  fun showsSingularFriendCount() {
+    assertFriendCount(1, "1 friend")
+  }
+
+  @Test
+  fun showsPluralFriendCount() {
+    assertFriendCount(2, "2 friends")
+  }
+
+  private fun assertFriendCount(count: Int, expected: String) {
+    composeRule.setContent { RoamigoTheme { ProfileScreen(state.copy(friendCount = count)) } }
+
+    composeRule
+        .onNodeWithTag(C.Tag.profile_friends_row)
+        .assert(hasAnyDescendant(hasText("$expected \u00b7 heatmaps visible to friends only")))
+  }
+
+  @Test
+  fun showsActionsAndFooter() {
+    show()
+    composeRule.onNodeWithTag(C.Tag.profile_log_out).assertIsDisplayed()
+    composeRule.onAllNodesWithTag(C.Tag.profile_action).assertCountEquals(3)
+    listOf(
+            C.Tag.trips_navigation_trips,
+            C.Tag.trips_navigation_map,
+            C.Tag.trips_navigation_friends,
+        )
+        .forEach { composeRule.onNodeWithTag(it).assertIsDisplayed() }
+  }
+
+  @Test
+  fun worksWithDefaultCallbacksAndModifier() {
+    composeRule.setContent { RoamigoTheme { ProfileScreen(state) } }
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
+  }
+
+  @Test
+  fun tripsTabInvokesCallback() {
+    var tripsClicks = 0
+    show(onTripsClick = { tripsClicks++ })
+
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
+
+    assertEquals(1, tripsClicks)
+  }
+
+  @Test
+  fun contentScrollsAndLogOutStaysReachableOnSmallScreens() {
+    show(Modifier.height(300.dp))
+
+    composeRule.onNodeWithTag(C.Tag.profile_friends_row).performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.profile_log_out).assertIsDisplayed()
+  }
+
+  @Test
+  fun friendsActionsInvokeCallback() {
+    var friendsClicks = 0
+
+    show(onFriendsClick = { friendsClicks++ })
+
+    // Friends button inside Profile.
+    composeRule.onNodeWithText("View").performClick()
+    assertEquals(1, friendsClicks)
+
+    // Friends tab in the bottom navigation.
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
+    assertEquals(2, friendsClicks)
+  }
+}
