@@ -134,6 +134,7 @@ class ProfileRouteTest {
       composeRule.runOnIdle { showOther = true }
       composeRule.onNodeWithTag(C.Tag.profile_name).assertTextEquals("Taylor")
       composeRule.onNodeWithTag(C.Tag.profile_log_out).assertIsEnabled().performClick()
+      composeRule.onNodeWithTag(C.Tag.profile_log_out_confirm).performClick()
       composeRule.waitUntil { signedOutAccounts.isNotEmpty() }
       composeRule.runOnIdle {
         assertEquals(listOf("taylor"), signedOutAccounts)
@@ -199,6 +200,7 @@ class ProfileRouteTest {
     }
 
     composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    composeRule.onNodeWithTag(C.Tag.profile_log_out_confirm).performClick()
     composeRule.waitUntil { signOutEvents == 1 }
     composeRule.runOnIdle { modifier = Modifier.testTag("recomposed_profile") }
 
