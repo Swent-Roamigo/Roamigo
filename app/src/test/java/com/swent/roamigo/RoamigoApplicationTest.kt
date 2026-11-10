@@ -3,6 +3,7 @@
 package com.swent.roamigo
 
 import coil.annotation.ExperimentalCoilApi
+import com.swent.roamigo.model.destination.CachingDestinationRepository
 import com.swent.roamigo.model.destination.DESTINATION_USER_AGENT
 import okhttp3.Interceptor
 import okhttp3.Protocol
@@ -10,6 +11,8 @@ import okhttp3.Request
 import okhttp3.Response
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.mock
@@ -65,5 +68,13 @@ class RoamigoApplicationTest {
     } finally {
       imageLoader.shutdown()
     }
+  }
+
+  @Test
+  fun theDestinationCacheIsOneInstanceForTheWholeApp() {
+    val application = RuntimeEnvironment.getApplication() as RoamigoApplication
+
+    assertTrue(application.destinationRepository is CachingDestinationRepository)
+    assertSame(application.destinationRepository, application.destinationRepository)
   }
 }
