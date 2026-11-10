@@ -220,15 +220,16 @@ class ActivityRepositoryFirestoreEmulatorTest {
       }
 
   @Test
-  fun rulesAcceptNameAndDescriptionAtTheirMaximumLength() = runBlocking {
-    activityDocument(alice, "longest")
-        .set(
-            activityData(alice) +
-                ("name" to "a".repeat(MAX_ACTIVITY_NAME_LENGTH)) +
-                ("description" to "a".repeat(MAX_ACTIVITY_DESCRIPTION_LENGTH))
-        )
-        .await()
-  }
+  fun rulesAcceptNameAndDescriptionAtTheirMaximumLength() =
+      runBlocking<Unit> {
+        activityDocument(alice, "longest")
+            .set(
+                activityData(alice) +
+                    ("name" to "a".repeat(MAX_ACTIVITY_NAME_LENGTH)) +
+                    ("description" to "a".repeat(MAX_ACTIVITY_DESCRIPTION_LENGTH))
+            )
+            .await()
+      }
 
   @Test
   fun activitiesCannotBeUpdatedOrDeleted() = runBlocking {
