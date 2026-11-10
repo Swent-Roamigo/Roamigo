@@ -18,6 +18,11 @@ class UserDirectorySearchTest {
           currentUser = me,
           users = listOf(sam, sara),
           failure = failure,
+          emailsByUserId =
+              mapOf(
+                  "sam" to "Sam@epfl.ch",
+                  "sara" to "Sara@epfl.ch",
+              ),
       )
 
   @Test
@@ -26,6 +31,13 @@ class UserDirectorySearchTest {
     assertEquals(listOf(sam), repository().searchUsers("SAM ex"))
     assertTrue(repository().searchUsers("example").isEmpty())
     assertTrue(repository().searchUsers("   ").isEmpty())
+  }
+
+  @Test
+  fun emailSearchUsesExactCaseInsensitiveMatch() = runBlocking {
+    assertEquals(listOf(sam), repository().searchUsers("  SAM@EPFL.CH "))
+    assertTrue(repository().searchUsers("sam@epfl").isEmpty())
+    assertTrue(repository().searchUsers("missing@epfl.ch").isEmpty())
   }
 
   @Test

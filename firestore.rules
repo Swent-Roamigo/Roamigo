@@ -280,6 +280,64 @@ service cloud.firestore {
           allow delete: if false;
         }
 
+        // Private metadata used to remove an obsolete email index.
+        match /userSearchMetadata/{userId} {
+          function verifiedEmailHash() {
+            return request.auth.token.get('email_verified', false) == true
+                ? hashing.sha256(
+                    request.auth.token.email.trim().lower().toUtf8()
+                  ).toHexString().lower()
+                : null;
+          }
+
+          allow get: if signedIn() && request.auth.uid == userId;
+          allow list: if false;
+
+          allow create, update: if signedIn()
+              && request.auth.uid == userId
+              && request.resource.data.keys().hasAll([
+                  'emailHash', 'updatedAt'
+              ])
+              && request.resource.data.keys().hasOnly([
+                  'emailHash', 'updatedAt'
+              ])
+              && request.resource.data.emailHash == verifiedEmailHash()
+              && request.resource.data.updatedAt == request.time;
+
+          allow delete: if false;
+        }
+
+        // Exact email lookup, available only to authenticated users.
+        match /userEmailLookups/{emailHash} {
+          function matchesVerifiedEmail() {
+            return request.auth.token.get('email_verified', false) == true
+                && emailHash == hashing.sha256(
+                    request.auth.token.email.trim().lower().toUtf8()
+                  ).toHexString().lower();
+          }
+
+          function validLookup(data) {
+            return data.keys().hasAll(['uid'])
+                && data.keys().hasOnly(['uid'])
+                && data.uid == request.auth.uid;
+          }
+
+          allow get: if signedIn();
+          allow list: if false;
+
+          allow create: if signedIn()
+              && matchesVerifiedEmail()
+              && validLookup(request.resource.data);
+
+          allow update: if signedIn()
+              && matchesVerifiedEmail()
+              && resource.data.uid == request.auth.uid
+              && validLookup(request.resource.data);
+
+          allow delete: if signedIn()
+              && resource.data.uid == request.auth.uid;
+        }
+
     match /friendships/{documentId} {
       allow get: if signedIn()
           && ((resource == null && isOwnFriendshipDocument(documentId))
