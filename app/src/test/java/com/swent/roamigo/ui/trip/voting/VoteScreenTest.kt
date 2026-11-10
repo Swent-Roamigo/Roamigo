@@ -13,6 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -21,6 +22,7 @@ import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -31,6 +33,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.trip.voting.VoteBallot
 import com.swent.roamigo.model.trip.voting.VoteOption
+import com.swent.roamigo.model.trip.voting.VoteStatus
+import com.swent.roamigo.model.trip.voting.calculateVoteResult
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.voting.components.VoteCard
 import org.junit.Assert.assertEquals
@@ -107,7 +111,7 @@ class VoteScreenTest {
     composeRule.onNodeWithText("Close vote").assertDoesNotExist()
     composeRule.runOnIdle {
       creator = true
-      vote = vote.copy(status = com.swent.roamigo.model.trip.voting.VoteStatus.CLOSED)
+      vote = vote.copy(status = VoteStatus.CLOSED)
     }
     composeRule.onNodeWithText("Close vote").assertDoesNotExist()
     composeRule.onNodeWithText("Cast vote").assertDoesNotExist()
@@ -307,11 +311,11 @@ class VoteScreenTest {
 
   @Test
   fun closedVoteShowsOnlyTerminalContentAndBack() {
-    content(VoteUiState.Closed)
-    composeRule.onNodeWithText("This vote is closed.").assertIsDisplayed()
-    composeRule.onNodeWithText("Dinner?").assertDoesNotExist()
-    composeRule.onNodeWithText("Market").assertDoesNotExist()
-    composeRule.onNodeWithText("Restaurant").assertDoesNotExist()
+    content(closedState(emptyList()))
+    composeRule.onNodeWithText("No votes cast · no winner").assertIsDisplayed()
+    composeRule.onNodeWithText("Dinner?").assertIsDisplayed()
+    assertCount("Market", "0 votes")
+    assertCount("Restaurant", "0 votes")
     composeRule.onNodeWithText("Update vote").assertDoesNotExist()
     composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
     composeRule.onNodeWithText("Back").assertIsEnabled()
@@ -414,6 +418,104 @@ class VoteScreenTest {
 
   private fun assertCount(option: String, count: String) {
     composeRule.onNode(hasText(option) and hasText(count)).assertIsDisplayed()
+  }
+
+  private fun closedState(ballots: List<VoteBallot>): VoteUiState.Closed {
+    val vote = interactionVote().copy(status = VoteStatus.CLOSED)
+    return VoteUiState.Closed(
+        vote,
+        calculateVoteResult(vote.options, ballots),
+    )
+  }
+
+  @Test
+  fun closedWinnerShowsAllCountsWithoutRadioOrSubmitControlsAndBackWorks() {
+    var backs = 0
+    val state = closedState(listOf(VoteBallot("member", "a", Timestamp(1, 0))))
+    composeRule.setContent { RoamigoTheme { VoteScreen(state, {}, {}, {}, { backs++ }) } }
+    assertCount("Market", "1 vote")
+    assertCount("Restaurant", "0 votes")
+    composeRule.onNode(hasText("Market") and hasText("Winner")).assertIsDisplayed()
+    composeRule.onAllNodes(isSelectable()).assertCountEquals(0)
+    composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Update vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Change vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Back").performClick()
+    composeRule.runOnIdle { assertEquals(1, backs) }
+  }
+
+  @Test
+  fun closedTieLabelsBothOptionsAndCounts() {
+    content(
+        closedState(
+            listOf(
+                VoteBallot("member", "a", Timestamp(1, 0)),
+                VoteBallot("other", "b", Timestamp(1, 0)),
+            )
+        )
+    )
+    composeRule.onNodeWithText("Vote closed · tied").assertIsDisplayed()
+    composeRule
+        .onNode(hasText("Market") and hasText("Tied for first") and hasText("1 vote"))
+        .assertIsDisplayed()
+    composeRule
+        .onNode(hasText("Restaurant") and hasText("Tied for first") and hasText("1 vote"))
+        .assertIsDisplayed()
+    composeRule.onNodeWithText("Winner").assertDoesNotExist()
+  }
+
+  @Test
+  fun detailedResultMarksOnlyCurrentUsersPersistedOption() {
+    val vote = interactionVote().copy(status = VoteStatus.CLOSED)
+    content(
+        VoteUiState.Closed(
+            vote,
+            calculateVoteResult(
+                vote.options,
+                listOf(
+                    VoteBallot("member", "a", Timestamp(1, 0)),
+                    VoteBallot("other", "b", Timestamp(1, 0)),
+                ),
+                "member",
+            ),
+        )
+    )
+    composeRule.onNodeWithText("Market · your vote").assertIsDisplayed()
+    composeRule.onNodeWithText("Restaurant · your vote").assertDoesNotExist()
+    composeRule.onNodeWithText("Restaurant").assertIsDisplayed()
+  }
+
+  @Test
+  fun detailedResultHasNoMarkerWhenCurrentUserDidNotVote() {
+    val vote = interactionVote().copy(status = VoteStatus.CLOSED)
+    content(
+        VoteUiState.Closed(
+            vote,
+            calculateVoteResult(
+                vote.options,
+                listOf(VoteBallot("other", "b", Timestamp(1, 0))),
+                "member",
+            ),
+        )
+    )
+    composeRule.onNodeWithText("your vote", substring = true).assertDoesNotExist()
+  }
+
+  @Test
+  fun routeTransitionsToFinalResultsIncludingLateBallots() {
+    val repository = InteractionVoteRepository()
+    composeRule.setContent { RoamigoTheme { VoteRoute(repository, "trip", "vote", "member", {}) } }
+    composeRule.onNodeWithText("Submit vote").assertIsDisplayed()
+    composeRule.runOnIdle { repository.vote = repository.vote!!.copy(status = VoteStatus.CLOSED) }
+    composeRule.onNodeWithText("No votes cast · no winner").assertIsDisplayed()
+    composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
+    composeRule.runOnIdle {
+      repository.ballots.value = listOf(VoteBallot("other", "b", Timestamp(1, 0)))
+    }
+    composeRule
+        .onNode(hasText("Restaurant") and hasText("Winner") and hasText("1 vote"))
+        .assertIsDisplayed()
+    assertCount("Market", "0 votes")
   }
 
   private fun content(state: VoteUiState) {

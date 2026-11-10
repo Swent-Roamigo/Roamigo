@@ -8,6 +8,7 @@ import com.swent.roamigo.model.trip.voting.VoteBallot
 import com.swent.roamigo.model.trip.voting.VoteOption
 import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.trip.voting.VoteStatus
+import com.swent.roamigo.model.trip.voting.calculateVoteResult
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -74,6 +75,16 @@ class VoteViewModelTest {
 
   private fun ready() = viewModel.uiState.value as VoteUiState.Ready
 
+  private fun assertClosedResult() {
+    val closed = viewModel.uiState.value as VoteUiState.Closed
+    assertEquals(repository.vote, closed.vote)
+    assertEquals(VoteStatus.CLOSED, closed.vote.status)
+    assertEquals(
+        calculateVoteResult(closed.vote.options, repository.ballots.value, "member"),
+        closed.result,
+    )
+  }
+
   private fun ballot(optionId: String) = VoteBallot("member", optionId, Timestamp(1, 0))
 
   @Test
@@ -107,7 +118,7 @@ class VoteViewModelTest {
     assertEquals("a", ready().persistedOptionId)
     viewModel.closeVote()
     advanceUntilIdle()
-    assertEquals(VoteUiState.Closed, viewModel.uiState.value)
+    assertClosedResult()
     assertEquals(listOf(original), repository.ballots.value)
     assertEquals(original, repository.persisted["member"])
     assertEquals(1, repository.calls.size)
@@ -121,7 +132,7 @@ class VoteViewModelTest {
     advanceUntilIdle()
     viewModel.closeVote()
     advanceUntilIdle()
-    assertEquals(VoteUiState.Closed, viewModel.uiState.value)
+    assertClosedResult()
     assertTrue(repository.ballots.value.isEmpty())
     assertTrue(repository.persisted.isEmpty())
     assertTrue(repository.calls.isEmpty())
@@ -145,7 +156,7 @@ class VoteViewModelTest {
     assertEquals(1, repository.closeCalls)
     repository.closeGate!!.complete(Unit)
     advanceUntilIdle()
-    assertEquals(VoteUiState.Closed, viewModel.uiState.value)
+    assertClosedResult()
     assertEquals(VoteStatus.CLOSED, repository.vote?.status)
     assertTrue(repository.calls.isEmpty())
   }
@@ -165,7 +176,7 @@ class VoteViewModelTest {
     repository.loadFailure = null
     viewModel.closeVote()
     advanceUntilIdle()
-    assertEquals(VoteUiState.Closed, viewModel.uiState.value)
+    assertClosedResult()
   }
 
   @Test
@@ -223,7 +234,7 @@ class VoteViewModelTest {
     repository.closeFailure = null
     viewModel.closeVote()
     advanceUntilIdle()
-    assertEquals(VoteUiState.Closed, viewModel.uiState.value)
+    assertClosedResult()
   }
 
   @Test
@@ -240,7 +251,7 @@ class VoteViewModelTest {
     repository.ballots.value = listOf(ballot("a"))
     repository.closeGate!!.complete(Unit)
     advanceUntilIdle()
-    assertEquals(VoteUiState.Closed, viewModel.uiState.value)
+    assertClosedResult()
     viewModel.submitVote()
     viewModel.closeVote()
     assertTrue(repository.calls.isEmpty())
@@ -267,7 +278,7 @@ class VoteViewModelTest {
     repository.vote = repository.vote!!.copy(status = VoteStatus.CLOSED)
     viewModel.submitVote()
     runCurrent()
-    assertEquals(VoteUiState.Closed, viewModel.uiState.value)
+    assertClosedResult()
     assertTrue(repository.calls.isEmpty())
   }
 
@@ -680,18 +691,124 @@ class VoteViewModelTest {
   }
 
   @Test
-  fun closedVoteIsTerminalWithoutObservingBallots() = runTest {
+  fun alreadyClosedVoteWaitsForConfirmedBallotsAndBlocksInteraction() = runTest {
     repository.vote = interactionVote().copy(status = VoteStatus.CLOSED)
-    repository.observationGate = CompletableDeferred()
+    repository.finalConfirmation = CompletableDeferred()
     createViewModel()
     advanceUntilIdle()
-    assertEquals(VoteUiState.Closed, viewModel.uiState.value)
+    assertEquals(VoteUiState.Loading, viewModel.uiState.value)
+    repository.finalConfirmation!!.complete(Unit)
+    advanceUntilIdle()
+    val closed = viewModel.uiState.value as VoteUiState.Closed
+    assertEquals(mapOf("a" to 0, "b" to 0), closed.result.counts)
+    assertTrue(closed.result.hasNoVotes)
     viewModel.selectOption("b")
     viewModel.submitVote()
     viewModel.retryLoad()
-    assertEquals(VoteUiState.Closed, viewModel.uiState.value)
+    assertClosedResult()
     assertTrue(repository.calls.isEmpty())
+    assertEquals(1, repository.activeFinalObservers)
+  }
+
+  @Test
+  fun closedVoteReopensWithIdenticalBallotDerivedResultsIgnoringStoredWinner() = runTest {
+    repository.vote =
+        interactionVote()
+            .copy(
+                status = VoteStatus.CLOSED,
+                winningOptionId = "b",
+                options = interactionVote().options + VoteOption("c", "Cafe"),
+            )
+    repository.ballots.value = listOf(ballot("a"), VoteBallot("other", "a", Timestamp(1, 0)))
+    createViewModel()
+    advanceUntilIdle()
+    val first = viewModel.uiState.value as VoteUiState.Closed
+    assertEquals(mapOf("a" to 2, "b" to 0, "c" to 0), first.result.counts)
+    assertEquals(setOf("a"), first.result.winningOptionIds)
+    createViewModel()
+    advanceUntilIdle()
+    assertEquals(first, viewModel.uiState.value)
+    viewModel.selectOption("b")
+    viewModel.submitVote()
+    viewModel.closeVote()
+    advanceUntilIdle()
+    assertEquals(first, viewModel.uiState.value)
+    assertTrue(repository.calls.isEmpty())
+    assertEquals(0, repository.closeCalls)
+  }
+
+  @Test
+  fun remoteClosureDiscardsLiveSnapshotAndWaitsForConfirmedFinalBallots() = runTest {
+    repository.ballots.value = listOf(ballot("a"))
+    createViewModel()
+    advanceUntilIdle()
+    viewModel.selectOption("b")
+    repository.finalConfirmation = CompletableDeferred()
+    repository.vote = repository.vote!!.copy(status = VoteStatus.CLOSED)
+    runCurrent()
+    assertEquals(VoteUiState.Loading, viewModel.uiState.value)
     assertEquals(0, repository.activeObservers)
+    assertEquals(1, repository.activeFinalObservers)
+    viewModel.selectOption("b")
+    viewModel.submitVote()
+    repository.ballots.value = listOf(ballot("a"), VoteBallot("other", "b", Timestamp(1, 0)))
+    runCurrent()
+    assertEquals(VoteUiState.Loading, viewModel.uiState.value)
+    repository.finalConfirmation!!.complete(Unit)
+    runCurrent()
+    val closed = viewModel.uiState.value as VoteUiState.Closed
+    assertEquals(mapOf("a" to 1, "b" to 1), closed.result.counts)
+    assertTrue(closed.result.isTie)
+    assertEquals(0, repository.activeObservers)
+    assertEquals(1, repository.activeFinalObservers)
+    assertEquals(1, repository.lookupCount)
+    viewModel.submitVote()
+    assertTrue(repository.calls.isEmpty())
+  }
+
+  @Test
+  fun closedBallotLoadFailureCanRetryWithoutExposingVoting() = runTest {
+    repository.vote = interactionVote().copy(status = VoteStatus.CLOSED)
+    repository.observationFailure = IllegalStateException("offline")
+    createViewModel()
+    advanceUntilIdle()
+    assertEquals(VoteUiState.LoadError(VoteLoadError.BALLOTS_FAILED), viewModel.uiState.value)
+    repository.observationFailure = null
+    viewModel.retryLoad()
+    advanceUntilIdle()
+    assertTrue((viewModel.uiState.value as VoteUiState.Closed).result.hasNoVotes)
+  }
+
+  @Test
+  fun remoteClosureFinalFailureRetriesWithoutReusingLiveCounts() = runTest {
+    repository.ballots.value = listOf(ballot("a"))
+    createViewModel()
+    runCurrent()
+    repository.observationFailure = IllegalStateException("final listener failed")
+    repository.vote = repository.vote!!.copy(status = VoteStatus.CLOSED)
+    runCurrent()
+    assertEquals(VoteUiState.LoadError(VoteLoadError.BALLOTS_FAILED), viewModel.uiState.value)
+    assertEquals(0, repository.activeObservers)
+    assertEquals(0, repository.activeFinalObservers)
+    repository.observationFailure = null
+    repository.finalConfirmation = CompletableDeferred()
+    viewModel.retryLoad()
+    viewModel.retryLoad()
+    runCurrent()
+    assertEquals(VoteUiState.Loading, viewModel.uiState.value)
+    assertEquals(1, repository.activeFinalObservers)
+    viewModel.selectOption("b")
+    viewModel.submitVote()
+    assertTrue(repository.calls.isEmpty())
+    repository.ballots.value = listOf(ballot("b"))
+    repository.finalConfirmation!!.complete(Unit)
+    runCurrent()
+    val closed = viewModel.uiState.value as VoteUiState.Closed
+    assertEquals(setOf("b"), closed.result.winningOptionIds)
+    assertEquals("b", closed.result.currentUserOptionId)
+    store.clear()
+    runCurrent()
+    assertEquals(0, repository.activeFinalObservers)
   }
 
   @Test
@@ -857,6 +974,24 @@ internal class InteractionVoteRepository : VoteRepository {
       }
     } finally {
       activeObservers--
+    }
+  }
+
+  var finalConfirmation: CompletableDeferred<Unit>? = null
+  var activeFinalObservers = 0
+
+  override fun observeFinalBallots(tripId: String, voteId: String): Flow<List<VoteBallot>> = flow {
+    activeFinalObservers++
+    try {
+      observationGate?.await()
+      finalConfirmation?.await()
+      observationFailure?.let { throw it }
+      ballots.collect {
+        observationFailure?.let { failure -> throw failure }
+        emit(it)
+      }
+    } finally {
+      activeFinalObservers--
     }
   }
 

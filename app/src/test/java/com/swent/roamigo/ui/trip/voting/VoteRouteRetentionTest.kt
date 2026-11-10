@@ -22,6 +22,7 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.After
@@ -144,13 +145,13 @@ class VoteRouteRetentionTest {
       }
     }
 
-    composeRule.onNodeWithTag("vote_question").performTextInput("Where tomorrow?")
-    composeRule.onNodeWithTag("vote_option_0").performTextInput("Park")
-    composeRule.onNodeWithTag("vote_option_1").performTextInput("Beach")
-    composeRule.onNodeWithTag("vote_submit").performClick()
+    composeRule.onNodeWithTag(C.Tag.vote_question).performTextInput("Where tomorrow?")
+    composeRule.onNodeWithTag(C.Tag.voteOption(0)).performTextInput("Park")
+    composeRule.onNodeWithTag(C.Tag.voteOption(1)).performTextInput("Beach")
+    composeRule.onNodeWithTag(C.Tag.vote_submit).performClick()
     composeRule.onNodeWithText("Creating vote…").assertIsDisplayed()
     composeRule.runOnIdle { visible = false }
-    composeRule.onNodeWithTag("vote_submit").assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.vote_submit).assertDoesNotExist()
     composeRule.runOnIdle { pendingWrite.complete(Unit) }
     composeRule.waitForIdle()
     composeRule.runOnIdle {
@@ -159,8 +160,8 @@ class VoteRouteRetentionTest {
       visible = true
     }
 
-    composeRule.onNodeWithTag("vote_question").assertTextEquals("Question", "Where tomorrow?")
-    composeRule.onNodeWithTag("vote_question").assertIsNotEnabled()
+    composeRule.onNodeWithTag(C.Tag.vote_question).assertTextEquals("Question", "Where tomorrow?")
+    composeRule.onNodeWithTag(C.Tag.vote_question).assertIsNotEnabled()
     composeRule.runOnIdle {
       val created = repository.created.single()
       assertEquals("retained-trip", created.tripId)
@@ -169,9 +170,9 @@ class VoteRouteRetentionTest {
       assertEquals(listOf(created.uid), results)
       visible = false
     }
-    composeRule.onNodeWithTag("vote_submit").assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.vote_submit).assertDoesNotExist()
     composeRule.runOnIdle { visible = true }
-    composeRule.onNodeWithTag("vote_submit").assertIsNotEnabled()
+    composeRule.onNodeWithTag(C.Tag.vote_submit).assertIsNotEnabled()
     composeRule.runOnIdle {
       assertEquals(listOf(repository.created.single().uid), results)
       assertEquals(1, repository.createCalls.size)

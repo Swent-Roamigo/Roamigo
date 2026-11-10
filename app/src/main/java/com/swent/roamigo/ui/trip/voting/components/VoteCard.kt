@@ -34,7 +34,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.voting.Vote
+import com.swent.roamigo.model.trip.voting.VoteResult
 import com.swent.roamigo.model.trip.voting.VoteStatus
+import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.Ink
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.voting.LiveVoteSummary
@@ -47,10 +49,14 @@ fun VoteCard(
     modifier: Modifier = Modifier,
     summary: LiveVoteSummary? = null,
     onCloseVote: (() -> Unit)? = null,
+    finalResult: VoteResult? = null,
 ) {
   when (vote.status) {
     VoteStatus.OPEN -> LiveVoteCard(vote, onClick, summary, modifier, onCloseVote)
-    VoteStatus.CLOSED -> ClosedVoteRow(vote, onClick, modifier)
+    VoteStatus.CLOSED ->
+        if (finalResult?.hasUniqueWinner == true)
+            ClosedVoteRow(vote, finalResult, onClick, modifier)
+        else ClosedVoteCard(vote, finalResult, onClick, modifier)
   }
 }
 
@@ -90,7 +96,7 @@ private fun LiveVoteCard(
         VoteCountRow(
             option.name,
             summary?.counts?.get(option.uid) ?: 0,
-            "vote_count_${vote.uid}_${option.uid}",
+            C.Tag.voteCount(vote.uid, option.uid),
         )
       }
       FlowRow(
@@ -99,7 +105,7 @@ private fun LiveVoteCard(
       ) {
         Button(
             onClick = onClick,
-            modifier = Modifier.heightIn(min = 48.dp).testTag("vote_action_${vote.uid}"),
+            modifier = Modifier.heightIn(min = 48.dp).testTag(C.Tag.voteAction(vote.uid)),
             shape = CircleShape,
             colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Ink),
         ) {
@@ -113,7 +119,7 @@ private fun LiveVoteCard(
         if (summary?.isCreator == true && onCloseVote != null) {
           OutlinedButton(
               onClick = onCloseVote,
-              modifier = Modifier.heightIn(min = 48.dp).testTag("close_vote_${vote.uid}"),
+              modifier = Modifier.heightIn(min = 48.dp).testTag(C.Tag.closeVote(vote.uid)),
               shape = CircleShape,
               border = BorderStroke(1.dp, MaterialTheme.colorScheme.onPrimary),
               colors =
@@ -145,11 +151,18 @@ private fun VoteCountRow(name: String, count: Int, tag: String) {
   }
 }
 
+/** Compact S30 decided row; full option counts remain available by opening the vote. */
 @Composable
-private fun ClosedVoteRow(vote: Vote, onClick: () -> Unit, modifier: Modifier) {
+private fun ClosedVoteRow(vote: Vote, result: VoteResult, onClick: () -> Unit, modifier: Modifier) {
+  val winnerId = result.winningOptionIds.single()
+  val winner = vote.options.first { it.uid == winnerId }
+  val winnerName =
+      if (result.currentUserOptionId == winnerId)
+          stringResource(R.string.vote_option_yours, winner.name)
+      else winner.name
   Surface(
       onClick = onClick,
-      modifier = modifier.fillMaxWidth(),
+      modifier = modifier.fillMaxWidth().testTag(C.Tag.decidedVote(vote.uid)),
       color = MaterialTheme.colorScheme.surface,
   ) {
     Row(
@@ -166,21 +179,25 @@ private fun ClosedVoteRow(vote: Vote, onClick: () -> Unit, modifier: Modifier) {
           Image(
               painter = painterResource(R.drawable.vote_closed_check),
               contentDescription = null,
-              modifier = Modifier.size(20.dp),
+              modifier = Modifier.size(20.dp).testTag(C.Tag.decidedCheck(vote.uid)),
           )
         }
       }
-      Column(
-          Modifier.weight(1f),
-          verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall),
-      ) {
+      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)) {
         Text(vote.question, style = MaterialTheme.typography.titleSmall)
         Text(
-            stringResource(R.string.votes_closed_vote),
+            stringResource(R.string.vote_decided_summary, winnerName),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
+      val count = result.counts.getValue(winnerId)
+      Text(
+          pluralStringResource(R.plurals.vote_count, count, count),
+          modifier = Modifier.testTag(C.Tag.decidedVoteCount(vote.uid)),
+          style = MaterialTheme.typography.bodySmall,
+          fontWeight = FontWeight.SemiBold,
+      )
     }
   }
 }

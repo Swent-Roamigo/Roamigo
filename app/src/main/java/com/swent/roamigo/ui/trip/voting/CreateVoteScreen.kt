@@ -43,6 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.voting.VoteRepository
+import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.Spacing
 
 /** Connects [voteRepository] to [CreateVoteScreen] for the current trip and member. */
@@ -102,7 +103,7 @@ fun CreateVoteScreen(
           onValueChange = onQuestionChange,
           label = stringResource(R.string.vote_question),
           enabled = editable,
-          modifier = Modifier.testTag("vote_question"),
+          modifier = Modifier.testTag(C.Tag.vote_question),
       )
       Text(
           stringResource(R.string.vote_options_hint),
@@ -115,7 +116,7 @@ fun CreateVoteScreen(
             onValueChange = { onOptionChange(index, it) },
             label = stringResource(R.string.vote_option, index + 1),
             enabled = editable,
-            modifier = Modifier.testTag("vote_option_$index"),
+            modifier = Modifier.testTag(C.Tag.voteOption(index)),
             trailingIcon = {
               IconButton(onClick = { onRemoveOption(index) }, enabled = editable) {
                 Icon(Icons.Default.Close, stringResource(R.string.vote_remove_option, index + 1))
@@ -141,7 +142,7 @@ fun CreateVoteScreen(
     Button(
         onClick = onSubmit,
         enabled = state.canSubmit,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp).testTag("vote_submit"),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp).testTag(C.Tag.vote_submit),
     ) {
       if (state.isSubmitting) {
         CircularProgressIndicator(Modifier.size(Spacing.extraLarge), strokeWidth = 2.dp)

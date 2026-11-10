@@ -6,6 +6,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.trip.voting.Vote
 import com.swent.roamigo.model.trip.voting.VoteOption
+import com.swent.roamigo.model.trip.voting.VoteResult
 import com.swent.roamigo.model.trip.voting.VoteStatus
 import com.swent.roamigo.ui.theme.RoamigoTheme
 
@@ -81,6 +82,15 @@ private fun VoteDialogClosedPreview() =
         VotesUiState.Ready(
             liveVotes = emptyList(),
             closedVotes = listOf(previewDinnerState().vote.copy(status = VoteStatus.CLOSED)),
+            finalSummaries =
+                mapOf(
+                    "dinner" to
+                        VoteResult(
+                            counts = mapOf("market" to 2, "taberna" to 1, "pizza" to 0),
+                            winningOptionIds = setOf("market"),
+                            currentUserOptionId = "market",
+                        )
+                ),
         )
     )
 

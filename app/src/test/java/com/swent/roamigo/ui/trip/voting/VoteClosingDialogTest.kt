@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.espresso.Espresso.pressBack
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -56,7 +57,7 @@ class VoteClosingDialogTest {
       assertEquals(1, dismissed)
       assertEquals(0, closes)
     }
-    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.vote_dialog).assertDoesNotExist()
   }
 
   @Test
@@ -91,14 +92,14 @@ class VoteClosingDialogTest {
         )
       }
     }
-    composeRule.onNodeWithTag("vote_close_confirm").performClick()
+    composeRule.onNodeWithTag(C.Tag.vote_close_confirm).performClick()
     composeRule.onNodeWithText("Could not close the vote. Please try again.").assertIsDisplayed()
     composeRule.runOnIdle {
       assertEquals(1, repository.closeCalls)
       assertEquals(0, dismissals)
       repository.closeFailure = null
     }
-    composeRule.onNodeWithTag("vote_close_confirm").performClick()
+    composeRule.onNodeWithTag(C.Tag.vote_close_confirm).performClick()
     composeRule.runOnIdle {
       assertEquals(2, repository.closeCalls)
       assertEquals(1, dismissals)
@@ -113,8 +114,8 @@ class VoteClosingDialogTest {
     composeRule.setContent {
       RoamigoTheme { VoteCloseDialogContent(creator(), {}, {}, { dismissals++ }) }
     }
-    composeRule.onNodeWithTag("vote_close_dialog").assertIsDisplayed()
-    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.vote_close_dialog).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.vote_dialog).assertDoesNotExist()
     composeRule.onNodeWithText("Market").assertDoesNotExist()
     composeRule.onNodeWithText("Update vote").assertDoesNotExist()
     composeRule.onNodeWithText("Cancel").performClick()
@@ -138,18 +139,18 @@ class VoteClosingDialogTest {
         )
       }
     }
-    composeRule.onNodeWithTag("vote_close_confirm").performClick()
+    composeRule.onNodeWithTag(C.Tag.vote_close_confirm).performClick()
     composeRule.onNodeWithText("Closing vote…").assertIsDisplayed()
     composeRule.onNodeWithText("Submitting vote…").assertDoesNotExist()
-    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
-    composeRule.onNodeWithTag("vote_close_confirm").assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.vote_dialog).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.vote_close_confirm).assertDoesNotExist()
     composeRule.onNodeWithText("Cancel").assertIsNotEnabled().performClick()
     composeRule.runOnIdle {
       assertEquals(1, closes)
       state = state.copy(closingState = VoteSubmissionState.Failed)
     }
     composeRule.onNodeWithText("Could not close the vote. Please try again.").assertIsDisplayed()
-    composeRule.onNodeWithTag("vote_close_confirm").assertIsEnabled().performClick()
+    composeRule.onNodeWithTag(C.Tag.vote_close_confirm).assertIsEnabled().performClick()
     composeRule.runOnIdle { assertEquals(2, closes) }
   }
 
@@ -166,8 +167,8 @@ class VoteClosingDialogTest {
       }
     }
     composeRule.onNodeWithText("Only the creator can close an open vote.").assertIsDisplayed()
-    composeRule.onNodeWithTag("vote_close_confirm").assertDoesNotExist()
-    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.vote_close_confirm).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.vote_dialog).assertDoesNotExist()
     composeRule.onNodeWithText("Cancel").assertIsEnabled()
   }
 
@@ -185,11 +186,11 @@ class VoteClosingDialogTest {
       }
     }
     composeRule.onNodeWithText("Loading vote…").assertIsDisplayed()
-    composeRule.onNodeWithTag("vote_close_confirm").assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.vote_close_confirm).assertDoesNotExist()
     composeRule.runOnIdle { state = VoteUiState.LoadError(VoteLoadError.VOTE_FAILED) }
     composeRule.onNodeWithText("Retry").performClick()
-    composeRule.onNodeWithTag("vote_close_confirm").assertIsEnabled()
-    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.vote_close_confirm).assertIsEnabled()
+    composeRule.onNodeWithTag(C.Tag.vote_dialog).assertDoesNotExist()
   }
 
   @Test
@@ -205,7 +206,7 @@ class VoteClosingDialogTest {
       }
     }
     composeRule.onNodeWithText("Retry").assertDoesNotExist()
-    composeRule.onNodeWithTag("vote_close_confirm").assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.vote_close_confirm).assertDoesNotExist()
     composeRule.onNodeWithText("Cancel").assertIsEnabled()
   }
 
@@ -222,10 +223,10 @@ class VoteClosingDialogTest {
         )
       }
     }
-    composeRule.onNodeWithTag("vote_close_confirm").assertIsNotEnabled()
+    composeRule.onNodeWithTag(C.Tag.vote_close_confirm).assertIsNotEnabled()
     composeRule.onNodeWithText("Retry").performClick()
     composeRule.onNodeWithText("Reconnecting…").assertIsDisplayed()
     composeRule.runOnIdle { state = state.copy(syncState = VoteSyncState.Synced) }
-    composeRule.onNodeWithTag("vote_close_confirm").assertIsEnabled()
+    composeRule.onNodeWithTag(C.Tag.vote_close_confirm).assertIsEnabled()
   }
 }

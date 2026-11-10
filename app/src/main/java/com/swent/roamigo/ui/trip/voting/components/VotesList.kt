@@ -10,10 +10,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import com.swent.roamigo.R
+import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.voting.VotesSyncState
 import com.swent.roamigo.ui.trip.voting.VotesUiState
@@ -46,16 +48,36 @@ fun VotesList(
         )
       }
     }
-    if (state.closedVotes.isNotEmpty()) {
+    if (state.unresolvedClosedVotes.isNotEmpty()) {
+      item {
+        Text(
+            stringResource(R.string.votes_unresolved),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.testTag(C.Tag.votes_unresolved_heading).semantics { heading() },
+        )
+      }
+    }
+    items(state.unresolvedClosedVotes, key = { it.uid }) { vote ->
+      VoteCard(
+          vote,
+          onClick = { onOpenVote(vote.uid) },
+          finalResult = state.finalSummaries[vote.uid],
+      )
+    }
+    if (state.decidedVotes.isNotEmpty()) {
       item {
         Text(
             stringResource(R.string.votes_decided),
             style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.semantics { heading() },
+            modifier = Modifier.testTag(C.Tag.votes_decided_heading).semantics { heading() },
         )
       }
-      items(state.closedVotes, key = { it.uid }) { vote ->
-        VoteCard(vote, onClick = { onOpenVote(vote.uid) })
+      items(state.decidedVotes, key = { it.uid }) { vote ->
+        VoteCard(
+            vote,
+            onClick = { onOpenVote(vote.uid) },
+            finalResult = state.finalSummaries[vote.uid],
+        )
       }
     }
   }

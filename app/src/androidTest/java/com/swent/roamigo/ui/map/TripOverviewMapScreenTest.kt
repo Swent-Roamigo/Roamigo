@@ -86,10 +86,7 @@ internal const val MAP_TEST_TIMEOUT_MILLIS = 15_000L
 internal fun AndroidComposeTestRule<*, ComponentActivity>.loadLocalMapStyle() {
   val styleLoaded = AtomicBoolean(false)
   val mapRendered = AtomicBoolean(false)
-  val mapboxMap = runOnIdle {
-    val contentView = activity.findViewById<ViewGroup>(android.R.id.content)
-    contentView.descendants.filterIsInstance<MapView>().single().mapboxMap
-  }
+  val mapboxMap = runOnIdle { findMapView().mapboxMap }
   val frameSubscription = runOnIdle {
     mapboxMap.subscribeRenderFrameFinished { if (styleLoaded.get()) mapRendered.set(true) }
   }
@@ -102,4 +99,10 @@ internal fun AndroidComposeTestRule<*, ComponentActivity>.loadLocalMapStyle() {
   } finally {
     runOnUiThread { frameSubscription.cancel() }
   }
+}
+
+/** The single Mapbox view shown by the content. Must be called on the UI thread. */
+internal fun AndroidComposeTestRule<*, ComponentActivity>.findMapView(): MapView {
+  val contentView = activity.findViewById<ViewGroup>(android.R.id.content)
+  return contentView.descendants.filterIsInstance<MapView>().single()
 }
