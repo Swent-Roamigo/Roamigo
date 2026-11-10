@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -141,9 +142,9 @@ fun TripMarkerIcon(locationName: String, kind: TripMarkerKind) {
         TripMarkerKind.SUGGESTION -> R.drawable.ic_map_marker_monochrome
       }
   Column(
-      // One name for the whole marker, so the label is not read twice and the marker can still be
-      // found by the place it marks.
-      modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = locationName },
+      // One name for the whole marker. It is not a merging node itself, so it still reaches the
+      // clickable that wraps the pin, and the label below is hidden so it is not read twice.
+      modifier = Modifier.semantics { contentDescription = locationName },
       horizontalAlignment = Alignment.CenterHorizontally,
       verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall),
   ) {
@@ -155,7 +156,8 @@ fun TripMarkerIcon(locationName: String, kind: TripMarkerKind) {
       Text(
           text = locationName,
           modifier =
-              Modifier.widthIn(max = MARKER_LABEL_MAX_WIDTH)
+              Modifier.clearAndSetSemantics {}
+                  .widthIn(max = MARKER_LABEL_MAX_WIDTH)
                   .padding(horizontal = Spacing.small, vertical = MARKER_LABEL_VERTICAL_PADDING),
           style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.onSurface,
