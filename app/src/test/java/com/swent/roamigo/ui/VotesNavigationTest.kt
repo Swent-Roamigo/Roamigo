@@ -13,7 +13,6 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -48,7 +47,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.shadows.ShadowToast
 
 @RunWith(AndroidJUnit4::class)
 class VotesNavigationTest {
@@ -307,17 +305,14 @@ class VotesNavigationTest {
   }
 
   @Test
-  fun tripDetailShareGivesFeedbackAndMembersOpensItsScreenAndBackReturnsToTheTrip() {
+  fun membersOpensFromTheHeaderAndFromThePlanAndBackReturnsToTheTrip() {
     openVotes()
 
     composeRule.onNodeWithText("Plan").performClick()
-    ShadowToast.reset()
-    composeRule
-        .onNodeWithContentDescription(composeRule.activity.getString(R.string.trip_details_share))
-        .performClick()
-    composeRule.runOnIdle {
-      assertEquals("Not implemented yet", ShadowToast.getTextOfLatestToast())
-    }
+    composeRule.onNodeWithTag(C.Tag.trip_member_avatars).performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_members_screen).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_members_back).performClick()
+    composeRule.onNodeWithTag("trip_details_screen").assertIsDisplayed()
 
     composeRule.onNodeWithText("Members").performScrollTo().performClick()
     composeRule.onNodeWithTag(C.Tag.trip_members_screen).assertIsDisplayed()

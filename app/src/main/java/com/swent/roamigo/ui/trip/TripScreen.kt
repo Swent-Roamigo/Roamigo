@@ -23,15 +23,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
-import com.swent.roamigo.ui.components.markNotImplemented
-import com.swent.roamigo.ui.components.rememberNotImplementedAction
+import com.swent.roamigo.ui.map.MemberDisplayInfo
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.components.EndedTripBanner
+import com.swent.roamigo.ui.trip.components.TripMemberAvatars
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -40,6 +39,7 @@ internal data class TripHeaderUiState(
     val startDate: LocalDate,
     val endDate: LocalDate,
     val memberCount: Int,
+    val members: List<MemberDisplayInfo> = emptyList(),
 )
 
 internal enum class TripSection(val label: Int) {
@@ -58,6 +58,7 @@ internal fun TripScreen(
     onBack: () -> Unit,
     onTabSelected: (TripSection) -> Unit,
     onPauseSharing: () -> Unit,
+    onMembersClick: () -> Unit,
     onTripsClick: () -> Unit,
     onMapClick: () -> Unit,
     onFriendsClick: () -> Unit,
@@ -86,11 +87,11 @@ internal fun TripScreen(
           )
         }
       }
-      val share = rememberNotImplementedAction()
-      IconButton(onClick = share, modifier = Modifier.markNotImplemented(share)) {
-        Icon(
-            painter = painterResource(R.drawable.ic_trip_details_share),
-            contentDescription = stringResource(R.string.trip_details_share),
+      if (trip != null) {
+        TripMemberAvatars(
+            members = trip.members,
+            memberCount = trip.memberCount,
+            onClick = onMembersClick,
         )
       }
       if (selectedTab == TripSection.Detail && onAddClick != null) {

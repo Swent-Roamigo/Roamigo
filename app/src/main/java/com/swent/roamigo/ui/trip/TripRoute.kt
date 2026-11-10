@@ -152,6 +152,7 @@ internal fun TripRoute(
                 startDate = trip.startDate.toDate().toInstant().atZone(zone).toLocalDate(),
                 endDate = trip.endDate.toDate().toInstant().atZone(zone).toLocalDate(),
                 memberCount = trip.memberIds.distinct().size,
+                members = trip.memberIds.distinct().mapNotNull { loaded.members[it] },
             )
           },
       selectedTab = tab,
@@ -161,6 +162,7 @@ internal fun TripRoute(
         if (authRepository.getCurrentUser() == null) onAuthenticationRequired() else tab = section
       },
       onPauseSharing = { locationModel?.stopSharing() },
+      onMembersClick = onMembersClick,
       onAddClick = if (readOnly) null else ({ showAdd = true }),
       showEndedBanner = readOnly && loaded?.trip != null,
       onTripsClick = onTripsClick,

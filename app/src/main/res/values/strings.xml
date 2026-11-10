@@ -366,7 +366,6 @@
     <string name="trip_ended_banner">This trip has ended · view only. Photos and memories stay with the group.</string>
     <string name="trip_details_itinerary">Itinerary</string>
     <string name="trip_details_votes">Votes</string>
-    <string name="trip_details_share">Share trip</string>
     <string name="trip_details_members">Members</string>
     <string name="trip_add_menu">Add to this trip</string>
     <string name="trip_add_activity">Add an activity</string>

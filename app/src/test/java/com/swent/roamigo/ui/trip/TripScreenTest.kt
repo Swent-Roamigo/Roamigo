@@ -31,6 +31,7 @@ class TripScreenTest {
   private var primaryClicks = 0
   private var tripsClicks = 0
   private var pauseClicks = 0
+  private var membersClicks = 0
 
   private fun show(isSharing: Boolean = false) {
     val date = LocalDate.of(2026, 11, 5)
@@ -43,6 +44,7 @@ class TripScreenTest {
             onBack = {},
             onTabSelected = { selectedTab = it },
             onPauseSharing = { pauseClicks++ },
+            onMembersClick = { membersClicks++ },
             onTripsClick = { tripsClicks++ },
             onMapClick = {},
             onFriendsClick = {},
@@ -77,8 +79,17 @@ class TripScreenTest {
       composeRule.runOnIdle { selectedTab = section }
       composeRule.onNodeWithText("Lisbon & Porto").assertIsDisplayed()
       composeRule.onNodeWithText("Thu 5 Nov – Sun 8 Nov").assertIsDisplayed()
-      composeRule.onNodeWithContentDescription("Share trip").assertIsDisplayed()
+      composeRule.onNodeWithContentDescription("Members").assertIsDisplayed()
     }
+  }
+
+  @Test
+  fun theMemberAvatarsOpenTheMemberList() {
+    show()
+
+    composeRule.onNodeWithContentDescription("Members").performClick()
+
+    composeRule.runOnIdle { assertEquals(1, membersClicks) }
   }
 
   @Test
