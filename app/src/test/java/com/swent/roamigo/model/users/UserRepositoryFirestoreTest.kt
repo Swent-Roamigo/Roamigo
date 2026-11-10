@@ -2,13 +2,17 @@
 package com.swent.roamigo.model.users
 
 import com.google.android.gms.tasks.Tasks
+import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.Source
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -68,6 +72,54 @@ class UserRepositoryFirestoreTest {
     `when`(document.get("photoUrl")).thenAnswer { photo }
   }
 
+  private fun invalidProfileSnapshot(): DocumentSnapshot {
+    val invalid = mock(DocumentSnapshot::class.java)
+
+    `when`(invalid.exists()).thenReturn(true)
+    `when`(invalid.id).thenReturn("broken")
+    `when`(invalid.getString("uid")).thenReturn("wrong-uid")
+
+    return invalid
+  }
+
+  @Test
+  fun getUsersKeepsValidProfilesWhenAnotherIsMalformed() = runBlocking {
+    val brokenSnapshot = invalidProfileSnapshot()
+    val brokenReference = mock(DocumentReference::class.java)
+
+    `when`(users.document("broken")).thenReturn(brokenReference)
+    `when`(brokenReference.get(Source.DEFAULT)).thenReturn(Tasks.forResult(brokenSnapshot))
+
+    val result = repository.getUsers(setOf("bob", "broken"))
+
+    assertEquals(
+        listOf(User("bob", "Bob", null)),
+        result,
+    )
+  }
+
+  @Test
+  fun searchKeepsValidProfilesWhenAnotherIsMalformed() = runBlocking {
+    val brokenSnapshot = invalidProfileSnapshot()
+    val query = mock(Query::class.java)
+    val results = mock(QuerySnapshot::class.java)
+
+    `when`(users.orderBy("nameKey")).thenReturn(query)
+    `when`(query.startAt("bo")).thenReturn(query)
+    `when`(query.endAt("bo\uf8ff")).thenReturn(query)
+    `when`(query.limit(20L)).thenReturn(query)
+    `when`(query.get(Source.SERVER)).thenReturn(Tasks.forResult(results))
+
+    `when`(results.documents).thenReturn(listOf(document, brokenSnapshot))
+
+    val found = repository.searchUsers(" BO ")
+
+    assertEquals(
+        listOf(User("bob", "Bob", null)),
+        found,
+    )
+  }
+
   @Test
   fun readsValidProfilesAndIncludesCurrentUser() = runBlocking {
     assertEquals(
@@ -99,7 +151,7 @@ class UserRepositoryFirestoreTest {
   }
 
   @Test
-  fun malformedProfilesAreRejected() = runBlocking {
+  fun malformedProfilesAreSkipped() = runBlocking {
     val invalidProfiles: List<() -> Unit> =
         listOf(
             { uid = "another-user" },
@@ -121,28 +173,22 @@ class UserRepositoryFirestoreTest {
 
       makeInvalid()
 
-      val error = runCatching {
-        repository.getUsers(setOf("bob"))
-      }
-          .exceptionOrNull()
-
-      assertTrue(
-          "Expected InvalidData, got $error",
-          error is UserRepositoryException.InvalidData,
+      assertEquals(
+          "Malformed profiles should be skipped",
+          emptyList<User>(),
+          repository.getUsers(setOf("bob")),
       )
     }
   }
 
   @Test
-  fun malformedFirestoreTypesAreConvertedToInvalidData() = runBlocking {
+  fun malformedFirestoreTypesAreSkipped() = runBlocking {
     doThrow(ClassCastException("Wrong Firestore field type")).`when`(document).getString("uid")
 
-    val error = runCatching {
-      repository.getUsers(setOf("bob"))
-    }
-        .exceptionOrNull()
-
-    assertTrue(error is UserRepositoryException.InvalidData)
+    assertEquals(
+        emptyList<User>(),
+        repository.getUsers(setOf("bob")),
+    )
   }
 
   @Test
@@ -214,12 +260,12 @@ class UserRepositoryFirestoreTest {
   }
 
   @Test
-  fun missingOrBlankAccountNameUsesTravelerFallback() = runBlocking {
+  fun missingOrBlankAccountNameReturnsEmptyDisplayName() = runBlocking {
     for (name in listOf<String?>(null, "   ")) {
       doReturn(name).`when`(alice).displayName
 
       assertEquals(
-          User("alice", "Traveler", null),
+          User("alice", "", null),
           repository.getCurrentUser(),
       )
     }
@@ -235,5 +281,23 @@ class UserRepositoryFirestoreTest {
         .exceptionOrNull()
 
     assertTrue(error is UserRepositoryException.NotAuthenticated)
+  }
+
+  @Test
+  fun firebaseAuthReloadFailuresAreMappedCorrectly() = runBlocking {
+    val cases =
+        listOf(
+            FirebaseNetworkException("Offline") to UserRepositoryException.Network::class.java,
+            FirebaseAuthInvalidUserException("ERROR_USER_DISABLED", "Disabled") to
+                UserRepositoryException.NotAuthenticated::class.java,
+        )
+
+    for ((cause, expectedType) in cases) {
+      doReturn(Tasks.forException<Void>(cause)).`when`(alice).reload()
+
+      val error = runCatching { repository.publishCurrentUser() }.exceptionOrNull()
+
+      assertTrue("Expected ${expectedType.simpleName}, got $error", expectedType.isInstance(error))
+    }
   }
 }

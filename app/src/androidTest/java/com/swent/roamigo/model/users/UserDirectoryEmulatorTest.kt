@@ -115,6 +115,7 @@ class UserDirectoryEmulatorTest {
 
   @Test
   fun rulesBlockUnauthorizedAndMalformedWrites() = runBlocking {
+    alice.rename("Alice")
     alice.repository.publishCurrentUser()
 
     val profile = alice.db.collection("users").document(alice.id)
@@ -189,6 +190,7 @@ class UserDirectoryEmulatorTest {
 
   @Test
   fun serverOnlySearchReportsNetworkFailure() = runBlocking {
+    alice.rename("Alice")
     alice.repository.publishCurrentUser()
 
     bob.db.disableNetwork().await()
@@ -196,7 +198,7 @@ class UserDirectoryEmulatorTest {
     try {
       assertTrue(
           runCatching {
-            bob.repository.searchUsers("Traveler")
+            bob.repository.searchUsers("Alice")
           }
               .exceptionOrNull() is UserRepositoryException.Network
       )
@@ -259,6 +261,19 @@ class UserDirectoryEmulatorTest {
     } finally {
       bob.db.enableNetwork().await()
     }
+  }
+
+  @Test
+  fun unnamedAccountDoesNotPublishAProfile() = runBlocking {
+    // A newly created anonymous account has no display name.
+    alice.repository.publishCurrentUser()
+
+    val profile = alice.db.collection("users").document(alice.id).get(Source.SERVER).await()
+
+    assertTrue(
+        "An unnamed account must not be published in the directory",
+        !profile.exists(),
+    )
   }
 
   private suspend fun denied(action: suspend () -> Any?) {

@@ -1,7 +1,9 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.model.users
 
+import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
@@ -40,31 +42,12 @@ class UserRepositoryFirestore(
       userIds
           .filterNot { it == user.uid }
           .chunked(10)
-          .flatMap { batch ->
-            batch
-                .map { id ->
-                  async {
-                    try {
-                      db.collection(USERS).document(id).get(Source.DEFAULT).await()
-                    } catch (error: FirebaseFirestoreException) {
-                      if (
-                          error.code == FirebaseFirestoreException.Code.UNAVAILABLE ||
-                              error.code == FirebaseFirestoreException.Code.DEADLINE_EXCEEDED
-                      ) {
-                        null
-                      } else {
-                        throw error
-                      }
-                    }
-                  }
-                }
-                .awaitAll()
-          }
+          .flatMap { batch -> batch.map { id -> async { fetchProfileSnapshot(id) } }.awaitAll() }
     }
 
     ensureSession(user)
 
-    val profiles = snapshots.filterNotNull().filter { it.exists() }.map(::parseProfile)
+    val profiles = snapshots.filterNotNull().filter { it.exists() }.mapNotNull(::parseValidProfile)
 
     if (user.uid in userIds) {
       profiles + user.toUser()
@@ -88,7 +71,7 @@ class UserRepositoryFirestore(
             .await()
             .documents
     ensureSession(user)
-    snapshots.filter { it.exists() }.map(::parseProfile).distinctBy(User::uid)
+    snapshots.filter { it.exists() }.mapNotNull(::parseValidProfile).distinctBy(User::uid)
   }
 
   override suspend fun publishCurrentUser(): Unit = operation { user ->
@@ -96,6 +79,7 @@ class UserRepositoryFirestore(
     ensureSession(user)
     val publicUser = user.toUser()
     val name = publicUser.displayName.trim().take(MAX_NAME).trim()
+    if (name.isEmpty()) return@operation
     val photo =
         publicUser.profilePictureUrl?.takeIf { it.length <= 2048 && it.startsWith("https://") }
 
@@ -112,6 +96,26 @@ class UserRepositoryFirestore(
         )
         .await()
   }
+
+  private suspend fun fetchProfileSnapshot(id: String): DocumentSnapshot? =
+      try {
+        db.collection(USERS).document(id).get(Source.DEFAULT).await()
+      } catch (error: FirebaseFirestoreException) {
+        when (error.code) {
+          FirebaseFirestoreException.Code.UNAVAILABLE,
+          FirebaseFirestoreException.Code.DEADLINE_EXCEEDED -> null
+
+          else -> throw error
+        }
+      }
+
+  private fun parseValidProfile(snapshot: DocumentSnapshot): User? =
+      try {
+        parseProfile(snapshot)
+      } catch (_: UserRepositoryException.InvalidData) {
+        // One malformed profile must not prevent other users from loading.
+        null
+      }
 
   private fun parseProfile(snapshot: DocumentSnapshot): User {
     try {
@@ -132,7 +136,7 @@ class UserRepositoryFirestore(
         throw UserRepositoryException.InvalidData()
       }
 
-      return User(uid, name, photo as String?)
+      return User(uid, name, photo)
     } catch (error: UserRepositoryException.InvalidData) {
       throw error
     } catch (error: RuntimeException) {
@@ -141,7 +145,7 @@ class UserRepositoryFirestore(
   }
 
   private fun FirebaseUser.toUser(): User {
-    val name = displayName?.trim()?.takeIf(String::isNotEmpty) ?: "Traveler"
+    val name = displayName?.trim().orEmpty()
 
     return User(
         uid = uid,
@@ -183,6 +187,18 @@ class UserRepositoryFirestore(
                   .firstOrNull()
 
           if (domainFailure != null) throw domainFailure
+
+          val authFailure =
+              generateSequence(error as Throwable?) { it.cause }
+                  .firstOrNull {
+                    it is FirebaseNetworkException || it is FirebaseAuthInvalidUserException
+                  }
+
+          when (authFailure) {
+            is FirebaseNetworkException -> throw UserRepositoryException.Network(error)
+            is FirebaseAuthInvalidUserException ->
+                throw UserRepositoryException.NotAuthenticated(error)
+          }
 
           val firestoreFailure =
               generateSequence(error as Throwable?) { it.cause }

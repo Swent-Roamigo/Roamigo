@@ -89,13 +89,7 @@ fun RoamigoApp(
   val scope = rememberCoroutineScope()
   LaunchedEffect(authRepository, userRepository) {
     if (authRepository.getCurrentUser() != null) {
-      try {
-        userRepository.publishCurrentUser()
-      } catch (error: CancellationException) {
-        throw error
-      } catch (error: Exception) {
-        Log.w("RoamigoApp", "Could not publish user directory profile", error)
-      }
+      publishProfileSafely(userRepository)
     }
   }
   // Bottom-bar destinations are defined once so every screen switches tabs the same way.
@@ -122,15 +116,7 @@ fun RoamigoApp(
           authRepository = authRepository,
           credentialManager = credentialManager,
           onSignedIn = {
-            scope.launch {
-              try {
-                userRepository.publishCurrentUser()
-              } catch (error: CancellationException) {
-                throw error
-              } catch (error: Exception) {
-                Log.w("RoamigoApp", "Could not publish user directory profile", error)
-              }
-            }
+            scope.launch { publishProfileSafely(userRepository) }
 
             // Back from trips must not return to authentication or permissions.
             navController.navigate(Route.PERMISSIONS) {
@@ -393,5 +379,15 @@ private fun navigateRoot(navController: NavHostController, route: String) {
   navController.navigate(route) {
     popUpTo(Route.TRIPS)
     launchSingleTop = true
+  }
+}
+
+private suspend fun publishProfileSafely(userRepository: UserRepository) {
+  try {
+    userRepository.publishCurrentUser()
+  } catch (error: CancellationException) {
+    throw error
+  } catch (error: Exception) {
+    Log.w("RoamigoApp", "Could not publish user directory profile", error)
   }
 }
