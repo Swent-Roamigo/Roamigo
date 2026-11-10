@@ -26,6 +26,7 @@ import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
+import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.voting.components.VoteErrorContent
 
@@ -90,7 +91,7 @@ internal fun VoteDialogContent(
   val dismiss = { if (!locked) onDismiss() }
   Dialog(onDismissRequest = dismiss) {
     Surface(
-        modifier.fillMaxWidth().heightIn(max = 600.dp).testTag("vote_dialog"),
+        modifier.fillMaxWidth().heightIn(max = 600.dp).testTag(C.Tag.vote_dialog),
         shape = MaterialTheme.shapes.large,
     ) {
       VoteScreen(state, onSelectOption, onSubmit, onRetry, dismiss)
@@ -106,8 +107,8 @@ internal fun VoteCloseDialogContent(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-  LaunchedEffect(state) { if (state == VoteUiState.Closed) onDismiss() }
-  if (state == VoteUiState.Closed) return
+  LaunchedEffect(state) { if (state is VoteUiState.Closed) onDismiss() }
+  if (state is VoteUiState.Closed) return
   VoteCloseConfirmation(state, onConfirm, onRetry, onDismiss, modifier)
 }
 
@@ -124,7 +125,7 @@ internal fun VoteCloseConfirmation(
   val locked = ready?.let { it.isSubmitting || it.isClosing } == true
   val cancel = { if (!locked) onCancel() }
   AlertDialog(
-      modifier = modifier.testTag("vote_close_dialog"),
+      modifier = modifier.testTag(C.Tag.vote_close_dialog),
       onDismissRequest = cancel,
       title = { Text(stringResource(R.string.vote_close_title)) },
       text = {
@@ -134,7 +135,7 @@ internal fun VoteCloseConfirmation(
               CircularProgressIndicator()
               Text(stringResource(R.string.vote_loading))
             }
-            VoteUiState.Closed -> Text(stringResource(R.string.vote_closed))
+            is VoteUiState.Closed -> Text(stringResource(R.string.vote_closed))
             is VoteUiState.LoadError ->
                 VoteErrorContent(
                     if (state.reason == VoteLoadError.NOT_FOUND) R.string.vote_not_found
@@ -169,7 +170,7 @@ internal fun VoteCloseConfirmation(
       confirmButton = {
         if (ready?.isCreator == true && !ready.isClosing) {
           TextButton(
-              modifier = Modifier.testTag("vote_close_confirm"),
+              modifier = Modifier.testTag(C.Tag.vote_close_confirm),
               enabled = ready.canClose,
               onClick = onConfirm,
           ) {

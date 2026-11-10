@@ -2,13 +2,14 @@
 package com.swent.roamigo.ui.trip.voting
 
 import com.swent.roamigo.model.trip.voting.Vote
+import com.swent.roamigo.model.trip.voting.VoteResult
 import com.swent.roamigo.model.trip.voting.VoteStatus
 
 /** Single-vote draft, persisted ballot, and submission state owned by [VoteViewModel]. */
 sealed interface VoteUiState {
   data object Loading : VoteUiState
 
-  data object Closed : VoteUiState
+  data class Closed(val vote: Vote, val result: VoteResult) : VoteUiState
 
   data class LoadError(val reason: VoteLoadError) : VoteUiState {
     val canRetry: Boolean

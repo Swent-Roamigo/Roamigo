@@ -11,6 +11,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.model.trip.voting.VoteStatus
+import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import java.io.IOException
 import org.junit.Assert.assertEquals
@@ -52,7 +53,7 @@ class VotesRouteTest {
   fun routesLiveAndClosedVotesToTheirRespectiveActions() {
     show()
 
-    composeRule.onNodeWithTag("vote_action_${live.uid}").performScrollTo().performClick()
+    composeRule.onNodeWithTag(C.Tag.voteAction(live.uid)).performScrollTo().performClick()
     composeRule.onNodeWithText(closed.question).performScrollTo().performClick()
 
     composeRule.runOnIdle {
@@ -67,8 +68,8 @@ class VotesRouteTest {
     show(readOnly = true)
 
     composeRule.onNodeWithText("New vote").assertDoesNotExist()
-    composeRule.onNodeWithTag("close_vote_${live.uid}").assertDoesNotExist()
-    composeRule.onNodeWithTag("vote_action_${live.uid}").performScrollTo().performClick()
+    composeRule.onNodeWithTag(C.Tag.closeVote(live.uid)).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.voteAction(live.uid)).performScrollTo().performClick()
 
     composeRule.runOnIdle {
       assertEquals(listOf(live.uid), openedVotes)
@@ -88,7 +89,7 @@ class VotesRouteTest {
     composeRule.onNodeWithText("Retry").performClick()
 
     composeRule.onNodeWithText(live.question).assertIsDisplayed()
-    composeRule.onNodeWithTag("vote_action_${live.uid}").performScrollTo().performClick()
+    composeRule.onNodeWithTag(C.Tag.voteAction(live.uid)).performScrollTo().performClick()
     composeRule.runOnIdle {
       assertEquals(listOf(live.tripId, live.tripId), repository.observedTrips)
       assertEquals(listOf(live.uid), openedDialogs)

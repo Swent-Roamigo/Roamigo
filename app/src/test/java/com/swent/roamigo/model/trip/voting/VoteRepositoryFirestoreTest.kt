@@ -11,7 +11,9 @@ import com.google.firebase.firestore.EventListener
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.QuerySnapshot
+import com.google.firebase.firestore.SnapshotMetadata
 import com.google.firebase.firestore.Transaction
 import java.util.concurrent.Executor
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -800,6 +802,73 @@ class VoteRepositoryFirestoreTest {
     assertEquals(error.message, failure?.message)
   }
 
+  @Test
+  fun finalBallotsIgnoreCachedAndPendingSnapshotsUntilServerConfirmedIncludingMetadataOnlyChanges() =
+      runTest {
+        val registration = mock(ListenerRegistration::class.java)
+        `when`(
+                ballots.addSnapshotListener(
+                    eq(MetadataChanges.INCLUDE),
+                    any<EventListener<QuerySnapshot>>(),
+                )
+            )
+            .thenReturn(registration)
+        val changes = mutableListOf<List<VoteBallot>>()
+        val job = launch {
+          repository.observeFinalBallots("trip-1", "vote-1").collect { changes += it }
+        }
+        runCurrent()
+        val listener = capturedListener(serverOnly = true)
+        val ballot = VoteBallot("user-1", "option-2", timestamp)
+        val document = document("user-1", ballotData(ballot))
+        fun snapshot(cached: Boolean, pending: Boolean, withBallot: Boolean = true): QuerySnapshot {
+          val snapshot = if (withBallot) query(document) else query()
+          val metadata = mock(SnapshotMetadata::class.java)
+          `when`(metadata.isFromCache).thenReturn(cached)
+          `when`(metadata.hasPendingWrites()).thenReturn(pending)
+          `when`(snapshot.metadata).thenReturn(metadata)
+          return snapshot
+        }
+        listener.onEvent(snapshot(cached = true, pending = false), null)
+        runCurrent()
+        assertTrue(changes.isEmpty())
+        listener.onEvent(snapshot(cached = false, pending = true), null)
+        runCurrent()
+        assertTrue(changes.isEmpty())
+        // Same document data becomes committed: the metadata-only event must reach the UI.
+        listener.onEvent(snapshot(cached = false, pending = false), null)
+        runCurrent()
+        assertEquals(listOf(listOf(ballot)), changes)
+        listener.onEvent(snapshot(cached = false, pending = false, withBallot = false), null)
+        runCurrent()
+        assertEquals(listOf(listOf(ballot), emptyList<VoteBallot>()), changes)
+        job.cancel()
+        job.join()
+        verify(registration).remove()
+        verify(ballots, never()).addSnapshotListener(any<EventListener<QuerySnapshot>>())
+      }
+
+  @Test
+  fun finalBallotsPropagateErrorAndReleaseListenerWhileWaitingForServer() = runTest {
+    val registration = mock(ListenerRegistration::class.java)
+    `when`(
+            ballots.addSnapshotListener(
+                eq(MetadataChanges.INCLUDE),
+                any<EventListener<QuerySnapshot>>(),
+            )
+        )
+        .thenReturn(registration)
+    val failure =
+        FirebaseFirestoreException("Unavailable", FirebaseFirestoreException.Code.UNAVAILABLE)
+    val result = async {
+      runCatching { repository.observeFinalBallots("trip-1", "vote-1").first() }
+    }
+    runCurrent()
+    capturedListener(serverOnly = true).onEvent(null, failure)
+    assertSame(failure, result.await().exceptionOrNull())
+    verify(registration).remove()
+  }
+
   private fun ballotData(ballot: VoteBallot): Map<String, Any?> =
       mapOf(
           "userId" to ballot.userId,
@@ -831,12 +900,15 @@ class VoteRepositoryFirestoreTest {
 
   @Suppress("UNCHECKED_CAST")
   private fun capturedListener(
-      collection: CollectionReference = ballots
+      collection: CollectionReference = ballots,
+      serverOnly: Boolean = false,
   ): EventListener<QuerySnapshot> {
     val captor =
         ArgumentCaptor.forClass(EventListener::class.java)
             as ArgumentCaptor<EventListener<QuerySnapshot>>
-    verify(collection).addSnapshotListener(captor.capture())
+    if (serverOnly)
+        verify(collection).addSnapshotListener(eq(MetadataChanges.INCLUDE), captor.capture())
+    else verify(collection).addSnapshotListener(captor.capture())
     return captor.value
   }
 

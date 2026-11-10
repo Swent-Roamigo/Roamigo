@@ -1,14 +1,20 @@
 // Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui.map
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.location.MemberLocation
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.FakeTripRepository
@@ -19,6 +25,7 @@ import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import com.swent.roamigo.ui.theme.Spacing
 import java.time.Instant
 import java.util.Date
 
@@ -48,6 +55,39 @@ class TripMapScreenPreviews {
   @Composable
   private fun TripMapSharingOnPreview() {
     TripMapPreview(uiState = previewTripMapLoadedState, isSharing = true)
+  }
+
+  @Preview(showBackground = true, widthDp = 390, heightDp = 844)
+  @Composable
+  private fun TripMapOfflinePreview() {
+    TripMapPreview(uiState = previewTripMapLoadedState, isSharing = true, isOffline = true)
+  }
+
+  /**
+   * Mapbox only draws a placeholder in previews, so the markers are shown on their own: a live, a
+   * recent and a stale member location, then the user's own position.
+   */
+  @Preview(showBackground = true)
+  @Composable
+  private fun TripMapLocationMarkersPreview() {
+    RoamigoTheme {
+      Row(
+          modifier = Modifier.padding(Spacing.medium),
+          horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
+          verticalAlignment = Alignment.CenterVertically,
+      ) {
+        listOf("Sam" to 2_000L, "Kim" to 25_000L, "Noa" to 3 * 60_000L).forEach { (name, ageMillis)
+          ->
+          MemberLocationMarker(
+              location = MemberLocation(name, 0.0, 0.0, PREVIEW_NOW_MILLIS - ageMillis),
+              member = memberDisplayInfo(name, User(name, name, null)),
+              nowMillis = PREVIEW_NOW_MILLIS,
+              isStale = ageMillis > 60_000L,
+          )
+        }
+        MyLocationDot()
+      }
+    }
   }
 
   @Preview(showBackground = true, widthDp = 390, heightDp = 844)
@@ -118,11 +158,13 @@ class TripMapScreenPreviews {
       isSharing: Boolean,
       onRetry: () -> Unit = {},
       onRetryActivities: () -> Unit = {},
+      isOffline: Boolean = false,
   ) {
     RoamigoTheme {
       TripMapScreen(
           uiState = uiState,
           isSharing = isSharing,
+          isOffline = isOffline,
           onRetry = onRetry,
           onRetryActivities = onRetryActivities,
           onTurnOnSharing = {},
@@ -202,6 +244,9 @@ private val previewTripActivities =
             activityType = ActivityType.SUGGESTION,
         ),
     )
+
+/** Fixed time of the marker preview, so that the freshness labels do not change between renders. */
+private const val PREVIEW_NOW_MILLIS = 1_762_768_800_000L
 
 private fun previewActivity(
     uid: String,

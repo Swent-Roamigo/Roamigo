@@ -3,6 +3,37 @@ package com.swent.roamigo.resources
 // Like R, but C
 object C {
   object Tag {
+    const val vote_dialog = "vote_dialog"
+    const val vote_close_dialog = "vote_close_dialog"
+    const val vote_close_confirm = "vote_close_confirm"
+    const val vote_question = "vote_question"
+    const val vote_submit = "vote_submit"
+
+    fun voteOption(index: Int) = "vote_option_" + index
+
+    fun voteAction(voteId: String) = "vote_action_" + voteId
+
+    fun closeVote(voteId: String) = "close_vote_" + voteId
+
+    const val votes_decided_heading = "votes_decided_heading"
+    const val votes_unresolved_heading = "votes_unresolved_heading"
+
+    fun closedVote(voteId: String) = "closed_vote_${voteId}"
+
+    fun closedOption(voteId: String, optionId: String) = "closed_option_${voteId}_${optionId}"
+
+    fun voteTie(voteId: String) = "vote_tie_${voteId}"
+
+    fun decidedVote(voteId: String) = "decided_vote_${voteId}"
+
+    fun decidedCheck(voteId: String) = "decided_check_${voteId}"
+
+    fun decidedVoteCount(voteId: String) = "decided_vote_count_${voteId}"
+
+    fun voteCount(voteId: String, optionId: String) = "vote_count_${voteId}_${optionId}"
+
+    fun voteResult(optionId: String) = "vote_result_${optionId}"
+
     const val greeting_robo = "second_screen_greeting"
 
     const val main_screen_container = "main_screen_container"
@@ -72,12 +103,17 @@ object C {
     const val trip_map_location_blocked_not_now = "trip_map_location_blocked_not_now"
     // Followed by the member's user ID, which is case-sensitive and so kept as is.
     const val trip_map_member_marker_prefix = "trip_map_member_marker_"
+    const val trip_map_member_label_prefix = "trip_map_member_label_"
+    const val trip_map_member_photo_prefix = "trip_map_member_photo_"
+    const val trip_map_member_initial_prefix = "trip_map_member_initial_"
+    const val trip_map_member_default_avatar_prefix = "trip_map_member_default_avatar_"
     const val trip_map_my_location = "trip_map_my_location"
     const val trip_map_loading = "trip_map_loading"
     const val trip_map_error = "trip_map_error"
     const val trip_map_retry = "trip_map_retry"
     const val trip_map_retry_activities = "trip_map_retry_activities"
     const val trip_map_offline = "trip_map_offline"
+    const val trip_map_location_error = "trip_map_location_error"
     const val photos_screen = "photos_screen"
     const val photos_title = "photos_title"
     const val photos_banner = "photos_banner"
