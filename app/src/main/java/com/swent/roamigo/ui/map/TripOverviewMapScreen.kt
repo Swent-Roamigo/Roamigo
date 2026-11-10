@@ -190,7 +190,7 @@ fun TripOverviewMapScreen(
  * pin. Capped in height so the map keeps most of the screen, and scrollable past that.
  */
 @Composable
-private fun TripRows(markers: List<TripMarkerUiState>, onTripClick: (String) -> Unit) {
+internal fun TripRows(markers: List<TripMarkerUiState>, onTripClick: (String) -> Unit) {
   val trips = markers.groupBy { it.tripId }
   if (trips.isEmpty()) return
   Column(
