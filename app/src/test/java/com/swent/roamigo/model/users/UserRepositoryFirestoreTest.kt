@@ -212,4 +212,28 @@ class UserRepositoryFirestoreTest {
 
     assertTrue(error is CancellationException)
   }
+
+  @Test
+  fun missingOrBlankAccountNameUsesTravelerFallback() = runBlocking {
+    for (name in listOf<String?>(null, "   ")) {
+      doReturn(name).`when`(alice).displayName
+
+      assertEquals(
+          User("alice", "Traveler", null),
+          repository.getCurrentUser(),
+      )
+    }
+  }
+
+  @Test
+  fun signedOutUserCannotReadCurrentProfile() = runBlocking {
+    currentUser = null
+
+    val error = runCatching {
+      repository.getCurrentUser()
+    }
+        .exceptionOrNull()
+
+    assertTrue(error is UserRepositoryException.NotAuthenticated)
+  }
 }
