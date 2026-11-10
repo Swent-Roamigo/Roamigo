@@ -1,10 +1,17 @@
 // AI assistance was used for implementation support.
-package com.swent.roamigo.model.trip
+package com.swent.roamigo.model.trip.activity
 
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.swent.roamigo.model.trip.Activity
+import com.swent.roamigo.model.trip.ActivityType
+import com.swent.roamigo.model.trip.activityFromFirestore
+import com.swent.roamigo.model.trip.requireData
+import com.swent.roamigo.model.trip.toFirebaseTimestamp
+import com.swent.roamigo.model.trip.toFirestoreData
+import com.swent.roamigo.model.trip.validDocumentId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow

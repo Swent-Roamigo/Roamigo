@@ -1,5 +1,5 @@
 // AI assistance was used for implementation support.
-package com.swent.roamigo.model.trip
+package com.swent.roamigo.model.trip.activity
 
 import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -14,6 +14,11 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.firestore.MemoryCacheSettings
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.trip.ActivityType
+import com.swent.roamigo.model.trip.TravelMode
+import com.swent.roamigo.model.trip.TripDraft
+import com.swent.roamigo.model.trip.TripRepositoryFirestore
+import com.swent.roamigo.model.trip.toFirestoreData
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.Instant

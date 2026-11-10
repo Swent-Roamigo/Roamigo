@@ -1,8 +1,12 @@
 // AI assistance was used for implementation support.
-package com.swent.roamigo.model.trip
+package com.swent.roamigo.model.trip.activity
 
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.trip.Activity
+import com.swent.roamigo.model.trip.ActivityType
+import com.swent.roamigo.model.trip.activityFromFirestore
+import com.swent.roamigo.model.trip.toFirestoreData
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows

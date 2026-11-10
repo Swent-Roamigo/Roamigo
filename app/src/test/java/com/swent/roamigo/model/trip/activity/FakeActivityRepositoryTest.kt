@@ -1,7 +1,8 @@
 // AI assistance was used for implementation support.
-package com.swent.roamigo.model.trip
+package com.swent.roamigo.model.trip.activity
 
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.trip.ActivityType
 import java.io.IOException
 import java.time.Instant
 import kotlinx.coroutines.flow.first

@@ -1,7 +1,8 @@
 // AI assistance was used for implementation support.
-package com.swent.roamigo.model.trip
+package com.swent.roamigo.model.trip.activity
 
 import com.google.firebase.Timestamp
+import com.swent.roamigo.model.trip.Activity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map

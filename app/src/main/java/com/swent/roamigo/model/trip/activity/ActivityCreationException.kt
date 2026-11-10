@@ -1,5 +1,5 @@
 // AI assistance was used for implementation support.
-package com.swent.roamigo.model.trip
+package com.swent.roamigo.model.trip.activity
 
 /**
  * A failure to create an activity.

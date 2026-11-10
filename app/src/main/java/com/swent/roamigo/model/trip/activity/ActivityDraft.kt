@@ -1,5 +1,5 @@
 // AI assistance was used for implementation support.
-package com.swent.roamigo.model.trip
+package com.swent.roamigo.model.trip.activity
 
 import com.swent.roamigo.model.MAX_LATITUDE
 import com.swent.roamigo.model.MAX_LONGITUDE

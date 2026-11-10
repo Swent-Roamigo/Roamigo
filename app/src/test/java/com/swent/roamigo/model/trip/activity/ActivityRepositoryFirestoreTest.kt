@@ -1,5 +1,5 @@
 // AI assistance was used for implementation support.
-package com.swent.roamigo.model.trip
+package com.swent.roamigo.model.trip.activity
 
 import com.google.android.gms.tasks.Task
 import com.google.firebase.Timestamp
@@ -14,6 +14,9 @@ import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.Transaction
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.trip.Activity
+import com.swent.roamigo.model.trip.ActivityType
+import com.swent.roamigo.model.trip.toFirestoreData
 import java.io.IOException
 import java.time.Instant
 import kotlinx.coroutines.CancellationException

@@ -1,6 +1,9 @@
 // AI assistance was used for implementation support.
-package com.swent.roamigo.model.trip
+package com.swent.roamigo.model.trip.activity
 
+import com.swent.roamigo.model.trip.Activity
+import com.swent.roamigo.model.trip.ActivityType
+import com.swent.roamigo.model.trip.TripRepository
 import kotlinx.coroutines.flow.Flow
 
 /**
