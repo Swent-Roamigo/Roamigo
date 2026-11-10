@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -38,8 +39,6 @@ class TripScreenTest {
         TripScreen(
             trip = TripHeaderUiState("Lisbon & Porto", date, date.plusDays(3), 2),
             selectedTab = selectedTab,
-            today = date,
-            photoCount = 3,
             isSharing = isSharing,
             onBack = {},
             onTabSelected = { selectedTab = it },
@@ -67,6 +66,18 @@ class TripScreenTest {
       assertEquals(TripSection.Photos, selectedTab)
       assertEquals(1, primaryClicks)
       assertEquals(1, tripsClicks)
+    }
+  }
+
+  @Test
+  fun headerStaysTheSameOnEveryTab() {
+    show()
+
+    TripSection.entries.forEach { section ->
+      composeRule.runOnIdle { selectedTab = section }
+      composeRule.onNodeWithText("Lisbon & Porto").assertIsDisplayed()
+      composeRule.onNodeWithText("Thu 5 Nov – Sun 8 Nov").assertIsDisplayed()
+      composeRule.onNodeWithContentDescription("Share trip").assertIsDisplayed()
     }
   }
 

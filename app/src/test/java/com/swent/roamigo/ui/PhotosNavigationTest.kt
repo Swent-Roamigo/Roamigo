@@ -137,7 +137,6 @@ class PhotosNavigationTest {
 
     composeRule.onNodeWithTag(C.Tag.photos_gallery_error).assertIsDisplayed()
     composeRule.onNodeWithText(tripName).assertIsDisplayed()
-    composeRule.onNodeWithText("Trip photos").assertIsDisplayed()
   }
 
   @Test

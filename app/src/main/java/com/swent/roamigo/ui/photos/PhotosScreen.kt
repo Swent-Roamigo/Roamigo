@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -20,7 +19,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.PhotoCamera
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -47,6 +45,7 @@ import com.swent.roamigo.model.photo.PendingPhoto
 import com.swent.roamigo.model.photo.PhotoUploadStatus
 import com.swent.roamigo.model.photo.TripPhoto
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.components.TripActionButton
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.theme.Success
 import com.swent.roamigo.ui.theme.Warning
@@ -61,6 +60,7 @@ import java.util.Date
  * @param fileOf the file holding a waiting photo, to show its thumbnail.
  * @param onPhotoClick invoked with the id of an uploaded photo the user wants to see full screen.
  * @param onGalleryRetryClick invoked when the user asks to read the uploaded photos again.
+ * @param summary the photo and member counts of the trip, shown above the gallery when known.
  */
 @Composable
 fun PhotosScreen(
@@ -72,6 +72,7 @@ fun PhotosScreen(
     onPhotoClick: (String) -> Unit,
     onGalleryRetryClick: () -> Unit,
     modifier: Modifier = Modifier,
+    summary: String? = null,
     readOnly: Boolean = false,
 ) {
   Scaffold(
@@ -84,6 +85,13 @@ fun PhotosScreen(
             .padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium),
         verticalArrangement = Arrangement.spacedBy(Spacing.large),
     ) {
+      summary?.let {
+        Text(
+            it,
+            modifier = Modifier.testTag(C.Tag.photos_summary),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+      }
       if (!readOnly) PhotosBanner(state)
       if (!readOnly) FailedUploadsBanner(state, onRetryClick)
       PhotosContent(
@@ -95,10 +103,9 @@ fun PhotosScreen(
           Modifier.weight(1f).fillMaxWidth(),
       )
       if (!readOnly) {
-        Button(
+        TripActionButton(
             onClick = onTakePhotoClick,
-            modifier = Modifier.fillMaxWidth().height(58.dp).testTag(C.Tag.photos_take_photo),
-            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.testTag(C.Tag.photos_take_photo),
         ) {
           Icon(Icons.Outlined.PhotoCamera, contentDescription = null)
           Text(

@@ -71,6 +71,8 @@ import com.swent.roamigo.R
 import com.swent.roamigo.model.location.MemberLocation
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.InfoRow
+import com.swent.roamigo.ui.components.TripActionButton
+import com.swent.roamigo.ui.components.TripActionButtonPadding
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.MyLocationBlue
@@ -475,8 +477,8 @@ private fun SharingButtonBar(
     onTurnOnSharing: () -> Unit,
     onPauseSharing: () -> Unit,
 ) {
-  Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surface) {
-    Button(
+  Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.background) {
+    TripActionButton(
         onClick = if (isSharing) onPauseSharing else onTurnOnSharing,
         modifier =
             Modifier.windowInsetsPadding(
@@ -484,8 +486,7 @@ private fun SharingButtonBar(
                         WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal
                     )
                 )
-                .padding(horizontal = Spacing.screenPadding, vertical = Spacing.large)
-                .fillMaxWidth()
+                .padding(TripActionButtonPadding)
                 .testTag(C.Tag.trip_map_sharing_button),
     ) {
       Text(

@@ -17,8 +17,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.swent.roamigo.R
 import com.swent.roamigo.RoamigoApplication
 import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.connectivity.ConnectivityRepository
@@ -152,8 +155,6 @@ internal fun TripRoute(
             )
           },
       selectedTab = tab,
-      today = today,
-      photoCount = photosCount,
       isSharing = locationState?.isSharing == true,
       onBack = onBack,
       onTabSelected = { section ->
@@ -221,6 +222,15 @@ internal fun TripRoute(
               tripId = tripId,
               currentUserId = userId,
               tripName = loaded?.trip?.name.orEmpty(),
+              summary =
+                  photosCount?.let { count ->
+                    val memberCount = loaded?.trip?.memberIds?.distinct()?.size ?: 0
+                    stringResource(
+                        R.string.trip_photo_summary,
+                        pluralStringResource(R.plurals.trip_photo_count, count, count),
+                        pluralStringResource(R.plurals.trip_person_count, memberCount, memberCount),
+                    )
+                  },
               readOnly = readOnly,
           )
         }

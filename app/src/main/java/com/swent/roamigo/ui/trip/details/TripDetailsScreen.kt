@@ -2,7 +2,6 @@
 package com.swent.roamigo.ui.trip.details
 
 import androidx.annotation.DrawableRes
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,11 +16,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -42,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.TripRepository
+import com.swent.roamigo.ui.components.TripActionButton
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.Spacing
@@ -139,8 +137,8 @@ private fun TripDetailsContent(
       modifier.padding(
           start = Spacing.screenPadding,
           end = Spacing.screenPadding,
-          top = 12.dp,
-          bottom = 16.dp,
+          top = Spacing.medium,
+          bottom = Spacing.medium,
       ),
       verticalArrangement = Arrangement.spacedBy(Spacing.large),
   ) {
@@ -193,16 +191,10 @@ private fun TripDetailsContent(
           onClick = onPhotosClick,
       ) {}
     }
-    OutlinedButton(
+    TripActionButton(
         onClick = onTripMapClick,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 53.dp).markNotImplemented(onTripMapClick),
-        shape = MaterialTheme.shapes.small,
-        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outlineVariant),
-        colors =
-            ButtonDefaults.outlinedButtonColors(
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-            ),
+        modifier = Modifier.markNotImplemented(onTripMapClick),
+        outlined = true,
     ) {
       Text(stringResource(R.string.trip_details_map), style = MaterialTheme.typography.labelLarge)
     }

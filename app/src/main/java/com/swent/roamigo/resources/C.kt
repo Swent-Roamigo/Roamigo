@@ -123,6 +123,7 @@ object C {
     const val photos_screen = "photos_screen"
     const val photos_title = "photos_title"
     const val photos_banner = "photos_banner"
+    const val photos_summary = "photos_summary"
     const val photos_progress = "photos_progress"
     const val photos_failed_banner = "photos_failed_banner"
     const val photos_retry_all = "photos_retry_all"

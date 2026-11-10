@@ -24,15 +24,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
-import com.swent.roamigo.ui.theme.Spacing
-import com.swent.roamigo.ui.trip.components.EndedTripBanner
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
+import com.swent.roamigo.ui.theme.Spacing
+import com.swent.roamigo.ui.trip.components.EndedTripBanner
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -55,8 +54,6 @@ internal enum class TripSection(val label: Int) {
 internal fun TripScreen(
     trip: TripHeaderUiState?,
     selectedTab: TripSection,
-    today: LocalDate,
-    photoCount: Int?,
     isSharing: Boolean,
     onBack: () -> Unit,
     onTabSelected: (TripSection) -> Unit,
@@ -82,36 +79,19 @@ internal fun TripScreen(
           Text(trip.name, style = MaterialTheme.typography.headlineMedium)
           val locale = LocalConfiguration.current.locales[0]
           val formatter = DateTimeFormatter.ofPattern("EEE d MMM", locale)
-          val subtitle =
-              when (selectedTab) {
-                TripSection.Detail ->
-                    "${formatter.format(trip.startDate)} – ${formatter.format(trip.endDate)}"
-                TripSection.Map -> formatter.format(today)
-                TripSection.Votes -> stringResource(R.string.votes_title)
-                TripSection.Photos ->
-                    photoCount?.let { count ->
-                      stringResource(
-                          R.string.trip_photo_summary,
-                          pluralStringResource(R.plurals.trip_photo_count, count, count),
-                          pluralStringResource(
-                              R.plurals.trip_person_count,
-                              trip.memberCount,
-                              trip.memberCount,
-                          ),
-                      )
-                    } ?: stringResource(R.string.photos_title)
-              }
-          Text(subtitle, style = MaterialTheme.typography.bodyMedium)
+          // The header is identical on every tab so switching tabs never changes it.
+          Text(
+              "${formatter.format(trip.startDate)} – ${formatter.format(trip.endDate)}",
+              style = MaterialTheme.typography.bodyMedium,
+          )
         }
       }
       val share = rememberNotImplementedAction()
-      if (selectedTab == TripSection.Detail) {
-        IconButton(onClick = share, modifier = Modifier.markNotImplemented(share)) {
-          Icon(
-              painter = painterResource(R.drawable.ic_trip_details_share),
-              contentDescription = stringResource(R.string.trip_details_share),
-          )
-        }
+      IconButton(onClick = share, modifier = Modifier.markNotImplemented(share)) {
+        Icon(
+            painter = painterResource(R.drawable.ic_trip_details_share),
+            contentDescription = stringResource(R.string.trip_details_share),
+        )
       }
       if (selectedTab == TripSection.Detail && onAddClick != null) {
         IconButton(onClick = onAddClick, modifier = Modifier.testTag(C.Tag.trip_add_button)) {
