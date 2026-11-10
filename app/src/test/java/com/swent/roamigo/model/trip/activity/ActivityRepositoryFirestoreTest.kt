@@ -183,11 +183,14 @@ class ActivityRepositoryFirestoreTest {
   }
 
   @Test
-  fun create_withAnInvalidIdIsReportedAsAnUnknownFailure() = runTest {
-    val error = runCatching { repository.createActivity("trip-1", "a/b", draft) }
+  fun create_withAnInvalidIdIsACallerErrorAndSendsNoRequest() = runTest {
+    listOf("trip-1" to "a/b", "trip-1" to " ", "trip-1" to "..", " " to "activity-1").forEach {
+        (tripId, activityId) ->
+      val error = runCatching { repository.createActivity(tripId, activityId, draft) }
 
-    assertTrue(error.exceptionOrNull() is ActivityCreationException.Unknown)
-    assertTrue(error.exceptionOrNull()?.cause is IllegalArgumentException)
+      assertTrue(error.toString(), error.exceptionOrNull() is IllegalArgumentException)
+    }
+    verify(db, never()).runTransaction(any<Transaction.Function<Any?>>())
   }
 
   @Test

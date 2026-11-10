@@ -101,7 +101,11 @@ service cloud.firestore {
           && activity.activityType == 'ACCEPTED'
           && activity.name is string
           && activity.name.trim().size() > 0
-          && (activity.description == null || activity.description is string)
+          // Mirrors MAX_ACTIVITY_NAME_LENGTH and MAX_ACTIVITY_DESCRIPTION_LENGTH in
+          // model/trip/activity/ActivityDraft.kt.
+          && activity.name.size() <= 100
+          && (activity.description == null
+              || (activity.description is string && activity.description.size() <= 2000))
           && isValidDestination(activity.location)
           && activity.startTime is timestamp
           && (activity.endTime == null

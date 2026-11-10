@@ -3,6 +3,7 @@ package com.swent.roamigo.model.trip.activity
 
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.trip.Activity
+import com.swent.roamigo.model.trip.validDocumentId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -37,6 +38,8 @@ class FakeActivityRepository(
     val authorId = currentUserId ?: throw ActivityCreationException.NotAuthenticated()
     val errors = draft.validate()
     if (errors.isNotEmpty()) throw ActivityCreationException.Validation(errors)
+    validDocumentId(tripId)
+    validDocumentId(activityId)
 
     synchronized(stored) {
       stored.value

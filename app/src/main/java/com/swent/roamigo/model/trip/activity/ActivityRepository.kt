@@ -30,6 +30,8 @@ interface ActivityRepository {
    * @param draft the details chosen by the user.
    * @return the created activity, or the existing one when [activityId] was already created by the
    *   current user.
+   * @throws IllegalArgumentException if [tripId] or [activityId] is not a valid document ID: blank,
+   *   containing a slash, or equal to "." or "..". This is a caller bug, not a creation failure.
    * @throws ActivityCreationException.Validation if [draft] is invalid.
    * @throws ActivityCreationException for any other failure, using the matching subtype.
    */

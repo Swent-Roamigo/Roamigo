@@ -99,6 +99,18 @@ class FakeActivityRepositoryTest {
   }
 
   @Test
+  fun malformedIdsAreACallerError() {
+    val repository = FakeActivityRepository()
+
+    assertThrows(IllegalArgumentException::class.java) {
+      runBlocking { repository.createActivity("trip-1", "a/b", draft) }
+    }
+    assertThrows(IllegalArgumentException::class.java) {
+      runBlocking { repository.createActivity(" ", "activity-1", draft) }
+    }
+  }
+
+  @Test
   fun signedOutUserCannotCreate() {
     val repository = FakeActivityRepository(currentUserId = null)
 

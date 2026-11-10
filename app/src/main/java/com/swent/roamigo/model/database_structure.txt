@@ -30,8 +30,8 @@ trips/{tripId}
         joinTime: timestamp
     activities/{activityId}
         activityType: "SUGGESTION" | "ACCEPTED"  // clients only create "ACCEPTED" for now
-        name: string               // not blank
-        description: string | null
+        name: string               // not blank, at most 100 characters
+        description: string | null  // at most 2000 characters
         location: {name, latitude, longitude, countryCode?}  // same rules as a destination
         startTime: timestamp
         endTime: timestamp | null  // >= startTime

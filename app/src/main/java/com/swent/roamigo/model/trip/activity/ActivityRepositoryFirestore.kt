@@ -37,10 +37,11 @@ class ActivityRepositoryFirestore(
     val authorId = currentUserId() ?: throw ActivityCreationException.NotAuthenticated()
     val errors = draft.validate()
     if (errors.isNotEmpty()) throw ActivityCreationException.Validation(errors)
+    // A malformed ID is a caller bug, so it is thrown as is instead of as an unknown failure.
+    val document = activities(tripId).document(validDocumentId(activityId))
 
     val activity =
         try {
-          val document = activities(tripId).document(validDocumentId(activityId))
           // A transaction makes the existence check and the write atomic, so a retry after an
           // ambiguous failure cannot overwrite the first attempt.
           db.runTransaction { transaction ->
@@ -80,8 +81,8 @@ class ActivityRepositoryFirestore(
                 requireNotNull(snapshot) { "Missing activities snapshot" }
                     .documents
                     .map { activityFromFirestore(it.id, tripId, it.requireData()) }
-              } catch (error: Exception) {
-                close(error)
+              } catch (mappingError: Exception) {
+                close(mappingError)
                 return@addSnapshotListener
               }
           trySend(updates)

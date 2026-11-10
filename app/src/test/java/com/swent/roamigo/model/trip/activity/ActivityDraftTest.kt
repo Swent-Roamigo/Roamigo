@@ -39,6 +39,28 @@ class ActivityDraftTest {
   }
 
   @Test
+  fun nameAtTheMaximumLengthIsAcceptedAndOneMoreIsRejected() {
+    val longest = "a".repeat(MAX_ACTIVITY_NAME_LENGTH)
+
+    assertTrue(draft.copy(name = longest).validate().isEmpty())
+    assertEquals(
+        listOf(ActivityDraftError.NameTooLong),
+        draft.copy(name = longest + "a").validate(),
+    )
+  }
+
+  @Test
+  fun descriptionAtTheMaximumLengthIsAcceptedAndOneMoreIsRejected() {
+    val longest = "a".repeat(MAX_ACTIVITY_DESCRIPTION_LENGTH)
+
+    assertTrue(draft.copy(description = longest).validate().isEmpty())
+    assertEquals(
+        listOf(ActivityDraftError.DescriptionTooLong),
+        draft.copy(description = longest + "a").validate(),
+    )
+  }
+
+  @Test
   fun blankLocationNameIsRejected() {
     val invalid = draft.copy(location = draft.location.copy(name = " "))
 

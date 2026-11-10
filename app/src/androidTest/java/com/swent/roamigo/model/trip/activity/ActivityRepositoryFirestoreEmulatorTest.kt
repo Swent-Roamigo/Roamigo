@@ -186,6 +186,8 @@ class ActivityRepositoryFirestoreEmulatorTest {
         listOf(
             data + ("name" to " "),
             data + ("name" to 42),
+            data + ("name" to "a".repeat(MAX_ACTIVITY_NAME_LENGTH + 1)),
+            data + ("description" to "a".repeat(MAX_ACTIVITY_DESCRIPTION_LENGTH + 1)),
             data + ("description" to 42),
             data + ("startTime" to "tomorrow"),
             data +
@@ -216,6 +218,17 @@ class ActivityRepositoryFirestoreEmulatorTest {
             .set(activityData(alice) + ("endTime" to null) + ("description" to null))
             .await()
       }
+
+  @Test
+  fun rulesAcceptNameAndDescriptionAtTheirMaximumLength() = runBlocking {
+    activityDocument(alice, "longest")
+        .set(
+            activityData(alice) +
+                ("name" to "a".repeat(MAX_ACTIVITY_NAME_LENGTH)) +
+                ("description" to "a".repeat(MAX_ACTIVITY_DESCRIPTION_LENGTH))
+        )
+        .await()
+  }
 
   @Test
   fun activitiesCannotBeUpdatedOrDeleted() = runBlocking {

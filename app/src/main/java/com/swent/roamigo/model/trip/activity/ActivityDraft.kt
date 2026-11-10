@@ -8,6 +8,14 @@ import com.swent.roamigo.model.MIN_LONGITUDE
 import com.swent.roamigo.model.TripLocation
 import java.time.Instant
 
+// firestore.rules cannot import these values, so its activity creation rule repeats them.
+
+/** The largest number of characters in an activity name. */
+const val MAX_ACTIVITY_NAME_LENGTH = 100
+
+/** The largest number of characters in an activity description. */
+const val MAX_ACTIVITY_DESCRIPTION_LENGTH = 2000
+
 /**
  * Details chosen by the user when adding an activity to a trip, before it is persisted.
  *
@@ -37,6 +45,10 @@ data class ActivityDraft(
    */
   fun validate(): List<ActivityDraftError> = buildList {
     if (name.isBlank()) add(ActivityDraftError.BlankName)
+    if (name.length > MAX_ACTIVITY_NAME_LENGTH) add(ActivityDraftError.NameTooLong)
+    if (description != null && description.length > MAX_ACTIVITY_DESCRIPTION_LENGTH) {
+      add(ActivityDraftError.DescriptionTooLong)
+    }
     if (location.name.isBlank()) add(ActivityDraftError.BlankLocationName)
     if (!location.hasValidCoordinates()) add(ActivityDraftError.InvalidLocationCoordinates)
     if (endTime != null && endTime < startTime) add(ActivityDraftError.EndBeforeStart)
@@ -51,6 +63,12 @@ private fun TripLocation.hasValidCoordinates(): Boolean =
 sealed interface ActivityDraftError {
   /** The activity name is empty or contains only whitespace. */
   data object BlankName : ActivityDraftError
+
+  /** The activity name has more than [MAX_ACTIVITY_NAME_LENGTH] characters. */
+  data object NameTooLong : ActivityDraftError
+
+  /** The description has more than [MAX_ACTIVITY_DESCRIPTION_LENGTH] characters. */
+  data object DescriptionTooLong : ActivityDraftError
 
   /** The location name is empty or contains only whitespace. */
   data object BlankLocationName : ActivityDraftError
