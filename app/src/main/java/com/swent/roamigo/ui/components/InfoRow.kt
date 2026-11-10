@@ -20,7 +20,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.ui.theme.Spacing
 
@@ -28,8 +27,6 @@ import com.swent.roamigo.ui.theme.Spacing
  * A rounded card with an icon badge, a title and subtitle, and an optional trailing [action].
  *
  * @param containerColor background of the card.
- * @param compact smaller badge, icon and title, for cards floating over other content such as the
- *   map.
  */
 @Composable
 fun InfoRow(
@@ -38,7 +35,6 @@ fun InfoRow(
     subtitle: String,
     modifier: Modifier = Modifier,
     containerColor: Color = MaterialTheme.colorScheme.surfaceVariant,
-    compact: Boolean = false,
     action: (@Composable () -> Unit)? = null,
 ) {
   Surface(
@@ -53,26 +49,19 @@ fun InfoRow(
     ) {
       Box(
           modifier =
-              Modifier.size(if (compact) 36.dp else 44.dp)
+              Modifier.size(44.dp)
                   .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
           contentAlignment = Alignment.Center,
       ) {
         Icon(
             painterResource(icon),
             contentDescription = null,
-            modifier = if (compact) Modifier.size(18.dp) else Modifier,
             tint = MaterialTheme.colorScheme.onPrimaryContainer,
         )
       }
       // The weight makes the text take all the free width, which pushes [action] to the right edge.
       Column(modifier = Modifier.weight(1f)) {
-        Text(
-            title,
-            style =
-                if (compact) {
-                  MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
-                } else MaterialTheme.typography.titleMedium,
-        )
+        Text(title, style = MaterialTheme.typography.titleMedium)
         Text(
             subtitle,
             style = MaterialTheme.typography.bodySmall,

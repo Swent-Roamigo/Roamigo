@@ -26,6 +26,8 @@ val Success = Color(0xFF4F8A6A)
 
 // Something is waiting on the user or the connection, but nothing is wrong yet.
 val Warning = Color(0xFFB87819)
+val WarningSurface = Color(0xFFFDF3E1)
+val WarningBorder = Color(0xFFF0DCB0)
 
 // The user's own position on maps, kept apart from the palette so it never reads as a member.
 val MyLocationBlue = Color(0xFF1A73E8)

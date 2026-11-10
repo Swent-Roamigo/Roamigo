@@ -23,6 +23,8 @@ import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.ui.theme.Spacing
+import java.time.LocalDate
+import java.time.ZoneId
 
 /** Test tags for identifying trip markers in UI tests. */
 object TripMarkerTestTags {
@@ -51,6 +53,8 @@ enum class TripMarkerKind {
  * @property snippet Optional subtitle or callout description displayed with the marker.
  * @property isSelected Whether the marker is currently selected.
  * @property kind Kind of location represented by the marker.
+ * @property startDate First day of the trip, for markers that stand for a trip's destination.
+ * @property endDate Last day of the trip, for markers that stand for a trip's destination.
  */
 data class TripMarkerUiState(
     val id: String,
@@ -62,6 +66,8 @@ data class TripMarkerUiState(
     val snippet: String? = null,
     val isSelected: Boolean = false,
     val kind: TripMarkerKind = TripMarkerKind.DESTINATION,
+    val startDate: LocalDate? = null,
+    val endDate: LocalDate? = null,
 )
 
 /**
@@ -71,6 +77,7 @@ data class TripMarkerUiState(
 fun TripLocation.toTripMarkerUiState(
     trip: Trip,
     id: String = "${trip.uid}_${this.name}_${this.latitude}_${this.longitude}",
+    zone: ZoneId = ZoneId.systemDefault(),
 ): TripMarkerUiState =
     TripMarkerUiState(
         id = id,
@@ -80,6 +87,8 @@ fun TripLocation.toTripMarkerUiState(
         latitude = this.latitude,
         longitude = this.longitude,
         snippet = this.name,
+        startDate = trip.startDate.toDate().toInstant().atZone(zone).toLocalDate(),
+        endDate = trip.endDate.toDate().toInstant().atZone(zone).toLocalDate(),
     )
 
 /**

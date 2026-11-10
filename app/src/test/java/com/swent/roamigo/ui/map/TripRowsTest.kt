@@ -11,6 +11,7 @@ import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -85,6 +86,28 @@ class TripRowsTest {
     }
 
     composeRule.onAllNodesWithText("Warsaw").assertCountEquals(1)
+  }
+
+  @Test
+  fun aRowShowsTheTripDatesAndHowSoonItStarts() {
+    composeRule.setContent {
+      RoamigoTheme {
+        TripRows(
+            markers =
+                listOf(
+                    marker("a1", "trip-a", "Portugal", "Lisbon")
+                        .copy(
+                            startDate = LocalDate.of(2026, 10, 12),
+                            endDate = LocalDate.of(2026, 10, 19),
+                        )
+                ),
+            onTripClick = {},
+            today = LocalDate.of(2026, 10, 9),
+        )
+      }
+    }
+
+    composeRule.onNodeWithText("Mon 12 Oct – Mon 19 Oct · in 3 days").assertIsDisplayed()
   }
 
   @Test

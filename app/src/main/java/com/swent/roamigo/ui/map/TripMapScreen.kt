@@ -24,8 +24,11 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.LocationOff
+import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -35,6 +38,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,6 +49,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
@@ -70,12 +75,14 @@ import com.mapbox.maps.viewannotation.viewAnnotationOptions
 import com.swent.roamigo.R
 import com.swent.roamigo.model.location.MemberLocation
 import com.swent.roamigo.resources.C
-import com.swent.roamigo.ui.components.InfoRow
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.MyLocationBlue
 import com.swent.roamigo.ui.theme.Spacing
+import com.swent.roamigo.ui.theme.Success
 import com.swent.roamigo.ui.theme.Warning
+import com.swent.roamigo.ui.theme.WarningBorder
+import com.swent.roamigo.ui.theme.WarningSurface
 
 /**
  * Connects the trip and location ViewModels to [TripMapScreen] using caller-provided factories.
@@ -166,6 +173,8 @@ fun TripMapRoute(
 }
 
 private val MyLocationDotSize = 18.dp
+private val MapCardShape = RoundedCornerShape(20.dp)
+private val SHARING_ICON_SIZE = 20.dp
 private val MyLocationDotBorderWidth = 3.dp
 
 /**
@@ -231,7 +240,13 @@ fun TripMapScreen(
     }
   }
 
-  Box(modifier = modifier.fillMaxSize()) {
+  Box(
+      modifier =
+          modifier
+              .fillMaxSize()
+              .padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium)
+              .clip(MapCardShape)
+  ) {
     MapboxMap(
         modifier = Modifier.fillMaxSize().testTag(C.Tag.trip_map_map),
         mapViewportState = rememberTripMapViewportState(viewport),
@@ -296,32 +311,18 @@ fun TripMapScreen(
       }
     }
 
-    // Stacked so that the status overlays never cover the banner or the sharing button.
+    // Stacked so that the status overlays never cover the sharing chip.
     Column(modifier = Modifier.fillMaxSize()) {
       if (!readOnly) {
-        SharingBanner(
+        SharingChip(
             isSharing = isSharing,
-            modifier =
-                Modifier.windowInsetsPadding(
-                        WindowInsets.safeDrawing.only(
-                            WindowInsetsSides.Top + WindowInsetsSides.Horizontal
-                        )
-                    )
-                    .padding(horizontal = Spacing.large, vertical = Spacing.cardPadding),
+            onTurnOn = onTurnOnSharing,
+            onPause = onPauseSharing,
+            modifier = Modifier.padding(Spacing.medium),
         )
       }
       if (isOffline) {
-        OfflineBanner(
-            modifier =
-                Modifier.windowInsetsPadding(
-                        WindowInsets.safeDrawing.only(
-                            // Below the sharing banner, which already keeps clear of the top.
-                            if (readOnly) WindowInsetsSides.Top + WindowInsetsSides.Horizontal
-                            else WindowInsetsSides.Horizontal
-                        )
-                    )
-                    .padding(horizontal = Spacing.large)
-        )
+        OfflineBanner(modifier = Modifier.padding(horizontal = Spacing.medium))
       }
       Box(
           modifier =
@@ -362,13 +363,6 @@ fun TripMapScreen(
             }
           }
         }
-      }
-      if (!readOnly) {
-        SharingButtonBar(
-            isSharing = isSharing,
-            onTurnOnSharing = onTurnOnSharing,
-            onPauseSharing = onPauseSharing,
-        )
       }
     }
   }
@@ -451,50 +445,61 @@ private fun TripStatusOverlay(uiState: TripMapUiState, onRetry: () -> Unit) {
   }
 }
 
-/** Tells the user whether their location is shared with the trip. */
+/**
+ * A pill over the map telling whether the user shares their location, with the one action that
+ * fits: turning it on, or pausing it. Sharing off is tinted, since it is the state the user may
+ * want to change.
+ */
 @Composable
-private fun SharingBanner(isSharing: Boolean, modifier: Modifier = Modifier) {
-  val (title, description) =
-      if (isSharing) {
-        R.string.trip_map_sharing_on_title to R.string.trip_map_sharing_on_description
-      } else {
-        R.string.trip_map_sharing_off_title to R.string.trip_map_sharing_off_description
-      }
-  InfoRow(
-      icon = R.drawable.ic_bell,
-      title = stringResource(title),
-      subtitle = stringResource(description),
-      modifier = modifier.testTag(C.Tag.trip_map_sharing_banner),
-      containerColor = MaterialTheme.colorScheme.surface,
-      compact = true,
-  )
-}
-
-/** Bottom bar holding the button that turns location sharing on or pauses it. */
-@Composable
-private fun SharingButtonBar(
+private fun SharingChip(
     isSharing: Boolean,
-    onTurnOnSharing: () -> Unit,
-    onPauseSharing: () -> Unit,
+    onTurnOn: () -> Unit,
+    onPause: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-  Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surface) {
-    Button(
-        onClick = if (isSharing) onPauseSharing else onTurnOnSharing,
-        modifier =
-            Modifier.windowInsetsPadding(
-                    WindowInsets.safeDrawing.only(
-                        WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal
-                    )
-                )
-                .padding(horizontal = Spacing.screenPadding, vertical = Spacing.large)
-                .fillMaxWidth()
-                .testTag(C.Tag.trip_map_sharing_button),
+  val title =
+      if (isSharing) R.string.trip_map_sharing_on_title else R.string.trip_map_sharing_off_title
+  val action = if (isSharing) R.string.trip_map_pause_sharing else R.string.trip_map_turn_on_sharing
+  Surface(
+      modifier = modifier.testTag(C.Tag.trip_map_sharing_banner),
+      shape = CircleShape,
+      color = if (isSharing) MaterialTheme.colorScheme.surface else WarningSurface,
+      border = if (isSharing) null else BorderStroke(1.dp, WarningBorder),
+  ) {
+    Row(
+        modifier = Modifier.padding(start = Spacing.cardPadding, end = Spacing.extraSmall),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.small),
     ) {
-      Text(
-          stringResource(
-              if (isSharing) R.string.trip_map_pause_sharing else R.string.trip_map_turn_on_sharing
-          )
+      Icon(
+          imageVector = if (isSharing) Icons.Outlined.LocationOn else Icons.Outlined.LocationOff,
+          contentDescription = null,
+          modifier = Modifier.size(SHARING_ICON_SIZE),
+          tint = if (isSharing) Success else Warning,
       )
+      Text(
+          text = stringResource(title),
+          style = MaterialTheme.typography.labelLarge,
+          color = if (isSharing) MaterialTheme.colorScheme.onSurface else Warning,
+      )
+      // Filled for turning sharing on, because that is the step the user may want to take;
+      // pausing is a quiet text button.
+      if (isSharing) {
+        TextButton(
+            onClick = onPause,
+            modifier = Modifier.testTag(C.Tag.trip_map_sharing_button),
+        ) {
+          Text(stringResource(action))
+        }
+      } else {
+        Button(
+            onClick = onTurnOn,
+            shape = CircleShape,
+            modifier = Modifier.testTag(C.Tag.trip_map_sharing_button),
+        ) {
+          Text(stringResource(action))
+        }
+      }
     }
   }
 }

@@ -27,8 +27,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -49,6 +51,8 @@ import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.Spacing
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 /** Connects [tripRepository] to [TripOverviewMapScreen] through its ViewModel. */
 @Composable
@@ -192,7 +196,11 @@ fun TripOverviewMapScreen(
  * pin. Capped in height so the map keeps most of the screen, and scrollable past that.
  */
 @Composable
-internal fun TripRows(markers: List<TripMarkerUiState>, onTripClick: (String) -> Unit) {
+internal fun TripRows(
+    markers: List<TripMarkerUiState>,
+    onTripClick: (String) -> Unit,
+    today: LocalDate = LocalDate.now(),
+) {
   val trips = markers.groupBy { it.tripId }
   if (trips.isEmpty()) return
   Column(
@@ -223,12 +231,12 @@ internal fun TripRows(markers: List<TripMarkerUiState>, onTripClick: (String) ->
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            val title = tripMarkers.first().title
-            val destinations = tripMarkers.joinToString(" → ") { it.locationName }
+            val first = tripMarkers.first()
+            val subtitle = tripRowSubtitle(first, tripMarkers, today)
             // A trip named after its only destination would otherwise say the same thing twice.
-            if (destinations != title) {
+            if (subtitle != first.title) {
               Text(
-                  destinations,
+                  subtitle,
                   style = MaterialTheme.typography.bodySmall,
                   color = MaterialTheme.colorScheme.onSurfaceVariant,
                   maxLines = 1,
@@ -249,5 +257,31 @@ internal fun TripRows(markers: List<TripMarkerUiState>, onTripClick: (String) ->
 }
 
 private val MAP_CARD_RADIUS = 20.dp
+
+/**
+ * The line under a trip's name: its dates and where it stands ("Sat 12 Oct – Sat 19 Oct · in 3
+ * days"), or its destinations when the markers carry no dates.
+ */
+@Composable
+private fun tripRowSubtitle(
+    first: TripMarkerUiState,
+    tripMarkers: List<TripMarkerUiState>,
+    today: LocalDate,
+): String {
+  val start = first.startDate
+  val end = first.endDate
+  if (start == null || end == null) return tripMarkers.joinToString(" → ") { it.locationName }
+  val formatter = DateTimeFormatter.ofPattern("EEE d MMM", LocalConfiguration.current.locales[0])
+  val status =
+      when (val schedule = tripScheduleOf(start, end, today)) {
+        TripSchedule.Past -> stringResource(R.string.trip_schedule_past)
+        TripSchedule.InProgress -> stringResource(R.string.trip_schedule_in_progress)
+        is TripSchedule.StartsIn ->
+            pluralStringResource(R.plurals.trip_schedule_starts_in, schedule.days, schedule.days)
+        TripSchedule.Planning -> stringResource(R.string.trip_schedule_planning)
+      }
+  return "${formatter.format(start)} – ${formatter.format(end)} · $status"
+}
+
 private val TRIP_ROWS_MAX_HEIGHT = 168.dp
 private val CHEVRON_SIZE = 18.dp

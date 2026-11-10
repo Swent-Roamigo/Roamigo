@@ -333,7 +333,9 @@ fun RoamigoApp(
     composable(Route.TRIP_OVERVIEW_MAP) {
       TripOverviewMapRoute(
           tripRepository = tripRepository,
-          onMarkerClick = { tripId -> navController.navigate(Route.tripDetails(tripId)) },
+          onMarkerClick = { tripId ->
+            navController.navigate(Route.tripDetails(tripId, openMap = true))
+          },
           onTripsClick = onTripsClick,
           onMapClick = {},
           onFriendsClick = onFriendsClick,
