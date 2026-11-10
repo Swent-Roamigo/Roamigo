@@ -143,6 +143,9 @@ fun TripOverviewMapScreen(
                     viewAnnotationOptions {
                       geometry(Point.fromLngLat(marker.longitude, marker.latitude))
                       annotationAnchor { anchor(ViewAnnotationAnchor.BOTTOM) }
+                      // The name pills make pins wider, and Mapbox hides a pin that overlaps
+                      // another one. A hidden pin would hide a trip.
+                      allowOverlap(true)
                     },
                 modifier =
                     Modifier.testTag(TripMarkerTestTags.markerFor(marker.id))

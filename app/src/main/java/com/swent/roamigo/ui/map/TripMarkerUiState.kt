@@ -15,6 +15,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
@@ -139,6 +141,9 @@ fun TripMarkerIcon(locationName: String, kind: TripMarkerKind) {
         TripMarkerKind.SUGGESTION -> R.drawable.ic_map_marker_monochrome
       }
   Column(
+      // One name for the whole marker, so the label is not read twice and the marker can still be
+      // found by the place it marks.
+      modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = locationName },
       horizontalAlignment = Alignment.CenterHorizontally,
       verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall),
   ) {
