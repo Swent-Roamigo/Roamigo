@@ -382,7 +382,6 @@ private fun OfflineBanner(modifier: Modifier) {
           },
       shape = MaterialTheme.shapes.medium,
       color = MaterialTheme.colorScheme.surface,
-      shadowElevation = Spacing.extraSmall,
   ) {
     Row(
         modifier = Modifier.padding(horizontal = Spacing.medium, vertical = Spacing.small),
@@ -465,6 +464,7 @@ private fun SharingBanner(isSharing: Boolean, modifier: Modifier = Modifier) {
       subtitle = stringResource(description),
       modifier = modifier.testTag(C.Tag.trip_map_sharing_banner),
       containerColor = MaterialTheme.colorScheme.surface,
+      compact = true,
   )
 }
 
