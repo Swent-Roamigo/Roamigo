@@ -130,6 +130,8 @@ fun TripOverviewMapScreen(
         MapboxMap(
             modifier = Modifier.fillMaxSize(),
             mapViewportState = rememberTripDestinationsMapViewport(uiState.markers),
+            // The scale bar clutters the card and has no use for trips.
+            scaleBar = {},
         ) {
           uiState.markers.forEach { marker ->
             ViewAnnotation(
@@ -221,13 +223,18 @@ internal fun TripRows(markers: List<TripMarkerUiState>, onTripClick: (String) ->
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                tripMarkers.joinToString(" → ") { it.locationName },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            val title = tripMarkers.first().title
+            val destinations = tripMarkers.joinToString(" → ") { it.locationName }
+            // A trip named after its only destination would otherwise say the same thing twice.
+            if (destinations != title) {
+              Text(
+                  destinations,
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis,
+              )
+            }
           }
           Icon(
               painter = painterResource(R.drawable.ic_c2_chevron_right),

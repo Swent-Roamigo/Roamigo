@@ -1,8 +1,10 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.ui.map
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -69,6 +71,20 @@ class TripRowsTest {
     composeRule.onNodeWithTag(C.Tag.trip_overview_row_prefix + "trip-b").performClick()
 
     assertEquals(listOf("trip-b"), opened)
+  }
+
+  @Test
+  fun aTripNamedAfterItsOnlyDestinationIsNotRepeatedInItsRow() {
+    composeRule.setContent {
+      RoamigoTheme {
+        TripRows(
+            markers = listOf(marker("w1", "trip-w", "Warsaw", "Warsaw")),
+            onTripClick = {},
+        )
+      }
+    }
+
+    composeRule.onAllNodesWithText("Warsaw").assertCountEquals(1)
   }
 
   @Test

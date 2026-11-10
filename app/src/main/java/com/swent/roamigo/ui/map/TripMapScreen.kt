@@ -235,6 +235,8 @@ fun TripMapScreen(
     MapboxMap(
         modifier = Modifier.fillMaxSize().testTag(C.Tag.trip_map_map),
         mapViewportState = rememberTripMapViewportState(viewport),
+        // The scale bar sits behind the banner and has no use for trips.
+        scaleBar = {},
     ) {
       if (uiState is TripMapUiState.Loaded) {
         uiState.activityMarkers.forEach { marker ->
