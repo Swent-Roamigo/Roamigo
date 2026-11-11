@@ -19,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.core.content.edit
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
@@ -333,10 +334,8 @@ private fun votesHintSeen(context: Context): Boolean = runCatching {
 
 private fun markVotesHintSeen(context: Context) {
   runCatching {
-    context
-        .getSharedPreferences(HINTS_PREFERENCES, Context.MODE_PRIVATE)
-        .edit()
-        .putBoolean(VOTES_HINT_SEEN, true)
-        .apply()
+    context.getSharedPreferences(HINTS_PREFERENCES, Context.MODE_PRIVATE).edit {
+      putBoolean(VOTES_HINT_SEEN, true)
+    }
   }
 }

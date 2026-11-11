@@ -17,13 +17,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
+import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.Spacing
 
 /** One-time explanation of how a group decides together, dismissed with "Got it". */
 @Composable
 fun VotesHintCard(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
   Surface(
-      modifier = modifier.fillMaxWidth().testTag("votes_hint"),
+      modifier = modifier.fillMaxWidth().testTag(C.Tag.votes_hint),
       shape = RoundedCornerShape(16.dp),
       color = MaterialTheme.colorScheme.surfaceVariant,
   ) {
@@ -41,7 +42,7 @@ fun VotesHintCard(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
       )
       TextButton(
           onClick = onDismiss,
-          modifier = Modifier.heightIn(min = 48.dp).testTag("votes_hint_dismiss"),
+          modifier = Modifier.heightIn(min = 48.dp).testTag(C.Tag.votes_hint_dismiss),
       ) {
         Text(stringResource(R.string.votes_hint_got_it))
       }

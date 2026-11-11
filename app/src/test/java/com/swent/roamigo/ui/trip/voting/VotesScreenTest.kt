@@ -185,20 +185,27 @@ class VotesScreenTest {
             "1 Someone suggests a place · 2 Everyone votes · 3 The winner joins the plan"
         )
         .assertIsDisplayed()
-    composeRule.onNodeWithTag("votes_hint_dismiss").performClick()
+    composeRule.onNodeWithTag(C.Tag.votes_hint_dismiss).performClick()
     composeRule.runOnIdle { assertEquals(1, dismissals) }
+  }
+
+  @Test
+  fun hintIsNotRepeatedOnTheEmptyScreenThatAlreadyExplainsVotes() {
+    content(VotesUiState.Empty, showHint = true)
+    composeRule.onNodeWithTag(C.Tag.votes_hint).assertDoesNotExist()
+    composeRule.onNodeWithText("Start a vote").assertIsDisplayed()
   }
 
   @Test
   fun hintIsHiddenOnceSeen() {
     content(VotesUiState.Ready(listOf(live), emptyList()), showHint = false)
-    composeRule.onNodeWithTag("votes_hint").assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.votes_hint).assertDoesNotExist()
   }
 
   @Test
   fun hintIsNotShownInReadOnlyTrips() {
     content(VotesUiState.Ready(listOf(live), emptyList()), showHint = true, readOnly = true)
-    composeRule.onNodeWithTag("votes_hint").assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.votes_hint).assertDoesNotExist()
   }
 
   @Test

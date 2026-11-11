@@ -19,13 +19,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
+import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.Spacing
 
 /** Tells that a finished trip can only be viewed, and what stays available. */
 @Composable
 fun EndedTripBanner(modifier: Modifier = Modifier) {
   Surface(
-      modifier = modifier.fillMaxWidth().testTag("trip_ended_banner"),
+      modifier = modifier.fillMaxWidth().testTag(C.Tag.trip_ended_banner),
       shape = RoundedCornerShape(16.dp),
       color = MaterialTheme.colorScheme.surfaceVariant,
   ) {

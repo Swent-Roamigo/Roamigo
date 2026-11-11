@@ -33,12 +33,16 @@ class TripScreenTest {
   private var pauseClicks = 0
   private var membersClicks = 0
 
-  private fun show(isSharing: Boolean = false) {
+  private fun show(
+      isSharing: Boolean = false,
+      name: String = "Lisbon & Porto",
+      memberCount: Int = 2,
+  ) {
     val date = LocalDate.of(2026, 11, 5)
     composeRule.setContent {
       RoamigoTheme {
         TripScreen(
-            trip = TripHeaderUiState("Lisbon & Porto", date, date.plusDays(3), 2),
+            trip = TripHeaderUiState(name, date, date.plusDays(3), memberCount),
             selectedTab = selectedTab,
             isSharing = isSharing,
             onBack = {},
@@ -68,6 +72,27 @@ class TripScreenTest {
       assertEquals(TripSection.Photos, selectedTab)
       assertEquals(1, primaryClicks)
       assertEquals(1, tripsClicks)
+    }
+  }
+
+  @Test
+  @Config(qualifiers = "w320dp-h480dp", fontScale = 1.5f)
+  fun longNameManyMembersAndPauseSharingKeepTheHeaderUsableAtALargeFontScale() {
+    show(
+        isSharing = true,
+        name = "A very long trip name across Portugal, Spain and the south of France",
+        memberCount = 8,
+    )
+
+    composeRule.onNodeWithText("Pause sharing").assertIsDisplayed().performClick()
+    composeRule.onNodeWithText("Primary action").assertIsDisplayed().performClick()
+    composeRule.onNodeWithContentDescription("Members").assertIsDisplayed()
+    composeRule.onNodeWithText("Photos").assertIsDisplayed().performClick().assertIsSelected()
+
+    composeRule.runOnIdle {
+      assertEquals(1, pauseClicks)
+      assertEquals(1, primaryClicks)
+      assertEquals(TripSection.Photos, selectedTab)
     }
   }
 

@@ -107,7 +107,7 @@ class PhotosScreenTest {
         )
     )
 
-    bannerText("Uploading 1 of 2 photos")
+    bannerText("Uploading 2 photos…")
     composeRule.onNodeWithTag(C.Tag.photos_progress).assertIsDisplayed()
   }
 

@@ -164,17 +164,14 @@ private fun FailedUploadsBanner(state: PhotosUiState, onRetryClick: (String) -> 
 private fun PhotosBanner(state: PhotosUiState) {
   val pending = state.photos.filter { it.status != PhotoUploadStatus.FAILED }
   val count = pending.size
-  val uploadingCount = pending.count { it.status == PhotoUploadStatus.UPLOADING }
-  val uploading = uploadingCount > 0
+  val uploading = pending.any { it.status == PhotoUploadStatus.UPLOADING }
   val (text, color) =
       when {
         count == 0 && !state.isOnline -> stringResource(R.string.photos_offline_empty) to Warning
         count == 0 -> return
         !state.isOnline ->
             pluralStringResource(R.plurals.photos_waiting_offline, count, count) to Warning
-        uploading ->
-            pluralStringResource(R.plurals.photos_uploading, count, uploadingCount, count) to
-                Success
+        uploading -> pluralStringResource(R.plurals.photos_uploading, count, count) to Success
         else -> pluralStringResource(R.plurals.photos_waiting_online, count, count) to Warning
       }
   Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.small)) {

@@ -389,7 +389,7 @@
     <string name="trip_details_map">Open trip map</string>
     <string name="trip_details_loading">Loading trip details…</string>
     <string name="trip_details_load_failed">Unable to load trip details.</string>
-    <string name="trip_details_not_found">This trip is private. Only invited members can open it.</string>
+    <string name="trip_details_not_found">We couldn\'t open this trip. It may be private or no longer available.</string>
     <string name="trip_details_retry">Retry</string>
     <string name="trip_details_back">Back</string>
     <string name="trip_details_subtitle">%1$s · %2$s</string>
@@ -417,7 +417,6 @@
         <item quantity="one">%d person</item>
         <item quantity="other">%d people</item>
     </plurals>
-    <string name="photos_title">Trip photos</string>
     <string name="photos_take_photo">Take a photo</string>
     <string name="photos_no_camera">No camera app is available on this device.</string>
     <string name="photos_offline_empty">You’re offline · photos you take are saved on this phone</string>
@@ -430,8 +429,8 @@
         <item quantity="other">%d photos waiting to upload</item>
     </plurals>
     <plurals name="photos_uploading">
-        <item quantity="one">Uploading %1$d of %2$d photo</item>
-        <item quantity="other">Uploading %1$d of %2$d photos</item>
+        <item quantity="one">Uploading %d photo…</item>
+        <item quantity="other">Uploading %d photos…</item>
     </plurals>
     <plurals name="photos_failed_summary">
         <item quantity="one">%d photo didn\'t upload</item>
@@ -477,7 +476,7 @@
     <string name="vote_close_title">Close this vote?</string>
     <string name="vote_close_title_named">Close “%1$s” now?</string>
     <string name="vote_close_confirmation">Once closed, the winning option is final and votes can\'t be changed.</string>
-    <string name="vote_close_cancel">Keep it open</string>
+    <string name="vote_close_keep_open">Keep it open</string>
     <string name="vote_close_error">Could not close the vote. Please try again.</string>
     <string name="vote_close_unavailable">Only the creator can close an open vote.</string>
 </resources>

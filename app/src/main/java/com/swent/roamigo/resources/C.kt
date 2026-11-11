@@ -4,6 +4,9 @@ package com.swent.roamigo.resources
 object C {
   object Tag {
     const val vote_dialog = "vote_dialog"
+    const val votes_hint = "votes_hint"
+    const val votes_hint_dismiss = "votes_hint_dismiss"
+    const val trip_ended_banner = "trip_ended_banner"
     const val vote_close_dialog = "vote_close_dialog"
     const val vote_close_confirm = "vote_close_confirm"
     const val vote_question = "vote_question"

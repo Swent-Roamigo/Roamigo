@@ -188,7 +188,7 @@ internal fun VoteCloseConfirmation(
       },
       dismissButton = {
         TextButton(enabled = !locked, onClick = cancel) {
-          Text(stringResource(R.string.vote_close_cancel))
+          Text(stringResource(R.string.vote_close_keep_open))
         }
       },
   )

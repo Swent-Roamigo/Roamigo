@@ -97,7 +97,7 @@ fun VotesScreen(
             .padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium),
         verticalArrangement = Arrangement.spacedBy(Spacing.large),
     ) {
-      if (showHint && !readOnly && (state is VotesUiState.Empty || state is VotesUiState.Ready)) {
+      if (showHint && !readOnly && state is VotesUiState.Ready) {
         VotesHintCard(onDismiss = onDismissHint)
       }
       Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
