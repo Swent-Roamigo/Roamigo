@@ -18,6 +18,11 @@ import java.util.concurrent.TimeUnit
  *
  * Failed searches are never kept: their exception goes to the caller as before.
  *
+ * Limitation: a trip only keeps a name and coordinates, so Trips home finds a city's photo by
+ * searching for that name. That only works offline when the city was typed in the last week: a
+ * city chosen from the popular cards has no stored search, and an expired one is searched again
+ * over the network. Storing the destination id with the trip (#281) removes this dependency.
+ *
  * @param delegate the source of truth, normally the online repository.
  * @param photoStore where found photos are kept between runs.
  * @param clock the current time in milliseconds, replaceable in tests.
@@ -45,11 +50,17 @@ class CachingDestinationRepository(
         .readSearch(key)
         ?.takeIf { now - it.savedAtMillis < STORED_SEARCH_TTL_MILLIS }
         ?.let { stored ->
-          synchronized(searches) { searches[key] = stored.savedAtMillis to stored.destinations }
+          // The memory layer ages from now, not from the file's date: a week-old file would
+          // otherwise be rejected as stale by the memory check and read from disk every time.
+          synchronized(searches) { searches[key] = clock() to stored.destinations }
           return stored.destinations
         }
     val results = delegate.searchDestinations(query)
-    if (results.isNotEmpty()) photoStore.writeSearch(key, CachedSearch(results, clock()))
+    if (results.isNotEmpty()) {
+      photoStore.writeSearch(key, CachedSearch(results, clock()))
+      // Searches are only replaced when the same query comes back, so old ones are dropped here.
+      photoStore.deleteSearchesSavedBefore(clock() - STORED_SEARCH_TTL_MILLIS)
+    }
     synchronized(searches) {
       searches[key] = clock() to results
       if (searches.size > MAX_CACHED_SEARCHES) searches.remove(searches.keys.first())
@@ -114,4 +125,10 @@ interface DestinationPhotoStore {
 
   /** Saves [search] for the normalized [query]. Failing to save is not an error. */
   suspend fun writeSearch(query: String, search: CachedSearch)
+
+  /**
+   * Removes the saved searches older than [savedBeforeMillis], so they do not pile up. Failing to
+   * remove them is not an error.
+   */
+  suspend fun deleteSearchesSavedBefore(savedBeforeMillis: Long)
 }
