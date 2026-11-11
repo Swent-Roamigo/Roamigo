@@ -9,7 +9,7 @@ The workflow runs three jobs, plus the `CI` job that the branch ruleset requires
 ```
 Checks (unit tests, lint, build) ----------------\
                                                   +--> Coverage report --> CI
-Connected tests, shards 0..2 (emulator tests) ---/
+Connected tests, shards 0..1 (emulator tests) ---/
 ```
 
 The coverage report needs the coverage of both sides, so it runs last. The time to green is therefore the slowest connected-test shard plus the report.
@@ -20,10 +20,9 @@ The coverage report needs the coverage of both sides, so it runs last. The time 
 |---|---|---|
 | Run Checks and Connected tests as parallel jobs | `ci.yml` | Before this, one job ran everything in sequence. |
 | Share the job setup in a composite action | `.github/actions/setup-android-build` | No time saved. It removes three copies of the same setup steps. |
-| Split the instrumented tests into 3 shards, one emulator each | `connected-tests` matrix, `numShards` / `shardIndex` | The last 2-shard run went from 556s to about 373s per job. A third shard saves little more: the shards finish at uneven times (318s to 352s). |
+| Split the instrumented tests into 2 shards, one emulator each | `connected-tests` matrix, `numShards` / `shardIndex` | 556s to about 370s per job. A third shard was tried and saved little: the shards finish at uneven times (318s to 352s). |
 | Run unit tests in several JVMs | `maxParallelForks` in `app/build.gradle.kts` | 48s to 32s for the unit tests on a 10-core machine. A 4-core runner gains less. |
 | Cache the Firebase CLI (`~/.npm`) and the Firebase emulator jars | `actions/cache` steps in `connected-tests` | CLI install 18s to 8s, and the emulator jars are no longer downloaded in every shard. Only pays off from the second run. |
-| Give the emulator 4 cores | `cores: 4` | Part of the roughly 40s drop in the test step. May also make a window-focus UI test flaky; see below. |
 | Cache the emulator disk (AVD) | `actions/cache` with key `avd-34` | The emulator boots from a snapshot in about 13s instead of 60-90s. Restoring the cache costs 35-41s. |
 | Reuse the Gradle build cache | `--build-cache` | 46 of 78 tasks in a shard come from the cache. |
 | Generate the coverage report and run Sonar in one Gradle call | `report` job | Saves one Gradle start and configuration (about 5-10s). |
@@ -34,9 +33,9 @@ Measured on the same code:
 | | Before | After |
 |---|---|---|
 | Checks | 5m27 | 2m20-2m40 |
-| Slowest connected-test job | 9m16 | about 5m50 |
+| Slowest connected-test job | 9m16 | about 6m10 |
 | Coverage report | 1m29 | about 1m25 |
-| Time to green | about 10.5 min | about 7.5 min |
+| Time to green | about 10.5 min | about 7.7 min |
 
 ## Where a connected-test shard spends its time
 
@@ -58,9 +57,9 @@ For a shard of about 373s (before the caches and the 4 cores):
 - **Gradle configuration cache.** It could save 10-20s, but it has not been tested with this build's Android Gradle plugin, Jacoco and Sonar setup, and may break it.
 - **Starting the report job early and waiting for the artifacts.** GitHub Actions has no clean way to do this, and polling for artifacts is fragile.
 
-## Known risk
+## Tried and reverted
 
-`TripMapScreenTest.openSettingsWithTheDefaultStarterOpensTheAppDetailsSettings` failed once with `RootViewWithoutFocusException` (no window focus within 10 s) in a run with 4 emulator cores and 3 shards. It passed when only that job was re-run, and in every earlier run. If it comes back, remove `cores: 4` first.
+- **A third shard and 4 emulator cores.** Together they saved about 20-30s, but `TripMapScreenTest.openSettingsWithTheDefaultStarterOpensTheAppDetailsSettings` then failed with `RootViewWithoutFocusException` (no window focus within 10 s) in shard 1 on 2 of 4 runs. It had not failed with 2 shards and the default 2 cores. The saving was not worth a flaky required check. If someone tries again, change one thing at a time to see which one causes it.
 
 ## Measuring it again
 
