@@ -55,6 +55,7 @@ import com.swent.roamigo.ui.trip.members.TripMembersRoute
 import com.swent.roamigo.ui.trip.voting.CreateVoteRoute
 import com.swent.roamigo.ui.trip.voting.VoteRoute
 import com.swent.roamigo.ui.trips.TripsRoute
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /**
@@ -86,6 +87,11 @@ fun RoamigoApp(
   val context = LocalContext.current
   val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }
   val scope = rememberCoroutineScope()
+  LaunchedEffect(authRepository, userRepository) {
+    if (authRepository.getCurrentUser() != null) {
+      publishProfileSafely(userRepository)
+    }
+  }
   // Bottom-bar destinations are defined once so every screen switches tabs the same way.
   val onMapClick: () -> Unit = { navigateRoot(navController, Route.TRIP_OVERVIEW_MAP) }
   val onFriendsClick: () -> Unit = { navigateRoot(navController, Route.FRIENDS) }
@@ -110,6 +116,8 @@ fun RoamigoApp(
           authRepository = authRepository,
           credentialManager = credentialManager,
           onSignedIn = {
+            scope.launch { publishProfileSafely(userRepository) }
+
             // Back from trips must not return to authentication or permissions.
             navController.navigate(Route.PERMISSIONS) {
               popUpTo(Route.AUTHENTICATION) { inclusive = true }
@@ -371,5 +379,15 @@ private fun navigateRoot(navController: NavHostController, route: String) {
   navController.navigate(route) {
     popUpTo(Route.TRIPS)
     launchSingleTop = true
+  }
+}
+
+private suspend fun publishProfileSafely(userRepository: UserRepository) {
+  try {
+    userRepository.publishCurrentUser()
+  } catch (error: CancellationException) {
+    throw error
+  } catch (error: Exception) {
+    Log.w("RoamigoApp", "Could not publish user directory profile", error)
   }
 }
