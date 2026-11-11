@@ -181,45 +181,41 @@ class UserRepositoryFirestore(
         } catch (error: UserRepositoryException) {
           throw error
         } catch (error: Exception) {
-          val domainFailure =
-              generateSequence(error as Throwable?) { it.cause }
-                  .filterIsInstance<UserRepositoryException>()
-                  .firstOrNull()
-
-          if (domainFailure != null) throw domainFailure
-
-          val authFailure =
-              generateSequence(error as Throwable?) { it.cause }
-                  .firstOrNull {
-                    it is FirebaseNetworkException || it is FirebaseAuthInvalidUserException
-                  }
-
-          when (authFailure) {
-            is FirebaseNetworkException -> throw UserRepositoryException.Network(error)
-            is FirebaseAuthInvalidUserException ->
-                throw UserRepositoryException.NotAuthenticated(error)
-          }
-
-          val firestoreFailure =
-              generateSequence(error as Throwable?) { it.cause }
-                  .filterIsInstance<FirebaseFirestoreException>()
-                  .firstOrNull()
-
-          throw when (firestoreFailure?.code) {
-            FirebaseFirestoreException.Code.UNAUTHENTICATED ->
-                UserRepositoryException.NotAuthenticated(error)
-
-            FirebaseFirestoreException.Code.PERMISSION_DENIED ->
-                UserRepositoryException.PermissionDenied(error)
-
-            FirebaseFirestoreException.Code.UNAVAILABLE,
-            FirebaseFirestoreException.Code.DEADLINE_EXCEEDED ->
-                UserRepositoryException.Network(error)
-
-            else -> UserRepositoryException.Unknown(error)
-          }
+          throw mapRepositoryError(error)
         }
       }
+
+  private fun mapRepositoryError(error: Exception): UserRepositoryException {
+    val causes = generateSequence(error as Throwable?) { it.cause }.toList()
+
+    val domainFailure = causes.filterIsInstance<UserRepositoryException>().firstOrNull()
+
+    if (domainFailure != null) return domainFailure
+
+    val authFailure = causes.firstOrNull {
+      it is FirebaseNetworkException || it is FirebaseAuthInvalidUserException
+    }
+
+    when (authFailure) {
+      is FirebaseNetworkException -> return UserRepositoryException.Network(error)
+      is FirebaseAuthInvalidUserException -> return UserRepositoryException.NotAuthenticated(error)
+    }
+
+    val firestoreFailure = causes.filterIsInstance<FirebaseFirestoreException>().firstOrNull()
+
+    return when (firestoreFailure?.code) {
+      FirebaseFirestoreException.Code.UNAUTHENTICATED ->
+          UserRepositoryException.NotAuthenticated(error)
+
+      FirebaseFirestoreException.Code.PERMISSION_DENIED ->
+          UserRepositoryException.PermissionDenied(error)
+
+      FirebaseFirestoreException.Code.UNAVAILABLE,
+      FirebaseFirestoreException.Code.DEADLINE_EXCEEDED -> UserRepositoryException.Network(error)
+
+      else -> UserRepositoryException.Unknown(error)
+    }
+  }
 
   private companion object {
     const val USERS = "users"
