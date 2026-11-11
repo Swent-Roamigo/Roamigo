@@ -79,6 +79,8 @@ jobs:
 
   # Runs at the same time as the checks job instead of after it.
   connected-tests:
+    env:
+      VOTE_FUNCTIONS_URL: http://127.0.0.1:5001/demo-roamigo/europe-west1
     name: Connected tests
     runs-on: ubuntu-latest
     steps:
@@ -119,10 +121,15 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
 
       - name: Install Firebase CLI
         run: npm install --global firebase-tools@15.33.0
+
+      - name: Build trusted vote-resolution backend
+        run: |
+          npm ci --prefix functions
+          npm run build --prefix functions
 
       - name: Validate Firebase emulators config
         run: |
@@ -175,7 +182,7 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            bash -o pipefail -c "firebase emulators:exec --only auth,database,firestore --project demo-roamigo --non-interactive 'node --test tests/firestore/vote-closing.test.mjs && ./gradlew connectedCheck --build-cache' 2>&1 | tee firebase-emulator.log"
+            bash -o pipefail -c "firebase emulators:exec --only auth,database,firestore,functions --project demo-roamigo --non-interactive 'node --test tests/firestore/*.test.mjs && ./gradlew connectedCheck --build-cache' 2>&1 | tee firebase-emulator.log"
 
       - name: Upload connected test results and Firebase logs
         if: always()
