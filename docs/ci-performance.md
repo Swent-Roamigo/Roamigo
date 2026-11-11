@@ -25,7 +25,6 @@ The coverage report needs the coverage of both sides, so it runs last. The time 
 | Cache the Firebase CLI (`~/.npm`) and the Firebase emulator jars | `actions/cache` steps in `connected-tests` | CLI install 18s to 8s, and the emulator jars are no longer downloaded in every shard. Only pays off from the second run. |
 | Cache the emulator disk (AVD) | `actions/cache` with key `avd-34` | The emulator boots from a snapshot in about 13s instead of 60-90s. Restoring the cache costs 35-41s. |
 | Reuse the Gradle build cache | `--build-cache` | 46 of 78 tasks in a shard come from the cache. |
-| Generate the coverage report and run Sonar in one Gradle call | `report` job | Saves one Gradle start and configuration (about 5-10s). |
 | Cancel the older run of the same PR | `concurrency` | Pushing again does not queue behind an outdated run. |
 
 Measured on the same code:
@@ -34,7 +33,7 @@ Measured on the same code:
 |---|---|---|
 | Checks | 5m27 | 2m20-2m40 |
 | Slowest connected-test job | 9m16 | about 6m10 |
-| Coverage report | 1m29 | about 1m25 |
+| Coverage report | 1m29 | about 1m25 (unchanged) |
 | Time to green | about 10.5 min | about 7.7 min |
 
 ## Where a connected-test shard spends its time
@@ -51,6 +50,7 @@ For a shard of about 373s (before the caches and the 4 cores):
 
 ## Tried or left out
 
+- **One Gradle call for `jacocoTestReport` and `sonar`.** The combined call made Gradle compile the app in the report job, and the job failed. They stay two calls.
 - **Skip CI for documentation-only changes.** A skipped workflow leaves the required `CI` check pending and blocks the merge.
 - **Remove `lintDebug` from the Checks command.** `check` already runs it, so Gradle runs it once.
 - **A second Sonar analysis with unit-test coverage only.** Sonar keeps one analysis per PR, so it would overwrite the real one.

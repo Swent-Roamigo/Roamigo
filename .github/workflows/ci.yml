@@ -221,12 +221,14 @@ jobs:
           tar xzf checks-outputs.tgz
           for archive in connected-coverage-*.tgz; do tar xzf "$archive"; done
 
-      # One Gradle call instead of two: it starts the daemon and configures the project once.
-      - name: Generate coverage report and upload it to SonarCloud
+      - name: Generate Coverage Report
+        run: ./gradlew jacocoTestReport
+
+      - name: Upload report to SonarCloud
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ./gradlew jacocoTestReport sonar --build-cache
+        run: ./gradlew sonar --build-cache
 
   # Branch protection requires a status check named "CI", which was the single job before the
   # split. This job keeps that name and passes only if every job above succeeded. It must run
