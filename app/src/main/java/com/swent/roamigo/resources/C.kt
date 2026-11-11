@@ -4,6 +4,9 @@ package com.swent.roamigo.resources
 object C {
   object Tag {
     const val vote_dialog = "vote_dialog"
+    const val votes_hint = "votes_hint"
+    const val votes_hint_dismiss = "votes_hint_dismiss"
+    const val trip_ended_banner = "trip_ended_banner"
     const val vote_close_dialog = "vote_close_dialog"
     const val vote_close_confirm = "vote_close_confirm"
     const val vote_question = "vote_question"
@@ -72,6 +75,7 @@ object C {
     const val friends_empty_state = "friends_empty_state"
     const val friends_add_friend = "friends_add_friend"
     const val trip_add_button = "trip_add_button"
+    const val trip_member_avatars = "trip_member_avatars"
     const val trip_add_sheet = "trip_add_sheet"
     const val trip_members_screen = "trip_members_screen"
     const val trip_members_back = "trip_members_back"
@@ -123,7 +127,10 @@ object C {
     const val photos_screen = "photos_screen"
     const val photos_title = "photos_title"
     const val photos_banner = "photos_banner"
+    const val photos_summary = "photos_summary"
     const val photos_progress = "photos_progress"
+    const val photos_failed_banner = "photos_failed_banner"
+    const val photos_retry_all = "photos_retry_all"
     const val photos_empty = "photos_empty"
     const val photos_take_photo = "photos_take_photo"
     const val photos_item_prefix = "photos_item_"

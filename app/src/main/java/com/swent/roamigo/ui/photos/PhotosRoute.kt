@@ -47,6 +47,7 @@ fun PhotosRoute(
     tripName: String,
     currentUserId: String?,
     modifier: Modifier = Modifier,
+    summary: String? = null,
     readOnly: Boolean = false,
     photoUri: (File) -> Uri = rememberPhotoUri(),
 ) {
@@ -150,6 +151,7 @@ fun PhotosRoute(
         onRetryClick = viewModel::onRetry,
         onPhotoClick = viewModel::onPhotoClick,
         onGalleryRetryClick = viewModel::onGalleryRetry,
+        summary = summary,
         readOnly = readOnly,
         modifier = modifier,
     )

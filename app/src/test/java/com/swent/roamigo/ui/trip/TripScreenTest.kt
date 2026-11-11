@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -30,23 +31,30 @@ class TripScreenTest {
   private var primaryClicks = 0
   private var tripsClicks = 0
   private var pauseClicks = 0
+  private var membersClicks = 0
+  private var addClicks = 0
 
-  private fun show(isSharing: Boolean = false) {
+  private fun show(
+      isSharing: Boolean = false,
+      name: String = "Lisbon & Porto",
+      memberCount: Int = 2,
+      withAddButton: Boolean = false,
+  ) {
     val date = LocalDate.of(2026, 11, 5)
     composeRule.setContent {
       RoamigoTheme {
         TripScreen(
-            trip = TripHeaderUiState("Lisbon & Porto", date, date.plusDays(3), 2),
+            trip = TripHeaderUiState(name, date, date.plusDays(3), memberCount),
             selectedTab = selectedTab,
-            today = date,
-            photoCount = 3,
             isSharing = isSharing,
             onBack = {},
             onTabSelected = { selectedTab = it },
             onPauseSharing = { pauseClicks++ },
+            onMembersClick = { membersClicks++ },
             onTripsClick = { tripsClicks++ },
             onMapClick = {},
             onFriendsClick = {},
+            onAddClick = if (withAddButton) ({ addClicks++ }) else null,
         ) {
           Button(onClick = { primaryClicks++ }) { Text("Primary action") }
         }
@@ -68,6 +76,51 @@ class TripScreenTest {
       assertEquals(1, primaryClicks)
       assertEquals(1, tripsClicks)
     }
+  }
+
+  @Test
+  @Config(qualifiers = "w320dp-h480dp", fontScale = 1.5f)
+  fun longNameManyMembersAndPauseSharingKeepTheHeaderUsableAtALargeFontScale() {
+    show(
+        isSharing = true,
+        name = "A very long trip name across Portugal, Spain and the south of France",
+        memberCount = 8,
+        withAddButton = true,
+    )
+
+    composeRule.onNodeWithTag(C.Tag.trip_add_button).assertIsDisplayed().performClick()
+    composeRule.onNodeWithText("Pause sharing").assertIsDisplayed().performClick()
+    composeRule.onNodeWithText("Primary action").assertIsDisplayed().performClick()
+    composeRule.onNodeWithContentDescription("Members").assertIsDisplayed()
+    composeRule.onNodeWithText("Photos").assertIsDisplayed().performClick().assertIsSelected()
+
+    composeRule.runOnIdle {
+      assertEquals(1, addClicks)
+      assertEquals(1, pauseClicks)
+      assertEquals(1, primaryClicks)
+      assertEquals(TripSection.Photos, selectedTab)
+    }
+  }
+
+  @Test
+  fun headerStaysTheSameOnEveryTab() {
+    show()
+
+    TripSection.entries.forEach { section ->
+      composeRule.runOnIdle { selectedTab = section }
+      composeRule.onNodeWithText("Lisbon & Porto").assertIsDisplayed()
+      composeRule.onNodeWithText("Thu 5 Nov – Sun 8 Nov").assertIsDisplayed()
+      composeRule.onNodeWithContentDescription("Members").assertIsDisplayed()
+    }
+  }
+
+  @Test
+  fun theMemberAvatarsOpenTheMemberList() {
+    show()
+
+    composeRule.onNodeWithContentDescription("Members").performClick()
+
+    composeRule.runOnIdle { assertEquals(1, membersClicks) }
   }
 
   @Test

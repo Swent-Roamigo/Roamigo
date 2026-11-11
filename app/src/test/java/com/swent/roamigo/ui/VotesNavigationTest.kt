@@ -13,7 +13,6 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -48,7 +47,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.shadows.ShadowToast
 
 @RunWith(AndroidJUnit4::class)
 class VotesNavigationTest {
@@ -197,7 +195,7 @@ class VotesNavigationTest {
     composeRule.onNodeWithTag(C.Tag.vote_close_dialog).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.vote_dialog).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.vote_close_dialog).assertExists()
-    composeRule.onNodeWithText("Cancel").performClick()
+    composeRule.onNodeWithText("Keep it open").performClick()
     composeRule.onNodeWithTag(C.Tag.vote_close_dialog).assertDoesNotExist()
     composeRule.onNodeWithText(vote.question).assertIsDisplayed()
     composeRule.onNodeWithText("Vote").performClick()
@@ -223,7 +221,7 @@ class VotesNavigationTest {
     repository.snapshots.value = Result.success(listOf(vote.copy(createdByUserId = "member")))
     openVotes()
     composeRule.onNodeWithText("Close vote").assertIsDisplayed().performClick()
-    composeRule.onNodeWithText("Close this vote?").assertIsDisplayed()
+    composeRule.onNodeWithText("Close “${vote.question}” now?").assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.vote_dialog).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.vote_close_confirm).performClick()
     composeRule.onNodeWithText("Close vote").assertDoesNotExist()
@@ -246,11 +244,11 @@ class VotesNavigationTest {
   fun detailTabFromVotesReturnsToSelectedTripAndBackReturnsToTrips() {
     openVotes()
 
-    composeRule.onNodeWithText("Detail").performClick()
+    composeRule.onNodeWithText("Plan").performClick()
 
     composeRule.onNodeWithTag("trip_details_screen").assertIsDisplayed()
     composeRule.onNodeWithText(tripName).assertIsDisplayed()
-    composeRule.onNodeWithText("Detail").assertIsSelected()
+    composeRule.onNodeWithText("Plan").assertIsSelected()
     composeRule.runOnIdle {
       assertEquals(Route.TRIP_DETAILS, navController.currentBackStackEntry?.destination?.route)
       assertEquals(tripId, navController.currentBackStackEntry?.arguments?.getString("tripId"))
@@ -307,17 +305,14 @@ class VotesNavigationTest {
   }
 
   @Test
-  fun tripDetailShareGivesFeedbackAndMembersOpensItsScreenAndBackReturnsToTheTrip() {
+  fun membersOpensFromTheHeaderAndFromThePlanAndBackReturnsToTheTrip() {
     openVotes()
 
-    composeRule.onNodeWithText("Detail").performClick()
-    ShadowToast.reset()
-    composeRule
-        .onNodeWithContentDescription(composeRule.activity.getString(R.string.trip_details_share))
-        .performClick()
-    composeRule.runOnIdle {
-      assertEquals("Not implemented yet", ShadowToast.getTextOfLatestToast())
-    }
+    composeRule.onNodeWithText("Plan").performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_member_avatars).performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_members_screen).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_members_back).performClick()
+    composeRule.onNodeWithTag("trip_details_screen").assertIsDisplayed()
 
     composeRule.onNodeWithText("Members").performScrollTo().performClick()
     composeRule.onNodeWithTag(C.Tag.trip_members_screen).assertIsDisplayed()
@@ -492,7 +487,7 @@ class VotesNavigationTest {
   }
 
   private fun assertTripAcrossDetailAndPhotos(expectedId: String, expectedName: String) {
-    for (label in listOf("Detail", "Photos")) {
+    for (label in listOf("Plan", "Photos")) {
       composeRule.onNodeWithText(label).performClick()
       composeRule.onNodeWithText(expectedName).assertIsDisplayed()
       composeRule.runOnIdle {
