@@ -9,7 +9,7 @@ The workflow runs three jobs, plus the `CI` job that the branch ruleset requires
 ```
 Checks (unit tests, lint, build) ----------------\
                                                   +--> Coverage report --> CI
-Connected tests, shards 0..1 (emulator tests) ---/
+Connected tests, shards 0..2 (emulator tests) ---/
 ```
 
 The coverage report needs the coverage of both sides, so it runs last. The time to green is therefore the slowest connected-test shard plus the report.
@@ -20,25 +20,34 @@ The coverage report needs the coverage of both sides, so it runs last. The time 
 |---|---|---|
 | Run Checks and Connected tests as parallel jobs | `ci.yml` | Before this, one job ran everything in sequence. |
 | Share the job setup in a composite action | `.github/actions/setup-android-build` | No time saved. It removes three copies of the same setup steps. |
-| Split the instrumented tests into 2 shards, one emulator each | `connected-tests` matrix, `numShards` / `shardIndex` | 556s to about 370s per job. A third shard was tried and saved little: the shards finish at uneven times (318s to 352s). |
+| Split the instrumented tests into 3 shards, one emulator each | `connected-tests` matrix, `numShards` / `shardIndex` | 556s for one job to about 300-370s per shard. Going from 2 to 3 shards took the time to green from about 480s to about 440s (3 runs each). |
 | Run unit tests in several JVMs | `maxParallelForks` in `app/build.gradle.kts` | 48s to 32s for the unit tests on a 10-core machine. A 4-core runner gains less. |
 | Cache the Firebase CLI (`~/.npm`) and the Firebase emulator jars | `actions/cache` steps in `connected-tests` | CLI install 18s to 8s, and the emulator jars are no longer downloaded in every shard. Only pays off from the second run. |
 | Cache the emulator disk (AVD) | `actions/cache` with key `avd-34` | The emulator boots from a snapshot in about 13s instead of 60-90s. Restoring the cache costs 35-41s. |
 | Reuse the Gradle build cache | `--build-cache` | 46 of 78 tasks in a shard come from the cache. |
 | Cancel the older run of the same PR | `concurrency` | Pushing again does not queue behind an outdated run. |
 
-Measured on the same code:
+Measured (whole workflow, from start to the green `CI` check):
 
 | | Before | After |
 |---|---|---|
-| Checks | 5m27 | 2m20-2m40 |
-| Slowest connected-test job | 9m16 | about 6m10 |
-| Coverage report | 1m29 | about 1m25 (unchanged) |
-| Time to green | about 10.5 min | about 7.7 min |
+| Checks | 5m27 | 2m30-2m55 |
+| Slowest connected-test job | 9m16 (one job) | 5m-6m10 (3 shards) |
+| Coverage report | 1m29 | 1m10-1m25 |
+| Time to green | about 10.5 min | 7m05-7m31 |
+
+Samples of the full workflow, all green:
+
+| Setup | Runs (time to green) | Average |
+|---|---|---|
+| 2 shards | 471s, 496s | 484s |
+| 3 shards, default emulator cores | 437s, 425s, 451s | 438s |
+
+That is about 45s (9%) faster for the third shard, and the three shards finish closer together (295-367s) than the two did. Three runs per setup is a small sample, so read the difference as "about 30-60s", not an exact figure.
 
 ## Where a connected-test shard spends its time
 
-For a shard of about 373s (before the caches and the 4 cores):
+For a shard of about 373s (2 shards, before the caches):
 
 | Phase | Time | Can it be cut? |
 |---|---|---|
@@ -59,7 +68,7 @@ For a shard of about 373s (before the caches and the 4 cores):
 
 ## Tried and reverted
 
-- **A third shard and 4 emulator cores.** Together they saved about 20-30s, but `TripMapScreenTest.openSettingsWithTheDefaultStarterOpensTheAppDetailsSettings` then failed with `RootViewWithoutFocusException` (no window focus within 10 s) in shard 1 on 2 of 4 runs. It had not failed with 2 shards and the default 2 cores. The saving was not worth a flaky required check. If someone tries again, change one thing at a time to see which one causes it.
+- **4 emulator cores (`cores: 4`).** Together with 3 shards it saved about 20-30s, but `TripMapScreenTest.openSettingsWithTheDefaultStarterOpensTheAppDetailsSettings` then failed with `RootViewWithoutFocusException` (no window focus within 10 s) in shard 1 on 2 of 4 runs. With 3 shards and the default 2 cores, it passed in all 3 timed runs, so the cores are the likely cause. If a flaky focus failure appears again, check that nobody raised the emulator cores.
 
 ## Measuring it again
 
