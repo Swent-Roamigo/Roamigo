@@ -249,6 +249,9 @@ dependencies {
 }
 
 tasks.withType<Test> {
+  // Robolectric tests are independent, so several test JVMs can share the machine. Half the cores
+  // leaves room for Gradle and the Kotlin daemon.
+  maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
   // Configure Jacoco for each tests
   configure<JacocoTaskExtension> {
     isIncludeNoLocationClasses = true

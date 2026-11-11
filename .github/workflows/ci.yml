@@ -58,10 +58,16 @@ jobs:
           if-no-files-found: warn
           path: checks-outputs.tgz
 
-  # Runs at the same time as the checks job instead of after it.
+  # Runs at the same time as the checks job instead of after it. The instrumented tests are split
+  # into two shards, each on its own emulator, so the slowest job is shorter. The required "CI"
+  # job below aggregates them, so renaming these jobs does not affect branch protection.
   connected-tests:
-    name: Connected tests
+    name: Connected tests (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
     steps:
       - name: Validate Mapbox access token
         run: |
@@ -139,28 +145,34 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            bash -o pipefail -c "firebase emulators:exec --only auth,database,firestore --project demo-roamigo --non-interactive 'node --test tests/firestore/vote-closing.test.mjs && ./gradlew connectedCheck --build-cache' 2>&1 | tee firebase-emulator.log"
+            bash -o pipefail -c "firebase emulators:exec --only auth,database,firestore --project demo-roamigo --non-interactive '${{ matrix.shard == 0 && 'node --test tests/firestore/vote-closing.test.mjs && ' || '' }}./gradlew connectedCheck --build-cache -Pandroid.testInstrumentationRunnerArguments.numShards=2 -Pandroid.testInstrumentationRunnerArguments.shardIndex=${{ matrix.shard }}' 2>&1 | tee firebase-emulator.log"
 
       - name: Upload connected test results and Firebase logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: connected-test-results-and-firebase-logs
+          name: connected-test-results-and-firebase-logs-${{ matrix.shard }}
           if-no-files-found: warn
           path: |
             firebase-emulator.log
             app/build/reports/androidTests/connected/**
             app/build/outputs/androidTest-results/connected/**
 
+      # Both shards run the same emulator, so the coverage folders have the same name. The report
+      # job reads "connected/*/coverage.ec", so each shard's folder is renamed to stay distinct.
       - name: Collect connected test coverage
-        run: tar czf connected-coverage.tgz app/build/outputs/code_coverage
+        run: |
+          for device in app/build/outputs/code_coverage/debugAndroidTest/connected/*/; do
+            mv "${device%/}" "${device%/}-shard${{ matrix.shard }}"
+          done
+          tar czf connected-coverage-${{ matrix.shard }}.tgz app/build/outputs/code_coverage
 
       - name: Upload connected test coverage
         uses: actions/upload-artifact@v4
         with:
-          name: connected-coverage
+          name: connected-coverage-${{ matrix.shard }}
           if-no-files-found: error
-          path: connected-coverage.tgz
+          path: connected-coverage-${{ matrix.shard }}.tgz
 
   # Merges both coverage sources and sends them to SonarCloud once both jobs have passed.
   report:
@@ -187,12 +199,13 @@ jobs:
       - name: Download connected test coverage
         uses: actions/download-artifact@v4
         with:
-          name: connected-coverage
+          pattern: connected-coverage-*
+          merge-multiple: true
 
       - name: Restore build outputs
         run: |
           tar xzf checks-outputs.tgz
-          tar xzf connected-coverage.tgz
+          for archive in connected-coverage-*.tgz; do tar xzf "$archive"; done
 
       - name: Generate Coverage Report
         run: ./gradlew jacocoTestReport
