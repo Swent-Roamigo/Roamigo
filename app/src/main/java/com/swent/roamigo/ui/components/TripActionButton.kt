@@ -25,13 +25,15 @@ val TripActionButtonPadding: PaddingValues =
 
 /**
  * Full-width main action of a trip tab. Every tab uses this so the button keeps the same height and
- * shape; [outlined] only changes emphasis for secondary actions.
+ * shape; [outlined] only changes emphasis for secondary actions. A button that is not [enabled]
+ * ignores clicks.
  */
 @Composable
 fun TripActionButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     outlined: Boolean = false,
+    enabled: Boolean = true,
     content: @Composable RowScope.() -> Unit,
 ) {
   val sizedModifier = modifier.fillMaxWidth().heightIn(min = TripActionButtonMinHeight)
@@ -39,6 +41,7 @@ fun TripActionButton(
     OutlinedButton(
         onClick = onClick,
         modifier = sizedModifier,
+        enabled = enabled,
         shape = MaterialTheme.shapes.small,
         border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outlineVariant),
         colors =
@@ -52,6 +55,7 @@ fun TripActionButton(
     Button(
         onClick = onClick,
         modifier = sizedModifier,
+        enabled = enabled,
         shape = MaterialTheme.shapes.small,
         content = content,
     )

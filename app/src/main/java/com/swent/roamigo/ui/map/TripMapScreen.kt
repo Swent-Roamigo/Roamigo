@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -148,6 +150,7 @@ fun TripMapRoute(
   TripMapScreen(
       uiState = tripUiState,
       isSharing = locationUiState.isSharing,
+      isStartingSharing = locationUiState.isStartingSharing,
       memberLocations = locationUiState.memberLocations,
       staleMemberIds = locationUiState.staleMemberIds,
       myLocation = locationUiState.shownMyLocation,
@@ -180,6 +183,8 @@ private val MyLocationDotBorderWidth = 3.dp
  *
  * @param uiState state of the trip shown.
  * @param isSharing whether the user shares their location with the trip.
+ * @param isStartingSharing whether sharing is being turned on: the banner says so and the sharing
+ *   button shows a progress indicator and cannot be clicked. Ignored once [isSharing] is true.
  * @param memberLocations locations of the other members currently sharing theirs.
  * @param staleMemberIds identifiers of the members whose location is outdated.
  * @param myLocation the user's own position, shown as a blue dot, or null to hide it. The caller
@@ -211,6 +216,7 @@ fun TripMapScreen(
     @StringRes locationErrorMessage: Int? = null,
     isOffline: Boolean = false,
     nowMillis: Long = rememberCurrentTimeMillis(isTicking = memberLocations.isNotEmpty()),
+    isStartingSharing: Boolean = false,
 ) {
   // Until the trip is loaded the camera keeps its position, so the map stays usable underneath.
   val viewport = (uiState as? TripMapUiState.Loaded)?.viewport ?: TripMapViewport.None
@@ -301,6 +307,7 @@ fun TripMapScreen(
       if (!readOnly) {
         SharingBanner(
             isSharing = isSharing,
+            isStartingSharing = isStartingSharing,
             modifier =
                 Modifier.windowInsetsPadding(
                         WindowInsets.safeDrawing.only(
@@ -366,6 +373,7 @@ fun TripMapScreen(
       if (!readOnly) {
         SharingButtonBar(
             isSharing = isSharing,
+            isStartingSharing = isStartingSharing,
             onTurnOnSharing = onTurnOnSharing,
             onPauseSharing = onPauseSharing,
         )
@@ -454,10 +462,16 @@ private fun TripStatusOverlay(uiState: TripMapUiState, onRetry: () -> Unit) {
 
 /** Tells the user whether their location is shared with the trip. */
 @Composable
-private fun SharingBanner(isSharing: Boolean, modifier: Modifier = Modifier) {
+private fun SharingBanner(
+    isSharing: Boolean,
+    isStartingSharing: Boolean,
+    modifier: Modifier = Modifier,
+) {
   val (title, description) =
       if (isSharing) {
         R.string.trip_map_sharing_on_title to R.string.trip_map_sharing_on_description
+      } else if (isStartingSharing) {
+        R.string.trip_map_sharing_starting_title to R.string.trip_map_sharing_starting_description
       } else {
         R.string.trip_map_sharing_off_title to R.string.trip_map_sharing_off_description
       }
@@ -474,12 +488,16 @@ private fun SharingBanner(isSharing: Boolean, modifier: Modifier = Modifier) {
 @Composable
 private fun SharingButtonBar(
     isSharing: Boolean,
+    isStartingSharing: Boolean,
     onTurnOnSharing: () -> Unit,
     onPauseSharing: () -> Unit,
 ) {
   Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.background) {
+    // Pausing stays possible once sharing is on, so only a pending start disables the button.
+    val isStarting = isStartingSharing && !isSharing
     TripActionButton(
         onClick = if (isSharing) onPauseSharing else onTurnOnSharing,
+        enabled = !isStarting,
         modifier =
             Modifier.windowInsetsPadding(
                     WindowInsets.safeDrawing.only(
@@ -489,14 +507,29 @@ private fun SharingButtonBar(
                 .padding(TripActionButtonPadding)
                 .testTag(C.Tag.trip_map_sharing_button),
     ) {
-      Text(
-          stringResource(
-              if (isSharing) R.string.trip_map_pause_sharing else R.string.trip_map_turn_on_sharing
-          )
-      )
+      if (isStarting) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(SharingProgressSize).testTag(C.Tag.trip_map_sharing_loading),
+            strokeWidth = SharingProgressStrokeWidth,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.width(Spacing.small))
+        // Doubles as the accessible description of the button while it is disabled.
+        Text(stringResource(R.string.trip_map_sharing_starting_button))
+      } else {
+        Text(
+            stringResource(
+                if (isSharing) R.string.trip_map_pause_sharing
+                else R.string.trip_map_turn_on_sharing
+            )
+        )
+      }
     }
   }
 }
+
+private val SharingProgressSize = 18.dp
+private val SharingProgressStrokeWidth = 2.dp
 
 /** Floating card drawn over the map, styled like the map's notification banner. */
 @Composable

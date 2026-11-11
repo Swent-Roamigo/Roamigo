@@ -103,6 +103,7 @@ object C {
     const val trip_map_map = "trip_map_map"
     const val trip_map_sharing_banner = "trip_map_sharing_banner"
     const val trip_map_sharing_button = "trip_map_sharing_button"
+    const val trip_map_sharing_loading = "trip_map_sharing_loading"
     const val trip_map_share_location_sheet = "trip_map_share_location_sheet"
     const val trip_map_share_location_continue = "trip_map_share_location_continue"
     const val trip_map_share_location_not_now = "trip_map_share_location_not_now"

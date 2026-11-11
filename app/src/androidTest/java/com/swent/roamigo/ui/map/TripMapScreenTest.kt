@@ -17,6 +17,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -88,6 +90,10 @@ class TripMapScreenTest {
   private val errorMessage = targetContext.getString(R.string.trip_map_trip_load_error)
   private val sharingOffTitle = targetContext.getString(R.string.trip_map_sharing_off_title)
   private val sharingOnTitle = targetContext.getString(R.string.trip_map_sharing_on_title)
+  private val startingSharingTitle =
+      targetContext.getString(R.string.trip_map_sharing_starting_title)
+  private val startingSharingLabel =
+      targetContext.getString(R.string.trip_map_sharing_starting_button)
   private val turnOnSharingLabel = targetContext.getString(R.string.trip_map_turn_on_sharing)
   private val pauseSharingLabel = targetContext.getString(R.string.trip_map_pause_sharing)
 
@@ -115,6 +121,7 @@ class TripMapScreenTest {
 
   private val uiState = mutableStateOf<TripMapUiState>(TripMapUiState.Loading)
   private val isSharing = mutableStateOf(false)
+  private val isStartingSharing = mutableStateOf(false)
 
   @Test
   fun loadingStateShowsOverlayOverTheMap() {
@@ -431,6 +438,41 @@ class TripMapScreenTest {
   }
 
   @Test
+  fun startingSharingShowsLoadingIndicatorTurningOnBannerAndDisabledButton() {
+    var turnOnRequests = 0
+    setContent(loadedState, startingSharing = true, onTurnOnSharing = { turnOnRequests++ })
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_loading).assertIsDisplayed()
+    composeRule.onNodeWithText(startingSharingTitle).assertIsDisplayed()
+    composeRule.onNodeWithText(sharingOffTitle).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertIsNotEnabled()
+    composeRule.onNodeWithText(startingSharingLabel).assertIsDisplayed()
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).performClick()
+
+    composeRule.runOnIdle { assertEquals(0, turnOnRequests) }
+  }
+
+  @Test
+  fun sharingOnHidesTheLoadingIndicatorAndKeepsPauseEnabled() {
+    setContent(loadedState, sharing = true, startingSharing = true)
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_loading).assertDoesNotExist()
+    composeRule.onNodeWithText(sharingOnTitle).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertIsEnabled()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertTextEquals(pauseSharingLabel)
+  }
+
+  @Test
+  fun sharingOffHasNoLoadingIndicatorAndAnEnabledButton() {
+    setContent(loadedState)
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_loading).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertIsEnabled()
+  }
+
+  @Test
   fun bannerAndButtonStayVisibleOverTheErrorOverlay() {
     setContent(TripMapUiState.Error("failure"))
 
@@ -734,6 +776,7 @@ class TripMapScreenTest {
   private fun setContent(
       initialState: TripMapUiState,
       sharing: Boolean = false,
+      startingSharing: Boolean = false,
       onRetry: () -> Unit = {},
       onRetryActivities: () -> Unit = {},
       onTurnOnSharing: () -> Unit = {},
@@ -742,11 +785,13 @@ class TripMapScreenTest {
   ) {
     uiState.value = initialState
     isSharing.value = sharing
+    isStartingSharing.value = startingSharing
     composeRule.setContent {
       RoamigoTheme {
         TripMapScreen(
             uiState = uiState.value,
             isSharing = isSharing.value,
+            isStartingSharing = isStartingSharing.value,
             onRetry = onRetry,
             onRetryActivities = onRetryActivities,
             onTurnOnSharing = onTurnOnSharing,
