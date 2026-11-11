@@ -19,9 +19,9 @@ import java.util.concurrent.TimeUnit
  * Failed searches are never kept: their exception goes to the caller as before.
  *
  * Limitation: a trip only keeps a name and coordinates, so Trips home finds a city's photo by
- * searching for that name. That only works offline when the city was typed in the last week: a
- * city chosen from the popular cards has no stored search, and an expired one is searched again
- * over the network. Storing the destination id with the trip (#281) removes this dependency.
+ * searching for that name. That only works offline when the city was typed in the last week: a city
+ * chosen from the popular cards has no stored search, and an expired one is searched again over the
+ * network. Storing the destination id with the trip (#281) removes this dependency.
  *
  * @param delegate the source of truth, normally the online repository.
  * @param photoStore where found photos are kept between runs.
