@@ -59,7 +59,7 @@ jobs:
           path: checks-outputs.tgz
 
   # Runs at the same time as the checks job instead of after it. The instrumented tests are split
-  # into two shards, each on its own emulator, so the slowest job is shorter. The required "CI"
+  # into shards, each on its own emulator, so the slowest job is shorter. The required "CI"
   # job below aggregates them, so renaming these jobs does not affect branch protection.
   connected-tests:
     name: Connected tests (shard ${{ matrix.shard }})
@@ -67,7 +67,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1]
+        shard: [0, 1, 2]
     steps:
       - name: Validate Mapbox access token
         run: |
@@ -91,8 +91,22 @@ jobs:
         with:
           node-version: "22"
 
+      # The CLI and the emulator jars it downloads are cached, because every shard would otherwise
+      # fetch them again on each run.
+      - name: Firebase CLI cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.npm
+          key: npm-firebase-tools-15.33.0
+
+      - name: Firebase emulators cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-15.33.0
+
       - name: Install Firebase CLI
-        run: npm install --global firebase-tools@15.33.0
+        run: npm install --global --prefer-offline --no-audit --no-fund firebase-tools@15.33.0
 
       - name: Validate Firebase emulators config
         run: |
@@ -142,10 +156,11 @@ jobs:
           target: google_apis
           arch: x86_64
           force-avd-creation: false
+          cores: 4
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            bash -o pipefail -c "firebase emulators:exec --only auth,database,firestore --project demo-roamigo --non-interactive '${{ matrix.shard == 0 && 'node --test tests/firestore/vote-closing.test.mjs && ' || '' }}./gradlew connectedCheck --build-cache -Pandroid.testInstrumentationRunnerArguments.numShards=2 -Pandroid.testInstrumentationRunnerArguments.shardIndex=${{ matrix.shard }}' 2>&1 | tee firebase-emulator.log"
+            bash -o pipefail -c "firebase emulators:exec --only auth,database,firestore --project demo-roamigo --non-interactive '${{ matrix.shard == 0 && 'node --test tests/firestore/vote-closing.test.mjs && ' || '' }}./gradlew connectedCheck --build-cache -Pandroid.testInstrumentationRunnerArguments.numShards=${{ strategy.job-total }} -Pandroid.testInstrumentationRunnerArguments.shardIndex=${{ matrix.shard }}' 2>&1 | tee firebase-emulator.log"
 
       - name: Upload connected test results and Firebase logs
         if: always()
