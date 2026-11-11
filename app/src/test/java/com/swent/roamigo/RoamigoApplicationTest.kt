@@ -77,12 +77,4 @@ class RoamigoApplicationTest {
     assertTrue(application.destinationRepository is CachingDestinationRepository)
     assertSame(application.destinationRepository, application.destinationRepository)
   }
-
-  @Test
-  fun theDestinationCacheIsOneInstanceForTheWholeApp() {
-    val application = RuntimeEnvironment.getApplication() as RoamigoApplication
-
-    assertTrue(application.destinationRepository is CachingDestinationRepository)
-    assertSame(application.destinationRepository, application.destinationRepository)
-  }
 }
