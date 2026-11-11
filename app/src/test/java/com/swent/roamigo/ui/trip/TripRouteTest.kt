@@ -1,5 +1,6 @@
 package com.swent.roamigo.ui.trip
 
+import android.content.Context
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -26,6 +27,7 @@ import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import com.swent.roamigo.ui.trip.voting.interactionVote
 import java.io.IOException
 import java.time.Instant
 import java.time.LocalDate
@@ -123,7 +125,7 @@ class TripRouteTest {
     composeRule.onNodeWithText("Retry").performClick()
     composeRule.onNodeWithText(trip.name).assertIsDisplayed()
     composeRule.onNodeWithText("Votes").performClick()
-    composeRule.onNodeWithText("New vote").assertIsDisplayed()
+    composeRule.onNodeWithText("Start a vote").assertIsDisplayed()
     composeRule.onNodeWithText("Photos").performClick()
     composeRule.onNodeWithText("Take a photo").assertIsDisplayed()
   }
@@ -161,6 +163,54 @@ class TripRouteTest {
 
     composeRule.waitUntil { locationRepository.stopSharingCalls.contains(trip.uid) }
     assertTrue(locationRepository.sharedTripIds.isEmpty())
+  }
+
+  @Test
+  fun votesHintIsShownOnceAndStaysDismissedOnALaterVisit() {
+    val hintPreferences =
+        composeRule.activity.getSharedPreferences("roamigo_hints", Context.MODE_PRIVATE)
+    hintPreferences.edit().clear().commit()
+    val vote = interactionVote().copy(tripId = "trip-id")
+
+    fun showVotes() {
+      composeRule.setContent {
+        RoamigoTheme {
+          TripRoute(
+              tripId = "trip-id",
+              fromHistory = false,
+              openMap = false,
+              authRepository = signedInAuth(),
+              tripRepository = FakeTripRepository(trips = listOf(trip())),
+              userRepository = FakeUserRepository(User("member", "Member", null)),
+              voteRepository = InMemoryVoteRepository(listOf(vote)),
+              photoRepository = FakePhotoRepository(composeRule.activity.cacheDir),
+              connectivityRepository = FakeConnectivityRepository(),
+              locationRepository = FakeLocationRepository(),
+              onBack = {},
+              onAuthenticationRequired = {},
+              onOpenVote = { _, _ -> },
+              onCreateVote = {},
+              onMembersClick = {},
+              onTripsClick = {},
+              onMapClick = {},
+              onFriendsClick = {},
+          )
+        }
+      }
+      composeRule.onNodeWithText("Votes").performClick()
+    }
+
+    showVotes()
+    composeRule.onNodeWithTag(C.Tag.votes_hint).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.votes_hint_dismiss).performClick()
+    composeRule.onNodeWithTag(C.Tag.votes_hint).assertDoesNotExist()
+    assertTrue(hintPreferences.getBoolean("votes_hint_seen", false))
+
+    // A new composition stands for a later visit: only the stored flag can keep the hint hidden.
+    composeRule.activityRule.scenario.recreate()
+    showVotes()
+    composeRule.onNodeWithText(vote.question).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.votes_hint).assertDoesNotExist()
   }
 
   private fun showRoute(fromHistory: Boolean, onCreateVote: () -> Unit = {}) {
