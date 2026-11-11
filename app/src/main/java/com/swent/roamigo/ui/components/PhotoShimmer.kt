@@ -57,9 +57,6 @@ fun PhotoShimmer(modifier: Modifier = Modifier) {
 /** Test tag of the shimmer. */
 const val PHOTO_SHIMMER_TAG = "photo_shimmer"
 
-/** Longest time the shimmer is shown for a photo that may never exist. */
-const val PHOTO_SHIMMER_MAX_MILLIS = 6_000L
-
 /** Fade-in time once a photo has arrived. */
 const val PHOTO_FADE_IN_MILLIS = 300
 

@@ -49,10 +49,8 @@ import com.swent.roamigo.R
 import com.swent.roamigo.model.destination.Destination
 import com.swent.roamigo.model.destination.DestinationPhoto
 import com.swent.roamigo.ui.components.PHOTO_FADE_IN_MILLIS
-import com.swent.roamigo.ui.components.PHOTO_SHIMMER_MAX_MILLIS
 import com.swent.roamigo.ui.components.PhotoCreditsDialog
 import com.swent.roamigo.ui.components.PhotoShimmer
-import kotlinx.coroutines.delay
 
 internal object DestinationCardTestTags {
   const val PREFIX = "destination_card_"
@@ -68,18 +66,17 @@ fun DestinationCard(
     destination: Destination,
     selected: Boolean,
     photo: DestinationPhoto?,
+    photoUnavailable: Boolean,
     onRequestPhoto: () -> Unit,
     onClick: () -> Unit,
 ) {
   var photoLoaded by remember(photo?.imageUrl) { mutableStateOf(false) }
   var showPhotoCredits by remember(photo?.imageUrl) { mutableStateOf(false) }
-  // A city may have no photo at all, so the shimmer gives up after a while instead of spinning on.
-  var waitingForPhoto by remember(destination.stableId) { mutableStateOf(true) }
+  var photoFailed by remember(photo?.imageUrl) { mutableStateOf(false) }
   LaunchedEffect(destination.stableId) { onRequestPhoto() }
-  LaunchedEffect(destination.stableId) {
-    delay(PHOTO_SHIMMER_MAX_MILLIS)
-    waitingForPhoto = false
-  }
+  // The shimmer follows the real state: the lookup is over without a photo, or the photo cannot be
+  // loaded. It does not restart when the card scrolls back into view.
+  val waitingForPhoto = !(photo == null && photoUnavailable) && !photoFailed
   val colors = MaterialTheme.colorScheme
   val cardDescription =
       stringResource(
@@ -111,7 +108,6 @@ fun DestinationCard(
                 .data(photo?.imageUrl)
                 .crossfade(PHOTO_FADE_IN_MILLIS)
                 .build(),
-        placeholder = painterResource(R.drawable.destination_placeholder),
         error = painterResource(R.drawable.destination_placeholder),
         contentDescription = null,
         contentScale = ContentScale.Crop,
@@ -120,7 +116,7 @@ fun DestinationCard(
         onError = {
           photoLoaded = false
           // With no photo yet there is nothing to load, and Coil reports that as an error too.
-          if (photo != null) waitingForPhoto = false
+          if (photo != null) photoFailed = true
         },
     )
     AnimatedVisibility(

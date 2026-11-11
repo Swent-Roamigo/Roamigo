@@ -3,6 +3,7 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.trip.creation
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -31,6 +32,7 @@ import com.swent.roamigo.ui.trip.creation.components.DestinationScreenTestTags
 import com.swent.roamigo.ui.trip.creation.components.DestinationSearchBarTestTags
 import com.swent.roamigo.ui.trip.creation.components.SelectedDestinationsTestTags
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Rule
@@ -63,7 +65,9 @@ class DestinationScreenTest {
   @Test
   fun cardsShimmerWhileTheirPhotoIsStillBeingFound() {
     val paris = destination("geonames:2988507", "Paris", "France", "FR", 2988507)
-    showRoute(FakeDestinationRepository(search = { listOf(paris) }, photo = { null }))
+    showRoute(
+        FakeDestinationRepository(search = { listOf(paris) }, photo = { awaitCancellation() })
+    )
 
     search("Paris")
     waitForTag(DestinationCardTestTags.forDestination(paris.stableId))
@@ -97,9 +101,52 @@ class DestinationScreenTest {
 
   @Test
   fun popularCardsShimmerWhileTheirPhotoIsStillBeingFound() {
-    showRoute(FakeDestinationRepository())
+    showRoute(FakeDestinationRepository(photo = { awaitCancellation() }))
 
     composeRule.onAllNodesWithTag(PHOTO_SHIMMER_TAG, useUnmergedTree = true)[0].assertIsDisplayed()
+  }
+
+  @Test
+  fun cardsStopShimmeringWhenTheLookupFindsNoPhoto() {
+    showRoute(FakeDestinationRepository(photo = { null }))
+
+    composeRule.waitUntil(5_000) {
+      composeRule
+          .onAllNodesWithTag(PHOTO_SHIMMER_TAG, useUnmergedTree = true)
+          .fetchSemanticsNodes()
+          .isEmpty()
+    }
+  }
+
+  @Test
+  fun popularDestinationsComeFromTheState() {
+    val lisbon = destination("geonames:2267057", "Lisbon", "Portugal", "PT", 2267057)
+    showScreen(CreateTripUiState(popularDestinations = listOf(lisbon)))
+
+    composeRule
+        .onNodeWithTag(DestinationCardTestTags.forDestination(lisbon.stableId))
+        .assertIsDisplayed()
+    composeRule
+        .onNodeWithTag(
+            DestinationCardTestTags.forDestination(PopularDestinations.all.first().stableId)
+        )
+        .assertDoesNotExist()
+  }
+
+  @Test
+  fun aCardStopsShimmeringOnceItsLookupEndedWithoutAPhoto() {
+    val lisbon = destination("geonames:2267057", "Lisbon", "Portugal", "PT", 2267057)
+    showScreen(
+        CreateTripUiState(
+            popularDestinations = listOf(lisbon),
+            destinationIdsWithoutPhoto = setOf(lisbon.stableId),
+        )
+    )
+
+    composeRule
+        .onNodeWithTag(DestinationCardTestTags.forDestination(lisbon.stableId))
+        .assertIsDisplayed()
+    composeRule.onAllNodesWithTag(PHOTO_SHIMMER_TAG, useUnmergedTree = true).assertCountEquals(0)
   }
 
   @Test
