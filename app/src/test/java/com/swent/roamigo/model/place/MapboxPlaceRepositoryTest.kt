@@ -49,7 +49,7 @@ class MapboxPlaceRepositoryTest {
   private fun feature(coordinates: String = "[6.63, 46.52]", properties: String = PROPERTIES) =
       """{"features":[{"geometry":{"coordinates":$coordinates},"properties":$properties}]}"""
 
-  private val suggestion = PlaceSuggestion("id-1", "Cafe Romand", "Lausanne")
+  private val candidate = PlaceCandidate("id-1", "Cafe Romand", "Lausanne")
 
   @Test
   fun suggestMapsResultsAndSendsQueryProximityAndSession() = runTest {
@@ -64,12 +64,12 @@ class MapboxPlaceRepositoryTest {
           ]}"""
     }
 
-    val result = repository.suggest("  cafe ", PlaceProximity(46.5, 6.6))
+    val result = repository.searchPlaces("  cafe ", PlaceProximity(46.5, 6.6))
 
     assertEquals(
         listOf(
-            PlaceSuggestion("id-1", "Cafe Romand", "Place St-Francois, Lausanne"),
-            PlaceSuggestion("id-2", "Pizzeria", "Geneva, Switzerland"),
+            PlaceCandidate("id-1", "Cafe Romand", "Place St-Francois, Lausanne"),
+            PlaceCandidate("id-2", "Pizzeria", "Geneva, Switzerland"),
         ),
         result,
     )
@@ -85,22 +85,22 @@ class MapboxPlaceRepositoryTest {
   fun suggestReturnsEmptyListWithoutCallingForShortQuery() = runTest {
     val repository = repository { error("must not be called") }
 
-    assertTrue(repository.suggest("   ").isEmpty())
-    assertTrue(repository.suggest("a").isEmpty())
+    assertTrue(repository.searchPlaces("   ").isEmpty())
+    assertTrue(repository.searchPlaces("a").isEmpty())
     assertTrue(requests.isEmpty())
   }
 
   @Test
   fun suggestReturnsEmptyListWhenProviderFindsNothing() = runTest {
-    assertTrue(repository { 200 to """{"suggestions":[]}""" }.suggest("zzzz").isEmpty())
-    assertTrue(repository { 200 to "{}" }.suggest("zzzz").isEmpty())
+    assertTrue(repository { 200 to """{"suggestions":[]}""" }.searchPlaces("zzzz").isEmpty())
+    assertTrue(repository { 200 to "{}" }.searchPlaces("zzzz").isEmpty())
   }
 
   @Test
   fun retrieveMapsGeoJsonCoordinatesAndCountry() = runTest {
     val repository = repository { 200 to feature() }
 
-    val place = repository.retrieve(suggestion)
+    val place = repository.resolvePlace(candidate)
 
     assertEquals(Place("Cafe Romand", "Lausanne, Switzerland", 46.52, 6.63, "CH"), place)
     assertEquals("CH", place.toTripLocation().countryCode)
@@ -115,7 +115,7 @@ class MapboxPlaceRepositoryTest {
       200 to feature(properties = """{"context":{"country":{"country_code":"CHE"}}}""")
     }
 
-    val place = repository.retrieve(suggestion)
+    val place = repository.resolvePlace(candidate)
 
     assertEquals("Cafe Romand", place.name)
     assertNull(place.countryCode)
@@ -128,12 +128,12 @@ class MapboxPlaceRepositoryTest {
     for (coordinates in invalid) {
       val repository = repository { 200 to feature(coordinates) }
       try {
-        repository.retrieve(suggestion)
+        repository.resolvePlace(candidate)
         fail("Expected invalid place for $coordinates")
       } catch (_: PlaceSearchException.InvalidPlace) {}
     }
     try {
-      repository { 200 to """{"features":[]}""" }.retrieve(suggestion)
+      repository { 200 to """{"features":[]}""" }.resolvePlace(candidate)
       fail("Expected invalid place")
     } catch (_: PlaceSearchException.InvalidPlace) {}
   }
@@ -145,10 +145,10 @@ class MapboxPlaceRepositoryTest {
       else 200 to feature()
     }
 
-    repository.suggest("ca")
-    repository.suggest("caf")
-    repository.retrieve(suggestion)
-    repository.suggest("pizza")
+    repository.searchPlaces("ca")
+    repository.searchPlaces("caf")
+    repository.resolvePlace(candidate)
+    repository.searchPlaces("pizza")
 
     assertEquals(
         listOf("s1", "s1", "s1", "s2"),
@@ -161,11 +161,11 @@ class MapboxPlaceRepositoryTest {
     val repository = repository { 500 to "" }
 
     try {
-      repository.retrieve(suggestion)
+      repository.resolvePlace(candidate)
       fail("Expected failure")
     } catch (_: PlaceSearchException.Unavailable) {}
     try {
-      repository.suggest("cafe")
+      repository.searchPlaces("cafe")
     } catch (_: PlaceSearchException.Unavailable) {}
 
     assertEquals(
@@ -178,7 +178,7 @@ class MapboxPlaceRepositoryTest {
   fun providerErrorsAreTyped() = runTest {
     suspend fun failure(code: Int) =
         try {
-          repository { code to "{}" }.suggest("cafe")
+          repository { code to "{}" }.searchPlaces("cafe")
           null
         } catch (error: PlaceSearchException) {
           error
@@ -198,13 +198,13 @@ class MapboxPlaceRepositoryTest {
             OkHttpClient.Builder().addInterceptor { throw IOException("offline") }.build(),
         )
     try {
-      offline.suggest("cafe")
+      offline.searchPlaces("cafe")
       fail("Expected failure")
     } catch (error: PlaceSearchException.Unavailable) {
       assertEquals("Place search is unreachable", error.message)
     }
     try {
-      repository { 200 to "not json" }.suggest("cafe")
+      repository { 200 to "not json" }.searchPlaces("cafe")
       fail("Expected failure")
     } catch (_: PlaceSearchException.Unavailable) {}
   }
@@ -214,11 +214,11 @@ class MapboxPlaceRepositoryTest {
     val repository = repository(token = " ") { error("must not be called") }
 
     try {
-      repository.suggest("cafe")
+      repository.searchPlaces("cafe")
       fail("Expected configuration error")
     } catch (_: PlaceSearchException.Configuration) {}
     try {
-      repository.retrieve(suggestion)
+      repository.resolvePlace(candidate)
       fail("Expected configuration error")
     } catch (_: PlaceSearchException.Configuration) {}
     assertTrue(requests.isEmpty())
@@ -232,19 +232,66 @@ class MapboxPlaceRepositoryTest {
         OkHttpClient.Builder()
             .addInterceptor { chain ->
               started.countDown()
-              // Blocks until the call is cancelled, which makes the interceptor throw.
-              while (!chain.call().isCanceled()) Thread.sleep(10)
-              cancelled.countDown()
+              // Waits for the cancellation, but gives up so a regression fails instead of hanging.
+              val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+              while (!chain.call().isCanceled() && System.nanoTime() < deadline) Thread.sleep(10)
+              if (chain.call().isCanceled()) cancelled.countDown()
               throw IOException("Canceled")
             }
             .build()
     val repository = MapboxPlaceRepository("pk.test", client)
 
-    val job = async(start = CoroutineStart.UNDISPATCHED) { repository.suggest("cafe") }
+    val job = async(start = CoroutineStart.UNDISPATCHED) { repository.searchPlaces("cafe") }
     assertTrue(started.await(5, TimeUnit.SECONDS))
     job.cancel()
 
     assertTrue(cancelled.await(5, TimeUnit.SECONDS))
+  }
+
+  @Test
+  fun shortQueryReturnsEmptyListEvenWithoutToken() = runTest {
+    val repository = repository(token = "") { error("must not be called") }
+
+    assertTrue(repository.searchPlaces("a").isEmpty())
+    assertTrue(repository.searchPlaces("  ").isEmpty())
+    assertTrue(requests.isEmpty())
+  }
+
+  @Test
+  fun resolvePlaceRejectsBlankIdWithoutCallingTheProvider() = runTest {
+    val repository = repository { error("must not be called") }
+
+    try {
+      repository.resolvePlace(PlaceCandidate(" ", "Cafe Romand", null))
+      fail("Expected invalid place")
+    } catch (_: PlaceSearchException.InvalidPlace) {}
+    assertTrue(requests.isEmpty())
+  }
+
+  @Test
+  fun resolvePlaceRejectsCoordinatesThatAreNotNumbers() = runTest {
+    val repository = repository { 200 to feature("[\"6.63\", \"46.52\"]") }
+
+    try {
+      repository.resolvePlace(candidate)
+      fail("Expected invalid place")
+    } catch (_: PlaceSearchException.InvalidPlace) {}
+  }
+
+  @Test
+  fun candidateAndPlaceShareTheSameAddressFallback() = runTest {
+    val repository = repository {
+      if (it.url.encodedPath.endsWith("suggest"))
+          200 to
+              """{"suggestions":[{"name":"Park","mapbox_id":"p","place_formatted":"Lausanne"}]}"""
+      else 200 to feature(properties = """{"name":"Park","place_formatted":"Lausanne"}""")
+    }
+
+    val found = repository.searchPlaces("park").single()
+    val place = repository.resolvePlace(found)
+
+    assertEquals("Lausanne", found.address)
+    assertEquals(found.address, place.address)
   }
 
   private companion object {

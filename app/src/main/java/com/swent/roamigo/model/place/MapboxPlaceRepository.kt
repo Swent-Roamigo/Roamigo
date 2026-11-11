@@ -24,10 +24,12 @@ import org.json.JSONObject
 /**
  * Place search through the Mapbox Search Box REST API.
  *
- * Mapbox bills a search as one session: the [suggest] calls typed so far plus the [retrieve] that
+ * Mapbox bills a search as one session: the "suggest" calls typed so far plus the "retrieve" that
  * ends it must share a session token. The token is therefore kept here and renewed after each
- * successful retrieve. Mapbox limits Search Box results to temporary use; the team accepted storing
- * the chosen place anyway because the app is a course project that is not distributed.
+ * successful [resolvePlace]. There is one session for the whole repository, so two searches that
+ * overlap in time would share it. Mapbox limits Search Box results to temporary use; the team
+ * accepted storing the chosen place anyway because the app is a course project that is not
+ * distributed.
  */
 class MapboxPlaceRepository(
     private val accessToken: String = BuildConfig.MAPBOX_ACCESS_TOKEN,
@@ -37,10 +39,14 @@ class MapboxPlaceRepository(
   private val sessionLock = Any()
   private var sessionToken: String = newSessionToken()
 
-  override suspend fun suggest(query: String, proximity: PlaceProximity?): List<PlaceSuggestion> {
-    requireConfigured()
+  override suspend fun searchPlaces(
+      query: String,
+      proximity: PlaceProximity?,
+  ): List<PlaceCandidate> {
     val normalized = query.trim()
+    // Checked before the configuration, as documented: such a query never needs the provider.
     if (normalized.length < MIN_PLACE_QUERY_LENGTH) return emptyList()
+    requireConfigured()
     val url =
         baseUrl()
             .addPathSegments("suggest")
@@ -54,17 +60,19 @@ class MapboxPlaceRepository(
             .build()
     val suggestions = getJson(url).optJSONArray("suggestions") ?: return emptyList()
     return (0 until suggestions.length())
-        .mapNotNull { index -> suggestions.optJSONObject(index)?.toSuggestion() }
+        .mapNotNull { index -> suggestions.optJSONObject(index)?.toCandidate() }
         .distinctBy { it.id }
   }
 
-  override suspend fun retrieve(suggestion: PlaceSuggestion): Place {
+  override suspend fun resolvePlace(candidate: PlaceCandidate): Place {
     requireConfigured()
-    val url = baseUrl().addPathSegments("retrieve").addPathSegment(suggestion.id).build()
+    // A blank id would request the retrieve root and fail as if the provider were down.
+    if (candidate.id.isBlank()) throw PlaceSearchException.InvalidPlace()
+    val url = baseUrl().addPathSegments("retrieve").addPathSegment(candidate.id).build()
     val feature =
         getJson(url).optJSONArray("features")?.optJSONObject(0)
             ?: throw PlaceSearchException.InvalidPlace()
-    val place = feature.toPlace(fallbackName = suggestion.name)
+    val place = feature.toPlace(fallbackName = candidate.name)
     // The session ends with the retrieve, so the next search must start a new one.
     synchronized(sessionLock) { sessionToken = newSessionToken() }
     return place
@@ -80,22 +88,23 @@ class MapboxPlaceRepository(
           .addQueryParameter("access_token", accessToken)
           .addQueryParameter("session_token", synchronized(sessionLock) { sessionToken })
 
-  private fun JSONObject.toSuggestion(): PlaceSuggestion? {
+  private fun JSONObject.toCandidate(): PlaceCandidate? {
     val id = optString("mapbox_id").takeIf(String::isNotBlank) ?: return null
     val name = optString("name").takeIf(String::isNotBlank) ?: return null
-    val address =
-        optString("full_address")
-            .ifBlank { optString("place_formatted") }
-            .takeIf(String::isNotBlank)
-    return PlaceSuggestion(id = id, name = name, address = address)
+    return PlaceCandidate(id = id, name = name, address = address())
   }
+
+  /** The full address, or the locality when the provider has no street address. */
+  private fun JSONObject.address(): String? =
+      optString("full_address").ifBlank { optString("place_formatted") }.takeIf(String::isNotBlank)
 
   private fun JSONObject.toPlace(fallbackName: String): Place {
     val properties = optJSONObject("properties") ?: throw PlaceSearchException.InvalidPlace()
     // GeoJSON order is [longitude, latitude].
     val coordinates = optJSONObject("geometry")?.optJSONArray("coordinates")
-    val longitude = coordinates?.optDouble(0, Double.NaN) ?: Double.NaN
-    val latitude = coordinates?.optDouble(1, Double.NaN) ?: Double.NaN
+    // optDouble would also accept numeric strings, which the provider does not promise.
+    val longitude = (coordinates?.opt(0) as? Number)?.toDouble() ?: Double.NaN
+    val latitude = (coordinates?.opt(1) as? Number)?.toDouble() ?: Double.NaN
     if (
         !latitude.isFinite() ||
             latitude !in -90.0..90.0 ||
@@ -105,11 +114,6 @@ class MapboxPlaceRepository(
         throw PlaceSearchException.InvalidPlace()
     val name = properties.optString("name").ifBlank { fallbackName }.takeIf(String::isNotBlank)
     if (name == null) throw PlaceSearchException.InvalidPlace()
-    val address =
-        properties
-            .optString("full_address")
-            .ifBlank { properties.optString("place_formatted") }
-            .takeIf(String::isNotBlank)
     // TripLocation rejects anything but two uppercase letters, so normalize or drop it.
     val countryCode =
         properties
@@ -118,7 +122,7 @@ class MapboxPlaceRepository(
             ?.optString("country_code")
             ?.uppercase()
             ?.takeIf { it.length == 2 && it.all(Char::isLetter) }
-    return Place(name, address, latitude, longitude, countryCode)
+    return Place(name, properties.address(), latitude, longitude, countryCode)
   }
 
   private suspend fun getJson(url: HttpUrl): JSONObject =

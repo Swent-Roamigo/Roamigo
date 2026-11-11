@@ -3,9 +3,10 @@ package com.swent.roamigo.model.place
 import com.swent.roamigo.model.TripLocation
 
 /**
- * A search result that is not yet resolved: the provider only gives its coordinates on retrieve.
+ * A possible match for a search query that is not yet resolved: the provider only gives its
+ * coordinates when the candidate is resolved into a [Place].
  */
-data class PlaceSuggestion(val id: String, val name: String, val address: String?)
+data class PlaceCandidate(val id: String, val name: String, val address: String?)
 
 /** A place with validated coordinates, as returned by a [PlaceRepository]. */
 data class Place(
@@ -24,5 +25,5 @@ data class Place(
       )
 }
 
-/** A point used to rank suggestions near the user or the trip. */
+/** A point used to rank candidates near the user or the trip. */
 data class PlaceProximity(val latitude: Double, val longitude: Double)
