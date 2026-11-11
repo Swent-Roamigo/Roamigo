@@ -4,6 +4,7 @@ package com.swent.roamigo.ui.map
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import com.mapbox.geojson.Point
+import com.mapbox.maps.CameraOptions
 import com.mapbox.maps.EdgeInsets
 import com.mapbox.maps.extension.compose.animation.viewport.MapViewportState
 import com.mapbox.maps.extension.compose.animation.viewport.rememberMapViewportState
@@ -31,13 +32,20 @@ internal fun rememberTripMapViewportState(viewport: TripMapViewport): MapViewpor
 private suspend fun MapViewportState.apply(viewport: TripMapViewport) {
   when (viewport) {
     TripMapViewport.None -> Unit
-    // A single point goes through the same fitting as several, so that its zoom stays the one the
-    // overview map has always shown.
-    is TripMapViewport.Centered ->
-        fitCoordinates(listOf(MapCoordinate(viewport.latitude, viewport.longitude)))
+    // Fitting one point would zoom in as far as the map allows, to street level.
+    is TripMapViewport.Centered -> setCameraOptions(viewport.toCameraOptions())
     is TripMapViewport.FitAll -> fitCoordinates(viewport.coordinates)
   }
 }
+
+/** Zoom showing a whole city around a single point, instead of the closest the map allows. */
+internal const val SINGLE_POINT_ZOOM = 11.0
+
+internal fun TripMapViewport.Centered.toCameraOptions(): CameraOptions =
+    CameraOptions.Builder()
+        .center(Point.fromLngLat(longitude, latitude))
+        .zoom(SINGLE_POINT_ZOOM)
+        .build()
 
 // Camera fitting depends on the rendered map's dimensions and stays beside the SDK viewport.
 private suspend fun MapViewportState.fitCoordinates(coordinates: List<MapCoordinate>) {

@@ -135,6 +135,15 @@
         <item quantity="other">%d travelers</item>
     </plurals>
     <!-- Trip overview map -->
+    <string name="trip_overview_map_title">Map</string>
+    <string name="trip_overview_map_subtitle">All your trips</string>
+    <string name="trip_schedule_past">past</string>
+    <string name="trip_schedule_in_progress">in progress</string>
+    <plurals name="trip_schedule_starts_in">
+        <item quantity="one">in %d day</item>
+        <item quantity="other">in %d days</item>
+    </plurals>
+    <string name="trip_schedule_planning">planning</string>
     <string name="trip_map_loading">Loading trip destinations…</string>
     <string name="trip_map_empty">No trip destinations yet</string>
     <string name="trip_map_load_error">Unable to load trip destinations. Please try again.</string>
@@ -144,11 +153,9 @@
     <string name="trip_map_trip_loading">Loading trip…</string>
     <string name="trip_map_retry_activities">Retry loading activities</string>
     <string name="trip_map_trip_load_error">Unable to load this trip. Please try again.</string>
-    <string name="trip_map_sharing_off_title">Location sharing is off</string>
-    <string name="trip_map_sharing_off_description">The rest of the app works. Turn it on so other trip members can see you on the map.</string>
-    <string name="trip_map_sharing_on_title">Location sharing is on</string>
-    <string name="trip_map_sharing_on_description">Trip members can see you on the map.</string>
-    <string name="trip_map_turn_on_sharing">Turn on sharing</string>
+    <string name="trip_map_sharing_off_title">Location off</string>
+    <string name="trip_map_sharing_on_title">Sharing location</string>
+    <string name="trip_map_turn_on_sharing">Turn on</string>
     <string name="trip_map_pause_sharing">Pause sharing</string>
     <string name="trip_map_offline">You are offline · saved plan only. Live locations, votes and new updates need internet.</string>
     <string name="trip_map_freshness_live">live</string>
@@ -172,9 +179,9 @@
     <string name="trip_map_location_denied_title">Location stays off</string>
     <string name="trip_map_location_denied_description">The rest of the app works. You can turn sharing on any time from the map.</string>
     <string name="trip_map_location_denied_got_it">Got it</string>
-    <string name="trip_map_location_blocked_title">Location is blocked</string>
-    <string name="trip_map_location_blocked_description">Turn it on in Settings › Permissions › Location to share with your group.</string>
-    <string name="trip_map_location_blocked_open_settings">Open Settings</string>
+    <string name="trip_map_location_blocked_title">Location is off for Roamigo</string>
+    <string name="trip_map_location_blocked_description">Your phone blocks location for Roamigo, so the group can\'t see you on the map. You can still see them.\n\nSettings › Roamigo › Location › While using</string>
+    <string name="trip_map_location_blocked_open_settings">Open settings</string>
     <string name="trip_map_location_not_now">Not now</string>
 
     <!-- Vote creation -->
@@ -191,7 +198,7 @@
     <string name="vote_submission_error">Unable to create the vote. Please try again.</string>
 
     <!-- Trip History -->
-    <string name="trip_history_title">Trip history</string>
+    <string name="trip_history_title">History</string>
     <string name="trip_history_completed">Completed</string>
     <string name="trip_history_empty">No completed trips yet</string>
     <string name="trip_history_unknown_destination">Destination unavailable</string>
@@ -234,6 +241,14 @@
     <!-- Friends -->
     <string name="friends_title">Friends</string>
     <string name="friends_privacy_subtitle">Maps are visible to friends only</string>
+    <string name="profile_log_out_title">Log out of Roamigo?</string>
+    <string name="profile_log_out_message">Your trips stay saved. Trips you opened offline will need a connection after you sign in again.</string>
+    <string name="profile_log_out_cancel">Stay signed in</string>
+    <string name="friends_search">Search friends</string>
+    <plurals name="friends_count">
+        <item quantity="one">%d friend</item>
+        <item quantity="other">%d friends</item>
+    </plurals>
     <string name="friends_view_map">View map</string>
     <string name="friends_view_map_accessibility">View map for %1$s</string>
     <string name="friends_pending">Pending</string>

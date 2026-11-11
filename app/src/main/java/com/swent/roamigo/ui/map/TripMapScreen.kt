@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -24,8 +25,11 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.LocationOff
+import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -45,6 +49,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
@@ -70,14 +75,16 @@ import com.mapbox.maps.viewannotation.viewAnnotationOptions
 import com.swent.roamigo.R
 import com.swent.roamigo.model.location.MemberLocation
 import com.swent.roamigo.resources.C
-import com.swent.roamigo.ui.components.InfoRow
 import com.swent.roamigo.ui.components.TripActionButton
 import com.swent.roamigo.ui.components.TripActionButtonPadding
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.MyLocationBlue
 import com.swent.roamigo.ui.theme.Spacing
+import com.swent.roamigo.ui.theme.Success
 import com.swent.roamigo.ui.theme.Warning
+import com.swent.roamigo.ui.theme.WarningBorder
+import com.swent.roamigo.ui.theme.WarningSurface
 
 /**
  * Connects the trip and location ViewModels to [TripMapScreen] using caller-provided factories.
@@ -168,6 +175,8 @@ fun TripMapRoute(
 }
 
 private val MyLocationDotSize = 18.dp
+private val MapCardShape = RoundedCornerShape(20.dp)
+private val SHARING_ICON_SIZE = 20.dp
 private val MyLocationDotBorderWidth = 3.dp
 
 /**
@@ -233,10 +242,24 @@ fun TripMapScreen(
     }
   }
 
-  Box(modifier = modifier.fillMaxSize()) {
+  Box(
+      modifier =
+          modifier
+              .fillMaxSize()
+              .padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium)
+              .clip(MapCardShape)
+  ) {
     MapboxMap(
         modifier = Modifier.fillMaxSize().testTag(C.Tag.trip_map_map),
         mapViewportState = rememberTripMapViewportState(viewport),
+        // Top end: the sharing chip and the offline banner are stacked at the top start, and the
+        // logo and attribution stay at the bottom.
+        scaleBar = {
+          ScaleBar(
+              contentPadding = PaddingValues(top = Spacing.medium, end = Spacing.medium),
+              alignment = Alignment.TopEnd,
+          )
+        },
     ) {
       if (uiState is TripMapUiState.Loaded) {
         uiState.activityMarkers.forEach { marker ->
@@ -296,32 +319,13 @@ fun TripMapScreen(
       }
     }
 
-    // Stacked so that the status overlays never cover the banner or the sharing button.
+    // Stacked so that the status overlays never cover the sharing chip.
     Column(modifier = Modifier.fillMaxSize()) {
       if (!readOnly) {
-        SharingBanner(
-            isSharing = isSharing,
-            modifier =
-                Modifier.windowInsetsPadding(
-                        WindowInsets.safeDrawing.only(
-                            WindowInsetsSides.Top + WindowInsetsSides.Horizontal
-                        )
-                    )
-                    .padding(horizontal = Spacing.large, vertical = Spacing.cardPadding),
-        )
+        SharingChip(isSharing = isSharing, modifier = Modifier.padding(Spacing.medium))
       }
       if (isOffline) {
-        OfflineBanner(
-            modifier =
-                Modifier.windowInsetsPadding(
-                        WindowInsets.safeDrawing.only(
-                            // Below the sharing banner, which already keeps clear of the top.
-                            if (readOnly) WindowInsetsSides.Top + WindowInsetsSides.Horizontal
-                            else WindowInsetsSides.Horizontal
-                        )
-                    )
-                    .padding(horizontal = Spacing.large)
-        )
+        OfflineBanner(modifier = Modifier.padding(horizontal = Spacing.medium))
       }
       Box(
           modifier =
@@ -384,7 +388,6 @@ private fun OfflineBanner(modifier: Modifier) {
           },
       shape = MaterialTheme.shapes.medium,
       color = MaterialTheme.colorScheme.surface,
-      shadowElevation = Spacing.extraSmall,
   ) {
     Row(
         modifier = Modifier.padding(horizontal = Spacing.medium, vertical = Spacing.small),
@@ -452,22 +455,39 @@ private fun TripStatusOverlay(uiState: TripMapUiState, onRetry: () -> Unit) {
   }
 }
 
-/** Tells the user whether their location is shared with the trip. */
+/**
+ * A pill over the map telling whether the user shares their location. The action that changes it is
+ * the bottom button, the same shared button as on the other trip tabs. Sharing off is tinted, since
+ * it is the state the user may want to change.
+ */
 @Composable
-private fun SharingBanner(isSharing: Boolean, modifier: Modifier = Modifier) {
-  val (title, description) =
-      if (isSharing) {
-        R.string.trip_map_sharing_on_title to R.string.trip_map_sharing_on_description
-      } else {
-        R.string.trip_map_sharing_off_title to R.string.trip_map_sharing_off_description
-      }
-  InfoRow(
-      icon = R.drawable.ic_bell,
-      title = stringResource(title),
-      subtitle = stringResource(description),
+private fun SharingChip(isSharing: Boolean, modifier: Modifier = Modifier) {
+  val title =
+      if (isSharing) R.string.trip_map_sharing_on_title else R.string.trip_map_sharing_off_title
+  Surface(
       modifier = modifier.testTag(C.Tag.trip_map_sharing_banner),
-      containerColor = MaterialTheme.colorScheme.surface,
-  )
+      shape = CircleShape,
+      color = if (isSharing) MaterialTheme.colorScheme.surface else WarningSurface,
+      border = if (isSharing) null else BorderStroke(1.dp, WarningBorder),
+  ) {
+    Row(
+        modifier = Modifier.padding(horizontal = Spacing.cardPadding, vertical = Spacing.small),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.small),
+    ) {
+      Icon(
+          imageVector = if (isSharing) Icons.Outlined.LocationOn else Icons.Outlined.LocationOff,
+          contentDescription = null,
+          modifier = Modifier.size(SHARING_ICON_SIZE),
+          tint = if (isSharing) Success else Warning,
+      )
+      Text(
+          text = stringResource(title),
+          style = MaterialTheme.typography.labelLarge,
+          color = if (isSharing) MaterialTheme.colorScheme.onSurface else Warning,
+      )
+    }
+  }
 }
 
 /** Bottom bar holding the button that turns location sharing on or pauses it. */

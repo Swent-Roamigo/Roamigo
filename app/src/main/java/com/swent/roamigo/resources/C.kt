@@ -81,6 +81,8 @@ object C {
     const val trip_members_back = "trip_members_back"
     const val trip_members_row_prefix = "trip_members_row_"
     const val create_trip_discard_confirm = "create_trip_discard_confirm"
+    const val friends_search = "friends_search"
+    const val profile_log_out_confirm = "profile_screen_log_out_confirm"
     const val friends_avatar_prefix = "friends_avatar_"
     const val friends_view_map_prefix = "friends_view_map_"
 
@@ -102,6 +104,7 @@ object C {
 
     const val trip_map_map = "trip_map_map"
     const val trip_map_sharing_banner = "trip_map_sharing_banner"
+    const val trip_overview_row_prefix = "trip_overview_row_"
     const val trip_map_sharing_button = "trip_map_sharing_button"
     const val trip_map_share_location_sheet = "trip_map_share_location_sheet"
     const val trip_map_share_location_continue = "trip_map_share_location_continue"
