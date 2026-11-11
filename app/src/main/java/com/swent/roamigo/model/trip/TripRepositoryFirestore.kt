@@ -103,14 +103,14 @@ private fun FirebaseFirestoreException.toTripCreationException(): TripCreationEx
       else -> TripCreationException.Unknown(this)
     }
 
-private fun validDocumentId(id: String): String {
+internal fun validDocumentId(id: String): String {
   require(id.isNotBlank() && '/' !in id && id != "." && id != "..") {
     "Expected a non-blank Firestore document ID without path separators"
   }
   return id
 }
 
-private fun DocumentSnapshot.requireData(): Map<String, Any?> =
+internal fun DocumentSnapshot.requireData(): Map<String, Any?> =
     requireNotNull(data) { "Missing data at $reference" }
 
 private fun DocumentSnapshot.toTrip(): Trip = tripFromFirestore(id, requireData())
@@ -193,6 +193,19 @@ internal fun activityFromFirestore(id: String, tripId: String, data: Map<String,
         endTime = data.optionalTimestamp("endTime"),
         createdByUserId = data.requiredString("createdByUserId"),
         creationTime = data.requiredTimestamp("creationTime"),
+    )
+
+// The ID and trip come from the document path, so they are not stored as fields.
+internal fun Activity.toFirestoreData(): Map<String, Any?> =
+    mapOf(
+        "activityType" to activityType.name,
+        "name" to name,
+        "description" to description,
+        "location" to location.toFirestoreData(),
+        "startTime" to startTime,
+        "endTime" to endTime,
+        "createdByUserId" to createdByUserId,
+        "creationTime" to creationTime,
     )
 
 private fun TripLocation.toFirestoreData(): Map<String, Any?> = buildMap {
