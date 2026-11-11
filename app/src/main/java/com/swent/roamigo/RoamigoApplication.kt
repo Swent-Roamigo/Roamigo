@@ -17,6 +17,8 @@ import com.swent.roamigo.model.location.DefaultLocationRepository
 import com.swent.roamigo.model.location.LocationRepository
 import com.swent.roamigo.model.photo.PhotoModule
 import com.swent.roamigo.model.photo.PhotoSyncWorkerFactory
+import com.swent.roamigo.model.place.MapboxPlaceRepository
+import com.swent.roamigo.model.place.PlaceRepository
 import okhttp3.OkHttpClient
 
 class RoamigoApplication : Application(), ImageLoaderFactory, Configuration.Provider {
@@ -30,6 +32,9 @@ class RoamigoApplication : Application(), ImageLoaderFactory, Configuration.Prov
         FileDestinationPhotoStore(cacheDir.resolve("destination_photo_lookups")),
     )
   }
+
+  // One instance, because the repository keeps the Mapbox search session between calls.
+  val placeRepository: PlaceRepository by lazy { MapboxPlaceRepository() }
 
   // Outside any screen, because the uploads run in the background.
   val photos: PhotoModule by lazy { PhotoModule(this, locationRepository) }

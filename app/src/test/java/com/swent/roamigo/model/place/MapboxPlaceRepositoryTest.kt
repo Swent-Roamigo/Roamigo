@@ -1,0 +1,255 @@
+package com.swent.roamigo.model.place
+
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import java.io.IOException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.runTest
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
+import org.junit.Test
+import org.junit.runner.RunWith
+
+@RunWith(AndroidJUnit4::class)
+class MapboxPlaceRepositoryTest {
+  private val requests = mutableListOf<Request>()
+
+  private fun repository(
+      token: String = "pk.test",
+      sessions: Iterator<String> = listOf("s1", "s2", "s3").iterator(),
+      respond: (Request) -> Pair<Int, String>,
+  ): MapboxPlaceRepository {
+    val client =
+        OkHttpClient.Builder()
+            .addInterceptor { chain ->
+              requests += chain.request()
+              val (code, body) = respond(chain.request())
+              Response.Builder()
+                  .request(chain.request())
+                  .protocol(Protocol.HTTP_1_1)
+                  .code(code)
+                  .message("test")
+                  .body(body.toResponseBody("application/json".toMediaType()))
+                  .build()
+            }
+            .build()
+    return MapboxPlaceRepository(token, client) { sessions.next() }
+  }
+
+  private fun feature(coordinates: String = "[6.63, 46.52]", properties: String = PROPERTIES) =
+      """{"features":[{"geometry":{"coordinates":$coordinates},"properties":$properties}]}"""
+
+  private val suggestion = PlaceSuggestion("id-1", "Cafe Romand", "Lausanne")
+
+  @Test
+  fun suggestMapsResultsAndSendsQueryProximityAndSession() = runTest {
+    val repository = repository {
+      200 to
+          """{"suggestions":[
+            {"name":"Cafe Romand","mapbox_id":"id-1","full_address":"Place St-Francois, Lausanne"},
+            {"name":"Cafe Romand","mapbox_id":"id-1"},
+            {"name":"Pizzeria","mapbox_id":"id-2","place_formatted":"Geneva, Switzerland"},
+            {"name":"","mapbox_id":"id-3"},
+            {"name":"No id"}
+          ]}"""
+    }
+
+    val result = repository.suggest("  cafe ", PlaceProximity(46.5, 6.6))
+
+    assertEquals(
+        listOf(
+            PlaceSuggestion("id-1", "Cafe Romand", "Place St-Francois, Lausanne"),
+            PlaceSuggestion("id-2", "Pizzeria", "Geneva, Switzerland"),
+        ),
+        result,
+    )
+    val url = requests.single().url
+    assertEquals("/search/searchbox/v1/suggest", url.encodedPath)
+    assertEquals("cafe", url.queryParameter("q"))
+    assertEquals("6.6,46.5", url.queryParameter("proximity"))
+    assertEquals("pk.test", url.queryParameter("access_token"))
+    assertEquals("s1", url.queryParameter("session_token"))
+  }
+
+  @Test
+  fun suggestReturnsEmptyListWithoutCallingForShortQuery() = runTest {
+    val repository = repository { error("must not be called") }
+
+    assertTrue(repository.suggest("   ").isEmpty())
+    assertTrue(repository.suggest("a").isEmpty())
+    assertTrue(requests.isEmpty())
+  }
+
+  @Test
+  fun suggestReturnsEmptyListWhenProviderFindsNothing() = runTest {
+    assertTrue(repository { 200 to """{"suggestions":[]}""" }.suggest("zzzz").isEmpty())
+    assertTrue(repository { 200 to "{}" }.suggest("zzzz").isEmpty())
+  }
+
+  @Test
+  fun retrieveMapsGeoJsonCoordinatesAndCountry() = runTest {
+    val repository = repository { 200 to feature() }
+
+    val place = repository.retrieve(suggestion)
+
+    assertEquals(Place("Cafe Romand", "Lausanne, Switzerland", 46.52, 6.63, "CH"), place)
+    assertEquals("CH", place.toTripLocation().countryCode)
+    val url = requests.single().url
+    assertEquals("/search/searchbox/v1/retrieve/id-1", url.encodedPath)
+    assertEquals("s1", url.queryParameter("session_token"))
+  }
+
+  @Test
+  fun retrieveFallsBackToSuggestionNameAndDropsMalformedCountry() = runTest {
+    val repository = repository {
+      200 to feature(properties = """{"context":{"country":{"country_code":"CHE"}}}""")
+    }
+
+    val place = repository.retrieve(suggestion)
+
+    assertEquals("Cafe Romand", place.name)
+    assertNull(place.countryCode)
+    assertNull(place.address)
+  }
+
+  @Test
+  fun retrieveRejectsInvalidCoordinates() = runTest {
+    val invalid = listOf("[6.63, 91]", "[181, 46.5]", "[6.63]", "[]", "[\"a\", \"b\"]", "null")
+    for (coordinates in invalid) {
+      val repository = repository { 200 to feature(coordinates) }
+      try {
+        repository.retrieve(suggestion)
+        fail("Expected invalid place for $coordinates")
+      } catch (_: PlaceSearchException.InvalidPlace) {}
+    }
+    try {
+      repository { 200 to """{"features":[]}""" }.retrieve(suggestion)
+      fail("Expected invalid place")
+    } catch (_: PlaceSearchException.InvalidPlace) {}
+  }
+
+  @Test
+  fun searchSessionIsSharedUntilRetrieveThenRenewed() = runTest {
+    val repository = repository {
+      if (it.url.encodedPath.endsWith("suggest")) 200 to """{"suggestions":[]}"""
+      else 200 to feature()
+    }
+
+    repository.suggest("ca")
+    repository.suggest("caf")
+    repository.retrieve(suggestion)
+    repository.suggest("pizza")
+
+    assertEquals(
+        listOf("s1", "s1", "s1", "s2"),
+        requests.map { it.url.queryParameter("session_token") },
+    )
+  }
+
+  @Test
+  fun failedRetrieveKeepsTheSession() = runTest {
+    val repository = repository { 500 to "" }
+
+    try {
+      repository.retrieve(suggestion)
+      fail("Expected failure")
+    } catch (_: PlaceSearchException.Unavailable) {}
+    try {
+      repository.suggest("cafe")
+    } catch (_: PlaceSearchException.Unavailable) {}
+
+    assertEquals(
+        listOf("s1", "s1"),
+        requests.map { it.url.queryParameter("session_token") },
+    )
+  }
+
+  @Test
+  fun providerErrorsAreTyped() = runTest {
+    suspend fun failure(code: Int) =
+        try {
+          repository { code to "{}" }.suggest("cafe")
+          null
+        } catch (error: PlaceSearchException) {
+          error
+        }
+
+    assertTrue(failure(401) is PlaceSearchException.InvalidToken)
+    assertTrue(failure(403) is PlaceSearchException.InvalidToken)
+    assertTrue(failure(429) is PlaceSearchException.QuotaExceeded)
+    assertTrue(failure(500) is PlaceSearchException.Unavailable)
+  }
+
+  @Test
+  fun networkAndParsingFailuresAreUnavailable() = runTest {
+    val offline =
+        MapboxPlaceRepository(
+            "pk.test",
+            OkHttpClient.Builder().addInterceptor { throw IOException("offline") }.build(),
+        )
+    try {
+      offline.suggest("cafe")
+      fail("Expected failure")
+    } catch (error: PlaceSearchException.Unavailable) {
+      assertEquals("Place search is unreachable", error.message)
+    }
+    try {
+      repository { 200 to "not json" }.suggest("cafe")
+      fail("Expected failure")
+    } catch (_: PlaceSearchException.Unavailable) {}
+  }
+
+  @Test
+  fun missingTokenIsAConfigurationError() = runTest {
+    val repository = repository(token = " ") { error("must not be called") }
+
+    try {
+      repository.suggest("cafe")
+      fail("Expected configuration error")
+    } catch (_: PlaceSearchException.Configuration) {}
+    try {
+      repository.retrieve(suggestion)
+      fail("Expected configuration error")
+    } catch (_: PlaceSearchException.Configuration) {}
+    assertTrue(requests.isEmpty())
+  }
+
+  @Test
+  fun cancellingASuggestCancelsTheHttpCall() = runTest {
+    val started = CountDownLatch(1)
+    val cancelled = CountDownLatch(1)
+    val client =
+        OkHttpClient.Builder()
+            .addInterceptor { chain ->
+              started.countDown()
+              // Blocks until the call is cancelled, which makes the interceptor throw.
+              while (!chain.call().isCanceled()) Thread.sleep(10)
+              cancelled.countDown()
+              throw IOException("Canceled")
+            }
+            .build()
+    val repository = MapboxPlaceRepository("pk.test", client)
+
+    val job = async(start = CoroutineStart.UNDISPATCHED) { repository.suggest("cafe") }
+    assertTrue(started.await(5, TimeUnit.SECONDS))
+    job.cancel()
+
+    assertTrue(cancelled.await(5, TimeUnit.SECONDS))
+  }
+
+  private companion object {
+    const val PROPERTIES =
+        """{"name":"Cafe Romand","full_address":"Lausanne, Switzerland",
+          "context":{"country":{"country_code":"ch"}}}"""
+  }
+}
