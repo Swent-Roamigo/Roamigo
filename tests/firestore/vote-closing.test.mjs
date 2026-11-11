@@ -55,3 +55,40 @@ test('creator-only status transition finalizes persisted ballots and rejects lat
   await expectWrite(403, path, { status: str('OPEN') }, 'creator', ['status']);
   await expectWrite(403, path, { status: str('CLOSED') }, 'creator', ['status']);
 });
+
+// Resolution fields and linked children are backend-only, even for a genuine tied vote.
+test('direct resolution/link writes are denied for ties, unique winners and zero ballots', async () => {
+  for (const [label, choices] of [['tie', ['a', 'b']], ['unique', ['a', 'a', 'b']], ['zero', []]]) {
+    const id = `${tripId}-${label}`;
+    const target = `trips/${id}/votes/source`;
+    const options = { arrayValue: { values: ['a', 'b', 'c'].map(uid => ({ mapValue: { fields: { uid: str(uid), name: str(uid) } } })) } };
+    await expectWrite(200, `trips/${id}`, { ownerId: str('trip-owner'), memberIds: { arrayValue: { values: ['trip-owner', 'creator', 'member'].map(str) } } });
+    await expectWrite(200, target, { ...vote, uid: str('source'), tripId: str(id), status: str('CLOSED'), options });
+    for (const [index, choice] of choices.entries()) await expectWrite(200, `${target}/ballots/${index}`, ballot(`${index}`, choice));
+    for (const actor of ['trip-owner', 'creator', 'member']) {
+      for (const option of ['a', 'c', 'missing']) {
+        await expectWrite(403, target, { resolvedOptionId: str(option), resolvedByUserId: str(actor) }, actor, ['resolvedOptionId', 'resolvedByUserId']);
+      }
+      await expectWrite(403, target, { nextRoundVoteId: str('round2') }, actor, ['nextRoundVoteId']);
+    }
+    const name = path => `projects/${project}/databases/(default)/documents/${path}`;
+    const response = await fetch(`${base}:commit`, {
+      method: 'POST', headers: { Authorization: `Bearer ${token('member')}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ writes: [
+        { update: { name: name(`trips/${id}/votes/round2`), fields: { ...vote, uid: str('round2'), tripId: str(id), createdByUserId: str('member'), parentVoteId: str('source'), round: { integerValue: '2' } } } },
+        { update: { name: name(target), fields: { nextRoundVoteId: str('round2') } }, updateMask: { fieldPaths: ['nextRoundVoteId'] } },
+      ] }),
+    });
+    assert.equal(response.status, 403, await response.text());
+    // Resolution and linkage fields cannot be smuggled into an ordinary OPEN vote either.
+    for (const metadata of [{ parentVoteId: str('source'), round: { integerValue: '2' } },
+      { resolvedOptionId: str('a'), resolvedByUserId: str('member') }, { nextRoundVoteId: str('other') }]) {
+      await expectWrite(403, `trips/${id}/votes/forged`, { ...vote, uid: str('forged'), tripId: str(id), createdByUserId: str('member'), ...metadata }, 'member');
+    }
+    const read = await fetch(`${base}/${target}`, { headers: { Authorization: `Bearer ${token('member')}` } });
+    const data = (await read.json()).fields;
+    assert.equal(data.nextRoundVoteId, undefined);
+    assert.equal(data.resolvedOptionId, undefined);
+    assert.equal(data.status.stringValue, 'CLOSED');
+  }
+});
