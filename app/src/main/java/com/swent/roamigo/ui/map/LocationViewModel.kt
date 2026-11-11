@@ -98,6 +98,10 @@ class LocationViewModel(
   // Parent of the pending start requests, so that a stop can cancel all of them at once.
   private val startRequests = SupervisorJob(viewModelScope.coroutineContext.job)
 
+  // The pending start request, if any. Lets its completion clear isStartingSharing only when no
+  // newer start replaced it.
+  private var startJob: Job? = null
+
   private var refreshJob: Job? = null
 
   // Whether the user's last request was to share. Lets onCleared stop a sharing that the
@@ -114,7 +118,12 @@ class LocationViewModel(
   init {
     viewModelScope.launch {
       locationRepository.isSharing(tripId).distinctUntilChanged().collect { sharing ->
-        _uiState.update { state -> state.copy(isSharing = sharing) }
+        _uiState.update { state ->
+          state.copy(
+              isSharing = sharing,
+              isStartingSharing = state.isStartingSharing && !sharing,
+          )
+        }
         if (sharing) startRefreshingMyLocation() else stopRefreshingMyLocation()
       }
     }
@@ -150,6 +159,7 @@ class LocationViewModel(
    * @param permissionGranted whether the app currently holds a location permission.
    */
   fun onTurnOnSharingClick(permissionGranted: Boolean) {
+    if (_uiState.value.isStartingSharing) return
     val revoked = _uiState.value.permissionState == LocationPermissionState.Revoked
     showPermissionSheet(
         if (!permissionGranted && revoked) LocationPermissionSheet.Blocked
@@ -236,7 +246,7 @@ class LocationViewModel(
    * [LocationSharingError.PermissionRequired].
    */
   fun startSharing() {
-    if (hasLeftTrip) return
+    if (hasLeftTrip || _uiState.value.isStartingSharing) return
     if (_uiState.value.permissionState != LocationPermissionState.Granted) {
       _uiState.update { state ->
         state.copy(sharingError = LocationSharingError.PermissionRequired)
@@ -244,10 +254,21 @@ class LocationViewModel(
       return
     }
     wantsSharing = true
-    lastSharingRequest =
+    _uiState.update { state -> state.copy(isStartingSharing = true) }
+    val job =
         launchSharingRequest(after = lastSharingRequest, context = startRequests) {
           locationRepository.startSharing(tripId)
         }
+    lastSharingRequest = job
+    startJob = job
+    // A completion handler rather than a finally block: a start cancelled before its body began
+    // never runs a finally, and the flag must not stay set.
+    job.invokeOnCompletion {
+      if (startJob === job) {
+        startJob = null
+        _uiState.update { state -> state.copy(isStartingSharing = false) }
+      }
+    }
   }
 
   /** Stops sharing the user's location with the trip. The own position stops refreshing at once. */
@@ -257,6 +278,10 @@ class LocationViewModel(
     // Cancelled instead of awaited: a start may wait long for its first update, and the repository
     // lets a stop interrupt it, so that nothing is published once the user stopped.
     startRequests.cancelChildren()
+    // Cleared now rather than when the cancelled start completes, so that a start requested right
+    // after this stop is not refused as a duplicate.
+    startJob = null
+    _uiState.update { state -> state.copy(isStartingSharing = false) }
     lastSharingRequest = launchSharingRequest { locationRepository.stopSharing(tripId) }
   }
 
