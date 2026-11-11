@@ -5,13 +5,17 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -101,95 +105,136 @@ fun TripOverviewMapScreen(
         )
       },
   ) { padding ->
-    Column(
-        modifier = Modifier.fillMaxSize().padding(padding),
-        verticalArrangement = Arrangement.spacedBy(Spacing.large),
-    ) {
+    BoxWithConstraints(Modifier.fillMaxSize().padding(padding)) {
+      val isLandscape = maxWidth > maxHeight
       Column(
-          modifier =
-              Modifier.padding(
-                  start = Spacing.screenPadding,
-                  end = Spacing.screenPadding,
-                  top = Spacing.large,
-              ),
-          verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall),
+          modifier = Modifier.fillMaxSize(),
+          verticalArrangement = Arrangement.spacedBy(Spacing.large),
       ) {
-        Text(
-            stringResource(R.string.trip_overview_map_title),
-            style = MaterialTheme.typography.headlineMedium,
-        )
-        Text(
-            stringResource(R.string.trip_overview_map_subtitle),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
-      Box(
-          modifier =
-              Modifier.weight(1f)
-                  .fillMaxWidth()
-                  .padding(horizontal = Spacing.screenPadding)
-                  .clip(RoundedCornerShape(MAP_CARD_RADIUS))
-      ) {
-        MapboxMap(
-            modifier = Modifier.fillMaxSize(),
-            mapViewportState = rememberTripDestinationsMapViewport(uiState.markers),
-            // The scale bar clutters the card and has no use for trips.
-            scaleBar = {},
+        Column(
+            modifier =
+                Modifier.padding(
+                    start = Spacing.screenPadding,
+                    end = Spacing.screenPadding,
+                    top = Spacing.large,
+                ),
+            verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall),
         ) {
-          uiState.markers.forEach { marker ->
-            ViewAnnotation(
-                options =
-                    viewAnnotationOptions {
-                      geometry(Point.fromLngLat(marker.longitude, marker.latitude))
-                      annotationAnchor { anchor(ViewAnnotationAnchor.BOTTOM) }
-                      // The name pills make pins wider, and Mapbox hides a pin that overlaps
-                      // another one. A hidden pin would hide a trip.
-                      allowOverlap(true)
-                    },
-                modifier =
-                    Modifier.testTag(TripMarkerTestTags.markerFor(marker.id))
-                        .markNotImplemented(onMarkerClick)
-                        .clickable { onMarkerClick(marker.tripId) },
-            ) {
-              TripMarkerIcon(locationName = marker.locationName, kind = marker.kind)
-            }
-          }
+          Text(
+              stringResource(R.string.trip_overview_map_title),
+              style = MaterialTheme.typography.headlineMedium,
+          )
+          Text(
+              stringResource(R.string.trip_overview_map_subtitle),
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
         }
-
-        if (uiState.isLoading || uiState.errorMessage != null || uiState.markers.isEmpty()) {
-          Surface(
-              modifier = Modifier.align(Alignment.Center).padding(Spacing.screenPadding),
-              shape = MaterialTheme.shapes.medium,
-              shadowElevation = Spacing.extraSmall,
+        // In landscape the list goes beside the map: stacked below it, the list would take the
+        // whole height and the map would disappear.
+        if (isLandscape) {
+          Row(
+              modifier = Modifier.weight(1f).fillMaxWidth(),
+              horizontalArrangement = Arrangement.spacedBy(Spacing.large),
           ) {
-            Column(
-                modifier = Modifier.padding(Spacing.large),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(Spacing.medium),
-            ) {
-              when {
-                uiState.isLoading -> {
-                  CircularProgressIndicator()
-                  Text(stringResource(R.string.trip_map_loading), textAlign = TextAlign.Center)
-                }
+            OverviewMapCard(
+                uiState,
+                onMarkerClick,
+                onRetry,
+                Modifier.weight(1f)
+                    .fillMaxHeight()
+                    .padding(start = Spacing.screenPadding, bottom = Spacing.medium),
+            )
+            TripRows(
+                uiState.markers,
+                onMarkerClick,
+                modifier =
+                    Modifier.width(LANDSCAPE_ROWS_WIDTH)
+                        .fillMaxHeight()
+                        .padding(bottom = Spacing.medium),
+            )
+          }
+        } else {
+          OverviewMapCard(
+              uiState,
+              onMarkerClick,
+              onRetry,
+              Modifier.weight(1f).fillMaxWidth().padding(horizontal = Spacing.screenPadding),
+          )
+          TripRows(uiState.markers, onMarkerClick)
+        }
+      }
+    }
+  }
+}
 
-                uiState.errorMessage != null -> {
-                  Text(
-                      text = stringResource(R.string.trip_map_load_error),
-                      color = MaterialTheme.colorScheme.error,
-                      textAlign = TextAlign.Center,
-                  )
-                  Button(onClick = onRetry) { Text(stringResource(R.string.trip_map_retry)) }
-                }
+/** The map card with one pin per trip, and the loading, error and empty states over it. */
+@Composable
+private fun OverviewMapCard(
+    uiState: TripOverviewMapUiState,
+    onMarkerClick: (String) -> Unit,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+  Box(modifier = modifier.clip(RoundedCornerShape(MAP_CARD_RADIUS))) {
+    MapboxMap(
+        modifier = Modifier.fillMaxSize(),
+        mapViewportState = rememberTripDestinationsMapViewport(uiState.markers),
+        // Top end: nothing else is drawn there, and the logo and attribution stay at the bottom.
+        scaleBar = {
+          ScaleBar(contentPadding = PaddingValues(Spacing.small), alignment = Alignment.TopEnd)
+        },
+    ) {
+      uiState.markers.forEach { marker ->
+        ViewAnnotation(
+            options =
+                viewAnnotationOptions {
+                  geometry(Point.fromLngLat(marker.longitude, marker.latitude))
+                  annotationAnchor { anchor(ViewAnnotationAnchor.BOTTOM) }
+                  // The name pills make pins wider, and Mapbox hides a pin that overlaps
+                  // another one. A hidden pin would hide a trip.
+                  allowOverlap(true)
+                },
+            modifier =
+                Modifier.testTag(TripMarkerTestTags.markerFor(marker.id))
+                    .markNotImplemented(onMarkerClick)
+                    .clickable { onMarkerClick(marker.tripId) },
+        ) {
+          TripMarkerIcon(locationName = marker.locationName, kind = marker.kind)
+        }
+      }
+    }
 
-                else -> Text(stringResource(R.string.trip_map_empty), textAlign = TextAlign.Center)
-              }
+    if (uiState.isLoading || uiState.errorMessage != null || uiState.markers.isEmpty()) {
+      Surface(
+          modifier = Modifier.align(Alignment.Center).padding(Spacing.screenPadding),
+          shape = MaterialTheme.shapes.medium,
+          shadowElevation = Spacing.extraSmall,
+      ) {
+        Column(
+            modifier = Modifier.padding(Spacing.large),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.medium),
+        ) {
+          when {
+            uiState.isLoading -> {
+              CircularProgressIndicator()
+              Text(stringResource(R.string.trip_map_loading), textAlign = TextAlign.Center)
             }
+
+            uiState.errorMessage != null -> {
+              Text(
+                  text = stringResource(R.string.trip_map_load_error),
+                  color = MaterialTheme.colorScheme.error,
+                  textAlign = TextAlign.Center,
+              )
+              Button(onClick = onRetry) { Text(stringResource(R.string.trip_map_retry)) }
+            }
+
+            else -> Text(stringResource(R.string.trip_map_empty), textAlign = TextAlign.Center)
           }
         }
       }
-      TripRows(uiState.markers, onMarkerClick)
     }
   }
 }
@@ -202,13 +247,14 @@ fun TripOverviewMapScreen(
 internal fun TripRows(
     markers: List<TripMarkerUiState>,
     onTripClick: (String) -> Unit,
+    modifier: Modifier = Modifier.heightIn(max = TRIP_ROWS_MAX_HEIGHT),
     today: LocalDate = LocalDate.now(),
 ) {
   val trips = markers.groupBy { it.tripId }
   if (trips.isEmpty()) return
   Column(
       modifier =
-          Modifier.heightIn(max = TRIP_ROWS_MAX_HEIGHT)
+          modifier
               .verticalScroll(rememberScrollState())
               .padding(horizontal = Spacing.screenPadding),
       verticalArrangement = Arrangement.spacedBy(Spacing.small),
@@ -287,4 +333,5 @@ private fun tripRowSubtitle(
 }
 
 private val TRIP_ROWS_MAX_HEIGHT = 168.dp
+private val LANDSCAPE_ROWS_WIDTH = 320.dp
 private val CHEVRON_SIZE = 18.dp

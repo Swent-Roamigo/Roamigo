@@ -48,7 +48,7 @@
     <string name="create_trip_popular_destinations">Popular with students</string>
     <string name="destination_search_hint">Search cities</string>
     <string name="destination_search_description">Search cities</string>
-    <string name="destination_search_initial">Search for a city</string>
+    <string name="destination_popular_title">Popular destinations</string>
     <string name="destination_search_empty">No destinations found. Try another search.</string>
     <string name="destination_search_error">Couldn’t load destinations. Check your connection and try again.</string>
     <string name="destination_search_not_configured">City search is temporarily unavailable. Please try again later.</string>
@@ -356,7 +356,11 @@
     <string name="votes_unresolved">Unresolved</string>
     <string name="votes_loading">Loading votes…</string>
     <string name="votes_empty_title">No votes yet</string>
-    <string name="votes_empty_description">Start a vote to decide together with your trip members.</string>
+    <string name="votes_empty_description">Can\'t agree on lunch or a day trip? Start a vote. Everyone picks, and the winner joins the plan.</string>
+    <string name="votes_empty_start">Start a vote</string>
+    <string name="votes_hint_title">How the group decides</string>
+    <string name="votes_hint_steps">1 Someone suggests a place · 2 Everyone votes · 3 The winner joins the plan</string>
+    <string name="votes_hint_got_it">Got it</string>
     <string name="votes_load_error">Unable to load votes. Please try again.</string>
     <string name="votes_sync_error">Unable to update votes. Showing the last available votes.</string>
     <string name="trip_ready_title">Your trip is ready!</string>
@@ -373,10 +377,10 @@
     <string name="trip_ready_error">Could not load this trip. Please try again.</string>
     <string name="trip_ready_photo_credit">Photo credits</string>
     <!-- Trip Details -->
-    <string name="trip_details_tab">Detail</string>
+    <string name="trip_details_tab">Plan</string>
+    <string name="trip_ended_banner">This trip has ended · view only. Photos and memories stay with the group.</string>
     <string name="trip_details_itinerary">Itinerary</string>
     <string name="trip_details_votes">Votes</string>
-    <string name="trip_details_share">Share trip</string>
     <string name="trip_details_members">Members</string>
     <string name="trip_add_menu">Add to this trip</string>
     <string name="trip_add_activity">Add an activity</string>
@@ -400,7 +404,7 @@
     <string name="trip_details_map">Open trip map</string>
     <string name="trip_details_loading">Loading trip details…</string>
     <string name="trip_details_load_failed">Unable to load trip details.</string>
-    <string name="trip_details_not_found">This trip is no longer available to you.</string>
+    <string name="trip_details_not_found">We couldn\'t open this trip. It may be private or no longer available.</string>
     <string name="trip_details_retry">Retry</string>
     <string name="trip_details_back">Back</string>
     <string name="trip_details_subtitle">%1$s · %2$s</string>
@@ -428,7 +432,6 @@
         <item quantity="one">%d person</item>
         <item quantity="other">%d people</item>
     </plurals>
-    <string name="photos_title">Trip photos</string>
     <string name="photos_take_photo">Take a photo</string>
     <string name="photos_no_camera">No camera app is available on this device.</string>
     <string name="photos_offline_empty">You’re offline · photos you take are saved on this phone</string>
@@ -441,9 +444,15 @@
         <item quantity="other">%d photos waiting to upload</item>
     </plurals>
     <plurals name="photos_uploading">
-        <item quantity="one">Back online · uploading %d photo…</item>
-        <item quantity="other">Back online · uploading %d photos…</item>
+        <item quantity="one">Uploading %d photo…</item>
+        <item quantity="other">Uploading %d photos…</item>
     </plurals>
+    <plurals name="photos_failed_summary">
+        <item quantity="one">%d photo didn\'t upload</item>
+        <item quantity="other">%d photos didn\'t upload</item>
+    </plurals>
+    <string name="photos_failed_offline_hint">No connection. We\'ll retry when you\'re back online.</string>
+    <string name="photos_retry_all">Retry all</string>
     <string name="photos_empty_title">No photos yet</string>
     <string name="photos_empty_description">Photos you take are shared with the trip, and uploaded by themselves once you are online.</string>
     <string name="photos_item_description">Photo taken at %1$s</string>
@@ -480,8 +489,9 @@
     <string name="vote_close">Close vote</string>
     <string name="vote_closing">Closing vote…</string>
     <string name="vote_close_title">Close this vote?</string>
-    <string name="vote_close_confirmation">Closing is permanent. Members will no longer be able to vote or change their vote.</string>
-    <string name="vote_close_cancel">Cancel</string>
+    <string name="vote_close_title_named">Close “%1$s” now?</string>
+    <string name="vote_close_confirmation">Once closed, the winning option is final and votes can\'t be changed.</string>
+    <string name="vote_close_keep_open">Keep it open</string>
     <string name="vote_close_error">Could not close the vote. Please try again.</string>
     <string name="vote_close_unavailable">Only the creator can close an open vote.</string>
 </resources>

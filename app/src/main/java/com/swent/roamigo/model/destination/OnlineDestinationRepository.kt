@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.core.text.HtmlCompat
 import com.swent.roamigo.BuildConfig
 import java.io.IOException
+import java.text.Normalizer
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -36,6 +37,37 @@ class OnlineDestinationRepository(
     return searchCities(normalized).distinctBy { it.stableId }.take(MAX_DESTINATION_RESULTS)
   }
 
+  /**
+   * Puts the cities named like [query] first, the biggest first: those named exactly like it, then
+   * those whose name starts with it. Every other result keeps GeoNames' order after them, because
+   * ranking those by size alone would bring unrelated big cities up (Warsaw for "paris").
+   */
+  private fun rankByImportance(
+      query: String,
+      cities: List<Pair<Destination, Long>>,
+  ): List<Destination> {
+    val wanted = query.foldedForMatching()
+
+    fun tier(city: Destination): Int {
+      val name = city.name.foldedForMatching()
+      return when {
+        name == wanted -> 0
+        name.startsWith(wanted) -> 1
+        else -> 2
+      }
+    }
+    // sortedWith is stable, so tier 2 stays in GeoNames' order.
+    return cities
+        .sortedWith(
+            compareBy<Pair<Destination, Long>> { tier(it.first) }
+                .thenByDescending { if (tier(it.first) < 2) it.second else 0L }
+        )
+        .map { it.first }
+  }
+
+  private fun String.foldedForMatching(): String =
+      Normalizer.normalize(trim(), Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "").lowercase()
+
   private suspend fun searchCities(query: String): List<Destination> {
     val url =
         "https://secure.geonames.org/searchJSON"
@@ -43,40 +75,42 @@ class OnlineDestinationRepository(
             .newBuilder()
             .addQueryParameter("q", query)
             .addQueryParameter("featureClass", "P")
-            .addQueryParameter("maxRows", MAX_DESTINATION_RESULTS.toString())
+            .addQueryParameter("maxRows", SEARCH_CANDIDATES.toString())
             .addQueryParameter("orderby", "relevance")
             .addQueryParameter("username", geonamesUsername)
             .build()
     val root = getJson(url)
     if (root.has("status")) throw IOException(root.getJSONObject("status").optString("message"))
-    return root.optJSONArray("geonames")?.let { results ->
-      (0 until results.length()).mapNotNull { index ->
-        val item = results.optJSONObject(index) ?: return@mapNotNull null
-        val id = item.optInt("geonameId", 0)
-        if (id <= 0) return@mapNotNull null
-        val name = item.optString("name").takeIf(String::isNotBlank) ?: return@mapNotNull null
-        val countryCode = item.optString("countryCode")
-        val latitude = item.optDouble("lat")
-        val longitude = item.optDouble("lng")
-        if (
-            !latitude.isFinite() ||
-                latitude !in -90.0..90.0 ||
-                !longitude.isFinite() ||
-                longitude !in -180.0..180.0
-        )
-            return@mapNotNull null
-        Destination(
-            stableId = "geonames:$id",
-            kind = DestinationKind.CITY,
-            name = name,
-            countryName = item.optString("countryName"),
-            countryCode = countryCode,
-            latitude = latitude,
-            longitude = longitude,
-            geonameId = id,
-        )
-      }
-    } ?: emptyList()
+    val cities =
+        root.optJSONArray("geonames")?.let { results ->
+          (0 until results.length()).mapNotNull { index ->
+            val item = results.optJSONObject(index) ?: return@mapNotNull null
+            val id = item.optInt("geonameId", 0)
+            if (id <= 0) return@mapNotNull null
+            val name = item.optString("name").takeIf(String::isNotBlank) ?: return@mapNotNull null
+            val countryCode = item.optString("countryCode")
+            val latitude = item.optDouble("lat")
+            val longitude = item.optDouble("lng")
+            if (
+                !latitude.isFinite() ||
+                    latitude !in -90.0..90.0 ||
+                    !longitude.isFinite() ||
+                    longitude !in -180.0..180.0
+            )
+                return@mapNotNull null
+            Destination(
+                stableId = "geonames:$id",
+                kind = DestinationKind.CITY,
+                name = name,
+                countryName = item.optString("countryName"),
+                countryCode = countryCode,
+                latitude = latitude,
+                longitude = longitude,
+                geonameId = id,
+            ) to item.optLong("population", 0L)
+          }
+        } ?: emptyList()
+    return rankByImportance(query, cities)
   }
 
   override suspend fun findPhoto(destination: Destination): DestinationPhoto? =
@@ -309,6 +343,9 @@ class OnlineDestinationRepository(
   companion object {
     private const val PUBLIC_DOMAIN_LABEL = "Public domain"
     private const val COMMONS_THUMBNAIL_WIDTH_PX = 640
+
+    // More than shown, so that ranking by size can pick the important ones among them.
+    private const val SEARCH_CANDIDATES = 50
     private const val OPENVERSE_PAGE_SIZE = 5
     // Openverse often takes longer than the other providers, so it must not hold up a photo.
     private const val OPENVERSE_TIMEOUT_SECONDS = 4L

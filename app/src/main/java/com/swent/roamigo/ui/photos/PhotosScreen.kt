@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -19,12 +19,13 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.PhotoCamera
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,6 +45,7 @@ import com.swent.roamigo.model.photo.PendingPhoto
 import com.swent.roamigo.model.photo.PhotoUploadStatus
 import com.swent.roamigo.model.photo.TripPhoto
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.components.TripActionButton
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.theme.Success
 import com.swent.roamigo.ui.theme.Warning
@@ -58,6 +60,7 @@ import java.util.Date
  * @param fileOf the file holding a waiting photo, to show its thumbnail.
  * @param onPhotoClick invoked with the id of an uploaded photo the user wants to see full screen.
  * @param onGalleryRetryClick invoked when the user asks to read the uploaded photos again.
+ * @param summary the photo and member counts of the trip, shown above the gallery when known.
  */
 @Composable
 fun PhotosScreen(
@@ -69,6 +72,7 @@ fun PhotosScreen(
     onPhotoClick: (String) -> Unit,
     onGalleryRetryClick: () -> Unit,
     modifier: Modifier = Modifier,
+    summary: String? = null,
     readOnly: Boolean = false,
 ) {
   Scaffold(
@@ -81,7 +85,15 @@ fun PhotosScreen(
             .padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium),
         verticalArrangement = Arrangement.spacedBy(Spacing.large),
     ) {
+      summary?.let {
+        Text(
+            it,
+            modifier = Modifier.testTag(C.Tag.photos_summary),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+      }
       if (!readOnly) PhotosBanner(state)
+      if (!readOnly) FailedUploadsBanner(state, onRetryClick)
       PhotosContent(
           if (readOnly) state.copy(photos = emptyList()) else state,
           fileOf,
@@ -91,10 +103,9 @@ fun PhotosScreen(
           Modifier.weight(1f).fillMaxWidth(),
       )
       if (!readOnly) {
-        Button(
+        TripActionButton(
             onClick = onTakePhotoClick,
-            modifier = Modifier.fillMaxWidth().height(58.dp).testTag(C.Tag.photos_take_photo),
-            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.testTag(C.Tag.photos_take_photo),
         ) {
           Icon(Icons.Outlined.PhotoCamera, contentDescription = null)
           Text(
@@ -102,6 +113,44 @@ fun PhotosScreen(
               modifier = Modifier.padding(start = Spacing.small),
           )
         }
+      }
+    }
+  }
+}
+
+/** Summarises the photos that failed to upload, with one action to retry them all. */
+@Composable
+private fun FailedUploadsBanner(state: PhotosUiState, onRetryClick: (String) -> Unit) {
+  val failed = state.photos.filter { it.status == PhotoUploadStatus.FAILED }
+  if (failed.isEmpty()) return
+  Surface(
+      modifier = Modifier.fillMaxWidth().testTag(C.Tag.photos_failed_banner),
+      shape = RoundedCornerShape(16.dp),
+      color = MaterialTheme.colorScheme.surfaceVariant,
+  ) {
+    Row(
+        Modifier.padding(horizontal = 14.dp, vertical = Spacing.small),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            pluralStringResource(R.plurals.photos_failed_summary, failed.size, failed.size),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        if (!state.isOnline) {
+          Text(
+              stringResource(R.string.photos_failed_offline_hint),
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
+      }
+      OutlinedButton(
+          onClick = { failed.forEach { onRetryClick(it.id) } },
+          modifier = Modifier.heightIn(min = 48.dp).testTag(C.Tag.photos_retry_all),
+      ) {
+        Text(stringResource(R.string.photos_retry_all))
       }
     }
   }
@@ -115,17 +164,14 @@ fun PhotosScreen(
 private fun PhotosBanner(state: PhotosUiState) {
   val pending = state.photos.filter { it.status != PhotoUploadStatus.FAILED }
   val count = pending.size
-  val uploadingCount = pending.count { it.status == PhotoUploadStatus.UPLOADING }
-  val uploading = uploadingCount > 0
+  val uploading = pending.any { it.status == PhotoUploadStatus.UPLOADING }
   val (text, color) =
       when {
         count == 0 && !state.isOnline -> stringResource(R.string.photos_offline_empty) to Warning
         count == 0 -> return
         !state.isOnline ->
             pluralStringResource(R.plurals.photos_waiting_offline, count, count) to Warning
-        uploading ->
-            pluralStringResource(R.plurals.photos_uploading, uploadingCount, uploadingCount) to
-                Success
+        uploading -> pluralStringResource(R.plurals.photos_uploading, count, count) to Success
         else -> pluralStringResource(R.plurals.photos_waiting_online, count, count) to Warning
       }
   Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.small)) {

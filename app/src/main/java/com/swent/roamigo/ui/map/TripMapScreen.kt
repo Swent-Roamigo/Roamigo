@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -38,7 +39,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -75,6 +75,8 @@ import com.mapbox.maps.viewannotation.viewAnnotationOptions
 import com.swent.roamigo.R
 import com.swent.roamigo.model.location.MemberLocation
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.components.TripActionButton
+import com.swent.roamigo.ui.components.TripActionButtonPadding
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.MyLocationBlue
@@ -250,8 +252,14 @@ fun TripMapScreen(
     MapboxMap(
         modifier = Modifier.fillMaxSize().testTag(C.Tag.trip_map_map),
         mapViewportState = rememberTripMapViewportState(viewport),
-        // The scale bar sits behind the banner and has no use for trips.
-        scaleBar = {},
+        // Top end: the sharing chip and the offline banner are stacked at the top start, and the
+        // logo and attribution stay at the bottom.
+        scaleBar = {
+          ScaleBar(
+              contentPadding = PaddingValues(top = Spacing.medium, end = Spacing.medium),
+              alignment = Alignment.TopEnd,
+          )
+        },
     ) {
       if (uiState is TripMapUiState.Loaded) {
         uiState.activityMarkers.forEach { marker ->
@@ -314,12 +322,7 @@ fun TripMapScreen(
     // Stacked so that the status overlays never cover the sharing chip.
     Column(modifier = Modifier.fillMaxSize()) {
       if (!readOnly) {
-        SharingChip(
-            isSharing = isSharing,
-            onTurnOn = onTurnOnSharing,
-            onPause = onPauseSharing,
-            modifier = Modifier.padding(Spacing.medium),
-        )
+        SharingChip(isSharing = isSharing, modifier = Modifier.padding(Spacing.medium))
       }
       if (isOffline) {
         OfflineBanner(modifier = Modifier.padding(horizontal = Spacing.medium))
@@ -363,6 +366,13 @@ fun TripMapScreen(
             }
           }
         }
+      }
+      if (!readOnly) {
+        SharingButtonBar(
+            isSharing = isSharing,
+            onTurnOnSharing = onTurnOnSharing,
+            onPauseSharing = onPauseSharing,
+        )
       }
     }
   }
@@ -446,20 +456,14 @@ private fun TripStatusOverlay(uiState: TripMapUiState, onRetry: () -> Unit) {
 }
 
 /**
- * A pill over the map telling whether the user shares their location, with the one action that
- * fits: turning it on, or pausing it. Sharing off is tinted, since it is the state the user may
- * want to change.
+ * A pill over the map telling whether the user shares their location. The action that changes it is
+ * the bottom button, the same shared button as on the other trip tabs. Sharing off is tinted, since
+ * it is the state the user may want to change.
  */
 @Composable
-private fun SharingChip(
-    isSharing: Boolean,
-    onTurnOn: () -> Unit,
-    onPause: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+private fun SharingChip(isSharing: Boolean, modifier: Modifier = Modifier) {
   val title =
       if (isSharing) R.string.trip_map_sharing_on_title else R.string.trip_map_sharing_off_title
-  val action = if (isSharing) R.string.trip_map_pause_sharing else R.string.trip_map_turn_on_sharing
   Surface(
       modifier = modifier.testTag(C.Tag.trip_map_sharing_banner),
       shape = CircleShape,
@@ -467,7 +471,7 @@ private fun SharingChip(
       border = if (isSharing) null else BorderStroke(1.dp, WarningBorder),
   ) {
     Row(
-        modifier = Modifier.padding(start = Spacing.cardPadding, end = Spacing.extraSmall),
+        modifier = Modifier.padding(horizontal = Spacing.cardPadding, vertical = Spacing.small),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.small),
     ) {
@@ -482,24 +486,34 @@ private fun SharingChip(
           style = MaterialTheme.typography.labelLarge,
           color = if (isSharing) MaterialTheme.colorScheme.onSurface else Warning,
       )
-      // Filled for turning sharing on, because that is the step the user may want to take;
-      // pausing is a quiet text button.
-      if (isSharing) {
-        TextButton(
-            onClick = onPause,
-            modifier = Modifier.testTag(C.Tag.trip_map_sharing_button),
-        ) {
-          Text(stringResource(action))
-        }
-      } else {
-        Button(
-            onClick = onTurnOn,
-            shape = CircleShape,
-            modifier = Modifier.testTag(C.Tag.trip_map_sharing_button),
-        ) {
-          Text(stringResource(action))
-        }
-      }
+    }
+  }
+}
+
+/** Bottom bar holding the button that turns location sharing on or pauses it. */
+@Composable
+private fun SharingButtonBar(
+    isSharing: Boolean,
+    onTurnOnSharing: () -> Unit,
+    onPauseSharing: () -> Unit,
+) {
+  Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.background) {
+    TripActionButton(
+        onClick = if (isSharing) onPauseSharing else onTurnOnSharing,
+        modifier =
+            Modifier.windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(
+                        WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal
+                    )
+                )
+                .padding(TripActionButtonPadding)
+                .testTag(C.Tag.trip_map_sharing_button),
+    ) {
+      Text(
+          stringResource(
+              if (isSharing) R.string.trip_map_pause_sharing else R.string.trip_map_turn_on_sharing
+          )
+      )
     }
   }
 }

@@ -4,9 +4,11 @@ package com.swent.roamigo.model.destination
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
+import java.security.MessageDigest
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -34,17 +36,94 @@ class FileDestinationPhotoStore(
       }
 
   override suspend fun write(destinationId: String, photo: CachedDestinationPhoto) {
+    writeAtomically(fileFor(destinationId), encode(photo))
+  }
+
+  private suspend fun writeAtomically(target: File, content: String) {
     withContext(ioDispatcher) {
       try {
         directory.mkdirs()
         // Written aside and renamed, so a reader never sees half a file.
-        val temporary = File(directory, "${fileNameOf(destinationId)}.tmp")
-        temporary.writeText(encode(photo))
-        if (!temporary.renameTo(fileFor(destinationId))) discard(temporary)
+        val temporary = File(directory, "${target.name}.tmp")
+        temporary.writeText(content)
+        if (!temporary.renameTo(target)) discard(temporary)
       } catch (_: Exception) {
-        // Only a cache: the photo is shown anyway.
+        // Only a cache: the result is used anyway.
       }
     }
+  }
+
+  override suspend fun readSearch(query: String): CachedSearch? =
+      withContext(ioDispatcher) {
+        val file = searchFileFor(query)
+        if (!file.isFile) return@withContext null
+        try {
+          parseSearch(JSONObject(file.readText()))
+        } catch (_: Exception) {
+          discard(file)
+          null
+        }
+      }
+
+  override suspend fun writeSearch(query: String, search: CachedSearch) {
+    writeAtomically(searchFileFor(query), encodeSearch(search))
+  }
+
+  override suspend fun deleteSearchesSavedBefore(savedBeforeMillis: Long) {
+    withContext(ioDispatcher) {
+      directory
+          .listFiles { file -> file.name.startsWith(SEARCH_PREFIX) && file.name.endsWith(".json") }
+          .orEmpty()
+          .forEach { file ->
+            val savedAt =
+                try {
+                  JSONObject(file.readText()).getLong("savedAt")
+                } catch (_: Exception) {
+                  null
+                }
+            // A file that cannot be read is of no use either.
+            if (savedAt == null || savedAt < savedBeforeMillis) discard(file)
+          }
+    }
+  }
+
+  private fun encodeSearch(search: CachedSearch): String =
+      JSONObject()
+          .put("savedAt", search.savedAtMillis)
+          .put(
+              "destinations",
+              JSONArray(
+                  search.destinations.map {
+                    JSONObject()
+                        .put("name", it.name)
+                        .put("countryName", it.countryName)
+                        .put("countryCode", it.countryCode)
+                        .put("lat", it.latitude)
+                        .put("lng", it.longitude)
+                        .put("geonameId", it.geonameId)
+                  }
+              ),
+          )
+          .toString()
+
+  private fun parseSearch(json: JSONObject): CachedSearch? {
+    val items = json.getJSONArray("destinations")
+    val destinations =
+        (0 until items.length()).map { index ->
+          val item = items.getJSONObject(index)
+          val id = item.getInt("geonameId")
+          Destination(
+              stableId = "geonames:$id",
+              kind = DestinationKind.CITY,
+              name = item.getString("name"),
+              countryName = item.getString("countryName"),
+              countryCode = item.getString("countryCode"),
+              latitude = item.getDouble("lat"),
+              longitude = item.getDouble("lng"),
+              geonameId = id,
+          )
+        }
+    return CachedSearch(destinations, json.getLong("savedAt"))
   }
 
   /** Removes [file] if it is there. It only frees space, so a failure to remove it is ignored. */
@@ -57,6 +136,18 @@ class FileDestinationPhotoStore(
   }
 
   private fun fileFor(destinationId: String) = File(directory, fileNameOf(destinationId))
+
+  // Queries are free text, so their file name comes from a hash: replacing unusual characters
+  // would give "Киев" and "Рига" the same file.
+  private fun searchFileFor(query: String): File {
+    val hash =
+        MessageDigest.getInstance("SHA-256").digest(query.toByteArray(Charsets.UTF_8)).joinToString(
+            ""
+        ) {
+          "%02x".format(it)
+        }
+    return File(directory, "$SEARCH_PREFIX$hash.json")
+  }
 
   private fun fileNameOf(destinationId: String) =
       destinationId.replace(Regex("[^A-Za-z0-9_-]"), "_") + ".json"
@@ -95,4 +186,8 @@ class FileDestinationPhotoStore(
 
   private fun JSONObject.optionalString(name: String): String? =
       if (isNull(name)) null else getString(name)
+
+  private companion object {
+    const val SEARCH_PREFIX = "search_"
+  }
 }
