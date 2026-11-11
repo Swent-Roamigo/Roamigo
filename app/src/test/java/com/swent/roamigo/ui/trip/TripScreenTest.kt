@@ -32,11 +32,13 @@ class TripScreenTest {
   private var tripsClicks = 0
   private var pauseClicks = 0
   private var membersClicks = 0
+  private var addClicks = 0
 
   private fun show(
       isSharing: Boolean = false,
       name: String = "Lisbon & Porto",
       memberCount: Int = 2,
+      withAddButton: Boolean = false,
   ) {
     val date = LocalDate.of(2026, 11, 5)
     composeRule.setContent {
@@ -52,6 +54,7 @@ class TripScreenTest {
             onTripsClick = { tripsClicks++ },
             onMapClick = {},
             onFriendsClick = {},
+            onAddClick = if (withAddButton) ({ addClicks++ }) else null,
         ) {
           Button(onClick = { primaryClicks++ }) { Text("Primary action") }
         }
@@ -82,14 +85,17 @@ class TripScreenTest {
         isSharing = true,
         name = "A very long trip name across Portugal, Spain and the south of France",
         memberCount = 8,
+        withAddButton = true,
     )
 
+    composeRule.onNodeWithTag(C.Tag.trip_add_button).assertIsDisplayed().performClick()
     composeRule.onNodeWithText("Pause sharing").assertIsDisplayed().performClick()
     composeRule.onNodeWithText("Primary action").assertIsDisplayed().performClick()
     composeRule.onNodeWithContentDescription("Members").assertIsDisplayed()
     composeRule.onNodeWithText("Photos").assertIsDisplayed().performClick().assertIsSelected()
 
     composeRule.runOnIdle {
+      assertEquals(1, addClicks)
       assertEquals(1, pauseClicks)
       assertEquals(1, primaryClicks)
       assertEquals(TripSection.Photos, selectedTab)
