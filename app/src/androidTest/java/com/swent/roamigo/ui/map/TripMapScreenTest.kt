@@ -14,8 +14,10 @@ import androidx.activity.result.ActivityResultRegistryOwner
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -43,6 +45,7 @@ import androidx.test.espresso.intent.matcher.IntentMatchers.hasData
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.Timestamp
+import com.mapbox.geojson.Point
 import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.connectivity.ConnectivityRepository
@@ -66,6 +69,7 @@ import com.swent.roamigo.ui.isNotImplemented
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.theme.Spacing
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.abs
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -410,6 +414,46 @@ class TripMapScreenTest {
             .isEmpty()
       }
     }
+  }
+
+  @Test
+  fun observedActivityLocationChangeMovesTheExistingMarker() {
+    val original =
+        activity(
+            uid = "moving",
+            location = trip.destinations.single().copy(name = "Original stop"),
+            activityType = ActivityType.ACCEPTED,
+        )
+    val moved =
+        original.copy(
+            location =
+                original.location.copy(
+                    latitude = original.location.latitude + 0.01,
+                    longitude = original.location.longitude + 0.01,
+                    name = "Updated stop",
+                )
+        )
+    val updates = MutableStateFlow(emptyList<TripActivity>())
+    val activityRepository =
+        object : ActivityRepository by FakeActivityRepository() {
+          override fun observeActivities(tripId: String): Flow<List<TripActivity>> = updates
+        }
+    // Keep the framing unchanged so this test isolates the annotation's position update.
+    val tripWithBothLocations = trip.copy(destinations = listOf(original.location, moved.location))
+    setScreen(
+        FakeTripRepository(trips = listOf(tripWithBothLocations)),
+        RecordingLocationRepository(),
+        activityRepository = activityRepository,
+    )
+    val markerTag = TripMarkerTestTags.markerFor(original.toTripMarkerUiState().id)
+
+    composeRule.runOnIdle { updates.value = listOf(original) }
+    assertActivityMarkersDisplayed(listOf(original))
+    assertActivityMarkerDrawnAt(markerTag, original.location)
+
+    composeRule.runOnIdle { updates.value = listOf(moved) }
+    assertActivityMarkersDisplayed(listOf(moved))
+    assertActivityMarkerDrawnAt(markerTag, moved.location)
   }
 
   @Test
@@ -992,6 +1036,25 @@ class TripMapScreenTest {
     }
   }
 
+  private fun assertActivityMarkerDrawnAt(tag: String, location: TripLocation) {
+    composeRule.onAllNodesWithTag(tag).assertCountEquals(1)
+    composeRule.waitUntil(timeoutMillis = MAP_TEST_TIMEOUT_MILLIS) {
+      val expected = composeRule.runOnIdle {
+        val mapView = composeRule.findMapView()
+        val pixel =
+            mapView.mapboxMap.pixelForCoordinate(
+                Point.fromLngLat(location.longitude, location.latitude)
+            )
+        val mapOrigin = IntArray(2).also(mapView::getLocationInWindow)
+        Offset((mapOrigin[0] + pixel.x).toFloat(), (mapOrigin[1] + pixel.y).toFloat())
+      }
+      val bounds = composeRule.onNodeWithTag(tag).fetchSemanticsNode().boundsInWindow
+      // Activity pins are anchored at their bottom center.
+      abs(bounds.center.x - expected.x) < POSITION_TOLERANCE_PX &&
+          abs(bounds.bottom - expected.y) < POSITION_TOLERANCE_PX
+    }
+  }
+
   private class FailingOnceTripRepository(private val delegate: TripRepository) :
       TripRepository by delegate {
     val getTripsCalls = AtomicInteger(0)
@@ -1079,5 +1142,6 @@ class TripMapScreenTest {
   private companion object {
     const val TRIP_ID = "trip_lisbon"
     const val USER_ID = "user_1"
+    const val POSITION_TOLERANCE_PX = 4f
   }
 }
