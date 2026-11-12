@@ -65,6 +65,173 @@ class TieResolutionViewModelTest {
     return TieResolutionViewModel(repository, trips, "trip", user, readOnly, clock)
   }
 
+  private class ControlledTrips(repository: TripRepository, trip: Trip) :
+      TripRepository by repository {
+    var response = CompletableDeferred<Trip?>(trip)
+    var reads = 0
+
+    override suspend fun getTrip(tripId: String): Trip? {
+      reads++
+      return response.await()
+    }
+  }
+
+  @Test
+  fun initialLoadingThenBackgroundRefreshPreservesReadyActionsAndOwnerSelection() = runTest {
+    val trip = detailsTestTrip()
+    val controlled = ControlledTrips(trips, trip)
+    controlled.response = CompletableDeferred()
+    val vm = TieResolutionViewModel(repository, controlled, "trip", "alex", false, clock)
+    runCurrent()
+    assertEquals(ResolutionEligibility.Loading, vm.state.value.eligibility)
+    assertTrue(vm.state.value.refreshing)
+    assertFalse(vm.state.value.canResolve)
+    controlled.response.complete(trip)
+    advanceUntilIdle()
+    val ready = vm.state.value.eligibility
+    assertTrue(vm.state.value.canResolve)
+    assertFalse(vm.state.value.refreshing)
+    vm.startOwnerDecision(closed)
+    vm.selectOwnerOption("a")
+    controlled.response = CompletableDeferred()
+    vm.refreshEligibility()
+    vm.refreshEligibility()
+    runCurrent()
+    assertEquals(2, controlled.reads)
+    assertEquals(ready, vm.state.value.eligibility)
+    assertTrue(vm.state.value.refreshing)
+    assertTrue(vm.state.value.canResolve)
+    assertTrue(vm.state.value.isOwner)
+    assertEquals("a", vm.state.value.selectedOptionId)
+    controlled.response.complete(trip)
+    advanceUntilIdle()
+    assertEquals(ready, vm.state.value.eligibility)
+    assertFalse(vm.state.value.refreshing)
+    assertEquals("a", vm.state.value.selectedOptionId)
+    verifyNoInteractions(repository)
+  }
+
+  @Test
+  fun revoteCreationAwaitsSharedRefreshAndRetainsDraftAfterFailureUntilRetry() = runTest {
+    val trip = detailsTestTrip()
+    val controlled = ControlledTrips(trips, trip)
+    val vm = TieResolutionViewModel(repository, controlled, "trip", "alex", false, clock)
+    advanceUntilIdle()
+    vm.startRevote(closed)
+    val source = requireNotNull(vm.state.value.revoteSource)
+    val written = mutableListOf<Vote>()
+    val creationRepository =
+        object : VoteRepository by repository {
+          override suspend fun createRevote(vote: Vote) {
+            written += vote
+          }
+        }
+    val creation =
+        CreateVoteViewModel(
+            creationRepository,
+            "trip",
+            "alex",
+            clock,
+            source,
+            beforeSubmit = { vm.validateRevoteSubmission().await() },
+        )
+    controlled.response = CompletableDeferred()
+    vm.refreshEligibility()
+    runCurrent()
+    creation.submitVote()
+    runCurrent()
+    assertEquals(2, controlled.reads)
+    assertTrue(vm.state.value.canResolve)
+    assertTrue(vm.state.value.refreshing)
+    assertTrue(creation.uiState.value.isSubmitting)
+    verifyNoInteractions(repository)
+    controlled.response.complete(null)
+    advanceUntilIdle()
+    assertEquals(ResolutionEligibility.Failed(missingTrip = true), vm.state.value.eligibility)
+    assertFalse(vm.state.value.canResolve)
+    assertFalse(vm.state.value.refreshing)
+    assertFalse(creation.uiState.value.isSubmitting)
+    assertEquals(source, vm.state.value.revoteSource)
+    verifyNoInteractions(repository)
+    controlled.response = CompletableDeferred(trip)
+    vm.refreshEligibility()
+    advanceUntilIdle()
+    assertTrue(vm.state.value.canResolve)
+    creation.submitVote()
+    advanceUntilIdle()
+    assertEquals(4, controlled.reads)
+    assertEquals(1, written.size)
+    assertEquals(written.single().uid, creation.uiState.value.createdVoteId)
+    assertNotNull(creation.uiState.value.createdVoteId)
+  }
+
+  @Test
+  fun ownerConfirmationAwaitsRefreshAndUsesFreshOwnershipMembershipAndCalendarEligibility() =
+      runTest {
+        val trip = detailsTestTrip()
+        val cases =
+            listOf(
+                Triple(trip.copy(ownerId = "other"), true, false),
+                Triple(trip.copy(memberIds = emptyList()), false, false),
+                Triple(trip.copy(endDate = Timestamp(1, 0)), false, false),
+                Triple(trip, true, true),
+            )
+        for ((freshTrip, canResolve, canWrite) in cases) {
+          val writes = mock(VoteRepository::class.java)
+          val controlled = ControlledTrips(trips, trip)
+          val vm = TieResolutionViewModel(writes, controlled, "trip", "alex", false, clock)
+          advanceUntilIdle()
+          vm.startOwnerDecision(closed)
+          vm.selectOwnerOption("a")
+          controlled.response = CompletableDeferred()
+          vm.refreshEligibility()
+          runCurrent()
+          vm.confirmOwnerDecision(closed)
+          runCurrent()
+          assertEquals(2, controlled.reads)
+          assertTrue(vm.state.value.canResolve)
+          assertTrue(vm.state.value.refreshing)
+          assertTrue(vm.state.value.submitting)
+          verifyNoInteractions(writes)
+          controlled.response.complete(freshTrip)
+          advanceUntilIdle()
+          assertEquals(canResolve, vm.state.value.canResolve)
+          assertFalse(vm.state.value.refreshing)
+          assertFalse(vm.state.value.submitting)
+          if (canWrite) verify(writes).resolveByOwner("trip", "original", "a", "alex")
+          else verifyNoInteractions(writes)
+        }
+      }
+
+  @Test
+  fun cancellingAValidationDoesNotCancelSharedRefreshAndCancelledLoadsClearRefreshing() = runTest {
+    val trip = detailsTestTrip()
+    val controlled = ControlledTrips(trips, trip)
+    val vm = TieResolutionViewModel(repository, controlled, "trip", "alex", false, clock)
+    advanceUntilIdle()
+    val ready = vm.state.value.eligibility
+    controlled.response = CompletableDeferred()
+    vm.refreshEligibility()
+    val validation = vm.validateRevoteSubmission()
+    runCurrent()
+    assertEquals(2, controlled.reads)
+    validation.cancel()
+    runCurrent()
+    assertTrue(validation.isCancelled)
+    assertTrue(vm.state.value.refreshing)
+    assertEquals(ready, vm.state.value.eligibility)
+    controlled.response.completeExceptionally(CancellationException("left refresh"))
+    advanceUntilIdle()
+    assertEquals(ready, vm.state.value.eligibility)
+    assertFalse(vm.state.value.refreshing)
+    assertFalse(vm.state.value.failed)
+    controlled.response = CompletableDeferred(trip.copy(memberIds = emptyList()))
+    assertFalse(vm.validateRevoteSubmission().await())
+    assertEquals(3, controlled.reads)
+    assertFalse(vm.state.value.refreshing)
+    verifyNoInteractions(repository)
+  }
+
   @Test
   fun nonMemberCannotResolveEvenWhenTripIsWritable() = runTest {
     val vm = model("outsider")
@@ -255,6 +422,7 @@ class TieResolutionViewModelTest {
     vm.refreshEligibility()
     advanceUntilIdle()
     assertEquals(ResolutionEligibility.Failed(missingTrip = true), vm.state.value.eligibility)
+    assertFalse(vm.state.value.refreshing)
     assertEquals("a", vm.state.value.selectedOptionId)
     assertFalse(vm.state.value.failed)
     `when`(trips.getTrip("trip")).thenThrow(IllegalStateException("offline"))
@@ -354,7 +522,7 @@ class TieResolutionViewModelTest {
         ResolutionRestriction.ENDED,
         (vm.state.value.eligibility as ResolutionEligibility.Ready).restriction,
     )
-    assertFalse(vm.validateRevoteSubmission())
+    assertFalse(vm.validateRevoteSubmission().await())
     assertNotNull(vm.state.value.revoteSource)
     verifyNoInteractions(repository)
   }
