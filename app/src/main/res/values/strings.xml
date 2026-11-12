@@ -155,6 +155,8 @@
     <string name="trip_map_trip_load_error">Unable to load this trip. Please try again.</string>
     <string name="trip_map_sharing_off_title">Location off</string>
     <string name="trip_map_sharing_on_title">Sharing location</string>
+    <string name="trip_map_sharing_starting_title">Turning on sharing…</string>
+    <string name="trip_map_sharing_starting_button">Turning on…</string>
     <string name="trip_map_turn_on_sharing">Turn on</string>
     <string name="trip_map_pause_sharing">Pause sharing</string>
     <string name="trip_map_offline">You are offline · saved plan only. Live locations, votes and new updates need internet.</string>

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,6 +36,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -155,6 +158,7 @@ fun TripMapRoute(
   TripMapScreen(
       uiState = tripUiState,
       isSharing = locationUiState.isSharing,
+      isStartingSharing = locationUiState.isStartingSharing,
       memberLocations = locationUiState.memberLocations,
       staleMemberIds = locationUiState.staleMemberIds,
       myLocation = locationUiState.shownMyLocation,
@@ -189,6 +193,8 @@ private val MyLocationDotBorderWidth = 3.dp
  *
  * @param uiState state of the trip shown.
  * @param isSharing whether the user shares their location with the trip.
+ * @param isStartingSharing whether sharing is being turned on: the chip says so and the sharing
+ *   button shows a progress indicator and cannot be clicked. Ignored once [isSharing] is true.
  * @param memberLocations locations of the other members currently sharing theirs.
  * @param staleMemberIds identifiers of the members whose location is outdated.
  * @param myLocation the user's own position, shown as a blue dot, or null to hide it. The caller
@@ -220,6 +226,7 @@ fun TripMapScreen(
     @StringRes locationErrorMessage: Int? = null,
     isOffline: Boolean = false,
     nowMillis: Long = rememberCurrentTimeMillis(isTicking = memberLocations.isNotEmpty()),
+    isStartingSharing: Boolean = false,
 ) {
   // Until the trip is loaded the camera keeps its position, so the map stays usable underneath.
   val viewport = (uiState as? TripMapUiState.Loaded)?.viewport ?: TripMapViewport.None
@@ -242,138 +249,158 @@ fun TripMapScreen(
     }
   }
 
-  Box(
-      modifier =
-          modifier
-              .fillMaxSize()
-              .padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium)
-              .clip(MapCardShape)
-  ) {
-    MapboxMap(
-        modifier = Modifier.fillMaxSize().testTag(C.Tag.trip_map_map),
-        mapViewportState = rememberTripMapViewportState(viewport),
-        // Top end: the sharing chip and the offline banner are stacked at the top start, and the
-        // logo and attribution stay at the bottom.
-        scaleBar = {
-          ScaleBar(
-              contentPadding = PaddingValues(top = Spacing.medium, end = Spacing.medium),
-              alignment = Alignment.TopEnd,
-          )
-        },
+  Column(modifier = modifier.fillMaxSize()) {
+    // The card has no bottom padding: the button's own padding spaces it from the map, as on the
+    // other tabs, and keeps the button at the same place and width as their main action.
+    Box(
+        modifier =
+            Modifier.weight(1f)
+                .fillMaxWidth()
+                .padding(
+                    start = Spacing.screenPadding,
+                    top = Spacing.medium,
+                    end = Spacing.screenPadding,
+                )
+                .clip(MapCardShape)
     ) {
-      if (uiState is TripMapUiState.Loaded) {
-        uiState.activityMarkers.forEach { marker ->
-          key(marker.id) {
+      MapboxMap(
+          modifier = Modifier.fillMaxSize().testTag(C.Tag.trip_map_map),
+          mapViewportState = rememberTripMapViewportState(viewport),
+          // Top end: the sharing chip and the offline banner are stacked at the top start, and the
+          // logo and attribution stay at the bottom.
+          scaleBar = {
+            ScaleBar(
+                contentPadding = PaddingValues(top = Spacing.medium, end = Spacing.medium),
+                alignment = Alignment.TopEnd,
+            )
+          },
+      ) {
+        if (uiState is TripMapUiState.Loaded) {
+          uiState.activityMarkers.forEach { marker ->
+            key(marker.id) {
+              ViewAnnotation(
+                  options =
+                      viewAnnotationOptions {
+                        geometry(Point.fromLngLat(marker.longitude, marker.latitude))
+                        annotationAnchor { anchor(ViewAnnotationAnchor.BOTTOM) }
+                      },
+                  modifier =
+                      Modifier.testTag(TripMarkerTestTags.markerFor(marker.id))
+                          .markNotImplemented(onMarkerClick)
+                          .clickable(onClick = onMarkerClick),
+              ) {
+                TripMarkerIcon(locationName = marker.locationName, kind = marker.kind)
+              }
+            }
+          }
+        }
+        memberLocations.forEach { location ->
+          key(location.userId) {
             ViewAnnotation(
                 options =
                     viewAnnotationOptions {
-                      geometry(Point.fromLngLat(marker.longitude, marker.latitude))
+                      geometry(Point.fromLngLat(location.longitude, location.latitude))
                       annotationAnchor { anchor(ViewAnnotationAnchor.BOTTOM) }
-                    },
-                modifier =
-                    Modifier.testTag(TripMarkerTestTags.markerFor(marker.id))
-                        .markNotImplemented(onMarkerClick)
-                        .clickable(onClick = onMarkerClick),
+                      // Members travel together, so their markers often collide. Mapbox would hide
+                      // all but one of them by default.
+                      allowOverlap(true)
+                    }
             ) {
-              TripMarkerIcon(locationName = marker.locationName, kind = marker.kind)
+              MemberLocationMarker(
+                  location = location,
+                  // Until the trip and profiles load, the member is shown with the fallback name.
+                  member =
+                      members.getOrElse(location.userId) {
+                        memberDisplayInfo(location.userId, null)
+                      },
+                  nowMillis = nowMillis,
+                  isStale = location.userId in staleMemberIds,
+              )
             }
           }
         }
-      }
-      memberLocations.forEach { location ->
-        key(location.userId) {
+        // Declared last so that it is drawn above the member markers.
+        if (myLocation != null) {
           ViewAnnotation(
               options =
                   viewAnnotationOptions {
-                    geometry(Point.fromLngLat(location.longitude, location.latitude))
-                    annotationAnchor { anchor(ViewAnnotationAnchor.BOTTOM) }
-                    // Members travel together, so their markers often collide. Mapbox would hide
-                    // all but one of them by default.
+                    geometry(Point.fromLngLat(myLocation.longitude, myLocation.latitude))
+                    annotationAnchor { anchor(ViewAnnotationAnchor.CENTER) }
+                    // Kept visible next to the members around the user.
                     allowOverlap(true)
                   }
           ) {
-            MemberLocationMarker(
-                location = location,
-                // Until the trip and profiles load, the member is shown with the fallback name.
-                member =
-                    members.getOrElse(location.userId) { memberDisplayInfo(location.userId, null) },
-                nowMillis = nowMillis,
-                isStale = location.userId in staleMemberIds,
-            )
+            MyLocationDot()
           }
         }
       }
-      // Declared last so that it is drawn above the member markers.
-      if (myLocation != null) {
-        ViewAnnotation(
-            options =
-                viewAnnotationOptions {
-                  geometry(Point.fromLngLat(myLocation.longitude, myLocation.latitude))
-                  annotationAnchor { anchor(ViewAnnotationAnchor.CENTER) }
-                  // Kept visible next to the members around the user.
-                  allowOverlap(true)
-                }
-        ) {
-          MyLocationDot()
-        }
-      }
-    }
 
-    // Stacked so that the status overlays never cover the sharing chip.
-    Column(modifier = Modifier.fillMaxSize()) {
-      if (!readOnly) {
-        SharingChip(isSharing = isSharing, modifier = Modifier.padding(Spacing.medium))
-      }
-      if (isOffline) {
-        OfflineBanner(modifier = Modifier.padding(horizontal = Spacing.medium))
-      }
-      Box(
-          modifier =
-              Modifier.weight(1f)
-                  .fillMaxWidth()
-                  .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
-          contentAlignment = Alignment.Center,
-      ) {
-        TripStatusOverlay(uiState = uiState, onRetry = onRetry)
-        // Stacked so that the snackbar never covers the retry button.
-        Column(
-            modifier =
-                Modifier.align(Alignment.BottomCenter)
-                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-          SnackbarHost(
-              hostState = snackbarHostState,
-              modifier = Modifier.testTag(C.Tag.trip_map_location_error),
+      // Stacked so that the status overlays never cover the sharing chip.
+      Column(modifier = Modifier.fillMaxSize()) {
+        if (!readOnly) {
+          SharingChip(
+              isSharing = isSharing,
+              isStartingSharing = isStartingSharing,
+              modifier = Modifier.padding(Spacing.medium),
           )
-          if (
-              uiState is TripMapUiState.Loaded &&
-                  uiState.activitiesLoadState == ActivitiesLoadState.ERROR
-          ) {
-            Button(
-                onClick = onRetryActivities,
-                shape = MaterialTheme.shapes.medium,
-                colors =
-                    ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
+        }
+        if (isOffline) {
+          OfflineBanner(modifier = Modifier.padding(horizontal = Spacing.medium))
+        }
+        Box(
+            modifier =
+                Modifier.weight(1f)
+                    .fillMaxWidth()
+                    .windowInsetsPadding(
+                        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
                     ),
-                modifier =
-                    Modifier.padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium)
-                        .testTag(C.Tag.trip_map_retry_activities),
+            contentAlignment = Alignment.Center,
+        ) {
+          TripStatusOverlay(uiState = uiState, onRetry = onRetry)
+          // Stacked so that the snackbar never covers the retry button.
+          Column(
+              modifier =
+                  Modifier.align(Alignment.BottomCenter)
+                      .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
+              horizontalAlignment = Alignment.CenterHorizontally,
+          ) {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.testTag(C.Tag.trip_map_location_error),
+            )
+            if (
+                uiState is TripMapUiState.Loaded &&
+                    uiState.activitiesLoadState == ActivitiesLoadState.ERROR
             ) {
-              Text(stringResource(R.string.trip_map_retry_activities))
+              Button(
+                  onClick = onRetryActivities,
+                  shape = MaterialTheme.shapes.medium,
+                  colors =
+                      ButtonDefaults.buttonColors(
+                          containerColor = MaterialTheme.colorScheme.primary,
+                          contentColor = MaterialTheme.colorScheme.onPrimary,
+                      ),
+                  modifier =
+                      Modifier.padding(
+                              horizontal = Spacing.screenPadding,
+                              vertical = Spacing.medium,
+                          )
+                          .testTag(C.Tag.trip_map_retry_activities),
+              ) {
+                Text(stringResource(R.string.trip_map_retry_activities))
+              }
             }
           }
         }
       }
-      if (!readOnly) {
-        SharingButtonBar(
-            isSharing = isSharing,
-            onTurnOnSharing = onTurnOnSharing,
-            onPauseSharing = onPauseSharing,
-        )
-      }
+    }
+    if (!readOnly) {
+      SharingButtonBar(
+          isSharing = isSharing,
+          isStartingSharing = isStartingSharing,
+          onTurnOnSharing = onTurnOnSharing,
+          onPauseSharing = onPauseSharing,
+      )
     }
   }
 }
@@ -461,14 +488,25 @@ private fun TripStatusOverlay(uiState: TripMapUiState, onRetry: () -> Unit) {
  * it is the state the user may want to change.
  */
 @Composable
-private fun SharingChip(isSharing: Boolean, modifier: Modifier = Modifier) {
+private fun SharingChip(
+    isSharing: Boolean,
+    isStartingSharing: Boolean,
+    modifier: Modifier = Modifier,
+) {
+  val isStarting = isStartingSharing && !isSharing
+  // Only "off" is tinted: it is the state the user may want to change.
+  val isOff = !isSharing && !isStarting
   val title =
-      if (isSharing) R.string.trip_map_sharing_on_title else R.string.trip_map_sharing_off_title
+      when {
+        isSharing -> R.string.trip_map_sharing_on_title
+        isStarting -> R.string.trip_map_sharing_starting_title
+        else -> R.string.trip_map_sharing_off_title
+      }
   Surface(
       modifier = modifier.testTag(C.Tag.trip_map_sharing_banner),
       shape = CircleShape,
-      color = if (isSharing) MaterialTheme.colorScheme.surface else WarningSurface,
-      border = if (isSharing) null else BorderStroke(1.dp, WarningBorder),
+      color = if (isOff) WarningSurface else MaterialTheme.colorScheme.surface,
+      border = if (isOff) BorderStroke(1.dp, WarningBorder) else null,
   ) {
     Row(
         modifier = Modifier.padding(horizontal = Spacing.cardPadding, vertical = Spacing.small),
@@ -476,15 +514,20 @@ private fun SharingChip(isSharing: Boolean, modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(Spacing.small),
     ) {
       Icon(
-          imageVector = if (isSharing) Icons.Outlined.LocationOn else Icons.Outlined.LocationOff,
+          imageVector = if (isOff) Icons.Outlined.LocationOff else Icons.Outlined.LocationOn,
           contentDescription = null,
           modifier = Modifier.size(SHARING_ICON_SIZE),
-          tint = if (isSharing) Success else Warning,
+          tint =
+              when {
+                isSharing -> Success
+                isStarting -> MaterialTheme.colorScheme.onSurfaceVariant
+                else -> Warning
+              },
       )
       Text(
           text = stringResource(title),
           style = MaterialTheme.typography.labelLarge,
-          color = if (isSharing) MaterialTheme.colorScheme.onSurface else Warning,
+          color = if (isOff) Warning else MaterialTheme.colorScheme.onSurface,
       )
     }
   }
@@ -494,12 +537,16 @@ private fun SharingChip(isSharing: Boolean, modifier: Modifier = Modifier) {
 @Composable
 private fun SharingButtonBar(
     isSharing: Boolean,
+    isStartingSharing: Boolean,
     onTurnOnSharing: () -> Unit,
     onPauseSharing: () -> Unit,
 ) {
   Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.background) {
+    // Pausing stays possible once sharing is on, so only a pending start blocks clicks.
+    val isStarting = isStartingSharing && !isSharing
     TripActionButton(
         onClick = if (isSharing) onPauseSharing else onTurnOnSharing,
+        loading = isStarting,
         modifier =
             Modifier.windowInsetsPadding(
                     WindowInsets.safeDrawing.only(
@@ -509,14 +556,29 @@ private fun SharingButtonBar(
                 .padding(TripActionButtonPadding)
                 .testTag(C.Tag.trip_map_sharing_button),
     ) {
-      Text(
-          stringResource(
-              if (isSharing) R.string.trip_map_pause_sharing else R.string.trip_map_turn_on_sharing
-          )
-      )
+      if (isStarting) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(SharingProgressSize).testTag(C.Tag.trip_map_sharing_loading),
+            strokeWidth = SharingProgressStrokeWidth,
+            color = LocalContentColor.current,
+        )
+        Spacer(Modifier.width(Spacing.small))
+        // Doubles as the accessible description of the button while it is loading.
+        Text(stringResource(R.string.trip_map_sharing_starting_button))
+      } else {
+        Text(
+            stringResource(
+                if (isSharing) R.string.trip_map_pause_sharing
+                else R.string.trip_map_turn_on_sharing
+            )
+        )
+      }
     }
   }
 }
+
+private val SharingProgressSize = 20.dp
+private val SharingProgressStrokeWidth = 2.dp
 
 /** Floating card drawn over the map, styled like the map's notification banner. */
 @Composable
