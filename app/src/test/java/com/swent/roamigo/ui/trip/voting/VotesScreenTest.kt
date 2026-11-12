@@ -61,6 +61,67 @@ class VotesScreenTest {
   }
 
   @Test
+  fun eligibilityFeedbackRequiresAConfirmedUnresolvedTieAndRetainsRetry() {
+    val tie = VoteResult(mapOf("a" to 1, "b" to 1), setOf("a", "b"))
+    val initial =
+        VotesUiState.Ready(emptyList(), listOf(closed), finalSummaries = mapOf(closed.uid to tie))
+    var state by mutableStateOf<VotesUiState>(initial)
+    var eligibility by mutableStateOf<ResolutionEligibility>(ResolutionEligibility.Loading)
+    var retries = 0
+    composeRule.setContent {
+      RoamigoTheme {
+        VotesScreen(
+            state,
+            "Trip",
+            {},
+            {},
+            {},
+            eligibility = eligibility,
+            onRetryEligibility = { retries++ },
+        )
+      }
+    }
+    val messages =
+        listOf(
+            ResolutionEligibility.Loading to "Checking vote-resolution permissions…",
+            ResolutionEligibility.Failed() to
+                "Unable to check vote-resolution permissions. Please retry.",
+            ResolutionEligibility.Ready(false, ResolutionRestriction.ENDED) to
+                "This trip has ended. Vote decisions are unavailable.",
+        )
+    for ((access, message) in messages) {
+      composeRule.runOnIdle {
+        state = initial
+        eligibility = access
+      }
+      composeRule.onNodeWithText(message).assertIsDisplayed()
+      if (access is ResolutionEligibility.Failed) composeRule.onNodeWithText("Retry").performClick()
+      for (withoutTie in
+          listOf(
+              VotesUiState.Loading,
+              VotesUiState.Empty,
+              VotesUiState.Error,
+              VotesUiState.Ready(listOf(live), emptyList()),
+              initial.copy(finalSummaries = emptyMap()),
+              initial.copy(
+                  finalSummaries =
+                      mapOf(closed.uid to VoteResult(mapOf("a" to 0, "b" to 0), emptySet()))
+              ),
+              initial.copy(
+                  finalSummaries =
+                      mapOf(closed.uid to VoteResult(mapOf("a" to 2, "b" to 1), setOf("a")))
+              ),
+              initial.copy(closedVotes = listOf(closed.copy(resolvedOptionId = "missing"))),
+              initial.copy(closedVotes = listOf(closed.copy(nextRoundVoteId = "round2"))),
+          )) {
+        composeRule.runOnIdle { state = withoutTie }
+        composeRule.onNodeWithText(message).assertDoesNotExist()
+      }
+    }
+    composeRule.runOnIdle { assertEquals(1, retries) }
+  }
+
+  @Test
   fun onlyConfirmedUnresolvedTiesExposeListActionsAndLinkedParentsStayHidden() {
     val tie = VoteResult(mapOf("a" to 1, "b" to 1), setOf("a", "b"))
     val initial =

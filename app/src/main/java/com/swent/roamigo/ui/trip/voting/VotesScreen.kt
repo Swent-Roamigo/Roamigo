@@ -182,7 +182,16 @@ fun VotesScreen(
             .padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium),
         verticalArrangement = Arrangement.spacedBy(Spacing.large),
     ) {
-      eligibility?.let { ResolutionEligibilityContent(it, onRetryEligibility) }
+      if (
+          state is VotesUiState.Ready &&
+              state.closedVotes.any { vote ->
+                state.finalSummaries[vote.uid]?.let {
+                  VoteUiState.Closed(vote, it).isUnresolvedTie
+                } == true
+              }
+      ) {
+        eligibility?.let { ResolutionEligibilityContent(it, onRetryEligibility) }
+      }
       if (showHint && !readOnly && state is VotesUiState.Ready) {
         VotesHintCard(onDismiss = onDismissHint)
       }

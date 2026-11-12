@@ -172,12 +172,12 @@ private fun VoteCountRow(name: String, count: Int, tag: String) {
 /** Compact S30 decided row; full option counts remain available by opening the vote. */
 @Composable
 private fun ClosedVoteRow(vote: Vote, result: VoteResult, onClick: () -> Unit, modifier: Modifier) {
-  val winnerId = vote.resolvedOptionId ?: result.winningOptionIds.single()
-  val winner = vote.options.first { it.uid == winnerId }
-  val winnerName =
-      if (result.currentUserOptionId == winnerId)
-          stringResource(R.string.vote_option_yours, winner.name)
-      else winner.name
+  val winnerId = vote.resolvedOptionId ?: result.winningOptionIds.singleOrNull()
+  val winner = vote.options.firstOrNull { it.uid == winnerId }
+  val winnerName = winner?.let {
+    if (result.currentUserOptionId == winnerId) stringResource(R.string.vote_option_yours, it.name)
+    else it.name
+  }
   Surface(
       onClick = onClick,
       modifier = modifier.fillMaxWidth().testTag(C.Tag.decidedVote(vote.uid)),
@@ -203,16 +203,19 @@ private fun ClosedVoteRow(vote: Vote, result: VoteResult, onClick: () -> Unit, m
       }
       Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)) {
         Text(vote.question, style = MaterialTheme.typography.titleSmall)
-        Text(
-            stringResource(R.string.vote_decided_summary, winnerName),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        winnerName?.let {
+          Text(
+              stringResource(R.string.vote_decided_summary, it),
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
       }
-      val count = result.counts.getValue(winnerId)
+      val count = winner?.let { result.counts[it.uid] }
       Text(
-          (voteDecisionLabel(vote, result)
-              ?: pluralStringResource(R.plurals.vote_count, count, count)),
+          voteDecisionLabel(vote, result)
+              ?: if (count == null) stringResource(R.string.vote_result_pending_count)
+              else pluralStringResource(R.plurals.vote_count, count, count),
           modifier = Modifier.testTag(C.Tag.decidedVoteCount(vote.uid)),
           style = MaterialTheme.typography.bodySmall,
           fontWeight = FontWeight.SemiBold,
