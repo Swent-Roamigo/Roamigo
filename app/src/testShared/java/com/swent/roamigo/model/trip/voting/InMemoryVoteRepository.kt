@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.flow
 
 /** Shared test backend with trip isolation and controllable realtime snapshots/failures. */
 class InMemoryVoteRepository(initialVotes: List<Vote> = emptyList()) : VoteRepository {
+  val tripOwnerIds = mutableMapOf<String, String>()
   val snapshots = MutableStateFlow<Result<List<Vote>>>(Result.success(initialVotes))
   val observedTrips = mutableListOf<String>()
   val lookups = mutableListOf<Pair<String, String>>()
@@ -37,6 +38,36 @@ class InMemoryVoteRepository(initialVotes: List<Vote> = emptyList()) : VoteRepos
 
   override suspend fun createVote(vote: Vote) {
     snapshots.value = Result.success(snapshots.value.getOrThrow() + vote)
+  }
+
+  override suspend fun createRevote(vote: Vote) {
+    val parent = requireNotNull(getVote(vote.tripId, requireNotNull(vote.parentVoteId)))
+    val existing = getVote(vote.tripId, vote.uid)
+    if (parent.nextRoundVoteId == vote.uid && existing?.parentVoteId == parent.uid &&
+        existing.createdByUserId == vote.createdByUserId) return
+    val tied = tiedOptions(parent)
+    require(existing == null && vote.uid != parent.uid && vote.status == VoteStatus.OPEN)
+    require(vote.question == parent.question && vote.options == tied && vote.round == parent.round + 1)
+    snapshots.value = Result.success(snapshots.value.getOrThrow().map {
+      if (it.tripId == parent.tripId && it.uid == parent.uid) it.copy(nextRoundVoteId = vote.uid) else it
+    } + vote)
+  }
+
+  override suspend fun resolveByOwner(tripId: String, voteId: String, optionId: String, userId: String) {
+    require(tripOwnerIds[tripId] == userId) { "Trip owner required; configure tripOwnerIds in the fixture" }
+    val vote = requireNotNull(getVote(tripId, voteId))
+    if (vote.resolvedOptionId == optionId && vote.resolvedByUserId == userId) return
+    require(tiedOptions(vote).any { it.uid == optionId })
+    snapshots.value = Result.success(snapshots.value.getOrThrow().map {
+      if (it.tripId == tripId && it.uid == voteId) it.copy(resolvedOptionId = optionId, resolvedByUserId = userId) else it
+    })
+  }
+
+  private fun tiedOptions(vote: Vote): List<VoteOption> {
+    require(vote.status == VoteStatus.CLOSED && vote.nextRoundVoteId == null && vote.resolvedOptionId == null)
+    val result = calculateVoteResult(vote.options, ballotStream(vote.tripId, vote.uid).value)
+    require(result.isTie)
+    return vote.options.filter { it.uid in result.winningOptionIds }
   }
 
   override suspend fun closeVote(tripId: String, voteId: String) {

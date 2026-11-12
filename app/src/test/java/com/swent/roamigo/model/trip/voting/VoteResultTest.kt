@@ -14,6 +14,21 @@ class VoteResultTest {
   }
 
   @Test
+  fun summaryUsesCastBallotsAndRequiresAnAbsoluteMajority() {
+    val unanimous = calculateVoteResult(options, ballots("a", "a", "a"))
+    assertEquals(VoteSummary.UNANIMOUS, unanimous.summary)
+    assertEquals(3, unanimous.castBallots)
+    assertEquals(3, unanimous.winnerBallots)
+    assertEquals(VoteSummary.MAJORITY, calculateVoteResult(options, ballots("a", "a", "b")).summary)
+    assertEquals(
+        VoteSummary.PLURALITY,
+        calculateVoteResult(options, ballots("a", "a", "b", "c")).summary,
+    )
+    assertNull(calculateVoteResult(options, ballots("a", "b")).summary)
+    assertNull(calculateVoteResult(options, emptyList()).summary)
+  }
+
+  @Test
   fun clearWinnerCountsEveryBallotExactlyOnceAndIncludesZeroOptions() {
     val result = calculateVoteResult(options, ballots("a", "a", "b", "a"))
     assertEquals(mapOf("a" to 3, "b" to 1, "c" to 0), result.counts)

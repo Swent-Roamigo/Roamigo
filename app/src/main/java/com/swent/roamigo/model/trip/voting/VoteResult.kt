@@ -10,6 +10,21 @@ data class VoteResult(
     val winningOptionIds: Set<String>,
     val currentUserOptionId: String? = null,
 ) {
+  val castBallots: Int
+    get() = counts.values.sum()
+
+  val winnerBallots: Int
+    get() = winningOptionIds.singleOrNull()?.let { counts[it] } ?: 0
+
+  val summary: VoteSummary?
+    get() =
+        when {
+          !hasUniqueWinner || castBallots == 0 -> null
+          winnerBallots == castBallots -> VoteSummary.UNANIMOUS
+          winnerBallots * 2 > castBallots -> VoteSummary.MAJORITY
+          else -> VoteSummary.PLURALITY
+        }
+
   val hasUniqueWinner: Boolean
     get() = winningOptionIds.size == 1
 
@@ -31,4 +46,10 @@ fun calculateVoteResult(
   val highest = counts.values.maxOrNull() ?: 0
   val winners = if (highest == 0) emptySet() else counts.filterValues { it == highest }.keys
   return VoteResult(counts, winners, ballots.firstOrNull { it.userId == currentUserId }?.optionId)
+}
+
+enum class VoteSummary {
+  UNANIMOUS,
+  MAJORITY,
+  PLURALITY,
 }

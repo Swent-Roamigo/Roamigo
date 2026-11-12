@@ -3,6 +3,8 @@ package com.swent.roamigo.ui.trip.voting
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.swent.roamigo.model.trip.voting.Vote
 import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.trip.voting.VoteResult
@@ -152,5 +154,12 @@ class VotesViewModel(
             }
           }
     }
+  }
+
+  companion object {
+    internal fun factory(repository: VoteRepository, tripId: String, userId: String) =
+        viewModelFactory {
+          initializer { VotesViewModel(repository, tripId, userId) }
+        }
   }
 }
