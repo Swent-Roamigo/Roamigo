@@ -20,6 +20,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.trip.voting.VoteStatus
+import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -38,6 +39,9 @@ class VotesScreenTest {
       onOpenVote: (String) -> Unit = {},
       onRetry: () -> Unit = {},
       onCreateVote: () -> Unit = {},
+      readOnly: Boolean = false,
+      showHint: Boolean = false,
+      onDismissHint: () -> Unit = {},
   ) {
     composeRule.setContent {
       RoamigoTheme {
@@ -47,6 +51,9 @@ class VotesScreenTest {
             onOpenVote = onOpenVote,
             onCreateVote = onCreateVote,
             onRetry = onRetry,
+            readOnly = readOnly,
+            showHint = showHint,
+            onDismissHint = onDismissHint,
         )
       }
     }
@@ -89,16 +96,16 @@ class VotesScreenTest {
         }
       }
     }
-    composeRule.onNodeWithTag("close_vote_${other.uid}").performScrollTo().performClick()
-    composeRule.onNodeWithTag("vote_close_dialog").assertIsDisplayed()
-    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
-    composeRule.onNodeWithText("Cancel").performClick()
-    composeRule.onNodeWithTag("close_vote_${live.uid}").performScrollTo().performClick()
-    composeRule.onNodeWithTag("vote_dialog").assertDoesNotExist()
-    composeRule.onNodeWithText("Cancel").performClick()
+    composeRule.onNodeWithTag(C.Tag.closeVote(other.uid)).performScrollTo().performClick()
+    composeRule.onNodeWithTag(C.Tag.vote_close_dialog).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.vote_dialog).assertDoesNotExist()
+    composeRule.onNodeWithText("Keep it open").performClick()
+    composeRule.onNodeWithTag(C.Tag.closeVote(live.uid)).performScrollTo().performClick()
+    composeRule.onNodeWithTag(C.Tag.vote_dialog).assertDoesNotExist()
+    composeRule.onNodeWithText("Keep it open").performClick()
     composeRule.runOnIdle { assertEquals(listOf(other.uid, live.uid), requested) }
-    composeRule.onNodeWithTag("vote_close_dialog").assertDoesNotExist()
-    composeRule.onNodeWithTag("close_vote_${live.uid}").assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.vote_close_dialog).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.closeVote(live.uid)).assertIsDisplayed()
   }
 
   @Test
@@ -117,16 +124,16 @@ class VotesScreenTest {
         onOpenVote = opened::add,
     )
     composeRule
-        .onNodeWithTag("vote_count_${live.uid}_a", useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.voteCount(live.uid, "a"), useUnmergedTree = true)
         .assertTextEquals("0 votes")
     composeRule
-        .onNodeWithTag("vote_count_${live.uid}_b", useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.voteCount(live.uid, "b"), useUnmergedTree = true)
         .assertTextEquals("2 votes")
     composeRule
-        .onNodeWithTag("vote_count_${other.uid}_a", useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.voteCount(other.uid, "a"), useUnmergedTree = true)
         .assertTextEquals("1 vote")
     composeRule
-        .onNodeWithTag("vote_count_${other.uid}_b", useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.voteCount(other.uid, "b"), useUnmergedTree = true)
         .assertTextEquals("0 votes")
     for (vote in listOf(live, other)) {
       composeRule.onNodeWithText(vote.question).assertHasNoClickAction()
@@ -154,12 +161,51 @@ class VotesScreenTest {
     content(VotesUiState.Empty, onCreateVote = { creations++ })
     composeRule.onNodeWithText("No votes yet").assertIsDisplayed()
     composeRule
-        .onNodeWithText("Start a vote to decide together with your trip members.")
+        .onNodeWithText(
+            "Can't agree on lunch or a day trip? Start a vote. Everyone picks, and the winner joins the plan."
+        )
         .assertIsDisplayed()
-    composeRule.onNodeWithText("New vote").performClick()
+    composeRule.onNodeWithText("Start a vote").performClick()
     composeRule.runOnIdle { assertEquals(1, creations) }
     composeRule.onNodeWithText("Live").assertDoesNotExist()
     composeRule.onNodeWithText("Decided").assertDoesNotExist()
+  }
+
+  @Test
+  fun firstVisitHintExplainsTheStepsAndIsDismissedWithGotIt() {
+    var dismissals = 0
+    content(
+        VotesUiState.Ready(listOf(live), emptyList()),
+        showHint = true,
+        onDismissHint = { dismissals++ },
+    )
+    composeRule.onNodeWithText("How the group decides").assertIsDisplayed()
+    composeRule
+        .onNodeWithText(
+            "1 Someone suggests a place · 2 Everyone votes · 3 The winner joins the plan"
+        )
+        .assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.votes_hint_dismiss).performClick()
+    composeRule.runOnIdle { assertEquals(1, dismissals) }
+  }
+
+  @Test
+  fun hintIsNotRepeatedOnTheEmptyScreenThatAlreadyExplainsVotes() {
+    content(VotesUiState.Empty, showHint = true)
+    composeRule.onNodeWithTag(C.Tag.votes_hint).assertDoesNotExist()
+    composeRule.onNodeWithText("Start a vote").assertIsDisplayed()
+  }
+
+  @Test
+  fun hintIsHiddenOnceSeen() {
+    content(VotesUiState.Ready(listOf(live), emptyList()), showHint = false)
+    composeRule.onNodeWithTag(C.Tag.votes_hint).assertDoesNotExist()
+  }
+
+  @Test
+  fun hintIsNotShownInReadOnlyTrips() {
+    content(VotesUiState.Ready(listOf(live), emptyList()), showHint = true, readOnly = true)
+    composeRule.onNodeWithTag(C.Tag.votes_hint).assertDoesNotExist()
   }
 
   @Test
@@ -174,16 +220,31 @@ class VotesScreenTest {
   }
 
   @Test
-  fun multipleVotesRenderWithLiveLabelsAndCompactDecidedRows() {
-    content(VotesUiState.Ready(listOf(live, other), listOf(closed)))
+  fun multipleVotesRenderLiveAndUnresolvedClosedCards() {
+    content(
+        VotesUiState.Ready(
+            listOf(live, other),
+            listOf(closed),
+            finalSummaries =
+                mapOf(
+                    closed.uid to
+                        com.swent.roamigo.model.trip.voting.calculateVoteResult(
+                            closed.options,
+                            emptyList(),
+                        )
+                ),
+        )
+    )
     composeRule.onNodeWithText("New vote").assertIsDisplayed()
     composeRule.onNodeWithText("Live").assertDoesNotExist()
     composeRule.onAllNodesWithText("Live vote").assertCountEquals(2)
     composeRule.onNodeWithText(live.question).assertIsDisplayed()
     composeRule.onNodeWithText(other.question).assertIsDisplayed()
-    composeRule.onNodeWithText("Decided").assertIsDisplayed()
-    composeRule.onNodeWithText(closed.question).assertIsDisplayed()
-    composeRule.onNode(hasText(closed.question) and hasText("Closed vote")).assertIsDisplayed()
+    composeRule.onNodeWithText("Decided").assertDoesNotExist()
+    composeRule.onNodeWithText(closed.question).performScrollTo().assertIsDisplayed()
+    composeRule
+        .onNode(hasText(closed.question) and hasText("Vote closed · no votes"))
+        .assertIsDisplayed()
   }
 
   @Test
@@ -199,7 +260,7 @@ class VotesScreenTest {
     )
     composeRule.onNodeWithText("Vote").performClick()
     composeRule.onNodeWithText("Change vote").performClick()
-    composeRule.onNodeWithText(closed.question).performClick()
+    composeRule.onNodeWithText(closed.question).performScrollTo().performClick()
     composeRule.runOnIdle { assertEquals(listOf(live.uid, other.uid, closed.uid), opened) }
   }
 
@@ -207,7 +268,8 @@ class VotesScreenTest {
   fun closedOnlySnapshotDoesNotShowLiveSectionOrInventResults() {
     content(VotesUiState.Ready(emptyList(), listOf(closed)))
     composeRule.onNodeWithText("Live").assertDoesNotExist()
-    composeRule.onNodeWithText("Decided").assertIsDisplayed()
+    composeRule.onNodeWithText("Decided").assertDoesNotExist()
+    composeRule.onNodeWithText("Vote closed · loading results…").assertIsDisplayed()
     composeRule.onNodeWithText(closed.question).assertIsDisplayed()
     composeRule.onNodeWithText("agreed", substring = true).assertDoesNotExist()
     composeRule.onNodeWithText("majority", substring = true).assertDoesNotExist()

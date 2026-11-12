@@ -22,6 +22,7 @@ import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.viewmodel.compose.viewModel as composeViewModel
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
@@ -48,17 +49,17 @@ class CreateVoteScreenTest {
         )
       }
     }
-    composeRule.onNodeWithTag("vote_submit").assertIsNotEnabled()
-    composeRule.onNodeWithTag("vote_question").performTextInput("Dinner?")
-    composeRule.onNodeWithTag("vote_option_0").performTextInput("Market")
-    composeRule.onNodeWithTag("vote_option_1").performTextInput("Restaurant")
-    composeRule.onNodeWithTag("vote_submit").assertIsEnabled()
+    composeRule.onNodeWithTag(C.Tag.vote_submit).assertIsNotEnabled()
+    composeRule.onNodeWithTag(C.Tag.vote_question).performTextInput("Dinner?")
+    composeRule.onNodeWithTag(C.Tag.voteOption(0)).performTextInput("Market")
+    composeRule.onNodeWithTag(C.Tag.voteOption(1)).performTextInput("Restaurant")
+    composeRule.onNodeWithTag(C.Tag.vote_submit).assertIsEnabled()
     composeRule.onNodeWithText("+ Add option").performScrollTo().performClick()
-    composeRule.onNodeWithTag("vote_submit").assertIsNotEnabled()
+    composeRule.onNodeWithTag(C.Tag.vote_submit).assertIsNotEnabled()
     composeRule.onNodeWithContentDescription("Remove option 3").performScrollTo().performClick()
-    composeRule.onNodeWithTag("vote_submit").assertIsEnabled()
-    composeRule.onNodeWithTag("vote_question").performScrollTo().performTextClearance()
-    composeRule.onNodeWithTag("vote_submit").assertIsNotEnabled()
+    composeRule.onNodeWithTag(C.Tag.vote_submit).assertIsEnabled()
+    composeRule.onNodeWithTag(C.Tag.vote_question).performScrollTo().performTextClearance()
+    composeRule.onNodeWithTag(C.Tag.vote_submit).assertIsNotEnabled()
   }
 
   @Test
@@ -86,7 +87,7 @@ class CreateVoteScreenTest {
         }
       }
     }
-    composeRule.onNodeWithTag("vote_submit").performClick()
+    composeRule.onNodeWithTag(C.Tag.vote_submit).performClick()
     composeRule.waitForIdle()
     composeRule.runOnIdle { assertEquals(listOf(repository.created.single().uid), successes) }
     composeRule.runOnIdle { showScreen = false }
@@ -94,8 +95,8 @@ class CreateVoteScreenTest {
     composeRule.runOnIdle { showScreen = true }
     composeRule.waitForIdle()
     composeRule.runOnIdle { assertEquals(listOf(repository.created.single().uid), successes) }
-    composeRule.onNodeWithTag("vote_question").assertIsNotEnabled()
-    composeRule.onNodeWithTag("vote_submit").assertIsNotEnabled()
+    composeRule.onNodeWithTag(C.Tag.vote_question).assertIsNotEnabled()
+    composeRule.onNodeWithTag(C.Tag.vote_submit).assertIsNotEnabled()
     composeRule.onNodeWithText("Cancel").performClick()
     composeRule.runOnIdle { assertTrue(cancelled) }
   }
@@ -121,10 +122,10 @@ class CreateVoteScreenTest {
         )
       }
     }
-    composeRule.onNodeWithTag("vote_question").performTextInput("Dinner?")
-    composeRule.onNodeWithTag("vote_option_0").performTextInput("Market")
-    composeRule.onNodeWithTag("vote_option_1").performTextInput("Restaurant")
-    composeRule.onNodeWithTag("vote_submit").performClick()
+    composeRule.onNodeWithTag(C.Tag.vote_question).performTextInput("Dinner?")
+    composeRule.onNodeWithTag(C.Tag.voteOption(0)).performTextInput("Market")
+    composeRule.onNodeWithTag(C.Tag.voteOption(1)).performTextInput("Restaurant")
+    composeRule.onNodeWithTag(C.Tag.vote_submit).performClick()
     composeRule.onNodeWithText("Creating vote…").assertIsDisplayed()
 
     composeRule.runOnUiThread { backDispatcher.onBackPressed() }
@@ -151,8 +152,8 @@ class CreateVoteScreenTest {
     content(
         CreateVoteUiState(question = "Dinner?", options = listOf("A", "B"), isSubmitting = true)
     )
-    composeRule.onNodeWithTag("vote_submit").assertIsNotEnabled()
-    composeRule.onNodeWithTag("vote_question").assertIsNotEnabled()
+    composeRule.onNodeWithTag(C.Tag.vote_submit).assertIsNotEnabled()
+    composeRule.onNodeWithTag(C.Tag.vote_question).assertIsNotEnabled()
     composeRule.onNodeWithContentDescription("Remove option 1").assertIsNotEnabled()
     composeRule.onNodeWithText("+ Add option").assertIsNotEnabled()
     composeRule.onNodeWithText("Cancel").assertIsNotEnabled()
@@ -172,7 +173,7 @@ class CreateVoteScreenTest {
         )
     )
     composeRule.onNodeWithText("Unable to create the vote. Please try again.").assertIsDisplayed()
-    composeRule.onNodeWithTag("vote_submit").assertIsEnabled()
+    composeRule.onNodeWithTag(C.Tag.vote_submit).assertIsEnabled()
   }
 
   @Test
@@ -197,17 +198,17 @@ class CreateVoteScreenTest {
     for (index in 2..9) {
       composeRule.onNodeWithText("+ Add option").performScrollTo().assertIsEnabled().performClick()
       composeRule
-          .onNodeWithTag("vote_option_$index")
+          .onNodeWithTag(C.Tag.voteOption(index))
           .performScrollTo()
           .performTextInput("Option $index")
-      composeRule.onNodeWithTag("vote_submit").assertIsEnabled()
+      composeRule.onNodeWithTag(C.Tag.vote_submit).assertIsEnabled()
     }
     composeRule.onNodeWithText("+ Add option").performScrollTo().assertIsNotEnabled().performClick()
     composeRule.runOnIdle { assertEquals(10, viewModel.uiState.value.options.size) }
     composeRule.onNodeWithContentDescription("Remove option 10").performScrollTo().performClick()
     composeRule.onNodeWithText("+ Add option").performScrollTo().assertIsEnabled().performClick()
-    composeRule.onNodeWithTag("vote_option_9").performScrollTo().performTextInput("Last")
-    composeRule.onNodeWithTag("vote_submit").performClick()
+    composeRule.onNodeWithTag(C.Tag.voteOption(9)).performScrollTo().performTextInput("Last")
+    composeRule.onNodeWithTag(C.Tag.vote_submit).performClick()
     composeRule.waitForIdle()
     composeRule.runOnIdle { assertEquals(10, repository.created.single().options.size) }
   }

@@ -38,6 +38,7 @@ android {
             .orElse("")
             .get()
     buildConfigField("String", "GEONAMES_USERNAME", "\"$geonamesUsername\"")
+    buildConfigField("String", "MAPBOX_ACCESS_TOKEN", "\"$mapboxToken\"")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     vectorDrawables { useSupportLibrary = true }

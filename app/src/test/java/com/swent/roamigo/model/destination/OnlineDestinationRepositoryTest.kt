@@ -163,6 +163,69 @@ class OnlineDestinationRepositoryTest {
   }
 
   @Test
+  fun searchPutsTheExactNameFirstAndThenTheBiggestCities() = runTest {
+    val client = jsonClient { _ ->
+      """
+      {"geonames":[
+      {"geonameId":1,"name":"Warsaw","countryName":"United States","countryCode":"US",
+      "lat":"41.2","lng":"-85.8","population":15000},
+      {"geonameId":2,"name":"Warsaw Village","countryName":"Poland","countryCode":"PL",
+      "lat":"52.0","lng":"21.0","population":10},
+      {"geonameId":3,"name":"Warsaw","countryName":"Poland","countryCode":"PL",
+      "lat":"52.23","lng":"21.01","population":1702139},
+      {"geonameId":4,"name":"Warszawa Bis","countryName":"Poland","countryCode":"PL",
+      "lat":"52.2","lng":"21.0","population":900000}]}
+      """
+          .trimIndent()
+    }
+
+    val result = OnlineDestinationRepository("test-user", client).searchDestinations("warsaw")
+
+    // Exact name by size, then names starting with it, then the rest in GeoNames' order.
+    assertEquals(listOf(3, 1, 2, 4), result.map { it.geonameId })
+  }
+
+  @Test
+  fun searchDoesNotLiftBigUnrelatedCitiesAboveCloserOnes() = runTest {
+    val client = jsonClient { _ ->
+      """
+      {"geonames":[
+      {"geonameId":1,"name":"Paris","countryName":"France","countryCode":"FR",
+      "lat":"48.85","lng":"2.35","population":2138551},
+      {"geonameId":2,"name":"Kingston","countryName":"Jamaica","countryCode":"JM",
+      "lat":"18.0","lng":"-76.8","population":580000},
+      {"geonameId":3,"name":"Warsaw","countryName":"Poland","countryCode":"PL",
+      "lat":"52.23","lng":"21.01","population":1702139},
+      {"geonameId":4,"name":"Paris 14 Observatoire","countryName":"France","countryCode":"FR",
+      "lat":"48.83","lng":"2.33","population":136000}]}
+      """
+          .trimIndent()
+    }
+
+    val result = OnlineDestinationRepository("test-user", client).searchDestinations("paris")
+
+    assertEquals(listOf(1, 4, 2, 3), result.map { it.geonameId })
+  }
+
+  @Test
+  fun searchIgnoresAccentsWhenLookingForTheExactName() = runTest {
+    val client = jsonClient { _ ->
+      """
+      {"geonames":[
+      {"geonameId":1,"name":"Zurich Hill","countryName":"X","countryCode":"XX",
+      "lat":"1","lng":"1","population":5000000},
+      {"geonameId":2,"name":"Zürich","countryName":"Switzerland","countryCode":"CH",
+      "lat":"47.37","lng":"8.54","population":400000}]}
+      """
+          .trimIndent()
+    }
+
+    val result = OnlineDestinationRepository("test-user", client).searchDestinations("Zurich")
+
+    assertEquals(listOf(2, 1), result.map { it.geonameId })
+  }
+
+  @Test
   fun citySearchMakesOneRequestWithCityFilter() = runTest {
     val requests = mutableListOf<HttpUrl>()
     val client =
@@ -374,7 +437,11 @@ class OnlineDestinationRepositoryTest {
             .findPhoto(destinationFixture("geonames:1", "City", "Country", "CC", 1))
 
     assertNull(photo)
-    assertEquals(listOf("query.wikidata.org", "api.openverse.org"), hosts)
+    // A failed article lookup ends the Wikipedia step, so Openverse follows at once.
+    assertEquals(
+        listOf("query.wikidata.org", "en.wikipedia.org", "api.openverse.org"),
+        hosts,
+    )
   }
 
   @Test
@@ -552,6 +619,315 @@ class OnlineDestinationRepositoryTest {
         OnlineDestinationRepository("test-user", sourceFallbackClient)
             .findPhoto(destinationFixture("geonames:1", "City", "Country", "CC", 1))
     assertEquals("https://img.test/direct.jpg", sourceFallback?.sourceUrl)
+  }
+
+  private fun wikipediaPage(
+      type: String = "standard",
+      lat: Double = 10.1,
+      lon: Double = 20.1,
+      image: String = "https://upload.wikimedia.org/wikipedia/commons/a/af/Old_Town.jpg",
+  ) =
+      """{"type":"$type","coordinates":{"lat":$lat,"lon":$lon},"originalimage":{"source":"$image"}}"""
+
+  private val commonsInfo =
+      """{"query":{"pages":{"1":{"imageinfo":[{"thumburl":"https://img.test/thumb.jpg","descriptionurl":"https://commons.wikimedia.org/wiki/File:Old_Town.jpg","extmetadata":{"LicenseShortName":{"value":"CC0"}}}]}}}}"""
+
+  @Test
+  fun photoComesFromTheWikipediaArticleWhenWikidataHasNoImage() = runTest {
+    val requested = mutableListOf<String>()
+    val client = jsonClient { request ->
+      requested += request.url.host + request.url.encodedPath
+      when (request.url.host) {
+        "query.wikidata.org" -> "{}"
+        "en.wikipedia.org" -> wikipediaPage()
+        "commons.wikimedia.org" -> commonsInfo
+        else -> error("Openverse must not be asked when Wikipedia has the photo")
+      }
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "Old Town", "Country", "CC", 1))
+
+    assertEquals("https://img.test/thumb.jpg", photo?.imageUrl)
+    assertEquals("CC0", photo?.license)
+    assertTrue("en.wikipedia.org/api/rest_v1/page/summary/Old_Town" in requested)
+  }
+
+  @Test
+  fun anAmbiguousTitleIsSkippedForTheOneWithCountry() = runTest {
+    val titles = mutableListOf<String>()
+    val client = jsonClient { request ->
+      when (request.url.host) {
+        "query.wikidata.org" -> "{}"
+        "en.wikipedia.org" -> {
+          titles += request.url.pathSegments.last()
+          if (titles.size == 1) """{"type":"disambiguation"}""" else wikipediaPage()
+        }
+        "commons.wikimedia.org" -> commonsInfo
+        else -> error("Unexpected API request")
+      }
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "Sion", "Switzerland", "CH", 1))
+
+    assertEquals(listOf("Sion", "Sion,_Switzerland"), titles)
+    assertEquals("https://img.test/thumb.jpg", photo?.imageUrl)
+  }
+
+  @Test
+  fun anArticleAboutAPlaceFarAwayIsNotUsed() = runTest {
+    val client = jsonClient { request ->
+      when (request.url.host) {
+        "query.wikidata.org" -> "{}"
+        "en.wikipedia.org" -> wikipediaPage(lat = 45.0, lon = 3.0)
+        "api.openverse.org" -> """{"results":[]}"""
+        else -> error("Commons must not be asked for a photo of the wrong place")
+      }
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "Paris", "United States", "US", 1))
+
+    assertNull(photo)
+  }
+
+  @Test
+  fun aWikipediaImageThatIsNotOnCommonsIsNotUsed() = runTest {
+    val client = jsonClient { request ->
+      when (request.url.host) {
+        "query.wikidata.org" -> "{}"
+        "en.wikipedia.org" ->
+            wikipediaPage(image = "https://upload.wikimedia.org/wikipedia/en/a/ab/Logo.png")
+        "api.openverse.org" -> """{"results":[]}"""
+        else -> error("Commons must not be asked for a file it does not host")
+      }
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "Old Town", "Country", "CC", 1))
+
+    assertNull(photo)
+  }
+
+  @Test
+  fun aResizedWikipediaLinkGivesTheNameOfTheOriginalFile() = runTest {
+    val files = mutableListOf<String>()
+    val client = jsonClient { request ->
+      when (request.url.host) {
+        "query.wikidata.org" -> "{}"
+        "en.wikipedia.org" ->
+            wikipediaPage(
+                image =
+                    "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/af/Altstadt_Z%C3%BCrich.jpg/3840px-Altstadt_Z%C3%BCrich.jpg?utm_source=x"
+            )
+        "commons.wikimedia.org" -> {
+          files += request.url.queryParameter("titles").orEmpty()
+          commonsInfo
+        }
+        else -> error("Unexpected API request")
+      }
+    }
+
+    OnlineDestinationRepository("test-user", client)
+        .findPhoto(destinationFixture("geonames:1", "Zürich", "Switzerland", "CH", 1))
+
+    assertEquals(listOf("File:Altstadt_Zürich.jpg"), files)
+  }
+
+  @Test
+  fun aWikipediaArticleWithOnlyAThumbnailStillGivesAPhoto() = runTest {
+    val client = jsonClient { request ->
+      when (request.url.host) {
+        "query.wikidata.org" -> "{}"
+        "en.wikipedia.org" ->
+            """{"type":"standard","coordinates":{"lat":10.1,"lon":20.1},"thumbnail":{"source":"https://upload.wikimedia.org/wikipedia/commons/a/af/Old_Town.jpg"}}"""
+        "commons.wikimedia.org" -> commonsInfo
+        else -> error("Unexpected API request")
+      }
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "Old Town", "Country", "CC", 1))
+
+    assertEquals("https://img.test/thumb.jpg", photo?.imageUrl)
+  }
+
+  @Test
+  fun aWikipediaArticleWithoutAnImageIsNotUsed() = runTest {
+    val client = jsonClient { request ->
+      when (request.url.host) {
+        "query.wikidata.org" -> "{}"
+        "en.wikipedia.org" -> """{"type":"standard","coordinates":{"lat":10.1,"lon":20.1}}"""
+        "api.openverse.org" -> """{"results":[]}"""
+        else -> error("Commons must not be asked when the article has no image")
+      }
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "Old Town", "Country", "CC", 1))
+
+    assertNull(photo)
+  }
+
+  @Test
+  fun aWikipediaArticleWithoutCoordinatesIsNotUsed() = runTest {
+    val client = jsonClient { request ->
+      when (request.url.host) {
+        "query.wikidata.org" -> "{}"
+        "en.wikipedia.org" ->
+            """{"type":"standard","originalimage":{"source":"https://upload.wikimedia.org/wikipedia/commons/a/af/Old_Town.jpg"}}"""
+        "api.openverse.org" -> """{"results":[]}"""
+        else -> error("Commons must not be asked for an article that cannot be placed")
+      }
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "Old Town", "Country", "CC", 1))
+
+    assertNull(photo)
+  }
+
+  @Test
+  fun anArticleTooFarAwayInLongitudeOnlyIsNotUsed() = runTest {
+    val client = jsonClient { request ->
+      when (request.url.host) {
+        "query.wikidata.org" -> "{}"
+        "en.wikipedia.org" -> wikipediaPage(lat = 10.1, lon = 40.0)
+        "api.openverse.org" -> """{"results":[]}"""
+        else -> error("Commons must not be asked for a photo of the wrong place")
+      }
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "Old Town", "Country", "CC", 1))
+
+    assertNull(photo)
+  }
+
+  @Test
+  fun theSecondTitleIsTriedWhenTheFirstArticlesImageHasNoUsableLicence() = runTest {
+    var commonsCalls = 0
+    val client = jsonClient { request ->
+      when (request.url.host) {
+        "query.wikidata.org" -> "{}"
+        "en.wikipedia.org" -> wikipediaPage()
+        "commons.wikimedia.org" ->
+            if (++commonsCalls == 1) """{"query":{"pages":{}}}""" else commonsInfo
+        else -> error("Unexpected API request")
+      }
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "Sion", "Switzerland", "CH", 1))
+
+    assertEquals(2, commonsCalls)
+    assertEquals("https://img.test/thumb.jpg", photo?.imageUrl)
+  }
+
+  @Test
+  fun openverseAnswerWithoutResultsGivesNoPhoto() = runTest {
+    val client = jsonClient { request ->
+      if (request.url.host == "api.openverse.org") "{}" else "{}"
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "Old Town", "Country", "CC", 1))
+
+    assertNull(photo)
+  }
+
+  private fun statusClient(answer: (okhttp3.Request) -> Pair<Int, String>): OkHttpClient =
+      OkHttpClient.Builder()
+          .addInterceptor { chain ->
+            val request = chain.request()
+            val (code, body) = answer(request)
+            Response.Builder()
+                .request(request)
+                .protocol(Protocol.HTTP_1_1)
+                .code(code)
+                .message("status")
+                .body(body.toResponseBody("application/json".toMediaType()))
+                .build()
+          }
+          .build()
+
+  @Test
+  fun aMissingArticleTitleMovesOnToTheTitleWithTheCountry() = runTest {
+    val titles = mutableListOf<String>()
+    val client = statusClient { request ->
+      when (request.url.host) {
+        "query.wikidata.org" -> 200 to "{}"
+        "en.wikipedia.org" -> {
+          titles += request.url.pathSegments.last()
+          if (titles.size == 1) 404 to "{}" else 200 to wikipediaPage()
+        }
+        "commons.wikimedia.org" -> 200 to commonsInfo
+        else -> error("Unexpected API request")
+      }
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "Sion", "Switzerland", "CH", 1))
+
+    assertEquals(listOf("Sion", "Sion,_Switzerland"), titles)
+    assertEquals("https://img.test/thumb.jpg", photo?.imageUrl)
+  }
+
+  @Test
+  fun aServerFailureOnTheFirstTitleSkipsStraightToOpenverse() = runTest {
+    val hosts = mutableListOf<String>()
+    val titles = mutableListOf<String>()
+    val client = statusClient { request ->
+      hosts += request.url.host
+      when (request.url.host) {
+        "query.wikidata.org" -> 200 to "{}"
+        "en.wikipedia.org" -> {
+          titles += request.url.pathSegments.last()
+          503 to "{}"
+        }
+        "api.openverse.org" -> 200 to """{"results":[]}"""
+        else -> error("Commons must not be asked after a failed article lookup")
+      }
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "Sion", "Switzerland", "CH", 1))
+
+    assertNull(photo)
+    assertEquals(listOf("Sion"), titles)
+    assertTrue("api.openverse.org" in hosts)
+  }
+
+  @Test
+  fun anArticleWithMalformedCoordinatesIsNotUsed() = runTest {
+    val client = jsonClient { request ->
+      when (request.url.host) {
+        "query.wikidata.org" -> "{}"
+        "en.wikipedia.org" ->
+            """{"type":"standard","coordinates":{"lat":"n/a"},"originalimage":{"source":"https://upload.wikimedia.org/wikipedia/commons/a/af/Old_Town.jpg"}}"""
+        "api.openverse.org" -> """{"results":[]}"""
+        else -> error("Commons must not be asked for an article that cannot be placed")
+      }
+    }
+
+    val photo =
+        OnlineDestinationRepository("test-user", client)
+            .findPhoto(destinationFixture("geonames:1", "Old Town", "Country", "CC", 1))
+
+    assertNull(photo)
   }
 
   private fun wikidataImageResponse() =

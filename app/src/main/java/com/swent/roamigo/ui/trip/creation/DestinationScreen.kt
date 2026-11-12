@@ -9,9 +9,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -26,7 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.destination.Destination
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffold
-import com.swent.roamigo.ui.trip.creation.components.DestinationCard
+import com.swent.roamigo.ui.trip.creation.components.DestinationList
 import com.swent.roamigo.ui.trip.creation.components.DestinationScreenTestTags
 import com.swent.roamigo.ui.trip.creation.components.DestinationSearchBar
 import com.swent.roamigo.ui.trip.creation.components.SelectedDestinations
@@ -72,11 +69,16 @@ fun DestinationScreen(
       Spacer(Modifier.height(20.dp))
       when (uiState.destinationSearchStatus) {
         DestinationSearchStatus.INITIAL ->
-            Text(
-                stringResource(R.string.destination_search_initial),
+            // Nothing typed yet: offer well-known cities instead of an empty screen.
+            DestinationList(
+                title = stringResource(R.string.destination_popular_title),
+                destinations = uiState.popularDestinations,
+                selectedDestinations = uiState.selectedDestinations,
+                photosByDestinationId = uiState.photosByDestinationId,
+                destinationIdsWithoutPhoto = uiState.destinationIdsWithoutPhoto,
+                onToggleDestination = onToggleDestination,
+                onRequestPhoto = onRequestPhoto,
                 modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground,
             )
         DestinationSearchStatus.LOADING ->
             androidx.compose.foundation.layout.Box(
@@ -109,39 +111,19 @@ fun DestinationScreen(
                 Text(stringResource(R.string.destination_search_retry))
               }
             }
-        DestinationSearchStatus.RESULTS -> {
-          Text(
-              stringResource(R.string.destination_search_results),
-              style = MaterialTheme.typography.titleMedium,
-              color = MaterialTheme.colorScheme.onBackground,
-          )
-          Spacer(Modifier.height(12.dp))
-          LazyVerticalGrid(
-              columns = GridCells.Fixed(DESTINATION_GRID_COLUMNS),
-              modifier = Modifier.weight(1f).fillMaxWidth(),
-              horizontalArrangement = Arrangement.spacedBy(12.dp),
-              verticalArrangement = Arrangement.spacedBy(16.dp),
-          ) {
-            items(uiState.visibleDestinations, key = { it.stableId }) { destination ->
-              DestinationCard(
-                  destination = destination,
-                  selected =
-                      uiState.selectedDestinations.any { it.stableId == destination.stableId },
-                  photo = uiState.photosByDestinationId[destination.stableId],
-                  onRequestPhoto = { onRequestPhoto(destination) },
-                  onClick = { onToggleDestination(destination) },
-              )
-            }
-          }
-          Text(
-              stringResource(R.string.destination_geonames_credit),
-              style = MaterialTheme.typography.labelSmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
+        DestinationSearchStatus.RESULTS ->
+            DestinationList(
+                title = stringResource(R.string.destination_search_results),
+                destinations = uiState.visibleDestinations,
+                selectedDestinations = uiState.selectedDestinations,
+                photosByDestinationId = uiState.photosByDestinationId,
+                destinationIdsWithoutPhoto = uiState.destinationIdsWithoutPhoto,
+                onToggleDestination = onToggleDestination,
+                onRequestPhoto = onRequestPhoto,
+                modifier = Modifier.weight(1f),
+                showGeonamesCredit = true,
+            )
       }
     }
   }
 }
-
-private const val DESTINATION_GRID_COLUMNS = 2

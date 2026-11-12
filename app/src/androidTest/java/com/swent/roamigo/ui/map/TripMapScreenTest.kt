@@ -16,15 +16,23 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.assertWidthIsEqualTo
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.height
+import androidx.compose.ui.unit.width
 import androidx.core.app.ActivityOptionsCompat
 import androidx.lifecycle.Lifecycle
 import androidx.test.espresso.intent.Intents
@@ -51,8 +59,10 @@ import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.components.TripActionButtonMinHeight
 import com.swent.roamigo.ui.isNotImplemented
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import com.swent.roamigo.ui.theme.Spacing
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -88,6 +98,10 @@ class TripMapScreenTest {
   private val errorMessage = targetContext.getString(R.string.trip_map_trip_load_error)
   private val sharingOffTitle = targetContext.getString(R.string.trip_map_sharing_off_title)
   private val sharingOnTitle = targetContext.getString(R.string.trip_map_sharing_on_title)
+  private val startingSharingTitle =
+      targetContext.getString(R.string.trip_map_sharing_starting_title)
+  private val startingSharingLabel =
+      targetContext.getString(R.string.trip_map_sharing_starting_button)
   private val turnOnSharingLabel = targetContext.getString(R.string.trip_map_turn_on_sharing)
   private val pauseSharingLabel = targetContext.getString(R.string.trip_map_pause_sharing)
 
@@ -115,6 +129,7 @@ class TripMapScreenTest {
 
   private val uiState = mutableStateOf<TripMapUiState>(TripMapUiState.Loading)
   private val isSharing = mutableStateOf(false)
+  private val isStartingSharing = mutableStateOf(false)
 
   @Test
   fun loadingStateShowsOverlayOverTheMap() {
@@ -431,6 +446,68 @@ class TripMapScreenTest {
   }
 
   @Test
+  fun startingSharingShowsLoadingIndicatorTurningOnBannerAndDisabledButton() {
+    var turnOnRequests = 0
+    setContent(loadedState, startingSharing = true, onTurnOnSharing = { turnOnRequests++ })
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_loading).assertIsDisplayed()
+    composeRule.onNodeWithText(startingSharingTitle).assertIsDisplayed()
+    composeRule.onNodeWithText(sharingOffTitle).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertIsNotEnabled()
+    composeRule.onNodeWithText(startingSharingLabel).assertIsDisplayed()
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).performClick()
+
+    composeRule.runOnIdle { assertEquals(0, turnOnRequests) }
+  }
+
+  @Test
+  fun startingSharingButtonKeepsTheHeightOfTheOffButton() {
+    setContent(loadedState)
+    val offHeight =
+        composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).getUnclippedBoundsInRoot().height
+    composeRule.runOnIdle { isStartingSharing.value = true }
+    composeRule.waitForIdle()
+
+    val button = composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button)
+    button.assertHeightIsAtLeast(TripActionButtonMinHeight)
+    assertEquals(offHeight, button.getUnclippedBoundsInRoot().height)
+  }
+
+  @Test
+  fun sharingButtonSpansTheScreenWidthMinusMarginsInEveryState() {
+    setContent(loadedState)
+    assertSharingButtonLayout()
+
+    composeRule.runOnIdle { isStartingSharing.value = true }
+    composeRule.waitForIdle()
+    assertSharingButtonLayout()
+
+    composeRule.runOnIdle { isSharing.value = true }
+    composeRule.waitForIdle()
+    assertSharingButtonLayout()
+  }
+
+  @Test
+  fun sharingOnHidesTheLoadingIndicatorAndKeepsPauseEnabled() {
+    setContent(loadedState, sharing = true, startingSharing = true)
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_loading).assertDoesNotExist()
+    composeRule.onNodeWithText(sharingOnTitle).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertIsEnabled()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertTextEquals(pauseSharingLabel)
+  }
+
+  @Test
+  fun sharingOffHasNoLoadingIndicatorAndAnEnabledButton() {
+    setContent(loadedState)
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_loading).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertIsEnabled()
+  }
+
+  @Test
   fun bannerAndButtonStayVisibleOverTheErrorOverlay() {
     setContent(TripMapUiState.Error("failure"))
 
@@ -717,6 +794,13 @@ class TripMapScreenTest {
     composeRule.waitForIdle()
   }
 
+  private fun assertSharingButtonLayout() {
+    val rootWidth = composeRule.onRoot().getUnclippedBoundsInRoot().width
+    val button = composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button)
+    button.assertWidthIsEqualTo(rootWidth - Spacing.screenPadding * 2)
+    button.assertHeightIsAtLeast(TripActionButtonMinHeight)
+  }
+
   private fun assertNoPermissionSheet() {
     composeRule.onNodeWithTag(C.Tag.trip_map_share_location_sheet).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.trip_map_location_denied_sheet).assertDoesNotExist()
@@ -734,6 +818,7 @@ class TripMapScreenTest {
   private fun setContent(
       initialState: TripMapUiState,
       sharing: Boolean = false,
+      startingSharing: Boolean = false,
       onRetry: () -> Unit = {},
       onRetryActivities: () -> Unit = {},
       onTurnOnSharing: () -> Unit = {},
@@ -742,11 +827,13 @@ class TripMapScreenTest {
   ) {
     uiState.value = initialState
     isSharing.value = sharing
+    isStartingSharing.value = startingSharing
     composeRule.setContent {
       RoamigoTheme {
         TripMapScreen(
             uiState = uiState.value,
             isSharing = isSharing.value,
+            isStartingSharing = isStartingSharing.value,
             onRetry = onRetry,
             onRetryActivities = onRetryActivities,
             onTurnOnSharing = onTurnOnSharing,

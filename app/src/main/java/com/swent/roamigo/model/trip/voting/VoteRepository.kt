@@ -89,4 +89,12 @@ interface VoteRepository {
    *   fails.
    */
   fun observeBallots(tripId: String, voteId: String): Flow<List<VoteBallot>>
+
+  /**
+   * Observes committed ballots for a CLOSED vote. Remote implementations must wait for server
+   * snapshots without pending local writes, so cached live counts cannot be announced as final.
+   * In-memory sources can reuse [observeBallots]. Listener lifecycle and errors follow that API.
+   */
+  fun observeFinalBallots(tripId: String, voteId: String): Flow<List<VoteBallot>> =
+      observeBallots(tripId, voteId)
 }

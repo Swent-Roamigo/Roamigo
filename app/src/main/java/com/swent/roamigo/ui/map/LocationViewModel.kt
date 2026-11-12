@@ -98,6 +98,10 @@ class LocationViewModel(
   // Parent of the pending start requests, so that a stop can cancel all of them at once.
   private val startRequests = SupervisorJob(viewModelScope.coroutineContext.job)
 
+  // The pending start request, if any. Lets its completion clear isStartingSharing only when no
+  // newer start replaced it.
+  private var startJob: Job? = null
+
   private var refreshJob: Job? = null
 
   // Whether the user's last request was to share. Lets onCleared stop a sharing that the
@@ -114,7 +118,12 @@ class LocationViewModel(
   init {
     viewModelScope.launch {
       locationRepository.isSharing(tripId).distinctUntilChanged().collect { sharing ->
-        _uiState.update { state -> state.copy(isSharing = sharing) }
+        _uiState.update { state ->
+          state.copy(
+              isSharing = sharing,
+              isStartingSharing = state.isStartingSharing && !sharing,
+          )
+        }
         if (sharing) startRefreshingMyLocation() else stopRefreshingMyLocation()
       }
     }
@@ -150,6 +159,7 @@ class LocationViewModel(
    * @param permissionGranted whether the app currently holds a location permission.
    */
   fun onTurnOnSharingClick(permissionGranted: Boolean) {
+    if (_uiState.value.isStartingSharing) return
     val revoked = _uiState.value.permissionState == LocationPermissionState.Revoked
     showPermissionSheet(
         if (!permissionGranted && revoked) LocationPermissionSheet.Blocked
@@ -232,19 +242,33 @@ class LocationViewModel(
 
   /**
    * Starts sharing the user's location with the trip. Without a granted location permission,
-   * nothing is shared and [LocationUiState.sharingErrorMessage] explains why.
+   * nothing is shared and [LocationUiState.sharingError] is
+   * [LocationSharingError.PermissionRequired].
    */
   fun startSharing() {
-    if (hasLeftTrip) return
+    if (hasLeftTrip || _uiState.value.isStartingSharing) return
     if (_uiState.value.permissionState != LocationPermissionState.Granted) {
-      _uiState.update { state -> state.copy(sharingErrorMessage = PERMISSION_REQUIRED_MESSAGE) }
+      _uiState.update { state ->
+        state.copy(sharingError = LocationSharingError.PermissionRequired)
+      }
       return
     }
     wantsSharing = true
-    lastSharingRequest =
+    _uiState.update { state -> state.copy(isStartingSharing = true) }
+    val job =
         launchSharingRequest(after = lastSharingRequest, context = startRequests) {
           locationRepository.startSharing(tripId)
         }
+    lastSharingRequest = job
+    startJob = job
+    // A completion handler rather than a finally block: a start cancelled before its body began
+    // never runs a finally, and the flag must not stay set.
+    job.invokeOnCompletion {
+      if (startJob === job) {
+        startJob = null
+        _uiState.update { state -> state.copy(isStartingSharing = false) }
+      }
+    }
   }
 
   /** Stops sharing the user's location with the trip. The own position stops refreshing at once. */
@@ -254,6 +278,10 @@ class LocationViewModel(
     // Cancelled instead of awaited: a start may wait long for its first update, and the repository
     // lets a stop interrupt it, so that nothing is published once the user stopped.
     startRequests.cancelChildren()
+    // Cleared now rather than when the cancelled start completes, so that a start requested right
+    // after this stop is not refused as a duplicate.
+    startJob = null
+    _uiState.update { state -> state.copy(isStartingSharing = false) }
     lastSharingRequest = launchSharingRequest { locationRepository.stopSharing(tripId) }
   }
 
@@ -303,18 +331,22 @@ class LocationViewModel(
   ): Job =
       viewModelScope.launch(context) {
         after?.join()
-        _uiState.update { state -> state.copy(sharingErrorMessage = null) }
+        _uiState.update { state -> state.copy(sharingError = null) }
         try {
           request()
         } catch (exception: LocationSharingException) {
-          _uiState.update { state -> state.copy(sharingErrorMessage = exception.message) }
+          onSharingRequestFailed(exception)
         } catch (exception: IllegalStateException) {
           // Thrown when the permission was withdrawn outside the app or the user signed out.
-          _uiState.update { state ->
-            state.copy(sharingErrorMessage = exception.message ?: SHARING_FAILED_MESSAGE)
-          }
+          onSharingRequestFailed(exception)
         }
       }
+
+  // The UI only needs the kind of failure; the exception is logged for diagnostics.
+  private fun onSharingRequestFailed(exception: Exception) {
+    Log.w(TAG, "Could not update the location sharing", exception)
+    _uiState.update { state -> state.copy(sharingError = LocationSharingError.RequestFailed) }
+  }
 
   // A try block rather than the catch operator: static analysis resolves that operator to its
   // deprecated SharedFlow overload. Only the repository throws LocationSharingException here.
@@ -418,10 +450,6 @@ class LocationViewModel(
 
     /** Time between two re-evaluations of the member locations' age. */
     val STALENESS_CHECK_INTERVAL: Duration = 10.seconds
-
-    internal const val PERMISSION_REQUIRED_MESSAGE = "Allow location access to share your location."
-
-    internal const val SHARING_FAILED_MESSAGE = "Unable to update location sharing."
 
     private const val TAG = "LocationViewModel"
 

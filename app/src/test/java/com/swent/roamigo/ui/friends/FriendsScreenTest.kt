@@ -11,6 +11,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
@@ -193,5 +194,30 @@ class FriendsScreenTest {
 
     composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.friends_view_map_prefix + "jonas").assertDoesNotExist()
+  }
+
+  @Test
+  fun headerShowsFriendCount() {
+    show()
+
+    composeRule.onNodeWithText("2 friends").assertIsDisplayed()
+  }
+
+  @Test
+  fun searchFiltersFriendsAndRequestsByName() {
+    show()
+
+    composeRule.onNodeWithTag(C.Tag.friends_search).performTextInput("sa")
+
+    composeRule.onNodeWithText("Sam").assertIsDisplayed()
+    composeRule.onNodeWithText("Mia").assertDoesNotExist()
+    composeRule.onNodeWithText("Jonas").assertDoesNotExist()
+  }
+
+  @Test
+  fun searchIsHiddenWhenThereAreNoFriendsOrRequests() {
+    show(FriendsUiState())
+
+    composeRule.onNodeWithTag(C.Tag.friends_search).assertDoesNotExist()
   }
 }

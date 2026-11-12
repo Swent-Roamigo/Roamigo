@@ -5,8 +5,9 @@ rules_version = '2';
 // Membership model: a trip document lists its members in memberIds, and ownerId is the
 // authoritative owner. Only members can read a trip and its subcollections. A client may only
 // create a new trip it owns, together with its own OWNER member document, in one transaction.
-// Trips and members cannot be changed or deleted by clients yet. Photos can be added by members
-// and read by members, and never changed.
+// Trips and members cannot be changed or deleted by clients yet. Members can create activities,
+// but not change or delete them. Photos can be added by members and read by members, and never
+// changed.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -86,6 +87,33 @@ service cloud.firestore {
           && trip.createdAt is timestamp;
     }
 
+    // Only ACCEPTED activities can be created for now; roles are not enforced yet, so any member
+    // may create one. The author is the requester, and the ID and trip come from the path.
+    function isValidNewActivity(activity) {
+      return activity.keys().hasAll([
+            'activityType', 'name', 'description', 'location', 'startTime', 'endTime',
+            'createdByUserId', 'creationTime'
+          ])
+          && activity.keys().hasOnly([
+            'activityType', 'name', 'description', 'location', 'startTime', 'endTime',
+            'createdByUserId', 'creationTime'
+          ])
+          && activity.activityType == 'ACCEPTED'
+          && activity.name is string
+          && activity.name.trim().size() > 0
+          // Mirrors MAX_ACTIVITY_NAME_LENGTH and MAX_ACTIVITY_DESCRIPTION_LENGTH in
+          // model/trip/activity/ActivityDraft.kt.
+          && activity.name.size() <= 100
+          && (activity.description == null
+              || (activity.description is string && activity.description.size() <= 2000))
+          && isValidDestination(activity.location)
+          && activity.startTime is timestamp
+          && (activity.endTime == null
+              || (activity.endTime is timestamp && activity.endTime >= activity.startTime))
+          && activity.createdByUserId == request.auth.uid
+          && activity.creationTime is timestamp;
+    }
+
     function isValidVoteOption(option) {
       return option is map
           && option.keys().hasAll(['uid', 'name'])
@@ -121,7 +149,8 @@ service cloud.firestore {
           ])
           && vote.keys().hasOnly([
             'uid', 'tripId', 'question', 'options', 'createdByUserId', 'status',
-            'creationTime', 'closingTime', 'winningOptionId'
+            'creationTime', 'closingTime', 'winningOptionId',
+            'parentVoteId', 'nextRoundVoteId', 'round', 'resolvedOptionId', 'resolvedByUserId'
           ])
           && vote.uid == voteId
           && vote.tripId == tripId
@@ -133,7 +162,13 @@ service cloud.firestore {
           && vote.creationTime is timestamp
           // Current creation has no closing schedule or persisted result.
           && vote.closingTime == null
-          && vote.winningOptionId == null;
+          && vote.winningOptionId == null
+          && vote.get('nextRoundVoteId', null) == null
+          && vote.get('resolvedOptionId', null) == null
+          && vote.get('resolvedByUserId', null) == null
+          // Only the trusted callable creates linked rounds and resolution metadata.
+          && vote.get('parentVoteId', null) == null
+          && vote.get('round', 1) == 1;
     }
 
     // Options are bounded by MAX_VOTE_OPTIONS; guard each optional index.
@@ -244,6 +279,42 @@ service cloud.firestore {
           && after.diff(before).affectedKeys().hasOnly(['status', 'respondedAt']);
     }
 
+        // Public profiles contain no raw email address.
+        match /users/{userId} {
+          function validProfile(data) {
+            return data.keys().hasAll([
+                  'uid', 'displayName', 'nameKey', 'photoUrl', 'updatedAt'
+                ])
+                && data.keys().hasOnly([
+                  'uid', 'displayName', 'nameKey', 'photoUrl', 'updatedAt'
+                ])
+                && data.uid == userId
+                && data.displayName is string
+                && data.displayName == data.displayName.trim()
+                && data.displayName.size() > 0
+                && data.displayName.size() <= 120
+                && data.nameKey == data.displayName.lower()
+                && (
+                    data.photoUrl == null ||
+                    (
+                        data.photoUrl is string &&
+                        data.photoUrl.size() <= 2048 &&
+                        data.photoUrl.matches('https://.*')
+                    )
+                )
+                && data.updatedAt == request.time;
+          }
+
+          allow get: if signedIn();
+          allow list: if signedIn() && request.query.limit <= 20;
+
+          allow create, update: if signedIn()
+              && request.auth.uid == userId
+              && validProfile(request.resource.data);
+
+          allow delete: if false;
+        }
+
     match /friendships/{documentId} {
       allow get: if signedIn()
           && ((resource == null && isOwnFriendshipDocument(documentId))
@@ -290,8 +361,10 @@ service cloud.firestore {
       }
 
       match /activities/{activityId} {
+        // Includes missing-document reads used by the activity creation transaction.
         allow read: if isMember(tripId);
-        allow write: if false;
+        allow create: if isMember(tripId) && isValidNewActivity(request.resource.data);
+        allow update, delete: if false;
       }
 
       match /photos/{photoId} {
@@ -309,6 +382,8 @@ service cloud.firestore {
         allow create: if isMember(tripId)
             && isValidNewVote(request.resource.data, tripId, voteId);
         allow update: if isMember(tripId)
+            // Closed vote metadata is writable only by the trusted backend, which
+            // recomputes the tie. Calendar-day writability remains app/repository policy.
             && resource.data.createdByUserId == request.auth.uid
             && resource.data.status == 'OPEN'
             && request.resource.data.status == 'CLOSED'

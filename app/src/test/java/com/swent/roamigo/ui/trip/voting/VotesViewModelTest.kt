@@ -85,7 +85,7 @@ class VotesViewModelTest {
   }
 
   @Test
-  fun closingMovesVoteToClosedAndStopsBallotObservationWithoutRefresh() = runTest {
+  fun closingMovesVoteToClosedWithFreshFinalResultsWithoutRefresh() = runTest {
     repository.snapshots.value = Result.success(listOf(first))
     createViewModel()
     runCurrent()
@@ -95,7 +95,10 @@ class VotesViewModelTest {
     assertTrue(ready().liveVotes.isEmpty())
     assertEquals(listOf(first.copy(status = VoteStatus.CLOSED)), ready().closedVotes)
     assertTrue(ready().liveSummaries.isEmpty())
-    assertEquals(0, repository.activeBallotObservers[first.uid])
+    assertEquals(mapOf("a" to 0, "b" to 0), ready().finalSummaries.getValue(first.uid).counts)
+    assertTrue(ready().finalSummaries.getValue(first.uid).hasNoVotes)
+    assertEquals(1, repository.activeBallotObservers[first.uid])
+    assertEquals(2, repository.ballotObserverStarts[first.uid])
   }
 
   @Test
@@ -130,14 +133,15 @@ class VotesViewModelTest {
   }
 
   @Test
-  fun ballotObserversFollowOpenVoteSetAndStopWithLastSubscriber() = runTest {
+  fun ballotObserversFollowAllVotesAndStopWithLastSubscriber() = runTest {
     repository.snapshots.value = Result.success(listOf(first, second))
     createViewModel()
     runCurrent()
     assertEquals(mapOf(first.uid to 1, second.uid to 1), repository.activeBallotObservers)
     repository.snapshots.value = Result.success(listOf(second.copy(status = VoteStatus.CLOSED)))
     runCurrent()
-    assertTrue(repository.activeBallotObservers.values.all { it == 0 })
+    assertEquals(0, repository.activeBallotObservers[first.uid])
+    assertEquals(1, repository.activeBallotObservers[second.uid])
     repository.snapshots.value = Result.success(listOf(first))
     runCurrent()
     assertEquals(1, repository.activeBallotObservers[first.uid])
@@ -145,6 +149,144 @@ class VotesViewModelTest {
     runCurrent()
     assertEquals(0, repository.activeObservers)
     assertTrue(repository.activeBallotObservers.values.all { it == 0 })
+  }
+
+  @Test
+  fun closedSummariesReuseResultModelAndPersistedUserBallotForAllOutcomes() = runTest {
+    val winner = first.copy(status = VoteStatus.CLOSED)
+    val tied = second.copy(status = VoteStatus.CLOSED)
+    val empty = winner.copy(uid = "empty")
+    repository.snapshots.value = Result.success(listOf(winner, tied, empty))
+    repository.emitBallots(
+        "trip",
+        winner.uid,
+        listOf(
+            VoteBallot("member", "a", Timestamp(1, 0)),
+            VoteBallot("other", "a", Timestamp(1, 0)),
+        ),
+    )
+    repository.emitBallots(
+        "trip",
+        tied.uid,
+        listOf(
+            VoteBallot("other", "a", Timestamp(1, 0)),
+            VoteBallot("third", "b", Timestamp(1, 0)),
+        ),
+    )
+    createViewModel()
+    runCurrent()
+    val results = ready().finalSummaries
+    assertEquals(mapOf("a" to 2, "b" to 0), results.getValue(winner.uid).counts)
+    assertEquals(setOf("a"), results.getValue(winner.uid).winningOptionIds)
+    assertEquals("a", results.getValue(winner.uid).currentUserOptionId)
+    assertTrue(results.getValue(tied.uid).isTie)
+    assertEquals(setOf("a", "b"), results.getValue(tied.uid).winningOptionIds)
+    assertNull(results.getValue(tied.uid).currentUserOptionId)
+    assertTrue(results.getValue(empty.uid).hasNoVotes)
+    assertEquals(mapOf("a" to 0, "b" to 0), results.getValue(empty.uid).counts)
+    assertTrue(ready().liveSummaries.isEmpty())
+    assertEquals(listOf(winner), ready().decidedVotes)
+    assertEquals(listOf(tied, empty), ready().unresolvedClosedVotes)
+    assertTrue(repository.activeBallotObservers.values.all { it == 1 })
+  }
+
+  @Test
+  fun closureWaitsForFreshSnapshotRatherThanAnnouncingOldLeaderAndAcceptsLateUpdates() = runTest {
+    val finalSnapshot = CompletableDeferred<Unit>()
+    var closing = false
+    val source =
+        object : VoteRepository by repository {
+          override fun observeFinalBallots(tripId: String, voteId: String) =
+              observeBallots(tripId, voteId)
+
+          override fun observeBallots(tripId: String, voteId: String) = flow {
+            if (closing && voteId == first.uid) finalSnapshot.await()
+            repository.observeBallots(tripId, voteId).collect { emit(it) }
+          }
+        }
+    repository.snapshots.value = Result.success(listOf(first, second))
+    repository.emitBallots("trip", first.uid, listOf(VoteBallot("member", "a", Timestamp(1, 0))))
+    viewModel = VotesViewModel(source, "trip", "member")
+    store.put("votes", viewModel)
+    subscribers.launch { viewModel.uiState.collect() }
+    runCurrent()
+    assertEquals(1, ready().liveSummaries.getValue(first.uid).counts["a"])
+    closing = true
+    repository.closeVote("trip", first.uid)
+    runCurrent()
+    assertEquals(listOf(second), ready().liveVotes)
+    assertEquals(listOf(first.copy(status = VoteStatus.CLOSED)), ready().closedVotes)
+    assertFalse(ready().liveSummaries.containsKey(first.uid))
+    assertFalse(ready().finalSummaries.containsKey(first.uid))
+    assertTrue(ready().decidedVotes.isEmpty())
+    assertEquals(listOf(first.copy(status = VoteStatus.CLOSED)), ready().unresolvedClosedVotes)
+    assertEquals(1, repository.ballotObserverStarts[second.uid])
+    val finalBallots =
+        listOf(
+            VoteBallot("member", "b", Timestamp(2, 0)),
+            VoteBallot("other", "b", Timestamp(2, 0)),
+        )
+    repository.emitBallots("trip", first.uid, finalBallots)
+    finalSnapshot.complete(Unit)
+    runCurrent()
+    val result = ready().finalSummaries.getValue(first.uid)
+    assertEquals(mapOf("a" to 0, "b" to 2), result.counts)
+    assertEquals(setOf("b"), result.winningOptionIds)
+    assertEquals("b", result.currentUserOptionId)
+    assertEquals(listOf(first.copy(status = VoteStatus.CLOSED)), ready().decidedVotes)
+    assertTrue(ready().unresolvedClosedVotes.isEmpty())
+    repository.emitBallots(
+        "trip",
+        first.uid,
+        finalBallots + VoteBallot("last", "a", Timestamp(2, 0)),
+    )
+    runCurrent()
+    assertEquals(mapOf("a" to 1, "b" to 2), ready().finalSummaries.getValue(first.uid).counts)
+    assertEquals(1, repository.activeBallotObservers[first.uid])
+    assertEquals(1, repository.activeBallotObservers[second.uid])
+    store.clear()
+    runCurrent()
+    assertTrue(repository.activeBallotObservers.values.all { it == 0 })
+  }
+
+  @Test
+  fun remoteClosureWithTieStaysOutsideDecidedWithoutChangingOpenVoteGrouping() = runTest {
+    repository.snapshots.value = Result.success(listOf(first, second))
+    repository.emitBallots(
+        "trip",
+        first.uid,
+        listOf(
+            VoteBallot("member", "a", Timestamp(1, 0)),
+            VoteBallot("other", "b", Timestamp(1, 0)),
+        ),
+    )
+    createViewModel()
+    runCurrent()
+    repository.closeVote("trip", first.uid)
+    runCurrent()
+    assertEquals(listOf(second), ready().liveVotes)
+    assertTrue(ready().decidedVotes.isEmpty())
+    assertEquals(listOf(first.copy(status = VoteStatus.CLOSED)), ready().unresolvedClosedVotes)
+    assertTrue(ready().finalSummaries.getValue(first.uid).isTie)
+    assertEquals(1, repository.ballotObserverStarts[second.uid])
+    assertEquals(1, repository.activeBallotObservers[first.uid])
+  }
+
+  @Test
+  fun addingOrEditingOtherVotesDoesNotRestartExistingBallotListeners() = runTest {
+    repository.snapshots.value = Result.success(listOf(first.copy(status = VoteStatus.CLOSED)))
+    createViewModel()
+    runCurrent()
+    repository.createVote(second)
+    runCurrent()
+    repository.snapshots.value =
+        Result.success(
+            repository.snapshots.value.getOrThrow().map { it.copy(question = "Updated ${it.uid}") }
+        )
+    runCurrent()
+    assertEquals(mapOf(first.uid to 1, second.uid to 1), repository.ballotObserverStarts)
+    assertEquals(2, ready().liveVotes.size + ready().closedVotes.size)
+    assertEquals(setOf(first.uid), ready().finalSummaries.keys)
   }
 
   @Test

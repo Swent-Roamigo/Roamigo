@@ -48,7 +48,7 @@ class TripHistoryHeaderTest {
       }
     }
 
-    composeRule.onNodeWithText("Trip history").assertIsDisplayed()
+    composeRule.onNodeWithText("History").assertIsDisplayed()
     composeRule.onNodeWithText("0 completed trips").assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.trip_history_back).assertIsDisplayed()
   }

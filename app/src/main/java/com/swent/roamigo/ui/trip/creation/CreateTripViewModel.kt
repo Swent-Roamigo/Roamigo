@@ -14,6 +14,7 @@ import com.swent.roamigo.model.destination.DestinationPhoto
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.destination.MAX_DESTINATION_RESULTS
 import com.swent.roamigo.model.destination.MIN_DESTINATION_QUERY_LENGTH
+import com.swent.roamigo.model.destination.PopularDestinations
 import com.swent.roamigo.model.trip.MAX_GROUP_TRAVELER_COUNT
 import com.swent.roamigo.model.trip.MIN_GROUP_TRAVELER_COUNT
 import com.swent.roamigo.model.trip.SOLO_TRAVELER_COUNT
@@ -45,6 +46,10 @@ data class CreateTripUiState(
     val destinationSearchStatus: DestinationSearchStatus = DestinationSearchStatus.INITIAL,
     @field:StringRes val destinationSearchErrorRes: Int? = null,
     val photosByDestinationId: Map<String, DestinationPhoto> = emptyMap(),
+    /** Destinations whose photo lookup is over without a photo, so their card stops shimmering. */
+    val destinationIdsWithoutPhoto: Set<String> = emptySet(),
+    /** Cities offered before the user types anything. */
+    val popularDestinations: List<Destination> = PopularDestinations.all,
     val visibleMonth: YearMonth = YearMonth.now(),
     val startDate: LocalDate = LocalDate.now(),
     val endDate: LocalDate = startDate.plusDays(DEFAULT_TRIP_DURATION_DAYS - 1),
@@ -292,12 +297,16 @@ class CreateTripViewModel(
       try {
         val photo = destinationRepository.findPhoto(destination)
         if (photo == null) {
+          // Asked again when the card comes back, in case the photo exists by then.
           synchronized(requestedPhotoIds) { requestedPhotoIds.remove(destination.stableId) }
+          markPhotoLookupOver(destination)
         } else {
           _uiState.update { state ->
             state.copy(
                 photosByDestinationId =
-                    state.photosByDestinationId + (destination.stableId to photo)
+                    state.photosByDestinationId + (destination.stableId to photo),
+                destinationIdsWithoutPhoto =
+                    state.destinationIdsWithoutPhoto - destination.stableId,
             )
           }
         }
@@ -306,7 +315,14 @@ class CreateTripViewModel(
         throw cancelled
       } catch (_: Exception) {
         synchronized(requestedPhotoIds) { requestedPhotoIds.remove(destination.stableId) }
+        markPhotoLookupOver(destination)
       }
+    }
+  }
+
+  private fun markPhotoLookupOver(destination: Destination) {
+    _uiState.update {
+      it.copy(destinationIdsWithoutPhoto = it.destinationIdsWithoutPhoto + destination.stableId)
     }
   }
 

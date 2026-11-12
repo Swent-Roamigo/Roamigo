@@ -48,7 +48,7 @@
     <string name="create_trip_popular_destinations">Popular with students</string>
     <string name="destination_search_hint">Search cities</string>
     <string name="destination_search_description">Search cities</string>
-    <string name="destination_search_initial">Search for a city</string>
+    <string name="destination_popular_title">Popular destinations</string>
     <string name="destination_search_empty">No destinations found. Try another search.</string>
     <string name="destination_search_error">Couldn’t load destinations. Check your connection and try again.</string>
     <string name="destination_search_not_configured">City search is temporarily unavailable. Please try again later.</string>
@@ -135,6 +135,15 @@
         <item quantity="other">%d travelers</item>
     </plurals>
     <!-- Trip overview map -->
+    <string name="trip_overview_map_title">Map</string>
+    <string name="trip_overview_map_subtitle">All your trips</string>
+    <string name="trip_schedule_past">past</string>
+    <string name="trip_schedule_in_progress">in progress</string>
+    <plurals name="trip_schedule_starts_in">
+        <item quantity="one">in %d day</item>
+        <item quantity="other">in %d days</item>
+    </plurals>
+    <string name="trip_schedule_planning">planning</string>
     <string name="trip_map_loading">Loading trip destinations…</string>
     <string name="trip_map_empty">No trip destinations yet</string>
     <string name="trip_map_load_error">Unable to load trip destinations. Please try again.</string>
@@ -144,11 +153,11 @@
     <string name="trip_map_trip_loading">Loading trip…</string>
     <string name="trip_map_retry_activities">Retry loading activities</string>
     <string name="trip_map_trip_load_error">Unable to load this trip. Please try again.</string>
-    <string name="trip_map_sharing_off_title">Location sharing is off</string>
-    <string name="trip_map_sharing_off_description">The rest of the app works. Turn it on so other trip members can see you on the map.</string>
-    <string name="trip_map_sharing_on_title">Location sharing is on</string>
-    <string name="trip_map_sharing_on_description">Trip members can see you on the map.</string>
-    <string name="trip_map_turn_on_sharing">Turn on sharing</string>
+    <string name="trip_map_sharing_off_title">Location off</string>
+    <string name="trip_map_sharing_on_title">Sharing location</string>
+    <string name="trip_map_sharing_starting_title">Turning on sharing…</string>
+    <string name="trip_map_sharing_starting_button">Turning on…</string>
+    <string name="trip_map_turn_on_sharing">Turn on</string>
     <string name="trip_map_pause_sharing">Pause sharing</string>
     <string name="trip_map_offline">You are offline · saved plan only. Live locations, votes and new updates need internet.</string>
     <string name="trip_map_freshness_live">live</string>
@@ -161,15 +170,20 @@
         <item quantity="other">%1$d min ago</item>
     </plurals>
     <string name="trip_map_member_marker_label">%1$s · %2$s</string>
+    <string name="trip_map_member_location_stale">Location outdated</string>
+    <string name="trip_map_my_location">Your location</string>
+    <string name="trip_map_error_permission_required">Allow location access to share your location.</string>
+    <string name="trip_map_error_sharing_failed">Unable to update location sharing. Please try again.</string>
+    <string name="trip_map_error_locations_unavailable">Unable to load trip members\' locations.</string>
     <string name="trip_map_location_rationale_title">Share your location with the group?</string>
     <string name="trip_map_location_rationale_description">Roamigo uses your location only while sharing is on. Only trip members can see it, and you can pause any time.</string>
     <string name="trip_map_location_rationale_continue">Continue</string>
     <string name="trip_map_location_denied_title">Location stays off</string>
     <string name="trip_map_location_denied_description">The rest of the app works. You can turn sharing on any time from the map.</string>
     <string name="trip_map_location_denied_got_it">Got it</string>
-    <string name="trip_map_location_blocked_title">Location is blocked</string>
-    <string name="trip_map_location_blocked_description">Turn it on in Settings › Permissions › Location to share with your group.</string>
-    <string name="trip_map_location_blocked_open_settings">Open Settings</string>
+    <string name="trip_map_location_blocked_title">Location is off for Roamigo</string>
+    <string name="trip_map_location_blocked_description">Your phone blocks location for Roamigo, so the group can\'t see you on the map. You can still see them.\n\nSettings › Roamigo › Location › While using</string>
+    <string name="trip_map_location_blocked_open_settings">Open settings</string>
     <string name="trip_map_location_not_now">Not now</string>
 
     <!-- Vote creation -->
@@ -186,7 +200,7 @@
     <string name="vote_submission_error">Unable to create the vote. Please try again.</string>
 
     <!-- Trip History -->
-    <string name="trip_history_title">Trip history</string>
+    <string name="trip_history_title">History</string>
     <string name="trip_history_completed">Completed</string>
     <string name="trip_history_empty">No completed trips yet</string>
     <string name="trip_history_unknown_destination">Destination unavailable</string>
@@ -229,6 +243,14 @@
     <!-- Friends -->
     <string name="friends_title">Friends</string>
     <string name="friends_privacy_subtitle">Maps are visible to friends only</string>
+    <string name="profile_log_out_title">Log out of Roamigo?</string>
+    <string name="profile_log_out_message">Your trips stay saved. Trips you opened offline will need a connection after you sign in again.</string>
+    <string name="profile_log_out_cancel">Stay signed in</string>
+    <string name="friends_search">Search friends</string>
+    <plurals name="friends_count">
+        <item quantity="one">%d friend</item>
+        <item quantity="other">%d friends</item>
+    </plurals>
     <string name="friends_view_map">View map</string>
     <string name="friends_view_map_accessibility">View map for %1$s</string>
     <string name="friends_pending">Pending</string>
@@ -265,6 +287,22 @@
         <item quantity="one">%d vote</item>
         <item quantity="other">%d votes</item>
     </plurals>
+
+    <!-- Final vote results and decided summaries -->
+    <string name="vote_final_results">Final results</string>
+    <string name="vote_result_tie">Vote closed · tied</string>
+    <string name="vote_result_no_votes">No votes cast · no winner</string>
+    <string name="vote_result_winner">Winner</string>
+    <string name="vote_result_tied_option">Tied for first</string>
+    <string name="vote_closed_decided">Vote closed · decided</string>
+    <string name="vote_closed_no_votes">Vote closed · no votes</string>
+    <string name="vote_results_loading">Vote closed · loading results…</string>
+    <string name="vote_result_pending_count">—</string>
+    <string name="vote_option_yours">%1$s · your vote</string>
+    <string name="vote_tie_title">It’s a tie</string>
+    <string name="vote_tie_description">The highlighted options received the same highest number of votes. There is no single winner.</string>
+    <string name="vote_decided_summary">Decided · %1$s</string>
+
     <string name="create_trip_sign_in">Sign in</string>
     <string name="create_trip_retry">Retry</string>
     <string name="create_trip_auth_error">Your session has ended. Sign in to create your trip.</string>
@@ -296,6 +334,10 @@
     <string name="profile_change">Change</string>
     <string name="profile_friends">Friends</string>
     <string name="profile_view">View</string>
+    <string name="create_trip_discard_title">Discard this trip?</string>
+    <string name="create_trip_discard_message">The destinations you chose will not be saved.</string>
+    <string name="create_trip_discard">Discard</string>
+    <string name="create_trip_keep_editing">Keep editing</string>
     <string name="profile_log_out">Log out</string>
     <string name="profile_email">%1$s · Signed in with Google</string>
     <plurals name="profile_friend_count">
@@ -313,10 +355,14 @@
     </plurals>
     <string name="votes_decided">Decided</string>
     <string name="votes_live_vote">Live vote</string>
-    <string name="votes_closed_vote">Closed vote</string>
+    <string name="votes_unresolved">Unresolved</string>
     <string name="votes_loading">Loading votes…</string>
     <string name="votes_empty_title">No votes yet</string>
-    <string name="votes_empty_description">Start a vote to decide together with your trip members.</string>
+    <string name="votes_empty_description">Can\'t agree on lunch or a day trip? Start a vote. Everyone picks, and the winner joins the plan.</string>
+    <string name="votes_empty_start">Start a vote</string>
+    <string name="votes_hint_title">How the group decides</string>
+    <string name="votes_hint_steps">1 Someone suggests a place · 2 Everyone votes · 3 The winner joins the plan</string>
+    <string name="votes_hint_got_it">Got it</string>
     <string name="votes_load_error">Unable to load votes. Please try again.</string>
     <string name="votes_sync_error">Unable to update votes. Showing the last available votes.</string>
     <string name="trip_ready_title">Your trip is ready!</string>
@@ -333,11 +379,24 @@
     <string name="trip_ready_error">Could not load this trip. Please try again.</string>
     <string name="trip_ready_photo_credit">Photo credits</string>
     <!-- Trip Details -->
-    <string name="trip_details_tab">Detail</string>
+    <string name="trip_details_tab">Plan</string>
+    <string name="trip_ended_banner">This trip has ended · view only. Photos and memories stay with the group.</string>
     <string name="trip_details_itinerary">Itinerary</string>
     <string name="trip_details_votes">Votes</string>
-    <string name="trip_details_share">Share trip</string>
     <string name="trip_details_members">Members</string>
+    <string name="trip_add_menu">Add to this trip</string>
+    <string name="trip_add_activity">Add an activity</string>
+    <string name="trip_add_activity_hint">Put something in the plan for a day</string>
+    <string name="trip_add_suggestion">Suggest a place</string>
+    <string name="trip_add_suggestion_hint">The group can vote on it</string>
+    <string name="trip_add_vote">Start a vote</string>
+    <string name="trip_add_vote_hint">Ask the group to decide between options</string>
+    <string name="trip_members_title">Members</string>
+    <string name="trip_members_you">%1$s (you)</string>
+    <string name="trip_members_organiser">Organiser</string>
+    <string name="trip_members_member">Member</string>
+    <string name="trip_members_unknown">Unknown traveler</string>
+    <string name="trip_members_load_error">Unable to load members. Please try again.</string>
     <string name="trip_details_places">Places to visit</string>
     <string name="trip_details_live_votes">Live votes</string>
     <string name="trip_details_photos">Trip photos</string>
@@ -347,7 +406,7 @@
     <string name="trip_details_map">Open trip map</string>
     <string name="trip_details_loading">Loading trip details…</string>
     <string name="trip_details_load_failed">Unable to load trip details.</string>
-    <string name="trip_details_not_found">This trip is no longer available to you.</string>
+    <string name="trip_details_not_found">We couldn\'t open this trip. It may be private or no longer available.</string>
     <string name="trip_details_retry">Retry</string>
     <string name="trip_details_back">Back</string>
     <string name="trip_details_subtitle">%1$s · %2$s</string>
@@ -375,7 +434,6 @@
         <item quantity="one">%d person</item>
         <item quantity="other">%d people</item>
     </plurals>
-    <string name="photos_title">Trip photos</string>
     <string name="photos_take_photo">Take a photo</string>
     <string name="photos_no_camera">No camera app is available on this device.</string>
     <string name="photos_offline_empty">You’re offline · photos you take are saved on this phone</string>
@@ -388,9 +446,15 @@
         <item quantity="other">%d photos waiting to upload</item>
     </plurals>
     <plurals name="photos_uploading">
-        <item quantity="one">Back online · uploading %d photo…</item>
-        <item quantity="other">Back online · uploading %d photos…</item>
+        <item quantity="one">Uploading %d photo…</item>
+        <item quantity="other">Uploading %d photos…</item>
     </plurals>
+    <plurals name="photos_failed_summary">
+        <item quantity="one">%d photo didn\'t upload</item>
+        <item quantity="other">%d photos didn\'t upload</item>
+    </plurals>
+    <string name="photos_failed_offline_hint">No connection. We\'ll retry when you\'re back online.</string>
+    <string name="photos_retry_all">Retry all</string>
     <string name="photos_empty_title">No photos yet</string>
     <string name="photos_empty_description">Photos you take are shared with the trip, and uploaded by themselves once you are online.</string>
     <string name="photos_item_description">Photo taken at %1$s</string>
@@ -427,8 +491,9 @@
     <string name="vote_close">Close vote</string>
     <string name="vote_closing">Closing vote…</string>
     <string name="vote_close_title">Close this vote?</string>
-    <string name="vote_close_confirmation">Closing is permanent. Members will no longer be able to vote or change their vote.</string>
-    <string name="vote_close_cancel">Cancel</string>
+    <string name="vote_close_title_named">Close “%1$s” now?</string>
+    <string name="vote_close_confirmation">Once closed, the winning option is final and votes can\'t be changed.</string>
+    <string name="vote_close_keep_open">Keep it open</string>
     <string name="vote_close_error">Could not close the vote. Please try again.</string>
     <string name="vote_close_unavailable">Only the creator can close an open vote.</string>
 </resources>

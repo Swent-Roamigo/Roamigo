@@ -4,6 +4,7 @@ package com.swent.roamigo.ui.map
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
+import com.swent.roamigo.R
 import com.swent.roamigo.model.connectivity.FakeConnectivityRepository
 import com.swent.roamigo.model.location.DeviceLocation
 import com.swent.roamigo.model.location.FakeLocationRepository
@@ -144,7 +145,7 @@ class LocationViewModelTest {
     assertTrue(state.memberLocations.isEmpty())
     assertTrue(state.staleMemberIds.isEmpty())
     assertFalse(state.isOffline)
-    assertNull(state.errorMessage)
+    assertNull(state.errorMessageRes)
   }
 
   @Test
@@ -305,7 +306,7 @@ class LocationViewModelTest {
 
     val state = viewModel.uiState.value
     assertTrue(state.isSharing)
-    assertNull(state.errorMessage)
+    assertNull(state.errorMessageRes)
     assertEquals(listOf(TRIP_ID), repository.startSharingCalls)
     assertEquals(MemberLocation(USER_ID, 46.52, 6.63, LAUSANNE_MILLIS), state.myLocation)
   }
@@ -439,8 +440,12 @@ class LocationViewModelTest {
       advanceUntilIdle()
 
       assertEquals(
-          LocationViewModel.PERMISSION_REQUIRED_MESSAGE,
-          viewModel.uiState.value.errorMessage,
+          LocationSharingError.PermissionRequired,
+          viewModel.uiState.value.sharingError,
+      )
+      assertEquals(
+          R.string.trip_map_error_permission_required,
+          viewModel.uiState.value.errorMessageRes,
       )
       assertFalse(viewModel.uiState.value.isSharing)
     }
@@ -449,14 +454,160 @@ class LocationViewModelTest {
   }
 
   @Test
-  fun startSharing_whenRepositoryFails_showsItsMessage() = runLocationTest {
+  fun startSharing_isStartingUntilSharingIsReported() = runLocationTest {
+    repository.currentLocation = LAUSANNE
+    val gate = CompletableDeferred<Unit>()
+    repository.startSharingGate = gate
+    val viewModel = createViewModel(hasPermission = true)
+    assertFalse(viewModel.uiState.value.isStartingSharing)
+
+    viewModel.startSharing()
+    assertTrue(viewModel.uiState.value.isStartingSharing)
+    runCurrent()
+    assertTrue(viewModel.uiState.value.isStartingSharing)
+    assertFalse(viewModel.uiState.value.isSharing)
+
+    gate.complete(Unit)
+    runCurrent()
+
+    assertTrue(viewModel.uiState.value.isSharing)
+    assertFalse(viewModel.uiState.value.isStartingSharing)
+  }
+
+  @Test
+  fun startSharing_whenRepositoryFails_isNoLongerStarting() = runLocationTest {
+    listOf(LocationSharingException("Could not publish"), IllegalStateException("Signed out"))
+        .forEach { failure ->
+          repository.startSharingError = failure
+          val viewModel = createViewModel(hasPermission = true)
+
+          viewModel.startSharing()
+          assertTrue(viewModel.uiState.value.isStartingSharing)
+          advanceUntilIdle()
+
+          assertFalse(viewModel.uiState.value.isStartingSharing)
+          assertEquals(LocationSharingError.RequestFailed, viewModel.uiState.value.sharingError)
+        }
+  }
+
+  @Test
+  fun stopSharing_whileStarting_endsTheStartingState() = runLocationTest {
+    repository.startSharingGate = CompletableDeferred()
+    val viewModel = createViewModel(hasPermission = true)
+    viewModel.startSharing()
+    runCurrent()
+    assertTrue(viewModel.uiState.value.isStartingSharing)
+
+    viewModel.stopSharing()
+    runCurrent()
+
+    assertFalse(viewModel.uiState.value.isStartingSharing)
+    assertFalse(viewModel.uiState.value.isSharing)
+  }
+
+  @Test
+  fun stopSharing_beforeTheStartBegan_endsTheStartingState() = runLocationTest {
+    repository.startSharingGate = CompletableDeferred()
+    val viewModel = createViewModel(hasPermission = true)
+
+    // Cancelled before the dispatcher ran the start, so its body never executes.
+    viewModel.startSharing()
+    viewModel.stopSharing()
+    runCurrent()
+
+    assertFalse(viewModel.uiState.value.isStartingSharing)
+    assertTrue(repository.startSharingCalls.isEmpty())
+  }
+
+  @Test
+  fun onLeaveTrip_whileStarting_endsTheStartingState() = runLocationTest {
+    repository.startSharingGate = CompletableDeferred()
+    val viewModel = createViewModel(hasPermission = true)
+    viewModel.startSharing()
+    runCurrent()
+    assertTrue(viewModel.uiState.value.isStartingSharing)
+
+    viewModel.onLeaveTrip()
+    runCurrent()
+
+    assertFalse(viewModel.uiState.value.isStartingSharing)
+  }
+
+  @Test
+  fun startSharing_afterACancelledStart_staysStartingUntilTheNewOneEnds() = runLocationTest {
+    val firstGate = CompletableDeferred<Unit>()
+    repository.startSharingGate = firstGate
+    val viewModel = createViewModel(hasPermission = true)
+    viewModel.startSharing()
+    runCurrent()
+    viewModel.stopSharing()
+
+    viewModel.startSharing()
+    runCurrent()
+
+    // The cancelled start finishing must not clear the flag of the newer one.
+    assertTrue(viewModel.uiState.value.isStartingSharing)
+  }
+
+  @Test
+  fun whileStarting_turnOnSharingClickDoesNotReopenTheRationale() = runLocationTest {
+    repository.startSharingGate = CompletableDeferred()
+    val viewModel = createViewModel(hasPermission = true)
+    viewModel.startSharing()
+    runCurrent()
+
+    viewModel.onTurnOnSharingClick(permissionGranted = true)
+
+    assertEquals(LocationPermissionSheet.None, viewModel.uiState.value.permissionSheet)
+  }
+
+  @Test
+  fun whileStarting_startSharingDoesNotLaunchASecondRequest() = runLocationTest {
+    repository.startSharingGate = CompletableDeferred()
+    val viewModel = createViewModel(hasPermission = true)
+    viewModel.startSharing()
+    runCurrent()
+
+    viewModel.startSharing()
+    viewModel.startSharing()
+    runCurrent()
+
+    assertEquals(listOf(TRIP_ID), repository.startSharingCalls)
+    assertTrue(viewModel.uiState.value.isStartingSharing)
+  }
+
+  @Test
+  fun deniedOrBlockedPermission_neverSetsStarting() = runLocationTest {
+    val viewModel = createViewModel(hasPermission = false)
+
+    viewModel.startSharing()
+    assertFalse(viewModel.uiState.value.isStartingSharing)
+
+    viewModel.onTurnOnSharingClick(permissionGranted = false)
+    viewModel.onRationaleContinue(permissionGranted = false)
+    viewModel.onPermissionResult(granted = false, shouldShowRationale = true)
+    runCurrent()
+    assertEquals(LocationPermissionSheet.Denied, viewModel.uiState.value.permissionSheet)
+    assertFalse(viewModel.uiState.value.isStartingSharing)
+
+    viewModel.onRationaleContinue(permissionGranted = false)
+    viewModel.onPermissionResult(granted = false, shouldShowRationale = false)
+    runCurrent()
+    assertEquals(LocationPermissionSheet.Blocked, viewModel.uiState.value.permissionSheet)
+    assertFalse(viewModel.uiState.value.isStartingSharing)
+    assertTrue(repository.startSharingCalls.isEmpty())
+  }
+
+  @Test
+  fun startSharing_whenRepositoryFails_setsRequestFailed() = runLocationTest {
     repository.startSharingError = LocationSharingException("Could not publish the location")
     val viewModel = createViewModel(hasPermission = true)
 
     viewModel.startSharing()
     advanceUntilIdle()
 
-    assertEquals("Could not publish the location", viewModel.uiState.value.errorMessage)
+    assertEquals(LocationSharingError.RequestFailed, viewModel.uiState.value.sharingError)
+    assertEquals(R.string.trip_map_error_sharing_failed, viewModel.uiState.value.errorMessageRes)
     assertFalse(viewModel.uiState.value.isSharing)
     assertEquals(0, repository.getCurrentLocationCalls)
   }
@@ -470,12 +621,12 @@ class LocationViewModelTest {
     viewModel.startSharing()
     advanceUntilIdle()
 
-    assertEquals("Location permission is missing.", viewModel.uiState.value.errorMessage)
+    assertEquals(LocationSharingError.RequestFailed, viewModel.uiState.value.sharingError)
     assertFalse(viewModel.uiState.value.isSharing)
   }
 
   @Test
-  fun stopSharing_whenRepositoryFails_showsItsMessageAndStopsRefreshing() = runLocationTest {
+  fun stopSharing_whenRepositoryFails_setsRequestFailedAndStopsRefreshing() = runLocationTest {
     repository.currentLocation = LAUSANNE
     repository.stopSharingError = LocationSharingException("Could not remove the location")
     val viewModel = createViewModel(hasPermission = true)
@@ -487,7 +638,7 @@ class LocationViewModelTest {
     advanceTimeBy(interval * 3)
     runCurrent()
 
-    assertEquals("Could not remove the location", viewModel.uiState.value.errorMessage)
+    assertEquals(LocationSharingError.RequestFailed, viewModel.uiState.value.sharingError)
     assertEquals(callsWhenStopped, repository.getCurrentLocationCalls)
   }
 
@@ -502,7 +653,31 @@ class LocationViewModelTest {
     viewModel.startSharing()
     runCurrent()
 
-    assertNull(viewModel.uiState.value.errorMessage)
+    assertNull(viewModel.uiState.value.sharingError)
+    assertNull(viewModel.uiState.value.errorMessageRes)
+    assertTrue(viewModel.uiState.value.isSharing)
+  }
+
+  @Test
+  fun failedRequest_isClearedByTheNextRequest() = runLocationTest {
+    repository.currentLocation = LAUSANNE
+    repository.startSharingError = LocationSharingException("Could not publish the location")
+    val viewModel = createViewModel(hasPermission = true)
+    viewModel.startSharing()
+    advanceUntilIdle()
+    assertEquals(LocationSharingError.RequestFailed, viewModel.uiState.value.sharingError)
+
+    // The gate holds the next request open, to show the error is cleared as soon as it starts.
+    val gate = CompletableDeferred<Unit>()
+    repository.startSharingError = null
+    repository.startSharingGate = gate
+    viewModel.startSharing()
+    runCurrent()
+    assertNull(viewModel.uiState.value.sharingError)
+
+    gate.complete(Unit)
+    runCurrent()
+    assertNull(viewModel.uiState.value.sharingError)
     assertTrue(viewModel.uiState.value.isSharing)
   }
 
@@ -782,7 +957,7 @@ class LocationViewModelTest {
 
     listOf(notRequested, denied, revoked).forEach { viewModel ->
       assertEquals(listOf(ALICE, BOB), viewModel.uiState.value.memberLocations)
-      assertNull(viewModel.uiState.value.errorMessage)
+      assertNull(viewModel.uiState.value.errorMessageRes)
     }
     assertEquals(Denied, denied.uiState.value.permissionState)
     assertEquals(Revoked, revoked.uiState.value.permissionState)
@@ -796,7 +971,14 @@ class LocationViewModelTest {
     val viewModel = createViewModel(hasPermission = true)
     advanceUntilIdle()
 
-    assertEquals("Could not read the member locations", viewModel.uiState.value.errorMessage)
+    assertEquals(
+        "Could not read the member locations",
+        viewModel.uiState.value.observationErrorMessage,
+    )
+    assertEquals(
+        R.string.trip_map_error_locations_unavailable,
+        viewModel.uiState.value.errorMessageRes,
+    )
     assertTrue(viewModel.uiState.value.memberLocations.isEmpty())
   }
 
@@ -808,7 +990,10 @@ class LocationViewModelTest {
 
     repository.failMemberLocations(LocationSharingException("Could not read the trip locations"))
     runCurrent()
-    assertEquals("Could not read the trip locations", viewModel.uiState.value.errorMessage)
+    assertEquals(
+        "Could not read the trip locations",
+        viewModel.uiState.value.observationErrorMessage,
+    )
     assertEquals(listOf(ALICE), viewModel.uiState.value.memberLocations)
     assertTrue(viewModel.uiState.value.staleMemberIds.isEmpty())
 
@@ -841,7 +1026,7 @@ class LocationViewModelTest {
 
     assertEquals(listOf(ALICE), viewModel.uiState.value.memberLocations)
     assertNull(viewModel.uiState.value.observationErrorMessage)
-    assertNull(viewModel.uiState.value.errorMessage)
+    assertNull(viewModel.uiState.value.errorMessageRes)
   }
 
   @Test
@@ -855,8 +1040,8 @@ class LocationViewModelTest {
     runCurrent()
 
     assertEquals(listOf(ALICE), viewModel.uiState.value.memberLocations)
-    assertEquals("Could not publish the location", viewModel.uiState.value.sharingErrorMessage)
-    assertEquals("Could not publish the location", viewModel.uiState.value.errorMessage)
+    assertEquals(LocationSharingError.RequestFailed, viewModel.uiState.value.sharingError)
+    assertEquals(R.string.trip_map_error_sharing_failed, viewModel.uiState.value.errorMessageRes)
   }
 
   @Test

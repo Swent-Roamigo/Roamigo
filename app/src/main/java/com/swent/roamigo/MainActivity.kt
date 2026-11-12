@@ -1,4 +1,4 @@
-// AI assistance was used for trip creation integration.
+// AI assistance was used for trip creation and user directory integration.
 package com.swent.roamigo
 
 import android.os.Bundle
@@ -11,15 +11,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.swent.roamigo.model.authentication.AuthRepositoryFirebase
 import com.swent.roamigo.model.country.CachedCountryCodeResolver
 import com.swent.roamigo.model.country.DataStoreCountryCodeCache
 import com.swent.roamigo.model.country.GeoNamesCountryCodeLookup
 import com.swent.roamigo.model.country.VisitedCountryRepository
-import com.swent.roamigo.model.destination.OnlineDestinationRepository
 import com.swent.roamigo.model.trip.TripRepositoryFirestore
 import com.swent.roamigo.model.trip.voting.VoteRepositoryFirestore
+import com.swent.roamigo.model.users.UserRepositoryFirestore
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.RoamigoApp
 import com.swent.roamigo.ui.heatmap.VisitedCountryCounts
@@ -45,6 +46,13 @@ class MainActivity : ComponentActivity() {
           }
           val voteRepository = remember { VoteRepositoryFirestore(FirebaseFirestore.getInstance()) }
 
+          val userRepository = remember {
+            UserRepositoryFirestore(
+                FirebaseFirestore.getInstance(),
+                FirebaseAuth.getInstance(),
+            )
+          }
+
           val visitedCountryRepository =
               remember(tripRepository) {
                 VisitedCountryRepository(
@@ -66,11 +74,12 @@ class MainActivity : ComponentActivity() {
               tripRepository = tripRepository,
               authRepository = authRepository,
               voteRepository = voteRepository,
-              destinationRepository = remember { OnlineDestinationRepository() },
+              destinationRepository = (application as RoamigoApplication).destinationRepository,
               photoRepository = remember { (application as RoamigoApplication).photos.repository },
               locationRepository =
                   remember { (application as RoamigoApplication).locationRepository },
               countryCounts = countryCounts,
+              userRepository = userRepository,
           )
         }
       }

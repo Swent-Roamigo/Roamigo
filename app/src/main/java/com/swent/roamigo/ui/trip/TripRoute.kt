@@ -3,6 +3,7 @@
 // Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui.trip
 
+import android.content.Context
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
@@ -16,8 +17,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.core.content.edit
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.swent.roamigo.R
 import com.swent.roamigo.RoamigoApplication
 import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.connectivity.ConnectivityRepository
@@ -35,6 +40,7 @@ import com.swent.roamigo.ui.map.TripMapScreen
 import com.swent.roamigo.ui.map.TripMapUiState
 import com.swent.roamigo.ui.map.TripMapViewModel
 import com.swent.roamigo.ui.photos.PhotosRoute
+import com.swent.roamigo.ui.trip.components.AddToTripSheet
 import com.swent.roamigo.ui.trip.details.TripDetailsRoute
 import com.swent.roamigo.ui.trip.voting.VoteCloseDialog
 import com.swent.roamigo.ui.trip.voting.VoteDialog
@@ -65,6 +71,7 @@ internal fun TripRoute(
     onAuthenticationRequired: () -> Unit,
     onOpenVote: (String, Boolean) -> Unit,
     onCreateVote: () -> Unit,
+    onMembersClick: () -> Unit,
     onTripsClick: () -> Unit,
     onMapClick: () -> Unit,
     onFriendsClick: () -> Unit,
@@ -74,6 +81,7 @@ internal fun TripRoute(
     mutableStateOf(if (openMap) TripSection.Map else TripSection.Detail)
   }
   val notImplemented = rememberNotImplementedAction()
+  var showAdd by rememberSaveable { mutableStateOf(false) }
   val userId = authRepository.getCurrentUser()?.uid
   if (userId == null) {
     LaunchedEffect(Unit) { onAuthenticationRequired() }
@@ -129,6 +137,14 @@ internal fun TripRoute(
           .collectAsStateWithLifecycle(initialValue = null)
   val tabState = rememberSaveableStateHolder()
   BackHandler(onBack = onBack)
+  if (showAdd) {
+    AddToTripSheet(
+        onDismiss = { showAdd = false },
+        onActivity = notImplemented,
+        onSuggestion = notImplemented,
+        onVote = onCreateVote,
+    )
+  }
   TripScreen(
       trip =
           loaded?.trip?.let { trip ->
@@ -137,17 +153,19 @@ internal fun TripRoute(
                 startDate = trip.startDate.toDate().toInstant().atZone(zone).toLocalDate(),
                 endDate = trip.endDate.toDate().toInstant().atZone(zone).toLocalDate(),
                 memberCount = trip.memberIds.distinct().size,
+                members = trip.memberIds.distinct().mapNotNull { loaded.members[it] },
             )
           },
       selectedTab = tab,
-      today = today,
-      photoCount = photosCount,
       isSharing = locationState?.isSharing == true,
       onBack = onBack,
       onTabSelected = { section ->
         if (authRepository.getCurrentUser() == null) onAuthenticationRequired() else tab = section
       },
       onPauseSharing = { locationModel?.stopSharing() },
+      onMembersClick = onMembersClick,
+      onAddClick = if (readOnly) null else ({ showAdd = true }),
+      showEndedBanner = readOnly && loaded?.trip != null,
       onTripsClick = onTripsClick,
       onMapClick = onMapClick,
       onFriendsClick = onFriendsClick,
@@ -166,7 +184,7 @@ internal fun TripRoute(
                   else tab = TripSection.Map
                 },
                 onPhotosClick = { tab = TripSection.Photos },
-                onMembersClick = notImplemented,
+                onMembersClick = onMembersClick,
             )
         TripSection.Map -> {
           if (readOnly) {
@@ -207,6 +225,15 @@ internal fun TripRoute(
               tripId = tripId,
               currentUserId = userId,
               tripName = loaded?.trip?.name.orEmpty(),
+              summary =
+                  photosCount?.let { count ->
+                    val memberCount = loaded?.trip?.memberIds?.distinct()?.size ?: 0
+                    stringResource(
+                        R.string.trip_photo_summary,
+                        pluralStringResource(R.plurals.trip_photo_count, count, count),
+                        pluralStringResource(R.plurals.trip_person_count, memberCount, memberCount),
+                    )
+                  },
               readOnly = readOnly,
           )
         }
@@ -240,6 +267,8 @@ private fun TripVotes(
   var selectedVoteId by rememberSaveable { mutableStateOf<String?>(null) }
   var confirmClose by rememberSaveable { mutableStateOf(false) }
   val userId = auth.getCurrentUser()?.uid
+  val context = LocalContext.current
+  var hintSeen by remember { mutableStateOf(votesHintSeen(context)) }
   VotesRoute(
       voteRepository = repository,
       tripId = tripId,
@@ -268,6 +297,11 @@ private fun TripVotes(
               },
       onCreateVote = { if (!readOnly) onCreateVote() },
       readOnly = readOnly,
+      showHint = !hintSeen,
+      onDismissHint = {
+        hintSeen = true
+        markVotesHintSeen(context)
+      },
   )
   val voteId = selectedVoteId
   if (voteId != null && userId != null) {
@@ -283,6 +317,25 @@ private fun TripVotes(
           { VoteViewModel(repository, tripId, it, userId) },
           onDismiss = { selectedVoteId = null },
       )
+    }
+  }
+}
+
+private const val HINTS_PREFERENCES = "roamigo_hints"
+private const val VOTES_HINT_SEEN = "votes_hint_seen"
+
+// Losing this flag only shows the hint once more, so storage failures are not worth surfacing.
+private fun votesHintSeen(context: Context): Boolean = runCatching {
+  context
+      .getSharedPreferences(HINTS_PREFERENCES, Context.MODE_PRIVATE)
+      .getBoolean(VOTES_HINT_SEEN, false)
+}
+    .getOrDefault(false)
+
+private fun markVotesHintSeen(context: Context) {
+  runCatching {
+    context.getSharedPreferences(HINTS_PREFERENCES, Context.MODE_PRIVATE).edit {
+      putBoolean(VOTES_HINT_SEEN, true)
     }
   }
 }

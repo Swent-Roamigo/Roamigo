@@ -51,3 +51,5 @@ export const purgeStaleLocations = onSchedule(
       await rtdb.ref().update(removals);
     }
   });
+
+export {createRevote, resolveVoteByOwner} from "./voteResolution.js";

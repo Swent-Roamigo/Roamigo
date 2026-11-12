@@ -3,6 +3,40 @@ package com.swent.roamigo.resources
 // Like R, but C
 object C {
   object Tag {
+    const val vote_dialog = "vote_dialog"
+    const val votes_hint = "votes_hint"
+    const val votes_hint_dismiss = "votes_hint_dismiss"
+    const val trip_ended_banner = "trip_ended_banner"
+    const val vote_close_dialog = "vote_close_dialog"
+    const val vote_close_confirm = "vote_close_confirm"
+    const val vote_question = "vote_question"
+    const val vote_submit = "vote_submit"
+
+    fun voteOption(index: Int) = "vote_option_" + index
+
+    fun voteAction(voteId: String) = "vote_action_" + voteId
+
+    fun closeVote(voteId: String) = "close_vote_" + voteId
+
+    const val votes_decided_heading = "votes_decided_heading"
+    const val votes_unresolved_heading = "votes_unresolved_heading"
+
+    fun closedVote(voteId: String) = "closed_vote_${voteId}"
+
+    fun closedOption(voteId: String, optionId: String) = "closed_option_${voteId}_${optionId}"
+
+    fun voteTie(voteId: String) = "vote_tie_${voteId}"
+
+    fun decidedVote(voteId: String) = "decided_vote_${voteId}"
+
+    fun decidedCheck(voteId: String) = "decided_check_${voteId}"
+
+    fun decidedVoteCount(voteId: String) = "decided_vote_count_${voteId}"
+
+    fun voteCount(voteId: String, optionId: String) = "vote_count_${voteId}_${optionId}"
+
+    fun voteResult(optionId: String) = "vote_result_${optionId}"
+
     const val greeting_robo = "second_screen_greeting"
 
     const val main_screen_container = "main_screen_container"
@@ -40,6 +74,15 @@ object C {
     const val friends_pending_request_row = "friends_pending_request_row"
     const val friends_empty_state = "friends_empty_state"
     const val friends_add_friend = "friends_add_friend"
+    const val trip_add_button = "trip_add_button"
+    const val trip_member_avatars = "trip_member_avatars"
+    const val trip_add_sheet = "trip_add_sheet"
+    const val trip_members_screen = "trip_members_screen"
+    const val trip_members_back = "trip_members_back"
+    const val trip_members_row_prefix = "trip_members_row_"
+    const val create_trip_discard_confirm = "create_trip_discard_confirm"
+    const val friends_search = "friends_search"
+    const val profile_log_out_confirm = "profile_screen_log_out_confirm"
     const val friends_avatar_prefix = "friends_avatar_"
     const val friends_view_map_prefix = "friends_view_map_"
 
@@ -61,7 +104,9 @@ object C {
 
     const val trip_map_map = "trip_map_map"
     const val trip_map_sharing_banner = "trip_map_sharing_banner"
+    const val trip_overview_row_prefix = "trip_overview_row_"
     const val trip_map_sharing_button = "trip_map_sharing_button"
+    const val trip_map_sharing_loading = "trip_map_sharing_loading"
     const val trip_map_share_location_sheet = "trip_map_share_location_sheet"
     const val trip_map_share_location_continue = "trip_map_share_location_continue"
     const val trip_map_share_location_not_now = "trip_map_share_location_not_now"
@@ -72,16 +117,24 @@ object C {
     const val trip_map_location_blocked_not_now = "trip_map_location_blocked_not_now"
     // Followed by the member's user ID, which is case-sensitive and so kept as is.
     const val trip_map_member_marker_prefix = "trip_map_member_marker_"
+    const val trip_map_member_label_prefix = "trip_map_member_label_"
+    const val trip_map_member_photo_prefix = "trip_map_member_photo_"
+    const val trip_map_member_initial_prefix = "trip_map_member_initial_"
+    const val trip_map_member_default_avatar_prefix = "trip_map_member_default_avatar_"
     const val trip_map_my_location = "trip_map_my_location"
     const val trip_map_loading = "trip_map_loading"
     const val trip_map_error = "trip_map_error"
     const val trip_map_retry = "trip_map_retry"
     const val trip_map_retry_activities = "trip_map_retry_activities"
     const val trip_map_offline = "trip_map_offline"
+    const val trip_map_location_error = "trip_map_location_error"
     const val photos_screen = "photos_screen"
     const val photos_title = "photos_title"
     const val photos_banner = "photos_banner"
+    const val photos_summary = "photos_summary"
     const val photos_progress = "photos_progress"
+    const val photos_failed_banner = "photos_failed_banner"
+    const val photos_retry_all = "photos_retry_all"
     const val photos_empty = "photos_empty"
     const val photos_take_photo = "photos_take_photo"
     const val photos_item_prefix = "photos_item_"

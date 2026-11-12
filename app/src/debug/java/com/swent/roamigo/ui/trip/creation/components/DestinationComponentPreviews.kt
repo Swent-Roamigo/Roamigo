@@ -26,6 +26,7 @@ private fun DestinationCardPreview() {
             ),
         selected = true,
         photo = null,
+        photoUnavailable = false,
         onRequestPhoto = {},
         onClick = {},
     )

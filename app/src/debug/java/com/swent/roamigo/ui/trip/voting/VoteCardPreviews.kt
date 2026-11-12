@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import com.swent.roamigo.model.trip.voting.VoteResult
 import com.swent.roamigo.model.trip.voting.VoteStatus
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.theme.Spacing
@@ -44,7 +45,7 @@ private fun LiveVoteCreatorPreview() =
 @Composable
 private fun NarrowCreatorCardPreview() = LiveVoteCreatorPreview()
 
-@Preview(name = "Vote card · CLOSED", showBackground = true, widthDp = 390)
+@Preview(name = "Decided · Compact winner row", showBackground = true, widthDp = 390)
 @Composable
 private fun ClosedVoteCardPreview() {
   RoamigoTheme {
@@ -52,6 +53,12 @@ private fun ClosedVoteCardPreview() {
       VoteCard(
           vote = dinnerPreview.vote.copy(status = VoteStatus.CLOSED),
           onClick = {},
+          finalResult =
+              VoteResult(
+                  counts = mapOf("market" to 2, "taberna" to 0, "pizza" to 0),
+                  winningOptionIds = setOf("market"),
+                  currentUserOptionId = "market",
+              ),
       )
     }
   }

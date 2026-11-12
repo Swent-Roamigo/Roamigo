@@ -3,20 +3,27 @@ package com.swent.roamigo.ui.map
 
 import android.view.ViewGroup
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
 import androidx.core.view.descendants
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mapbox.maps.MapView
+import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -76,7 +83,43 @@ class TripOverviewMapScreenTest {
     composeRule.onNodeWithTag(TripMarkerTestTags.markerFor(firstMarkerId)).performClick()
     assertEquals("trip_1", clickedTripId)
   }
+
+  @Test
+  fun landscapeKeepsTheMapVisibleBesideTheTripList() {
+    val markers =
+        (1..3).map { index ->
+          TripMarkerUiState(
+              id = "marker_$index",
+              tripId = "trip_$index",
+              title = "Trip $index",
+              locationName = "City $index",
+              latitude = 40.0 + index,
+              longitude = 2.0 + index,
+          )
+        }
+    composeRule.setContent {
+      RoamigoTheme {
+        // A phone in landscape: stacked below the map, the trip list would take all the height.
+        Box(Modifier.size(width = 640.dp, height = 360.dp)) {
+          TripOverviewMapScreen(
+              uiState = TripOverviewMapUiState(markers = markers),
+              onMarkerClick = {},
+          )
+        }
+      }
+    }
+
+    composeRule.onNodeWithTag(C.Tag.trip_overview_row_prefix + "trip_1").assertIsDisplayed()
+    val mapHeight = composeRule.runOnIdle { composeRule.findMapView().height }
+    val minimumHeight = composeRule.density.run { MIN_LANDSCAPE_MAP_HEIGHT.toPx() }
+    assertTrue(
+        "The map is $mapHeight px high in landscape, expected at least $minimumHeight px",
+        mapHeight >= minimumHeight,
+    )
+  }
 }
+
+private val MIN_LANDSCAPE_MAP_HEIGHT = 120.dp
 
 internal const val MAP_TEST_TIMEOUT_MILLIS = 15_000L
 
@@ -86,10 +129,7 @@ internal const val MAP_TEST_TIMEOUT_MILLIS = 15_000L
 internal fun AndroidComposeTestRule<*, ComponentActivity>.loadLocalMapStyle() {
   val styleLoaded = AtomicBoolean(false)
   val mapRendered = AtomicBoolean(false)
-  val mapboxMap = runOnIdle {
-    val contentView = activity.findViewById<ViewGroup>(android.R.id.content)
-    contentView.descendants.filterIsInstance<MapView>().single().mapboxMap
-  }
+  val mapboxMap = runOnIdle { findMapView().mapboxMap }
   val frameSubscription = runOnIdle {
     mapboxMap.subscribeRenderFrameFinished { if (styleLoaded.get()) mapRendered.set(true) }
   }
@@ -102,4 +142,10 @@ internal fun AndroidComposeTestRule<*, ComponentActivity>.loadLocalMapStyle() {
   } finally {
     runOnUiThread { frameSubscription.cancel() }
   }
+}
+
+/** The single Mapbox view shown by the content. Must be called on the UI thread. */
+internal fun AndroidComposeTestRule<*, ComponentActivity>.findMapView(): MapView {
+  val contentView = activity.findViewById<ViewGroup>(android.R.id.content)
+  return contentView.descendants.filterIsInstance<MapView>().single()
 }

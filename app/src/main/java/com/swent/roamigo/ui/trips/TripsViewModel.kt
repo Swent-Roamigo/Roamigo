@@ -187,9 +187,13 @@ class TripsViewModel(
     val mainMembers = mainTrip?.let { trip -> tripRepository.getMembersForTrip(trip.uid) }.orEmpty()
 
     val mainUsers =
-        userRepository.getUsers(mainMembers.map { member -> member.userId }.toSet()).associateBy {
-            user ->
-          user.uid
+        try {
+          userRepository.getUsers(mainMembers.map { it.userId }.toSet()).associateBy { it.uid }
+        } catch (error: CancellationException) {
+          throw error
+        } catch (_: Exception) {
+          // Member avatars and initials are optional presentation data.
+          emptyMap()
         }
 
     val memberInitials =
