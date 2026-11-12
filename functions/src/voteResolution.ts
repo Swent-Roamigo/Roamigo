@@ -15,7 +15,7 @@ function documentId(value: unknown): string {
 // No calendar approximation: Trip.isCompletedOn uses the viewing device's local date/zone.
 // The Android repository enforces that policy before calling. These endpoints enforce the
 // shared, server-verifiable membership, owner, immutable-ballot and resolution invariants.
-const callableOptions = {region: "europe-west1"};
+const callableOptions = {region: "europe-west1", maxInstances: 2};
 
 export const createRevote = onCall(callableOptions, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first");
@@ -30,7 +30,9 @@ export const createRevote = onCall(callableOptions, async (request) => {
   const childRef = tripRef.collection("votes").doc(childId);
   await db.runTransaction(async (transaction) => {
     const trip = (await transaction.get(tripRef)).data();
-    if (!trip?.memberIds?.includes(userId)) throw new HttpsError("permission-denied", "Trip membership required");
+    if (!Array.isArray(trip?.memberIds) || !trip.memberIds.includes(userId)) {
+      throw new HttpsError("permission-denied", "Trip membership required");
+    }
     const parent = (await transaction.get(parentRef)).data();
     if (!parent) throw new HttpsError("not-found", "Vote not found");
     const child = await transaction.get(childRef);
@@ -61,7 +63,7 @@ export const resolveVoteByOwner = onCall(callableOptions, async (request) => {
   const voteRef = tripRef.collection("votes").doc(voteId);
   await db.runTransaction(async (transaction) => {
     const trip = (await transaction.get(tripRef)).data();
-    if (!trip?.memberIds?.includes(userId) || trip.ownerId !== userId) {
+    if (!Array.isArray(trip?.memberIds) || !trip.memberIds.includes(userId) || trip.ownerId !== userId) {
       throw new HttpsError("permission-denied", "Trip owner required");
     }
     const vote = (await transaction.get(voteRef)).data();
