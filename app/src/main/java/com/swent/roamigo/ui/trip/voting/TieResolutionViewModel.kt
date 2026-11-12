@@ -22,6 +22,7 @@ import kotlinx.coroutines.launch
 
 data class TieResolutionState(
     val eligibility: ResolutionEligibility = ResolutionEligibility.Loading,
+    val refreshing: Boolean = false,
     val revoteSource: Vote? = null,
     val ownerVoteId: String? = null,
     val ownerOptions: List<VoteOption> = emptyList(),
@@ -66,7 +67,8 @@ class TieResolutionViewModel(
         eligibilityRequest?.takeIf { it.isActive }
             ?: viewModelScope
                 .async {
-                  _state.update { it.copy(eligibility = ResolutionEligibility.Loading) }
+                  // Keep the last result visible; only the initial state is Loading.
+                  _state.update { it.copy(refreshing = true) }
                   val eligibility =
                       try {
                         val trip = tripRepository.getTrip(tripId)
@@ -84,19 +86,22 @@ class TieResolutionViewModel(
                                     },
                             )
                       } catch (cancelled: CancellationException) {
+                        _state.update { it.copy(refreshing = false) }
                         throw cancelled
                       } catch (_: Exception) {
                         ResolutionEligibility.Failed()
                       }
-                  _state.update { it.copy(eligibility = eligibility) }
+                  _state.update { it.copy(eligibility = eligibility, refreshing = false) }
                   eligibility
                 }
                 .also { eligibilityRequest = it }
     return request.await()
   }
 
-  /** The create-vote ViewModel waits for fresh trip access before submitting a revote. */
-  suspend fun validateRevoteSubmission(): Boolean = reloadEligibility().canResolve
+  /** Owns validation in this ViewModel; the create flow awaits the fresh result before writing. */
+  fun validateRevoteSubmission(): Deferred<Boolean> = viewModelScope.async {
+    reloadEligibility().canResolve
+  }
 
   private fun eligible(closed: VoteUiState.Closed): Boolean =
       _state.value.canResolve && !_state.value.submitting && closed.isUnresolvedTie
