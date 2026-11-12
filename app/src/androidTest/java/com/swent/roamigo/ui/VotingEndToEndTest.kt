@@ -69,7 +69,6 @@ class VotingEndToEndTest {
               .setApplicationId("1:1234567890:android:roamigo-voting-e2e")
               .setApiKey("fake-api-key-$tripId")
               .build()
-      check(options.projectId == "demo-roamigo")
       app = FirebaseApp.initializeApp(composeRule.activity, options, tripId)
       val auth = FirebaseAuth.getInstance(app).apply { useEmulator("10.0.2.2", 9099) }
       db =
@@ -123,11 +122,11 @@ class VotingEndToEndTest {
     }
     openTripVotes(createVoteLabelId = R.string.votes_empty_start)
     composeRule.onNodeWithText(text(R.string.votes_empty_start)).performClick()
-    waitFor(hasTestTag("vote_question"))
-    composeRule.onNodeWithTag("vote_question").performTextInput("Where tomorrow?")
-    composeRule.onNodeWithTag("vote_option_0").performTextInput("Park")
-    composeRule.onNodeWithTag("vote_option_1").performScrollTo().performTextInput("Beach")
-    composeRule.onNodeWithTag("vote_submit").performClick()
+    waitFor(hasTestTag(C.Tag.vote_question))
+    composeRule.onNodeWithTag(C.Tag.vote_question).performTextInput("Where tomorrow?")
+    composeRule.onNodeWithTag(C.Tag.voteOption(0)).performTextInput("Park")
+    composeRule.onNodeWithTag(C.Tag.voteOption(1)).performScrollTo().performTextInput("Beach")
+    composeRule.onNodeWithTag(C.Tag.vote_submit).performClick()
     waitFor(hasText(text(R.string.vote_new)) and hasClickAction())
     waitFor(hasText("Where tomorrow?"))
 
@@ -155,7 +154,7 @@ class VotingEndToEndTest {
     assertCount(voteId, parkId, 0)
     assertCount(voteId, beachId, 0)
 
-    composeRule.onNodeWithTag("vote_action_$voteId").performScrollTo().performClick()
+    composeRule.onNodeWithTag(C.Tag.voteAction(voteId)).performScrollTo().performClick()
     waitFor(dialogText("Park"))
     composeRule.onNode(dialogText("Park")).performClick()
     composeRule.onNode(dialogText(text(R.string.vote_submit))).performClick()
@@ -165,7 +164,7 @@ class VotingEndToEndTest {
     assertCount(voteId, beachId, 0)
     assertPersistedBallot(voteId, parkId)
 
-    composeRule.onNodeWithTag("vote_action_$voteId").performScrollTo().performClick()
+    composeRule.onNodeWithTag(C.Tag.voteAction(voteId)).performScrollTo().performClick()
     waitFor(dialogText(text(R.string.vote_update)))
     composeRule.onNode(dialogText("Park")).assertIsSelected()
     composeRule.onNode(dialogText("Beach")).performClick()
@@ -180,11 +179,11 @@ class VotingEndToEndTest {
     // Leaving the trip disposes the dialog and list observers before loading persisted data again.
     composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
     openTripVotes()
-    waitFor(hasTestTag("vote_action_$voteId"))
+    waitFor(hasTestTag(C.Tag.voteAction(voteId)))
     composeRule.onNodeWithText("Where tomorrow?").assertIsDisplayed()
     assertCount(voteId, parkId, 0)
     assertCount(voteId, beachId, 1)
-    composeRule.onNodeWithTag("vote_action_$voteId").performScrollTo().performClick()
+    composeRule.onNodeWithTag(C.Tag.voteAction(voteId)).performScrollTo().performClick()
     waitFor(dialogText(text(R.string.vote_update)))
     composeRule.onNode(dialogText("Beach")).assertIsSelected()
   }
@@ -218,11 +217,14 @@ class VotingEndToEndTest {
 
   private fun assertCount(voteId: String, optionId: String, count: Int) {
     val label = composeRule.activity.resources.getQuantityString(R.plurals.vote_count, count, count)
-    waitFor(hasTestTag("vote_count_${voteId}_$optionId") and hasText(label), useUnmergedTree = true)
+    waitFor(
+        hasTestTag(C.Tag.voteCount(voteId, optionId)) and hasText(label),
+        useUnmergedTree = true,
+    )
   }
 
   private fun dialogText(label: String) =
-      hasText(label) and hasAnyAncestor(hasTestTag("vote_dialog"))
+      hasText(label) and hasAnyAncestor(hasTestTag(C.Tag.vote_dialog))
 
   private fun text(resourceId: Int) = composeRule.activity.getString(resourceId)
 
