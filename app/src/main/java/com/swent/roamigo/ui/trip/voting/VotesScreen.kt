@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.CircularProgressIndicator
@@ -18,21 +20,32 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import androidx.lifecycle.viewmodel.compose.rememberViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
+import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.ui.components.TripActionButton
 import com.swent.roamigo.ui.theme.Spacing
+import com.swent.roamigo.ui.trip.rememberLocalDate
 import com.swent.roamigo.ui.trip.voting.components.VoteErrorContent
 import com.swent.roamigo.ui.trip.voting.components.VotesHintCard
 import com.swent.roamigo.ui.trip.voting.components.VotesList
+import java.time.ZoneId
 
 /** Connects [voteRepository] state and actions to [VotesScreen]. */
 @Composable
@@ -49,9 +62,66 @@ fun VotesRoute(
     readOnly: Boolean = false,
     showHint: Boolean = false,
     onDismissHint: () -> Unit = {},
+    tripRepository: TripRepository,
+    votesViewModelFactory: ViewModelProvider.Factory =
+        VotesViewModel.factory(voteRepository, tripId, currentUserId),
+    resolutionViewModelFactory: ViewModelProvider.Factory =
+        TieResolutionViewModel.factory(
+            voteRepository,
+            tripRepository,
+            tripId,
+            currentUserId,
+            readOnly,
+        ),
 ) {
-  val viewModel = viewModel { VotesViewModel(voteRepository, tripId, currentUserId) }
+  val scopeKey = "$tripId-$currentUserId-$readOnly"
+  val viewModel: VotesViewModel =
+      viewModel(
+          key = "votes-$scopeKey",
+          factory = votesViewModelFactory,
+      )
   val state by viewModel.uiState.collectAsStateWithLifecycle()
+  val resolution: TieResolutionViewModel =
+      viewModel(
+          key = "resolution-$scopeKey",
+          factory = resolutionViewModelFactory,
+      )
+  val resolutionState by resolution.state.collectAsStateWithLifecycle()
+  val listState = rememberLazyListState()
+  val today by rememberLocalDate(ZoneId.systemDefault())
+  LaunchedEffect(today) { resolution.refreshEligibility() }
+  LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { resolution.refreshEligibility() }
+  val source = resolutionState.revoteSource
+  if (source != null) {
+    key(source.uid) {
+      // A cancelled form releases its draft ViewModel; configuration changes retain it.
+      CompositionLocalProvider(LocalViewModelStoreOwner provides rememberViewModelStoreOwner()) {
+        CreateVoteRoute(
+            voteRepository,
+            tripId,
+            currentUserId,
+            onBack = { resolution.dismiss() },
+            onVoteCreated = { id ->
+              resolution.dismiss()
+              onOpenLiveVote(id)
+            },
+            revoteSource = source,
+            eligibility = resolutionState.eligibility,
+            onRetryEligibility = resolution::refreshEligibility,
+            beforeSubmit = resolution::validateRevoteSubmission,
+        )
+      }
+    }
+    return
+  }
+  OwnerDecisionHost(
+      state,
+      resolutionState,
+      resolution::selectOwnerOption,
+      resolution::confirmOwnerDecision,
+      resolution::dismiss,
+      resolution::refreshEligibility,
+  )
   VotesScreen(
       state = state,
       tripName = tripName,
@@ -65,11 +135,21 @@ fun VotesRoute(
       },
       onCreateVote = onCreateVote,
       onRetry = viewModel::retry,
+      onRevote =
+          if (resolutionState.canResolve && !resolutionState.submitting) resolution::startRevote
+          else null,
+      onOwnerDecides =
+          if (resolutionState.canResolve && resolutionState.isOwner && !resolutionState.submitting)
+              resolution::startOwnerDecision
+          else null,
       onCloseVote = onCloseVote,
       readOnly = readOnly,
       showHint = showHint,
       onDismissHint = onDismissHint,
       modifier = modifier,
+      listState = listState,
+      eligibility = resolutionState.eligibility,
+      onRetryEligibility = resolution::refreshEligibility,
   )
 }
 
@@ -86,6 +166,11 @@ fun VotesScreen(
     readOnly: Boolean = false,
     showHint: Boolean = false,
     onDismissHint: () -> Unit = {},
+    onRevote: ((VoteUiState.Closed) -> Unit)? = null,
+    onOwnerDecides: ((VoteUiState.Closed) -> Unit)? = null,
+    listState: LazyListState = rememberLazyListState(),
+    eligibility: ResolutionEligibility? = null,
+    onRetryEligibility: () -> Unit = {},
 ) {
   Scaffold(
       modifier = modifier,
@@ -97,6 +182,7 @@ fun VotesScreen(
             .padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium),
         verticalArrangement = Arrangement.spacedBy(Spacing.large),
     ) {
+      eligibility?.let { ResolutionEligibilityContent(it, onRetryEligibility) }
       if (showHint && !readOnly && state is VotesUiState.Ready) {
         VotesHintCard(onDismiss = onDismissHint)
       }
@@ -133,6 +219,9 @@ fun VotesScreen(
                   onOpenVote,
                   onRetry,
                   onCloseVote = onCloseVote.takeUnless { readOnly },
+                  onRevote = onRevote.takeUnless { readOnly },
+                  onOwnerDecides = onOwnerDecides.takeUnless { readOnly },
+                  listState = listState,
               )
         }
       }

@@ -36,12 +36,26 @@ fun VoteResultContent(vote: Vote, result: VoteResult, modifier: Modifier = Modif
         stringResource(
             when {
               result.hasNoVotes -> R.string.vote_result_no_votes
-              result.isTie -> R.string.vote_result_tie
+              result.isTie ->
+                  if (vote.resolvedOptionId == null) R.string.vote_tie_unresolved
+                  else R.string.vote_final_results
               else -> R.string.vote_final_results
             }
         ),
         style = MaterialTheme.typography.titleMedium,
     )
+    voteDecisionLabel(vote, result)?.let { Text(it, style = MaterialTheme.typography.titleSmall) }
+    vote.resolvedOptionId?.let { selected ->
+      vote.options
+          .firstOrNull { it.uid == selected }
+          ?.let { option ->
+            Text(
+                stringResource(R.string.vote_owner_outcome, option.name),
+                style = MaterialTheme.typography.titleMedium,
+            )
+          }
+    }
+    if (vote.parentVoteId != null) Text(stringResource(R.string.vote_revote_round, vote.round))
     vote.options.forEach { option ->
       val leading = option.uid in result.winningOptionIds
       Surface(
