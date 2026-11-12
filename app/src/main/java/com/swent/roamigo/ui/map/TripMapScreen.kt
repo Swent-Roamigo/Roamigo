@@ -249,143 +249,158 @@ fun TripMapScreen(
     }
   }
 
-  Box(
-      modifier =
-          modifier
-              .fillMaxSize()
-              .padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium)
-              .clip(MapCardShape)
-  ) {
-    MapboxMap(
-        modifier = Modifier.fillMaxSize().testTag(C.Tag.trip_map_map),
-        mapViewportState = rememberTripMapViewportState(viewport),
-        // Top end: the sharing chip and the offline banner are stacked at the top start, and the
-        // logo and attribution stay at the bottom.
-        scaleBar = {
-          ScaleBar(
-              contentPadding = PaddingValues(top = Spacing.medium, end = Spacing.medium),
-              alignment = Alignment.TopEnd,
-          )
-        },
+  Column(modifier = modifier.fillMaxSize()) {
+    // The card has no bottom padding: the button's own padding spaces it from the map, as on the
+    // other tabs, and keeps the button at the same place and width as their main action.
+    Box(
+        modifier =
+            Modifier.weight(1f)
+                .fillMaxWidth()
+                .padding(
+                    start = Spacing.screenPadding,
+                    top = Spacing.medium,
+                    end = Spacing.screenPadding,
+                )
+                .clip(MapCardShape)
     ) {
-      if (uiState is TripMapUiState.Loaded) {
-        uiState.activityMarkers.forEach { marker ->
-          key(marker.id) {
+      MapboxMap(
+          modifier = Modifier.fillMaxSize().testTag(C.Tag.trip_map_map),
+          mapViewportState = rememberTripMapViewportState(viewport),
+          // Top end: the sharing chip and the offline banner are stacked at the top start, and the
+          // logo and attribution stay at the bottom.
+          scaleBar = {
+            ScaleBar(
+                contentPadding = PaddingValues(top = Spacing.medium, end = Spacing.medium),
+                alignment = Alignment.TopEnd,
+            )
+          },
+      ) {
+        if (uiState is TripMapUiState.Loaded) {
+          uiState.activityMarkers.forEach { marker ->
+            key(marker.id) {
+              ViewAnnotation(
+                  options =
+                      viewAnnotationOptions {
+                        geometry(Point.fromLngLat(marker.longitude, marker.latitude))
+                        annotationAnchor { anchor(ViewAnnotationAnchor.BOTTOM) }
+                      },
+                  modifier =
+                      Modifier.testTag(TripMarkerTestTags.markerFor(marker.id))
+                          .markNotImplemented(onMarkerClick)
+                          .clickable(onClick = onMarkerClick),
+              ) {
+                TripMarkerIcon(locationName = marker.locationName, kind = marker.kind)
+              }
+            }
+          }
+        }
+        memberLocations.forEach { location ->
+          key(location.userId) {
             ViewAnnotation(
                 options =
                     viewAnnotationOptions {
-                      geometry(Point.fromLngLat(marker.longitude, marker.latitude))
+                      geometry(Point.fromLngLat(location.longitude, location.latitude))
                       annotationAnchor { anchor(ViewAnnotationAnchor.BOTTOM) }
-                    },
-                modifier =
-                    Modifier.testTag(TripMarkerTestTags.markerFor(marker.id))
-                        .markNotImplemented(onMarkerClick)
-                        .clickable(onClick = onMarkerClick),
+                      // Members travel together, so their markers often collide. Mapbox would hide
+                      // all but one of them by default.
+                      allowOverlap(true)
+                    }
             ) {
-              TripMarkerIcon(locationName = marker.locationName, kind = marker.kind)
+              MemberLocationMarker(
+                  location = location,
+                  // Until the trip and profiles load, the member is shown with the fallback name.
+                  member =
+                      members.getOrElse(location.userId) {
+                        memberDisplayInfo(location.userId, null)
+                      },
+                  nowMillis = nowMillis,
+                  isStale = location.userId in staleMemberIds,
+              )
             }
           }
         }
-      }
-      memberLocations.forEach { location ->
-        key(location.userId) {
+        // Declared last so that it is drawn above the member markers.
+        if (myLocation != null) {
           ViewAnnotation(
               options =
                   viewAnnotationOptions {
-                    geometry(Point.fromLngLat(location.longitude, location.latitude))
-                    annotationAnchor { anchor(ViewAnnotationAnchor.BOTTOM) }
-                    // Members travel together, so their markers often collide. Mapbox would hide
-                    // all but one of them by default.
+                    geometry(Point.fromLngLat(myLocation.longitude, myLocation.latitude))
+                    annotationAnchor { anchor(ViewAnnotationAnchor.CENTER) }
+                    // Kept visible next to the members around the user.
                     allowOverlap(true)
                   }
           ) {
-            MemberLocationMarker(
-                location = location,
-                // Until the trip and profiles load, the member is shown with the fallback name.
-                member =
-                    members.getOrElse(location.userId) { memberDisplayInfo(location.userId, null) },
-                nowMillis = nowMillis,
-                isStale = location.userId in staleMemberIds,
-            )
+            MyLocationDot()
           }
         }
       }
-      // Declared last so that it is drawn above the member markers.
-      if (myLocation != null) {
-        ViewAnnotation(
-            options =
-                viewAnnotationOptions {
-                  geometry(Point.fromLngLat(myLocation.longitude, myLocation.latitude))
-                  annotationAnchor { anchor(ViewAnnotationAnchor.CENTER) }
-                  // Kept visible next to the members around the user.
-                  allowOverlap(true)
-                }
-        ) {
-          MyLocationDot()
-        }
-      }
-    }
 
-    // Stacked so that the status overlays never cover the sharing chip.
-    Column(modifier = Modifier.fillMaxSize()) {
-      if (!readOnly) {
-        SharingChip(
-            isSharing = isSharing,
-            isStartingSharing = isStartingSharing,
-            modifier = Modifier.padding(Spacing.medium),
-        )
-      }
-      if (isOffline) {
-        OfflineBanner(modifier = Modifier.padding(horizontal = Spacing.medium))
-      }
-      Box(
-          modifier =
-              Modifier.weight(1f)
-                  .fillMaxWidth()
-                  .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
-          contentAlignment = Alignment.Center,
-      ) {
-        TripStatusOverlay(uiState = uiState, onRetry = onRetry)
-        // Stacked so that the snackbar never covers the retry button.
-        Column(
-            modifier =
-                Modifier.align(Alignment.BottomCenter)
-                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-          SnackbarHost(
-              hostState = snackbarHostState,
-              modifier = Modifier.testTag(C.Tag.trip_map_location_error),
+      // Stacked so that the status overlays never cover the sharing chip.
+      Column(modifier = Modifier.fillMaxSize()) {
+        if (!readOnly) {
+          SharingChip(
+              isSharing = isSharing,
+              isStartingSharing = isStartingSharing,
+              modifier = Modifier.padding(Spacing.medium),
           )
-          if (
-              uiState is TripMapUiState.Loaded &&
-                  uiState.activitiesLoadState == ActivitiesLoadState.ERROR
-          ) {
-            Button(
-                onClick = onRetryActivities,
-                shape = MaterialTheme.shapes.medium,
-                colors =
-                    ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
+        }
+        if (isOffline) {
+          OfflineBanner(modifier = Modifier.padding(horizontal = Spacing.medium))
+        }
+        Box(
+            modifier =
+                Modifier.weight(1f)
+                    .fillMaxWidth()
+                    .windowInsetsPadding(
+                        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
                     ),
-                modifier =
-                    Modifier.padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium)
-                        .testTag(C.Tag.trip_map_retry_activities),
+            contentAlignment = Alignment.Center,
+        ) {
+          TripStatusOverlay(uiState = uiState, onRetry = onRetry)
+          // Stacked so that the snackbar never covers the retry button.
+          Column(
+              modifier =
+                  Modifier.align(Alignment.BottomCenter)
+                      .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
+              horizontalAlignment = Alignment.CenterHorizontally,
+          ) {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.testTag(C.Tag.trip_map_location_error),
+            )
+            if (
+                uiState is TripMapUiState.Loaded &&
+                    uiState.activitiesLoadState == ActivitiesLoadState.ERROR
             ) {
-              Text(stringResource(R.string.trip_map_retry_activities))
+              Button(
+                  onClick = onRetryActivities,
+                  shape = MaterialTheme.shapes.medium,
+                  colors =
+                      ButtonDefaults.buttonColors(
+                          containerColor = MaterialTheme.colorScheme.primary,
+                          contentColor = MaterialTheme.colorScheme.onPrimary,
+                      ),
+                  modifier =
+                      Modifier.padding(
+                              horizontal = Spacing.screenPadding,
+                              vertical = Spacing.medium,
+                          )
+                          .testTag(C.Tag.trip_map_retry_activities),
+              ) {
+                Text(stringResource(R.string.trip_map_retry_activities))
+              }
             }
           }
         }
       }
-      if (!readOnly) {
-        SharingButtonBar(
-            isSharing = isSharing,
-            isStartingSharing = isStartingSharing,
-            onTurnOnSharing = onTurnOnSharing,
-            onPauseSharing = onPauseSharing,
-        )
-      }
+    }
+    if (!readOnly) {
+      SharingButtonBar(
+          isSharing = isSharing,
+          isStartingSharing = isStartingSharing,
+          onTurnOnSharing = onTurnOnSharing,
+          onPauseSharing = onPauseSharing,
+      )
     }
   }
 }

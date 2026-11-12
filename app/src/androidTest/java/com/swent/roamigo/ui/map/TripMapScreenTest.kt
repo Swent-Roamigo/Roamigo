@@ -21,6 +21,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -28,8 +29,10 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.height
+import androidx.compose.ui.unit.width
 import androidx.core.app.ActivityOptionsCompat
 import androidx.lifecycle.Lifecycle
 import androidx.test.espresso.intent.Intents
@@ -59,6 +62,7 @@ import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.TripActionButtonMinHeight
 import com.swent.roamigo.ui.isNotImplemented
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import com.swent.roamigo.ui.theme.Spacing
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -472,6 +476,20 @@ class TripMapScreenTest {
   }
 
   @Test
+  fun sharingButtonSpansTheScreenWidthMinusMarginsInEveryState() {
+    setContent(loadedState)
+    assertSharingButtonLayout()
+
+    composeRule.runOnIdle { isStartingSharing.value = true }
+    composeRule.waitForIdle()
+    assertSharingButtonLayout()
+
+    composeRule.runOnIdle { isSharing.value = true }
+    composeRule.waitForIdle()
+    assertSharingButtonLayout()
+  }
+
+  @Test
   fun sharingOnHidesTheLoadingIndicatorAndKeepsPauseEnabled() {
     setContent(loadedState, sharing = true, startingSharing = true)
 
@@ -774,6 +792,13 @@ class TripMapScreenTest {
       )
     }
     composeRule.waitForIdle()
+  }
+
+  private fun assertSharingButtonLayout() {
+    val rootWidth = composeRule.onRoot().getUnclippedBoundsInRoot().width
+    val button = composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button)
+    button.assertWidthIsEqualTo(rootWidth - Spacing.screenPadding * 2)
+    button.assertHeightIsAtLeast(TripActionButtonMinHeight)
   }
 
   private fun assertNoPermissionSheet() {
