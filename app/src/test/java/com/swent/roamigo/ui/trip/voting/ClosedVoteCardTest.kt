@@ -4,6 +4,9 @@ package com.swent.roamigo.ui.trip.voting
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -32,6 +35,7 @@ import com.swent.roamigo.model.trip.voting.VoteStatus
 import com.swent.roamigo.model.trip.voting.calculateVoteResult
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import com.swent.roamigo.ui.trip.voting.components.VoteResultContent
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.flow
 import org.junit.Assert.assertEquals
@@ -98,6 +102,80 @@ class ClosedVoteCardTest {
         .forEach { composeRule.onNodeWithText(it).assertDoesNotExist() }
     composeRule.onNodeWithTag(C.Tag.voteAction(vote.uid)).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.closeVote(vote.uid)).assertDoesNotExist()
+  }
+
+  @Test
+  fun missingOutcomeOptionsAndCountsKeepRowsOpenableWithoutInventingResults() {
+    val tied = result("a", "b")
+    val cases =
+        listOf(
+            Triple(vote.copy(resolvedOptionId = "missing"), tied, "Owner decided"),
+            Triple(
+                vote.copy(resolvedOptionId = "a"),
+                tied.copy(counts = emptyMap()),
+                "Owner decided",
+            ),
+            Triple(vote, VoteResult(mapOf("b" to 1), setOf("a")), "—"),
+            Triple(vote, VoteResult(mapOf("missing" to 2), setOf("missing")), "—"),
+            Triple(vote.copy(resolvedOptionId = "b"), tied, "Owner decided"),
+        )
+    var current by mutableStateOf(cases.first())
+    val opened = mutableListOf<String>()
+    composeRule.setContent {
+      RoamigoTheme {
+        VotesScreen(
+            VotesUiState.Ready(
+                emptyList(),
+                listOf(current.first),
+                finalSummaries = mapOf(vote.uid to current.second),
+            ),
+            "Trip",
+            opened::add,
+            {},
+            {},
+            onRevote = {},
+            onOwnerDecides = {},
+        )
+      }
+    }
+    for ((candidate, outcome, label) in cases) {
+      composeRule.runOnIdle { current = Triple(candidate, outcome, label) }
+      composeRule.onNodeWithText(vote.question).assertIsDisplayed()
+      composeRule
+          .onNodeWithTag(C.Tag.decidedVoteCount(vote.uid), useUnmergedTree = true)
+          .assertTextEquals(label)
+      if (
+          candidate.options.none {
+            it.uid == (candidate.resolvedOptionId ?: outcome.winningOptionIds.single())
+          }
+      ) {
+        composeRule.onNodeWithText("Decided ·", substring = true).assertDoesNotExist()
+      }
+      composeRule.onNodeWithText("Revote").assertDoesNotExist()
+      composeRule.onNodeWithText("Owner decides").assertDoesNotExist()
+      composeRule.onNodeWithText("Tie · no final decision").assertDoesNotExist()
+      composeRule.onNodeWithTag(C.Tag.decidedVote(vote.uid)).performClick()
+    }
+    composeRule.onNodeWithText("Decided · Restaurant").assertIsDisplayed()
+    composeRule.runOnIdle { assertEquals(List(cases.size) { vote.uid }, opened) }
+  }
+
+  @Test
+  fun detailWithMissingCountUsesPendingMarkerAndPreservesKnownBallotCounts() {
+    composeRule.setContent {
+      RoamigoTheme {
+        VoteResultContent(
+            vote.copy(resolvedOptionId = "missing"),
+            VoteResult(mapOf("a" to 1), setOf("a", "b")),
+        )
+      }
+    }
+    composeRule.onNodeWithText(vote.question).assertIsDisplayed()
+    composeRule.onNodeWithText("Owner decided").assertIsDisplayed()
+    composeRule.onNodeWithText("1 vote").assertIsDisplayed()
+    composeRule.onAllNodesWithText("—").assertCountEquals(2)
+    composeRule.onNodeWithText("0 votes").assertDoesNotExist()
+    composeRule.onNodeWithText("Owner selected:", substring = true).assertDoesNotExist()
   }
 
   @Test

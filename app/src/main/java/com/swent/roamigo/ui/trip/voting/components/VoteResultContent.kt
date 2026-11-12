@@ -88,9 +88,10 @@ fun VoteResultContent(vote: Vote, result: VoteResult, modifier: Modifier = Modif
                     style = MaterialTheme.typography.labelLarge,
                 )
           }
-          val count = result.counts[option.uid] ?: 0
+          val count = result.counts[option.uid]
           Text(
-              pluralStringResource(R.plurals.vote_count, count, count),
+              if (count == null) stringResource(R.string.vote_result_pending_count)
+              else pluralStringResource(R.plurals.vote_count, count, count),
               style = MaterialTheme.typography.bodySmall,
           )
         }

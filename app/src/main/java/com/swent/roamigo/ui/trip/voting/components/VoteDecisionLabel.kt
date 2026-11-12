@@ -11,7 +11,13 @@ import com.swent.roamigo.model.trip.voting.VoteSummary
 @Composable
 internal fun voteDecisionLabel(vote: Vote, result: VoteResult?): String? {
   if (vote.resolvedOptionId != null) return stringResource(R.string.vote_owner_decided)
-  if (result?.summary == null) return null
+  val winnerId = result?.winningOptionIds?.singleOrNull() ?: return null
+  if (
+      vote.options.none { it.uid == winnerId } ||
+          result.counts[winnerId] == null ||
+          result.summary == null
+  )
+      return null
   if (vote.parentVoteId != null) return stringResource(R.string.vote_decided_after_revote)
   return stringResource(
       when (result.summary) {
