@@ -212,6 +212,7 @@ internal fun TripRoute(
                 authRepository,
                 readOnly,
                 voteRepository,
+                tripRepository,
                 onAuthenticationRequired,
                 onOpenVote,
                 onCreateVote,
@@ -243,7 +244,7 @@ internal fun TripRoute(
 }
 
 @Composable
-private fun rememberLocalDate(zone: ZoneId) =
+internal fun rememberLocalDate(zone: ZoneId) =
     produceState(initialValue = LocalDate.now(zone), key1 = zone) {
       while (true) {
         val nextDate = LocalDate.now(zone).plusDays(1).atStartOfDay(zone).toInstant()
@@ -260,6 +261,7 @@ private fun TripVotes(
     auth: AuthRepository,
     readOnly: Boolean,
     repository: VoteRepository,
+    tripRepository: TripRepository,
     onAuthenticationRequired: () -> Unit,
     onOpenVote: (String, Boolean) -> Unit,
     onCreateVote: () -> Unit,
@@ -271,6 +273,7 @@ private fun TripVotes(
   var hintSeen by remember { mutableStateOf(votesHintSeen(context)) }
   VotesRoute(
       voteRepository = repository,
+      tripRepository = tripRepository,
       tripId = tripId,
       currentUserId = userId.orEmpty(),
       tripName = tripName,

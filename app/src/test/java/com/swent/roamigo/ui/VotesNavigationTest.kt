@@ -456,10 +456,11 @@ class VotesNavigationTest {
         .assertIsDisplayed()
     composeRule
         .onNodeWithTag(C.Tag.decidedVoteCount(vote.uid), useUnmergedTree = true)
-        .assertTextEquals("2 votes")
+        .assertTextEquals("2/2 agreed")
     composeRule.onNodeWithTag(C.Tag.closedVote(vote.uid)).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.decidedVote(vote.uid)).performClick()
     composeRule.onNodeWithText("Final results").assertIsDisplayed()
+    composeRule.onNodeWithText("2/2 agreed").assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.voteResult("a")).assertIsDisplayed()
     composeRule
         .onNode(hasText("Market · your vote") and hasText("Winner") and hasText("2 votes"))
