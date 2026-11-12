@@ -18,10 +18,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -66,6 +71,8 @@ fun FriendsScreen(
     onTripsClick: () -> Unit = rememberNotImplementedAction(),
     onMapClick: () -> Unit = rememberNotImplementedAction(),
 ) {
+  var query by rememberSaveable { mutableStateOf("") }
+
   Scaffold(
       modifier = modifier.fillMaxSize().testTag(C.Tag.friends_screen),
       bottomBar = {
@@ -83,13 +90,21 @@ fun FriendsScreen(
         modifier =
             Modifier.fillMaxSize().padding(innerPadding).padding(horizontal = Spacing.screenPadding)
     ) {
-      FriendsHeader()
+      FriendsHeader(friendCount = uiState.friends.size)
 
       if (uiState.friends.isEmpty() && uiState.outgoingRequests.isEmpty()) {
         EmptyFriendsState(modifier = Modifier.weight(1f))
       } else {
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier =
+                Modifier.fillMaxWidth().padding(top = Spacing.large).testTag(C.Tag.friends_search),
+            placeholder = { Text(stringResource(R.string.friends_search)) },
+            singleLine = true,
+        )
         FriendsList(
-            uiState = uiState,
+            uiState = uiState.matching(query),
             onViewMapClick = onViewMapClick,
             modifier = Modifier.weight(1f),
         )
@@ -109,8 +124,18 @@ fun FriendsScreen(
   }
 }
 
+private fun FriendsUiState.matching(query: String): FriendsUiState {
+  val needle = query.trim()
+  if (needle.isEmpty()) return this
+  return copy(
+      friends = friends.filter { it.displayName.contains(needle, ignoreCase = true) },
+      outgoingRequests =
+          outgoingRequests.filter { it.displayName.contains(needle, ignoreCase = true) },
+  )
+}
+
 @Composable
-private fun FriendsHeader() {
+private fun FriendsHeader(friendCount: Int) {
   Column(
       modifier = Modifier.padding(top = Spacing.extraLarge),
       verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall),
@@ -120,6 +145,13 @@ private fun FriendsHeader() {
         style = MaterialTheme.typography.headlineMedium,
         fontWeight = FontWeight.Bold,
     )
+
+    if (friendCount > 0) {
+      Text(
+          text = pluralStringResource(R.plurals.friends_count, friendCount, friendCount),
+          style = MaterialTheme.typography.titleSmall,
+      )
+    }
 
     Text(
         text = stringResource(R.string.friends_privacy_subtitle),

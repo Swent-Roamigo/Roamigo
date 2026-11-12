@@ -1,15 +1,33 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.map
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.Trip
+import com.swent.roamigo.ui.theme.Spacing
+import java.time.LocalDate
+import java.time.ZoneId
 
 /** Test tags for identifying trip markers in UI tests. */
 object TripMarkerTestTags {
@@ -38,6 +56,8 @@ enum class TripMarkerKind {
  * @property snippet Optional subtitle or callout description displayed with the marker.
  * @property isSelected Whether the marker is currently selected.
  * @property kind Kind of location represented by the marker.
+ * @property startDate First day of the trip, for markers that stand for a trip's destination.
+ * @property endDate Last day of the trip, for markers that stand for a trip's destination.
  */
 data class TripMarkerUiState(
     val id: String,
@@ -49,6 +69,8 @@ data class TripMarkerUiState(
     val snippet: String? = null,
     val isSelected: Boolean = false,
     val kind: TripMarkerKind = TripMarkerKind.DESTINATION,
+    val startDate: LocalDate? = null,
+    val endDate: LocalDate? = null,
 )
 
 /**
@@ -58,6 +80,7 @@ data class TripMarkerUiState(
 fun TripLocation.toTripMarkerUiState(
     trip: Trip,
     id: String = "${trip.uid}_${this.name}_${this.latitude}_${this.longitude}",
+    zone: ZoneId = ZoneId.systemDefault(),
 ): TripMarkerUiState =
     TripMarkerUiState(
         id = id,
@@ -67,6 +90,8 @@ fun TripLocation.toTripMarkerUiState(
         latitude = this.latitude,
         longitude = this.longitude,
         snippet = this.name,
+        startDate = trip.startDate.toDate().toInstant().atZone(zone).toLocalDate(),
+        endDate = trip.endDate.toDate().toInstant().atZone(zone).toLocalDate(),
     )
 
 /**
@@ -104,6 +129,10 @@ fun List<Activity>.toTripMarkerUiStates(): List<TripMarkerUiState> = map { activ
   activity.toTripMarkerUiState()
 }
 
+/**
+ * A map pin with its place name on a small pill above it, so a marker can be read without opening
+ * it. The pill sits above the pin because the annotation is anchored at the pin's tip.
+ */
 @Composable
 fun TripMarkerIcon(locationName: String, kind: TripMarkerKind) {
   val iconRes =
@@ -112,9 +141,38 @@ fun TripMarkerIcon(locationName: String, kind: TripMarkerKind) {
         TripMarkerKind.ACTIVITY -> R.drawable.ic_map_marker
         TripMarkerKind.SUGGESTION -> R.drawable.ic_map_marker_monochrome
       }
-  Icon(
-      painter = painterResource(id = iconRes),
-      contentDescription = locationName,
-      tint = Color.Unspecified,
-  )
+  Column(
+      // One name for the whole marker. It is not a merging node itself, so it still reaches the
+      // clickable that wraps the pin, and the label below is hidden so it is not read twice.
+      modifier = Modifier.semantics { contentDescription = locationName },
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall),
+  ) {
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = Spacing.extraSmall,
+    ) {
+      Text(
+          text = locationName,
+          modifier =
+              Modifier.clearAndSetSemantics {}
+                  .widthIn(max = MARKER_LABEL_MAX_WIDTH)
+                  .padding(horizontal = Spacing.small, vertical = MARKER_LABEL_VERTICAL_PADDING),
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.colorScheme.onSurface,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+      )
+    }
+    Icon(
+        painter = painterResource(id = iconRes),
+        // The label already carries the name, so the pill is not read twice.
+        contentDescription = null,
+        tint = Color.Unspecified,
+    )
+  }
 }
+
+private val MARKER_LABEL_MAX_WIDTH = 140.dp
+private val MARKER_LABEL_VERTICAL_PADDING = 3.dp

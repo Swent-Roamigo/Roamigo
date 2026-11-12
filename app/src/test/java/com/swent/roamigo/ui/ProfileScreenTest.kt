@@ -161,4 +161,21 @@ class ProfileScreenTest {
     composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
     assertEquals(2, friendsClicks)
   }
+
+  @Test
+  fun logOutAsksForConfirmationBeforeSigningOut() {
+    var signOuts = 0
+    composeRule.setContent {
+      RoamigoTheme { ProfileScreen(state = state, onSignOutClick = { signOuts++ }) }
+    }
+
+    composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    composeRule.onNodeWithText("Log out of Roamigo?").assertIsDisplayed()
+    composeRule.onNodeWithText("Stay signed in").performClick()
+    assertEquals(0, signOuts)
+
+    composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    composeRule.onNodeWithTag(C.Tag.profile_log_out_confirm).performClick()
+    assertEquals(1, signOuts)
+  }
 }

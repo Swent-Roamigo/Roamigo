@@ -63,6 +63,8 @@ jobs:
   # job below aggregates them, so renaming these jobs does not affect branch protection.
   connected-tests:
     name: Connected tests (shard ${{ matrix.shard }})
+    env:
+      VOTE_FUNCTIONS_URL: http://127.0.0.1:5001/demo-roamigo/europe-west1
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -89,7 +91,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
 
       # The CLI and the emulator jars it downloads are cached, because every shard would otherwise
       # fetch them again on each run.
@@ -107,6 +109,11 @@ jobs:
 
       - name: Install Firebase CLI
         run: npm install --global --prefer-offline --no-audit --no-fund firebase-tools@15.33.0
+
+      - name: Build trusted vote-resolution backend
+        run: |
+          npm ci --prefix functions
+          npm run build --prefix functions
 
       - name: Validate Firebase emulators config
         run: |
@@ -159,7 +166,7 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            bash -o pipefail -c "firebase emulators:exec --only auth,database,firestore --project demo-roamigo --non-interactive '${{ matrix.shard == 0 && 'node --test tests/firestore/vote-closing.test.mjs && ' || '' }}./gradlew connectedCheck --build-cache -Pandroid.testInstrumentationRunnerArguments.numShards=${{ strategy.job-total }} -Pandroid.testInstrumentationRunnerArguments.shardIndex=${{ matrix.shard }}' 2>&1 | tee firebase-emulator.log"
+            bash -o pipefail -c "firebase emulators:exec --only auth,database,firestore,functions --project demo-roamigo --non-interactive '${{ matrix.shard == 0 && 'node --test tests/firestore/*.test.mjs && ' || '' }}./gradlew connectedCheck --build-cache -Pandroid.testInstrumentationRunnerArguments.numShards=${{ strategy.job-total }} -Pandroid.testInstrumentationRunnerArguments.shardIndex=${{ matrix.shard }}' 2>&1 | tee firebase-emulator.log"
 
       - name: Upload connected test results and Firebase logs
         if: always()

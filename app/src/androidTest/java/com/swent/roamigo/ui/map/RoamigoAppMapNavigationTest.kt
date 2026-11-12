@@ -285,9 +285,7 @@ class RoamigoAppMapNavigationTest {
       )
     }
 
-    composeRule
-        .onNodeWithText(composeRule.activity.getString(R.string.trip_details_map))
-        .performClick()
+    // The global map opens a trip on its Map tab.
     waitForTag(C.Tag.trip_map_map)
     composeRule.onNodeWithTag(C.Tag.trip_map_sharing_banner).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertDoesNotExist()

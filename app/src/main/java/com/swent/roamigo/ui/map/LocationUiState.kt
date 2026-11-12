@@ -57,6 +57,9 @@ enum class LocationSharingError {
  * @property permissionState current location permission state of the user.
  * @property permissionSheet the sheet explaining the location permission, if one is open.
  * @property isSharing whether the user shares their location with the trip. Off by default.
+ * @property isStartingSharing whether a request to start sharing is pending: set as soon as it is
+ *   launched, and cleared when sharing is reported on, when the request fails, or when it is
+ *   cancelled. A refused or blocked permission never sets it.
  * @property myLocation last known position of the current user, or null if unknown.
  * @property isMyLocationStale whether [myLocation] is outdated, e.g. because the GPS signal was
  *   lost.
@@ -72,6 +75,7 @@ data class LocationUiState(
     val permissionState: LocationPermissionState = LocationPermissionState.NotRequested,
     val permissionSheet: LocationPermissionSheet = LocationPermissionSheet.None,
     val isSharing: Boolean = false,
+    val isStartingSharing: Boolean = false,
     val myLocation: MemberLocation? = null,
     val isMyLocationStale: Boolean = false,
     val memberLocations: List<MemberLocation> = emptyList(),

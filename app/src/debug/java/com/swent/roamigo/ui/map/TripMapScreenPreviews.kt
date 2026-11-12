@@ -63,6 +63,16 @@ class TripMapScreenPreviews {
     TripMapPreview(uiState = previewTripMapLoadedState, isSharing = true, isOffline = true)
   }
 
+  @Preview(showBackground = true, widthDp = 390, heightDp = 844)
+  @Composable
+  private fun TripMapStartingSharingPreview() {
+    TripMapPreview(
+        uiState = previewTripMapLoadedState,
+        isSharing = false,
+        isStartingSharing = true,
+    )
+  }
+
   /**
    * Mapbox only draws a placeholder in previews, so the markers are shown on their own: a live, a
    * recent and a stale member location, then the user's own position.
@@ -159,11 +169,13 @@ class TripMapScreenPreviews {
       onRetry: () -> Unit = {},
       onRetryActivities: () -> Unit = {},
       isOffline: Boolean = false,
+      isStartingSharing: Boolean = false,
   ) {
     RoamigoTheme {
       TripMapScreen(
           uiState = uiState,
           isSharing = isSharing,
+          isStartingSharing = isStartingSharing,
           isOffline = isOffline,
           onRetry = onRetry,
           onRetryActivities = onRetryActivities,
