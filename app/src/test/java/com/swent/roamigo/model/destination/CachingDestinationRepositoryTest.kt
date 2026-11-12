@@ -212,6 +212,100 @@ class CachingDestinationRepositoryTest {
     assertNull(FileDestinationPhotoStore(blocked).read("geonames:1"))
   }
 
+  @Test
+  fun aSearchIsAnsweredFromTheStoreAfterARestart() = runTest {
+    delegate.results = listOf(lisbon)
+    repository().searchDestinations("lisbon")
+
+    now += TimeUnit.HOURS.toMillis(5)
+    val afterRestart = repository().searchDestinations("lisbon")
+
+    assertEquals(listOf(lisbon), afterRestart)
+    assertEquals(1, delegate.searches)
+  }
+
+  @Test
+  fun aStoredSearchOlderThanAWeekIsRepeated() = runTest {
+    delegate.results = listOf(lisbon)
+    repository().searchDestinations("lisbon")
+
+    now += TimeUnit.DAYS.toMillis(8)
+    repository().searchDestinations("lisbon")
+
+    assertEquals(2, delegate.searches)
+  }
+
+  @Test
+  fun anEmptySearchIsNotStored() = runTest {
+    repository().searchDestinations("nowhere")
+    repository().searchDestinations("nowhere")
+
+    assertEquals(2, delegate.searches)
+  }
+
+  @Test
+  fun theFileStoreKeepsASearchBetweenRuns() = runTest {
+    val directory = folder.newFolder("searches")
+    FileDestinationPhotoStore(directory).writeSearch("lisbon", CachedSearch(listOf(lisbon), 42L))
+
+    val read = FileDestinationPhotoStore(directory).readSearch("lisbon")
+
+    assertEquals(CachedSearch(listOf(lisbon), 42L), read)
+  }
+
+  @Test
+  fun aSearchReadFromTheStoreIsThenKeptInMemory() = runTest {
+    delegate.results = listOf(lisbon)
+    repository().searchDestinations("lisbon")
+
+    now += TimeUnit.DAYS.toMillis(3)
+    val afterRestart = repository()
+    store.searchReads = 0
+    afterRestart.searchDestinations("lisbon")
+    afterRestart.searchDestinations("lisbon")
+
+    assertEquals(1, store.searchReads)
+    assertEquals(1, delegate.searches)
+  }
+
+  @Test
+  fun expiredSearchesAreRemovedWhenANewSearchIsSaved() = runTest {
+    delegate.results = listOf(lisbon)
+    repository().searchDestinations("old")
+
+    now += TimeUnit.DAYS.toMillis(8)
+    repository().searchDestinations("new")
+
+    assertTrue(!store.hasSearch("old"))
+    assertTrue(store.hasSearch("new"))
+  }
+
+  @Test
+  fun theFileStoreRemovesOnlyOldSearches() = runTest {
+    val directory = folder.newFolder("prune")
+    val files = FileDestinationPhotoStore(directory)
+    files.writeSearch("old", CachedSearch(listOf(lisbon), 10L))
+    files.writeSearch("recent", CachedSearch(listOf(lisbon), 100L))
+    files.write("geonames:1", CachedDestinationPhoto(photo, 10L))
+
+    files.deleteSearchesSavedBefore(50L)
+
+    assertNull(files.readSearch("old"))
+    assertEquals(CachedSearch(listOf(lisbon), 100L), files.readSearch("recent"))
+    assertEquals(CachedDestinationPhoto(photo, 10L), files.read("geonames:1"))
+  }
+
+  @Test
+  fun queriesInOtherScriptsGetTheirOwnFile() = runTest {
+    val files = FileDestinationPhotoStore(folder.newFolder("scripts"))
+    val riga = lisbon.copy(stableId = "geonames:2", name = "Рига", geonameId = 2)
+    files.writeSearch("киев", CachedSearch(listOf(lisbon), 1L))
+    files.writeSearch("рига", CachedSearch(listOf(riga), 1L))
+
+    assertEquals(listOf(lisbon), files.readSearch("киев")?.destinations)
+    assertEquals(listOf(riga), files.readSearch("рига")?.destinations)
+  }
+
   private class CountingRepository : DestinationRepository {
     var results: List<Destination> = emptyList()
     var searchError: Exception? = null
@@ -241,5 +335,24 @@ class CachingDestinationRepositoryTest {
       writes++
       saved[destinationId] = photo
     }
+
+    private val searches = HashMap<String, CachedSearch>()
+
+    var searchReads = 0
+
+    override suspend fun readSearch(query: String): CachedSearch? {
+      searchReads++
+      return searches[query]
+    }
+
+    override suspend fun writeSearch(query: String, search: CachedSearch) {
+      searches[query] = search
+    }
+
+    override suspend fun deleteSearchesSavedBefore(savedBeforeMillis: Long) {
+      searches.values.removeAll { it.savedAtMillis < savedBeforeMillis }
+    }
+
+    fun hasSearch(query: String) = query in searches
   }
 }

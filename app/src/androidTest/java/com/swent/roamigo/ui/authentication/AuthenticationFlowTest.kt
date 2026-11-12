@@ -201,6 +201,7 @@ class AuthenticationFlowTest {
     composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
     waitForTag(C.Tag.profile_log_out)
     composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    composeRule.onNodeWithTag(C.Tag.profile_log_out_confirm).performClick()
     assertAuthenticationIsFirstScreen()
     composeRule.onAllNodesWithTag(C.Tag.profile_title).assertCountEquals(0)
     assertNull(repository.getCurrentUser())
@@ -216,6 +217,7 @@ class AuthenticationFlowTest {
     composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
     waitForTag(C.Tag.profile_log_out)
     composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    composeRule.onNodeWithTag(C.Tag.profile_log_out_confirm).performClick()
     composeRule
         .onNodeWithText(
             composeRule.activity.getString(com.swent.roamigo.R.string.profile_sign_out_failed)
@@ -228,6 +230,7 @@ class AuthenticationFlowTest {
     assertEquals(0, credentialManager.clearRequests)
     composeRule.runOnIdle { repository.signOutFailure = null }
     composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    composeRule.onNodeWithTag(C.Tag.profile_log_out_confirm).performClick()
     assertAuthenticationIsFirstScreen()
     assertNull(repository.getCurrentUser())
     assertEquals(1, credentialManager.clearRequests)
@@ -241,6 +244,7 @@ class AuthenticationFlowTest {
     composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
     waitForTag(C.Tag.profile_log_out)
     composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    composeRule.onNodeWithTag(C.Tag.profile_log_out_confirm).performClick()
     assertAuthenticationIsFirstScreen()
     assertNull(repository.getCurrentUser())
     assertEquals(1, credentialManager.clearRequests)
@@ -255,6 +259,7 @@ class AuthenticationFlowTest {
     composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
     waitForTag(C.Tag.profile_log_out)
     composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    composeRule.onNodeWithTag(C.Tag.profile_log_out_confirm).performClick()
     composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
     composeRule.onAllNodesWithTag(AuthenticationScreenTestTags.heading).assertCountEquals(0)
     assertEquals(1, credentialManager.clearRequests)

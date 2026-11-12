@@ -149,7 +149,8 @@ service cloud.firestore {
           ])
           && vote.keys().hasOnly([
             'uid', 'tripId', 'question', 'options', 'createdByUserId', 'status',
-            'creationTime', 'closingTime', 'winningOptionId'
+            'creationTime', 'closingTime', 'winningOptionId',
+            'parentVoteId', 'nextRoundVoteId', 'round', 'resolvedOptionId', 'resolvedByUserId'
           ])
           && vote.uid == voteId
           && vote.tripId == tripId
@@ -161,7 +162,13 @@ service cloud.firestore {
           && vote.creationTime is timestamp
           // Current creation has no closing schedule or persisted result.
           && vote.closingTime == null
-          && vote.winningOptionId == null;
+          && vote.winningOptionId == null
+          && vote.get('nextRoundVoteId', null) == null
+          && vote.get('resolvedOptionId', null) == null
+          && vote.get('resolvedByUserId', null) == null
+          // Only the trusted callable creates linked rounds and resolution metadata.
+          && vote.get('parentVoteId', null) == null
+          && vote.get('round', 1) == 1;
     }
 
     // Options are bounded by MAX_VOTE_OPTIONS; guard each optional index.
@@ -375,6 +382,8 @@ service cloud.firestore {
         allow create: if isMember(tripId)
             && isValidNewVote(request.resource.data, tripId, voteId);
         allow update: if isMember(tripId)
+            // Closed vote metadata is writable only by the trusted backend, which
+            // recomputes the tie. Calendar-day writability remains app/repository policy.
             && resource.data.createdByUserId == request.auth.uid
             && resource.data.status == 'OPEN'
             && request.resource.data.status == 'CLOSED'

@@ -314,6 +314,39 @@ class DestinationSearchViewModelTest {
   }
 
   @Test
+  fun aLookupThatEndsWithoutAPhotoIsMarkedSoTheCardStopsShimmering() = runTest {
+    Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+    try {
+      val city = destination("geonames:1", "City")
+      val failing = destination("geonames:2", "Other")
+      val repository =
+          FakeDestinationRepository(
+              photo = {
+                if (it.stableId == failing.stableId) throw IOException("offline") else null
+              }
+          )
+      val viewModel =
+          createTestCreateTripViewModel(
+              repository = com.swent.roamigo.model.trip.FakeTripRepository(),
+              destinationRepository = repository,
+              requestDispatcher = StandardTestDispatcher(testScheduler),
+          )
+
+      assertTrue(viewModel.uiState.value.destinationIdsWithoutPhoto.isEmpty())
+      viewModel.requestDestinationPhoto(city)
+      viewModel.requestDestinationPhoto(failing)
+      advanceUntilIdle()
+
+      assertEquals(
+          setOf(city.stableId, failing.stableId),
+          viewModel.uiState.value.destinationIdsWithoutPhoto,
+      )
+    } finally {
+      Dispatchers.resetMain()
+    }
+  }
+
+  @Test
   fun clearingViewModelCancelsAnInFlightPhotoLookup() = runTest {
     Dispatchers.setMain(StandardTestDispatcher(testScheduler))
     val photoLookupStarted = CompletableDeferred<Unit>()

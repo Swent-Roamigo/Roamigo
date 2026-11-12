@@ -97,6 +97,7 @@ class RoamigoAppTest {
     waitForTag(C.Tag.trips_profile_avatar)
     composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
     composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    composeRule.onNodeWithTag(C.Tag.profile_log_out_confirm).performClick()
     waitForTag(AuthenticationScreenTestTags.heading)
     composeRule.onNodeWithTag(AuthenticationScreenTestTags.heading).assertIsDisplayed()
     composeRule.onAllNodesWithTag(C.Tag.profile_title).assertCountEquals(0)
@@ -113,6 +114,7 @@ class RoamigoAppTest {
     waitForTag(C.Tag.trips_profile_avatar)
     composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
     composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    composeRule.onNodeWithTag(C.Tag.profile_log_out_confirm).performClick()
     composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.profile_log_out).assertIsEnabled()
     composeRule
@@ -124,6 +126,7 @@ class RoamigoAppTest {
     assertEquals("alex", authRepository.getCurrentUser()?.uid)
     composeRule.runOnIdle { authRepository.signOutFailure = null }
     composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    composeRule.onNodeWithTag(C.Tag.profile_log_out_confirm).performClick()
     waitForTag(AuthenticationScreenTestTags.heading)
     assertNull(authRepository.getCurrentUser())
   }
