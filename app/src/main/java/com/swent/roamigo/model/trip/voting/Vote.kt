@@ -13,6 +13,12 @@ data class Vote(
     val creationTime: Timestamp,
     val closingTime: Timestamp?,
     val winningOptionId: String?,
+    val parentVoteId: String? = null,
+    val nextRoundVoteId: String? = null,
+    val round: Int = 1,
+    // Owner choice is independent of the original ballot outcome.
+    val resolvedOptionId: String? = null,
+    val resolvedByUserId: String? = null,
 )
 
 enum class VoteStatus {

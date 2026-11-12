@@ -9,7 +9,14 @@ import com.swent.roamigo.model.trip.voting.VoteStatus
 sealed interface VoteUiState {
   data object Loading : VoteUiState
 
-  data class Closed(val vote: Vote, val result: VoteResult) : VoteUiState
+  data class Closed(val vote: Vote, val result: VoteResult) : VoteUiState {
+    val isUnresolvedTie: Boolean
+      get() =
+          result.isTie &&
+              vote.status == VoteStatus.CLOSED &&
+              vote.nextRoundVoteId == null &&
+              vote.resolvedOptionId == null
+  }
 
   data class LoadError(val reason: VoteLoadError) : VoteUiState {
     val canRetry: Boolean
@@ -64,6 +71,7 @@ sealed interface VoteUiState {
       get() =
           vote.status == VoteStatus.OPEN &&
               canSelect &&
+              hasUnsavedSelection &&
               vote.options.any { it.uid == selectedOptionId }
 
     val hasPersistedBallot: Boolean

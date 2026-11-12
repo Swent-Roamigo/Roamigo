@@ -165,7 +165,7 @@ class VoteScreenTest {
     )
     composeRule.onNodeWithText("Restaurant").assertIsSelected()
     composeRule.onNodeWithText("Market").assertIsNotSelected()
-    composeRule.onNodeWithText("Update vote").assertIsEnabled()
+    composeRule.onNodeWithText("Update vote").assertIsNotEnabled()
   }
 
   @Test
@@ -183,6 +183,11 @@ class VoteScreenTest {
         )
       }
     }
+    composeRule.onNodeWithText("Update vote").assertIsNotEnabled()
+    composeRule.onNodeWithText("Restaurant").performClick()
+    composeRule.onNodeWithText("Update vote").assertIsEnabled()
+    composeRule.onNodeWithText("Market").performClick()
+    composeRule.onNodeWithText("Update vote").assertIsNotEnabled()
     composeRule.onNodeWithText("Market").assertIsSelected()
     assertCount("Market", "1 vote")
     assertCount("Restaurant", "0 votes")
@@ -347,7 +352,7 @@ class VoteScreenTest {
     assertCount("Restaurant", "1 vote")
     assertCount("Cafe", "3 votes")
     composeRule.onNodeWithText("Restaurant").assertIsSelected()
-    composeRule.onNodeWithText("Update vote").assertIsEnabled()
+    composeRule.onNodeWithText("Update vote").assertIsNotEnabled()
   }
 
   @Test
@@ -401,7 +406,7 @@ class VoteScreenTest {
     composeRule.onNodeWithText("Local market").assertIsNotSelected()
     composeRule.onNodeWithText("Restaurant").assertIsSelected()
     composeRule.onNodeWithText("Pizza place").assertIsNotSelected()
-    composeRule.onNodeWithText("Update vote").assertIsEnabled()
+    composeRule.onNodeWithText("Update vote").assertIsNotEnabled()
     composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
     composeRule.onNodeWithText("Back").assertIsEnabled()
   }

@@ -14,6 +14,7 @@ import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.SnapshotMetadata
+import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.Transaction
 import java.util.concurrent.Executor
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -41,7 +42,18 @@ class VoteRepositoryFirestoreTest {
   private val voteDocument = mock(DocumentReference::class.java)
   private val ballots = mock(CollectionReference::class.java)
   private val ballotDocument = mock(DocumentReference::class.java)
-  private val repository: VoteRepository = VoteRepositoryFirestore(db)
+  private val resolutionCalls = mutableListOf<List<String>>()
+  private val resolutionService =
+      object : VoteResolutionService {
+        override suspend fun createRevote(tripId: String, parentVoteId: String, voteId: String) {
+          resolutionCalls += listOf("revote", tripId, parentVoteId, voteId)
+        }
+
+        override suspend fun resolveByOwner(tripId: String, voteId: String, optionId: String) {
+          resolutionCalls += listOf("owner", tripId, voteId, optionId)
+        }
+      }
+  private val repository: VoteRepository = VoteRepositoryFirestore(db, resolutionService)
   private val timestamp = Timestamp(100, 123)
   private val vote =
       Vote(
@@ -77,6 +89,319 @@ class VoteRepositoryFirestoreTest {
     `when`(votes.document("vote-1")).thenReturn(voteDocument)
     `when`(voteDocument.collection("ballots")).thenReturn(ballots)
     `when`(ballots.document("user-1")).thenReturn(ballotDocument)
+  }
+
+  private fun serverTie(
+      extra: Map<String, Any?> = emptyMap(),
+      end: Timestamp = Timestamp(4102444800L, 0),
+  ): DocumentSnapshot {
+    val snapshot = document(vote.uid, voteData + mapOf("status" to "CLOSED") + extra)
+    doReturn(successfulTask(snapshot)).`when`(voteDocument).get(Source.SERVER)
+    doReturn(successfulTask(snapshot)).`when`(voteDocument).get()
+    val final =
+        query(
+            document("one", mapOf("optionId" to "option-1", "updatedAt" to timestamp)),
+            document("two", mapOf("optionId" to "option-2", "updatedAt" to timestamp)),
+        )
+    `when`(final.metadata).thenReturn(mock(SnapshotMetadata::class.java))
+    doReturn(successfulTask(final)).`when`(ballots).get(Source.SERVER)
+    val tripSnapshot = mock(DocumentSnapshot::class.java)
+    `when`(tripSnapshot.getString("ownerId")).thenReturn("trip-owner")
+    `when`(tripSnapshot.getTimestamp("endDate")).thenReturn(end)
+    doReturn(successfulTask(tripSnapshot)).`when`(trip).get(Source.SERVER)
+    return tripSnapshot
+  }
+
+  @Test
+  fun ownerDecisionUsesTripOwnerAndDelegatesToTrustedServiceWithoutDirectWrites() = runTest {
+    serverTie()
+    repository.resolveByOwner("trip-1", "vote-1", "option-2", "trip-owner")
+    assertEquals(listOf(listOf("owner", "trip-1", "vote-1", "option-2")), resolutionCalls)
+    verify(voteDocument).get(Source.SERVER)
+    verify(voteDocument, never()).get()
+    verify(ballots).get(Source.SERVER)
+    verify(trip).get(Source.SERVER)
+    verify(db, never()).runTransaction(any<Transaction.Function<Unit>>())
+    verify(ballotDocument, never()).set(any())
+    assertTrue(
+        runCatching { repository.resolveByOwner("trip-1", "vote-1", "option-1", "user-1") }
+            .isFailure
+    )
+    assertTrue(
+        runCatching { repository.resolveByOwner("trip-1", "vote-1", "missing", "trip-owner") }
+            .isFailure
+    )
+    assertEquals(1, resolutionCalls.size)
+  }
+
+  @Test
+  fun nonTiedOptionAndUnconfirmedBallotsDoNotReachTrustedService() = runTest {
+    serverTie(
+        mapOf(
+            "options" to
+                (vote.options + VoteOption("option-3", "Pizza")).map {
+                  mapOf("uid" to it.uid, "name" to it.name)
+                }
+        )
+    )
+    assertTrue(
+        runCatching { repository.resolveByOwner("trip-1", "vote-1", "option-3", "trip-owner") }
+            .isFailure
+    )
+    val pending = query()
+    val metadata = mock(SnapshotMetadata::class.java)
+    `when`(metadata.hasPendingWrites()).thenReturn(true)
+    `when`(pending.metadata).thenReturn(metadata)
+    doReturn(successfulTask(pending)).`when`(ballots).get(Source.SERVER)
+    assertTrue(
+        runCatching { repository.resolveByOwner("trip-1", "vote-1", "option-1", "trip-owner") }
+            .isFailure
+    )
+    assertTrue(resolutionCalls.isEmpty())
+  }
+
+  @Test
+  fun missingOriginalAndCalendarEndedTripCannotCreateRevote() = runTest {
+    serverTie(end = Timestamp(1, 0))
+    val next = vote.copy(uid = "round2", parentVoteId = vote.uid, round = 2)
+    assertTrue(runCatching { repository.createRevote(next) }.isFailure)
+    assertTrue(
+        runCatching { repository.resolveByOwner("trip-1", "vote-1", "option-1", "trip-owner") }
+            .isFailure
+    )
+    doReturn(successfulTask(mock(DocumentSnapshot::class.java)))
+        .`when`(voteDocument)
+        .get(Source.SERVER)
+    assertTrue(runCatching { repository.createRevote(next) }.isFailure)
+    assertTrue(resolutionCalls.isEmpty())
+  }
+
+  @Test
+  fun resolvedOrDelegatedTieCannotBeResolvedAgain() = runTest {
+    for (extra in
+        listOf(mapOf("resolvedOptionId" to "option-1"), mapOf("nextRoundVoteId" to "round2"))) {
+      serverTie(extra)
+      assertTrue(
+          runCatching { repository.resolveByOwner("trip-1", "vote-1", "option-2", "trip-owner") }
+              .isFailure
+      )
+    }
+    assertTrue(resolutionCalls.isEmpty())
+  }
+
+  @Test
+  fun revoteDelegatesOnlyIdsToTrustedServiceAndKeepsSourceUnchanged() = runTest {
+    serverTie(
+        mapOf(
+            "options" to
+                (vote.options + VoteOption("option-3", "Pizza")).map {
+                  mapOf("uid" to it.uid, "name" to it.name)
+                }
+        )
+    )
+    val next = vote.copy(uid = "round2", parentVoteId = vote.uid, round = 2)
+    repository.createRevote(next)
+    assertEquals(listOf(listOf("revote", "trip-1", "vote-1", "round2")), resolutionCalls)
+    verify(voteDocument).get(Source.SERVER)
+    verify(voteDocument, never()).get()
+    verify(ballots).get(Source.SERVER)
+    verify(trip).get(Source.SERVER)
+    verify(db, never()).runTransaction(any<Transaction.Function<Unit>>())
+    verify(ballotDocument, never()).set(any())
+    assertTrue(
+        runCatching { repository.createRevote(next.copy(options = next.options.reversed())) }
+            .isFailure
+    )
+    assertEquals(1, resolutionCalls.size)
+  }
+
+  @Test
+  fun revoteRejectsStaleLinkChangedQuestionAndWrongRoundBeforeCallingService() = runTest {
+    val next = vote.copy(uid = "round2", parentVoteId = vote.uid, round = 2)
+    serverTie()
+    for (invalid in
+        listOf(
+            next.copy(parentVoteId = null),
+            next.copy(uid = vote.uid),
+            next.copy(status = VoteStatus.CLOSED),
+            next.copy(question = "Changed?"),
+            next.copy(round = 3),
+        )) {
+      assertTrue(runCatching { repository.createRevote(invalid) }.isFailure)
+    }
+    serverTie(mapOf("nextRoundVoteId" to "other-child"))
+    assertTrue(runCatching { repository.createRevote(next) }.isFailure)
+    serverTie(mapOf("resolvedOptionId" to "option-1"))
+    assertTrue(runCatching { repository.createRevote(next) }.isFailure)
+    assertTrue(resolutionCalls.isEmpty())
+    // Retrying the same linked child after an ambiguous response is allowed.
+    serverTie(mapOf("nextRoundVoteId" to next.uid))
+    repository.createRevote(next)
+    assertEquals(listOf(listOf("revote", "trip-1", "vote-1", "round2")), resolutionCalls)
+  }
+
+  @Test
+  fun readingResolutionMetadataPreservesRoundLinksAndOwnerIdentity() = runTest {
+    val metadata =
+        mapOf(
+            "parentVoteId" to "previous",
+            "nextRoundVoteId" to "next",
+            "round" to 2L,
+            "resolvedOptionId" to "option-1",
+            "resolvedByUserId" to "trip-owner",
+        )
+    doReturn(successfulTask(document(vote.uid, voteData + metadata))).`when`(voteDocument).get()
+    assertEquals(
+        vote.copy(
+            parentVoteId = "previous",
+            nextRoundVoteId = "next",
+            round = 2,
+            resolvedOptionId = "option-1",
+            resolvedByUserId = "trip-owner",
+        ),
+        repository.getVote("trip-1", "vote-1"),
+    )
+  }
+
+  @Test
+  fun independentPreflightReadsStartBeforeTheVoteReadCompletes() = runTest {
+    serverTie()
+    val snapshot = document(vote.uid, voteData + ("status" to "CLOSED"))
+    val task = successfulTask(snapshot)
+    `when`(task.isComplete).thenReturn(false)
+    `when`(task.addOnCompleteListener(any<Executor>(), any<OnCompleteListener<DocumentSnapshot>>()))
+        .thenReturn(task)
+    doReturn(task).`when`(voteDocument).get(Source.SERVER)
+    val job = async { repository.resolveByOwner("trip-1", "vote-1", "option-1", "trip-owner") }
+    runCurrent()
+    verify(ballots).get(Source.SERVER)
+    verify(trip).get(Source.SERVER)
+    assertFalse(job.isCompleted)
+    assertTrue(resolutionCalls.isEmpty())
+    @Suppress("UNCHECKED_CAST")
+    val captor =
+        ArgumentCaptor.forClass(OnCompleteListener::class.java)
+            as ArgumentCaptor<OnCompleteListener<DocumentSnapshot>>
+    verify(task).addOnCompleteListener(any<Executor>(), captor.capture())
+    captor.value.onComplete(task)
+    job.await()
+    verify(voteDocument, times(1)).get(Source.SERVER)
+    verify(voteDocument, never()).get()
+    assertEquals(1, resolutionCalls.size)
+  }
+
+  @Test
+  fun cachedFinalBallotsAndServerReadFailuresNeverReachTheCallable() = runTest {
+    serverTie()
+    val cached = query()
+    val metadata = mock(SnapshotMetadata::class.java)
+    `when`(metadata.isFromCache).thenReturn(true)
+    `when`(cached.metadata).thenReturn(metadata)
+    doReturn(successfulTask(cached)).`when`(ballots).get(Source.SERVER)
+    assertTrue(
+        runCatching { repository.resolveByOwner("trip-1", "vote-1", "option-1", "trip-owner") }
+            .isFailure
+    )
+    serverTie()
+    val failure = IllegalStateException("offline")
+    doReturn(failedTask<DocumentSnapshot>(failure)).`when`(trip).get(Source.SERVER)
+    val thrown = runCatching {
+      repository.createRevote(vote.copy(uid = "child", parentVoteId = vote.uid, round = 2))
+    }
+        .exceptionOrNull()
+    assertTrue(thrown is IllegalStateException)
+    assertEquals(failure.message, thrown?.message)
+    assertTrue(resolutionCalls.isEmpty())
+  }
+
+  @Test
+  fun roundMetadataRejectsMalformedValuesAndInconsistentLinkage() = runTest {
+    val invalid =
+        listOf(
+            mapOf("round" to 0L),
+            mapOf("round" to -1L),
+            mapOf("round" to 2147483648L),
+            mapOf("round" to 1.5),
+            mapOf("round" to 2.0),
+            mapOf("round" to Double.NaN),
+            mapOf("round" to "2"),
+            mapOf("round" to null),
+            mapOf("round" to 2L),
+            mapOf("parentVoteId" to "parent"),
+            mapOf("parentVoteId" to "parent", "round" to 1L),
+            mapOf("parentVoteId" to "", "round" to 2L),
+            mapOf("parentVoteId" to vote.uid, "round" to 2L),
+        )
+    for (metadata in invalid) {
+      doReturn(successfulTask(document(vote.uid, voteData + metadata))).`when`(voteDocument).get()
+      assertTrue(
+          "Accepted $metadata",
+          runCatching { repository.getVote("trip-1", "vote-1") }.exceptionOrNull()
+              is IllegalArgumentException,
+      )
+    }
+    doReturn(successfulTask(document(vote.uid, voteData + ("round" to 1L))))
+        .`when`(voteDocument)
+        .get()
+    assertEquals(vote, repository.getVote("trip-1", "vote-1"))
+  }
+
+  @Test
+  fun linkedRoundMetadataSurvivesSerializationAndLegacyShapeStaysUnchanged() = runTest {
+    val transaction = mock(Transaction::class.java)
+    `when`(transaction.get(voteDocument)).thenReturn(mock(DocumentSnapshot::class.java))
+    stubTransaction(transaction)
+    val linked = vote.copy(parentVoteId = "parent", round = 2)
+    repository.createVote(linked)
+    val data = voteData + mapOf("parentVoteId" to "parent", "round" to 2)
+    verify(transaction).set(voteDocument, data)
+    doReturn(successfulTask(document(vote.uid, data))).`when`(voteDocument).get()
+    assertEquals(linked, repository.getVote("trip-1", "vote-1"))
+    assertTrue(runCatching { repository.createVote(vote.copy(round = 2)) }.isFailure)
+    assertTrue(runCatching { repository.createRevote(linked.copy(parentVoteId = null)) }.isFailure)
+    // Ordinary vote serialization is also checked by createVoteWritesAllFieldsUnderItsTrip.
+    serverTie(mapOf("parentVoteId" to "earlier", "round" to Int.MAX_VALUE.toLong()))
+    assertTrue(
+        runCatching {
+          repository.createRevote(linked.copy(uid = "child", parentVoteId = vote.uid, round = 2))
+        }
+            .isFailure
+    )
+    assertTrue(resolutionCalls.isEmpty())
+  }
+
+  @Test
+  fun resolutionUsesLocalCalendarAcrossDstAndTimezonesAndIgnoresStoredStatus() = runTest {
+    for ((zoneName, endDate, stillActive, ended) in
+        listOf(
+            listOf("Europe/Zurich", "2026-10-25", "2026-10-25T22:30:00Z", "2026-10-25T23:00:00Z"),
+            listOf("Europe/Zurich", "2026-03-29", "2026-03-29T21:30:00Z", "2026-03-29T22:00:00Z"),
+            listOf(
+                "America/New_York",
+                "2026-11-01",
+                "2026-11-02T04:30:00Z",
+                "2026-11-02T05:00:00Z",
+            ),
+        )) {
+      resolutionCalls.clear()
+      val zone = java.time.ZoneId.of(zoneName)
+      val end = java.time.LocalDate.parse(endDate).atStartOfDay(zone).toInstant()
+      val tripSnapshot = serverTie(end = Timestamp(end.epochSecond, 0))
+      `when`(tripSnapshot.getString("status")).thenReturn("COMPLETED")
+      fun at(instant: String) =
+          VoteRepositoryFirestore(
+              db,
+              resolutionService,
+              java.time.Clock.fixed(java.time.Instant.parse(instant), zone),
+          )
+      at(stillActive).resolveByOwner("trip-1", "vote-1", "option-1", "trip-owner")
+      assertEquals(1, resolutionCalls.size)
+      assertTrue(
+          runCatching { at(ended).resolveByOwner("trip-1", "vote-1", "option-1", "trip-owner") }
+              .isFailure
+      )
+      assertEquals(1, resolutionCalls.size)
+    }
   }
 
   @Test

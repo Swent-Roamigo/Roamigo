@@ -33,13 +33,20 @@ sealed interface VotesUiState {
       val liveSummaries: Map<String, LiveVoteSummary> = emptyMap(),
       val finalSummaries: Map<String, VoteResult> = emptyMap(),
   ) : VotesUiState {
-    /** Only confirmed, unique winners belong under Decided. */
+    /** Final ballot winners and explicit owner outcomes belong under Decided. */
     val decidedVotes: List<Vote>
-      get() = closedVotes.filter { finalSummaries[it.uid]?.hasUniqueWinner == true }
+      get() = closedVotes.filter {
+        it.nextRoundVoteId == null &&
+            (it.resolvedOptionId != null || finalSummaries[it.uid]?.hasUniqueWinner == true)
+      }
 
-    /** Ties, no ballots, and pending results stay closed and outside Decided. */
+    /** Delegated rounds stay stored but are represented by their successor in the normal list. */
     val unresolvedClosedVotes: List<Vote>
-      get() = closedVotes.filter { finalSummaries[it.uid]?.hasUniqueWinner != true }
+      get() = closedVotes.filter {
+        it.nextRoundVoteId == null &&
+            it.resolvedOptionId == null &&
+            finalSummaries[it.uid]?.hasUniqueWinner != true
+      }
   }
 }
 
