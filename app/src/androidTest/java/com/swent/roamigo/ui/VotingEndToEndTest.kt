@@ -121,8 +121,8 @@ class VotingEndToEndTest {
         )
       }
     }
-    openTripVotes()
-    composeRule.onNodeWithText(text(R.string.vote_new)).performClick()
+    openTripVotes(createVoteLabelId = R.string.votes_empty_start)
+    composeRule.onNodeWithText(text(R.string.votes_empty_start)).performClick()
     waitFor(hasTestTag("vote_question"))
     composeRule.onNodeWithTag("vote_question").performTextInput("Where tomorrow?")
     composeRule.onNodeWithTag("vote_option_0").performTextInput("Park")
@@ -189,12 +189,12 @@ class VotingEndToEndTest {
     composeRule.onNode(dialogText("Beach")).assertIsSelected()
   }
 
-  private fun openTripVotes() {
+  private fun openTripVotes(createVoteLabelId: Int = R.string.vote_new) {
     waitFor(hasTestTag(C.Tag.trips_main_trip_card))
     composeRule.onNodeWithTag(C.Tag.trips_main_trip_card).performClick()
     waitFor(hasText(text(R.string.votes_title)))
     composeRule.onNodeWithText(text(R.string.votes_title)).performClick()
-    waitFor(hasText(text(R.string.vote_new)))
+    waitFor(hasText(text(createVoteLabelId)) and hasClickAction())
   }
 
   private fun assertPersistedBallot(voteId: String, optionId: String) = runBlocking {
