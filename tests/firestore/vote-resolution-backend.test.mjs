@@ -43,6 +43,23 @@ async function ballotData(ref) { return (await ref.collection('ballots').orderBy
 function failed(response, status = 'FAILED_PRECONDITION') { assert.equal(response.error?.status, status, JSON.stringify(response)); }
 function succeeded(response) { assert.ok(response.result?.voteId, JSON.stringify(response)); }
 
+for (const callable of ['createRevote', 'resolveVoteByOwner']) {
+  test(`${callable} denies malformed or missing trip memberIds without changing votes`, async () => {
+    for (const memberIds of [undefined, null, 42, true, {}, {includes: true}, 'owner', []]) {
+      const {ref, tripRef, vote, request, revote} = await fixture();
+      // A UID string must be rejected even though String.includes would accept it.
+      const value = memberIds === 'owner' ? owner.uid : memberIds;
+      await tripRef.set({ownerId: owner.uid, ...(value === undefined ? {} : {memberIds: value})});
+      const originalBallots = await ballotData(ref);
+      const data = callable === 'createRevote' ? revote : {...request, optionId: 'a'};
+      failed(await call(callable, data, owner), 'PERMISSION_DENIED');
+      assert.deepEqual((await ref.get()).data(), vote);
+      assert.deepEqual(await ballotData(ref), originalBallots);
+      assert.equal((await ref.parent.doc('round2').get()).exists, false);
+    }
+  });
+}
+
 test('trusted owner resolution recomputes a real tie, preserves counts and is idempotent', async () => {
   const {ref, vote, request} = await fixture(['a', 'a', 'b', 'b']);
   const originalBallots = await ballotData(ref);
