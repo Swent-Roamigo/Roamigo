@@ -56,6 +56,8 @@ import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
+import com.swent.roamigo.model.trip.activity.ActivityRepository
+import com.swent.roamigo.model.trip.activity.FakeActivityRepository
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
@@ -68,6 +70,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.hamcrest.Matchers.allOf
@@ -320,14 +323,16 @@ class TripMapScreenTest {
             tripRequests.incrementAndGet()
             return listOf(trip)
           }
-
-          override suspend fun getActivitiesForTrip(tripId: String): List<TripActivity> {
+        }
+    val activityRepository =
+        object : ActivityRepository by FakeActivityRepository() {
+          override fun observeActivities(tripId: String): Flow<List<TripActivity>> = flow {
             assertEquals(TRIP_ID, tripId)
             if (activityRequests.incrementAndGet() == 1) error("Activities unavailable")
-            return pendingActivities.await()
+            emit(pendingActivities.await())
           }
         }
-    setScreen(repository, RecordingLocationRepository())
+    setScreen(repository, RecordingLocationRepository(), activityRepository = activityRepository)
 
     composeRule.onNodeWithTag(C.Tag.trip_map_retry_activities).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.trip_map_error).assertDoesNotExist()
@@ -357,18 +362,52 @@ class TripMapScreenTest {
   fun delayedInitialLoadDisplaysDistantActivityAndSuggestionMarkers() {
     val activities = distantActivities()
     val pendingActivities = CompletableDeferred<List<TripActivity>>()
-    val repository =
-        object : TripRepository by FakeTripRepository(trips = listOf(trip)) {
-          override suspend fun getActivitiesForTrip(tripId: String): List<TripActivity> =
-              pendingActivities.await()
+    val activityRepository =
+        object : ActivityRepository by FakeActivityRepository() {
+          override fun observeActivities(tripId: String): Flow<List<TripActivity>> = flow {
+            emit(pendingActivities.await())
+          }
         }
-    setScreen(repository, RecordingLocationRepository())
+    setScreen(
+        FakeTripRepository(trips = listOf(trip)),
+        RecordingLocationRepository(),
+        activityRepository = activityRepository,
+    )
     composeRule.onNodeWithTag(C.Tag.trip_map_loading).assertIsDisplayed()
 
     composeRule.runOnIdle { pendingActivities.complete(activities) }
 
     assertActivityMarkersDisplayed(activities)
     composeRule.onNodeWithTag(C.Tag.trip_map_loading).assertDoesNotExist()
+  }
+
+  @Test
+  fun observedActivityChangesUpdateTheDisplayedMarkers() {
+    val activities = distantActivities()
+    val updates = MutableStateFlow(listOf(activities.first()))
+    val activityRepository =
+        object : ActivityRepository by FakeActivityRepository() {
+          override fun observeActivities(tripId: String): Flow<List<TripActivity>> = updates
+        }
+    setScreen(
+        FakeTripRepository(trips = listOf(trip)),
+        RecordingLocationRepository(),
+        activityRepository = activityRepository,
+    )
+    assertActivityMarkersDisplayed(listOf(activities.first()))
+
+    composeRule.runOnIdle { updates.value = activities }
+    assertActivityMarkersDisplayed(activities)
+
+    composeRule.runOnIdle { updates.value = emptyList() }
+    composeRule.waitUntil(timeoutMillis = MAP_TEST_TIMEOUT_MILLIS) {
+      activities.all {
+        composeRule
+            .onAllNodesWithTag(TripMarkerTestTags.markerFor(it.toTripMarkerUiState().id))
+            .fetchSemanticsNodes()
+            .isEmpty()
+      }
+    }
   }
 
   @Test
@@ -856,6 +895,7 @@ class TripMapScreenTest {
       locationRepository: LocationRepository,
       activityResultRegistry: ActivityResultRegistry = registry,
       recordStartedIntents: Boolean = true,
+      activityRepository: ActivityRepository = FakeActivityRepository(),
   ) {
     val registryOwner =
         object : ActivityResultRegistryOwner {
@@ -865,6 +905,7 @@ class TripMapScreenTest {
         TripMapViewModel.factory(
             tripId = TRIP_ID,
             tripRepository = tripRepository,
+            activityRepository = activityRepository,
             userRepository = FakeUserRepository(User(USER_ID, "Alex", null)),
         )
     val locationViewModelFactory =

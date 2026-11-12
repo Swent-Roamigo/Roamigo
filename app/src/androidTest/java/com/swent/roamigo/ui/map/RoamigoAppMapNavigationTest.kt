@@ -24,10 +24,14 @@ import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.location.DeviceLocation
 import com.swent.roamigo.model.location.LocationRepository
 import com.swent.roamigo.model.location.MemberLocation
+import com.swent.roamigo.model.trip.Activity
+import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripStatus
+import com.swent.roamigo.model.trip.activity.ActivityRepository
+import com.swent.roamigo.model.trip.activity.FakeActivityRepository
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.RoamigoApp
@@ -39,6 +43,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -98,6 +103,14 @@ class RoamigoAppMapNavigationTest {
       )
 
   private val locationRepository = TestLocationRepository()
+  private val activityUpdates = MutableStateFlow(emptyList<Activity>())
+  private val activityRepository =
+      object : ActivityRepository by FakeActivityRepository() {
+        override fun observeActivities(tripId: String): Flow<List<Activity>> =
+            activityUpdates.map { activities ->
+              activities.filter { it.tripId == tripId }
+            }
+      }
 
   @Before
   fun setUp() {
@@ -114,6 +127,7 @@ class RoamigoAppMapNavigationTest {
         RoamigoApp(
             voteRepository = InMemoryVoteRepository(),
             tripRepository = tripRepository,
+            activityRepository = activityRepository,
             authRepository = authRepository,
             destinationRepository = destinationRepository,
             navController = navController,
@@ -174,6 +188,39 @@ class RoamigoAppMapNavigationTest {
 
     pressBack()
     waitForRoute(Route.TRIPS)
+  }
+
+  @Test
+  fun tripMapDisplaysLiveActivitiesFromTheInjectedRepository() {
+    openMainTripDetails()
+    composeRule
+        .onNodeWithText(composeRule.activity.getString(R.string.trip_details_map))
+        .performClick()
+    waitForTag(C.Tag.trip_map_map)
+    composeRule.loadLocalMapStyle()
+    val activity =
+        Activity(
+            uid = "live-activity",
+            tripId = mainTrip.uid,
+            activityType = ActivityType.ACCEPTED,
+            name = "Walk in Paris",
+            description = null,
+            location = mainTrip.destinations.single(),
+            startTime = mainTrip.startDate,
+            endTime = null,
+            createdByUserId = mainTrip.ownerId,
+            creationTime = mainTrip.createdAt,
+        )
+    val markerTag = TripMarkerTestTags.markerFor(activity.toTripMarkerUiState().id)
+
+    composeRule.runOnIdle { activityUpdates.value = listOf(activity) }
+    waitForTag(markerTag)
+    composeRule.onNodeWithTag(markerTag).assertIsDisplayed()
+
+    composeRule.runOnIdle { activityUpdates.value = emptyList() }
+    composeRule.waitUntil(timeoutMillis = MAP_TEST_TIMEOUT_MILLIS) {
+      composeRule.onAllNodesWithTag(markerTag).fetchSemanticsNodes().isEmpty()
+    }
   }
 
   @Test
