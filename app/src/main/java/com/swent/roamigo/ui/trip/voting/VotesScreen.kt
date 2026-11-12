@@ -108,7 +108,7 @@ fun VotesRoute(
             revoteSource = source,
             eligibility = resolutionState.eligibility,
             onRetryEligibility = resolution::refreshEligibility,
-            beforeSubmit = resolution::validateRevoteSubmission,
+            beforeSubmit = { resolution.validateRevoteSubmission().await() },
         )
       }
     }

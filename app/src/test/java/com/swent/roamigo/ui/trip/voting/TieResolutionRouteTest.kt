@@ -9,6 +9,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
+import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.voting.*
 import com.swent.roamigo.resources.C
@@ -60,7 +61,9 @@ class TieResolutionRouteTest {
 
   private lateinit var resolutionModel: TieResolutionViewModel
 
-  private fun controlledList(): MutableStateFlow<VotesUiState> {
+  private fun controlledList(
+      tripRepository: TripRepository = trips
+  ): MutableStateFlow<VotesUiState> {
     val result =
         calculateVoteResult(
             original.options,
@@ -89,12 +92,12 @@ class TieResolutionRouteTest {
             {},
             {},
             {},
-            tripRepository = trips,
+            tripRepository = tripRepository,
             votesViewModelFactory = viewModelFactory { initializer { model } },
             resolutionViewModelFactory =
                 viewModelFactory {
                   initializer {
-                    TieResolutionViewModel(backend, trips, "trip", "alex", false).also {
+                    TieResolutionViewModel(backend, tripRepository, "trip", "alex", false).also {
                       resolutionModel = it
                     }
                   }
@@ -103,6 +106,38 @@ class TieResolutionRouteTest {
       }
     }
     return state
+  }
+
+  @Test
+  fun routineRefreshKeepsTieActionsVisibleWithoutCheckingText() {
+    val trip = detailsTestTrip().copy(endDate = Timestamp(4102444800L, 0))
+    val gate = CompletableDeferred<Trip?>()
+    var refreshing = false
+    val repository =
+        object : TripRepository by trips {
+          override suspend fun getTrip(tripId: String): Trip? =
+              if (refreshing) gate.await() else trip
+        }
+    controlledList(repository)
+    composeRule.onNodeWithText("Revote").assertIsDisplayed()
+    composeRule.onNodeWithText("Owner decides").assertIsDisplayed()
+    composeRule.runOnIdle {
+      refreshing = true
+      resolutionModel.refreshEligibility()
+    }
+    composeRule.onNodeWithText("Revote").assertIsDisplayed()
+    composeRule.onNodeWithText("Owner decides").assertIsDisplayed()
+    composeRule
+        .onNodeWithText("Checking vote-resolution permissions", substring = true)
+        .assertDoesNotExist()
+    composeRule.runOnIdle {
+      assertTrue(resolutionModel.state.value.refreshing)
+      assertTrue(resolutionModel.state.value.canResolve)
+      gate.complete(trip)
+    }
+    composeRule.onNodeWithText("Revote").assertIsDisplayed()
+    composeRule.onNodeWithText("Owner decides").assertIsDisplayed()
+    composeRule.runOnIdle { assertFalse(resolutionModel.state.value.refreshing) }
   }
 
   @Test
