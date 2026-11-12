@@ -2,22 +2,17 @@ package com.swent.roamigo.model.place
 
 import com.swent.roamigo.BuildConfig
 import com.swent.roamigo.model.destination.DESTINATION_USER_AGENT
+import com.swent.roamigo.model.validCountryCodeOrNull
 import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.TimeUnit
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import okhttp3.Call
-import okhttp3.Callback
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.Response
 import org.json.JSONException
 import org.json.JSONObject
 
@@ -26,10 +21,10 @@ import org.json.JSONObject
  *
  * Mapbox bills a search as one session: the "suggest" calls typed so far plus the "retrieve" that
  * ends it must share a session token. The token is therefore kept here and renewed after each
- * successful [resolvePlace]. There is one session for the whole repository, so two searches that
- * overlap in time would share it. Mapbox limits Search Box results to temporary use; the team
- * accepted storing the chosen place anyway because the app is a course project that is not
- * distributed.
+ * answered [resolvePlace], or rejected by Mapbox. There is one session for the whole repository, so
+ * two searches that overlap in time would share it. Mapbox limits Search Box results to temporary
+ * use; the team accepted storing the chosen place anyway because the app is a course project that
+ * is not distributed.
  */
 class MapboxPlaceRepository(
     private val accessToken: String = BuildConfig.MAPBOX_ACCESS_TOKEN,
@@ -69,13 +64,17 @@ class MapboxPlaceRepository(
     // A blank id would request the retrieve root and fail as if the provider were down.
     if (candidate.id.isBlank()) throw PlaceSearchException.InvalidPlace()
     val url = baseUrl().addPathSegments("retrieve").addPathSegment(candidate.id).build()
-    val feature =
-        getJson(url).optJSONArray("features")?.optJSONObject(0)
-            ?: throw PlaceSearchException.InvalidPlace()
-    val place = feature.toPlace(fallbackName = candidate.name)
-    // The session ends with the retrieve, so the next search must start a new one.
+    val answer = getJson(url)
+    // The retrieve ends the session as soon as Mapbox has answered it, whatever the content turns
+    // out to be, so the next search must start a new one even if the place is unusable. A failed
+    // call keeps the session instead, because Mapbox has not completed the retrieve.
+    renewSession()
+    val feature = answer.optJSONArray("features")?.optJSONObject(0)
+    return (feature ?: throw PlaceSearchException.InvalidPlace()).toPlace(candidate.name)
+  }
+
+  private fun renewSession() {
     synchronized(sessionLock) { sessionToken = newSessionToken() }
-    return place
   }
 
   private fun requireConfigured() {
@@ -114,14 +113,14 @@ class MapboxPlaceRepository(
         throw PlaceSearchException.InvalidPlace()
     val name = properties.optString("name").ifBlank { fallbackName }.takeIf(String::isNotBlank)
     if (name == null) throw PlaceSearchException.InvalidPlace()
-    // TripLocation rejects anything but two uppercase letters, so normalize or drop it.
+    // TripLocation rejects anything but two letters A-Z, so normalize with its own rule or drop it.
     val countryCode =
         properties
             .optJSONObject("context")
             ?.optJSONObject("country")
             ?.optString("country_code")
             ?.uppercase()
-            ?.takeIf { it.length == 2 && it.all(Char::isLetter) }
+            .validCountryCodeOrNull()
     return Place(name, properties.address(), latitude, longitude, countryCode)
   }
 
@@ -135,6 +134,14 @@ class MapboxPlaceRepository(
               response.code == HTTP_UNAUTHORIZED || response.code == HTTP_FORBIDDEN ->
                   throw PlaceSearchException.InvalidToken()
               response.code == HTTP_TOO_MANY_REQUESTS -> throw PlaceSearchException.QuotaExceeded()
+              // A request Mapbox cannot use, for example because of its session: start a new
+              // session, or every retry would fail the same way.
+              response.code == HTTP_BAD_REQUEST || response.code == HTTP_UNPROCESSABLE -> {
+                renewSession()
+                throw PlaceSearchException.Unavailable(
+                    "Place search was refused: HTTP ${response.code}"
+                )
+              }
               !response.isSuccessful ->
                   throw PlaceSearchException.Unavailable(
                       "Place search failed: HTTP ${response.code}"
@@ -153,26 +160,13 @@ class MapboxPlaceRepository(
         }
       }
 
-  private suspend fun Call.await(): Response = suspendCancellableCoroutine { continuation ->
-    continuation.invokeOnCancellation { cancel() }
-    enqueue(
-        object : Callback {
-          override fun onFailure(call: Call, e: IOException) {
-            if (continuation.isActive) continuation.resumeWithException(e)
-          }
-
-          override fun onResponse(call: Call, response: Response) {
-            if (continuation.isActive) continuation.resume(response) else response.close()
-          }
-        }
-    )
-  }
-
   companion object {
     private const val SEARCH_BOX_URL = "https://api.mapbox.com/search/searchbox/v1/"
     private const val MAX_SUGGESTIONS = 8
+    private const val HTTP_BAD_REQUEST = 400
     private const val HTTP_UNAUTHORIZED = 401
     private const val HTTP_FORBIDDEN = 403
+    private const val HTTP_UNPROCESSABLE = 422
     private const val HTTP_TOO_MANY_REQUESTS = 429
     private const val REQUEST_TIMEOUT_SECONDS = 12L
     private val defaultClient =

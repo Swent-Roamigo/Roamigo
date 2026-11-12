@@ -145,8 +145,8 @@ class MapboxPlaceRepositoryTest {
       else 200 to feature()
     }
 
-    repository.searchPlaces("ca")
     repository.searchPlaces("caf")
+    repository.searchPlaces("cafe")
     repository.resolvePlace(candidate)
     repository.searchPlaces("pizza")
 
@@ -253,6 +253,7 @@ class MapboxPlaceRepositoryTest {
     val repository = repository(token = "") { error("must not be called") }
 
     assertTrue(repository.searchPlaces("a").isEmpty())
+    assertTrue(repository.searchPlaces("ca").isEmpty())
     assertTrue(repository.searchPlaces("  ").isEmpty())
     assertTrue(requests.isEmpty())
   }
@@ -292,6 +293,77 @@ class MapboxPlaceRepositoryTest {
 
     assertEquals("Lausanne", found.address)
     assertEquals(found.address, place.address)
+  }
+
+  @Test
+  fun unusablePlaceStillEndsTheSession() = runTest {
+    val answers =
+        listOf(
+            feature("[6.63, 91]"), // Out of range: Mapbox still completed the retrieve.
+            """{"features":[]}""",
+        )
+    for (answer in answers) {
+      requests.clear()
+      val repository = repository { 200 to answer }
+
+      try {
+        repository.resolvePlace(candidate)
+        fail("Expected invalid place")
+      } catch (_: PlaceSearchException.InvalidPlace) {}
+      try {
+        repository.searchPlaces("cafe")
+      } catch (_: PlaceSearchException) {}
+
+      assertEquals(listOf("s1", "s2"), requests.map { it.url.queryParameter("session_token") })
+    }
+  }
+
+  @Test
+  fun refusedRequestStartsANewSession() = runTest {
+    for (code in listOf(400, 422)) {
+      requests.clear()
+      val repository = repository { code to "{}" }
+
+      for (call in 1..2) {
+        try {
+          repository.searchPlaces("cafe")
+          fail("Expected failure")
+        } catch (_: PlaceSearchException.Unavailable) {}
+      }
+
+      assertEquals(listOf("s1", "s2"), requests.map { it.url.queryParameter("session_token") })
+    }
+  }
+
+  @Test
+  fun refusedRetrieveStartsANewSession() = runTest {
+    val repository = repository { 400 to "{}" }
+
+    try {
+      repository.resolvePlace(candidate)
+      fail("Expected failure")
+    } catch (_: PlaceSearchException.Unavailable) {}
+    try {
+      repository.searchPlaces("cafe")
+    } catch (_: PlaceSearchException.Unavailable) {}
+
+    assertEquals(listOf("s1", "s2"), requests.map { it.url.queryParameter("session_token") })
+  }
+
+  @Test
+  fun countryCodeWithNonAsciiLettersIsDropped() = runTest {
+    val repository = repository {
+      200 to
+          feature(
+              properties = """{"name":"Cafe","context":{"country":{"country_code":"\u00e9a"}}}"""
+          )
+    }
+
+    // A code that TripLocation would reject must not make the place fail.
+    val place = repository.resolvePlace(candidate)
+
+    assertNull(place.countryCode)
+    place.toTripLocation()
   }
 
   private companion object {

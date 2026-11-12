@@ -1,7 +1,7 @@
 package com.swent.roamigo.model.place
 
 /** Queries shorter than this are not worth a provider call. */
-const val MIN_PLACE_QUERY_LENGTH = 2
+const val MIN_PLACE_QUERY_LENGTH = 3
 
 /** Searches places by name or address. Separate from the destination search, which finds cities. */
 interface PlaceRepository {
