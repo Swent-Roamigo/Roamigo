@@ -4,12 +4,15 @@ package com.swent.roamigo.ui
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
+import androidx.compose.ui.test.isNotEnabled
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -158,17 +161,25 @@ class VotingEndToEndTest {
     waitFor(dialogText("Park"))
     composeRule.onNode(dialogText("Park")).performClick()
     composeRule.onNode(dialogText(text(R.string.vote_submit))).performClick()
-    waitFor(dialogText(text(R.string.vote_update)) and isEnabled())
+    // The persisted ballot changes Submit to Update, but an unchanged choice stays disabled.
+    waitFor(dialogText(text(R.string.vote_update)) and isNotEnabled())
+    composeRule.onNode(dialogText("Park")).assertIsSelected()
+    waitFor(dialogText(text(R.string.vote_back)) and isEnabled())
     composeRule.onNode(dialogText(text(R.string.vote_back))).performClick()
     assertCount(voteId, parkId, 1)
     assertCount(voteId, beachId, 0)
     assertPersistedBallot(voteId, parkId)
 
     composeRule.onNodeWithTag(C.Tag.voteAction(voteId)).performScrollTo().performClick()
-    waitFor(dialogText(text(R.string.vote_update)))
+    waitFor(dialogText(text(R.string.vote_update)) and isNotEnabled())
     composeRule.onNode(dialogText("Park")).assertIsSelected()
+    composeRule.onNode(dialogText(text(R.string.vote_update))).assertIsNotEnabled()
     composeRule.onNode(dialogText("Beach")).performClick()
-    composeRule.onNode(dialogText(text(R.string.vote_update))).performClick()
+    composeRule.onNode(dialogText(text(R.string.vote_update))).assertIsEnabled()
+    composeRule.onNode(dialogText("Park")).performClick()
+    composeRule.onNode(dialogText(text(R.string.vote_update))).assertIsNotEnabled()
+    composeRule.onNode(dialogText("Beach")).performClick()
+    composeRule.onNode(dialogText(text(R.string.vote_update))).assertIsEnabled().performClick()
     // Back is enabled only once the server has acknowledged the ballot update.
     waitFor(dialogText(text(R.string.vote_back)) and isEnabled())
     composeRule.onNode(dialogText(text(R.string.vote_back))).performClick()
@@ -184,7 +195,7 @@ class VotingEndToEndTest {
     assertCount(voteId, parkId, 0)
     assertCount(voteId, beachId, 1)
     composeRule.onNodeWithTag(C.Tag.voteAction(voteId)).performScrollTo().performClick()
-    waitFor(dialogText(text(R.string.vote_update)))
+    waitFor(dialogText(text(R.string.vote_update)) and isNotEnabled())
     composeRule.onNode(dialogText("Beach")).assertIsSelected()
   }
 
