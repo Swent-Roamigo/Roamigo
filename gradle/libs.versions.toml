@@ -60,6 +60,7 @@ kaspresso-compose = { group = "com.kaspersky.android-components", name = "kaspre
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
+firebase-functions = { group = "com.google.firebase", name = "firebase-functions" }
 firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
 firebase-database = { group = "com.google.firebase", name = "firebase-database" }
 androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }

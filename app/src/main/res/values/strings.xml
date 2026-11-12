@@ -1,6 +1,6 @@
 <!-- Author : Constantin Dunoyer de Segonzac -->
 <!-- Co-author : ChatGPT-Codex -->
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="profile_sign_out_failed">Unable to sign out. Please try again.</string>
     <string name="feature_not_implemented">Not implemented yet</string>
     <string name="app_name">Roamigo</string>
@@ -290,7 +290,6 @@
 
     <!-- Final vote results and decided summaries -->
     <string name="vote_final_results">Final results</string>
-    <string name="vote_result_tie">Vote closed · tied</string>
     <string name="vote_result_no_votes">No votes cast · no winner</string>
     <string name="vote_result_winner">Winner</string>
     <string name="vote_result_tied_option">Tied for first</string>
@@ -496,4 +495,24 @@
     <string name="vote_close_keep_open">Keep it open</string>
     <string name="vote_close_error">Could not close the vote. Please try again.</string>
     <string name="vote_close_unavailable">Only the creator can close an open vote.</string>
+    <!-- These ratio + outcome labels do not inflect with a quantity. Suppress only the heuristic. -->
+    <string name="vote_summary_agreed" tools:ignore="PluralsCandidate">%1$d/%2$d agreed</string>
+    <string name="vote_summary_majority" tools:ignore="PluralsCandidate">%1$d/%2$d majority</string>
+    <string name="vote_summary_plurality" tools:ignore="PluralsCandidate">%1$d/%2$d most votes</string>
+    <string name="vote_revote">Revote</string>
+    <string name="vote_revote_round">Revote · Round %1$d</string>
+    <string name="vote_decided_after_revote">Decided after revote</string>
+    <string name="vote_owner_decides">Owner decides</string>
+    <string name="vote_owner_decided">Owner decided</string>
+    <string name="vote_owner_outcome">Owner selected: %1$s</string>
+    <string name="vote_tie_unresolved">Tie · no final decision</string>
+    <string name="vote_resolution_confirm">Confirm decision</string>
+    <string name="vote_resolution_error">Unable to resolve this vote. It may already have been resolved. Check the latest results and try again.</string>
+    <string name="vote_resolution_checking">Checking vote-resolution permissions…</string>
+    <string name="vote_resolution_trip_missing">Trip unavailable. Unable to check vote-resolution permissions.</string>
+    <string name="vote_resolution_eligibility_error">Unable to check vote-resolution permissions. Please retry.</string>
+    <string name="vote_resolution_read_only">This trip is read-only. Vote decisions are unavailable.</string>
+    <string name="vote_resolution_not_member">Trip membership is required to resolve votes.</string>
+    <string name="vote_resolution_ended">This trip has ended. Vote decisions are unavailable.</string>
+    <string name="vote_resolution_waiting_results">Waiting for current results before confirming.</string>
 </resources>

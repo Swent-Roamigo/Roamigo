@@ -10,8 +10,10 @@ import androidx.compose.runtime.reflect.getDeclaredComposableMethod
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
@@ -65,6 +67,14 @@ class VotePreviewsTest {
   @Test
   fun mixedTieAndDecidedTab() =
       renderPreview("ClosedVoteCardPreviews", "TiedAndClosedResultsTabPreview")
+
+  @Test
+  fun unresolvedTieOwnerScreen() {
+    renderPreview("VoteResultPreviews", "UnresolvedTieOwnerPreview")
+    composeRule.onNodeWithText("Tie · no final decision").assertIsDisplayed()
+    composeRule.onNodeWithText("Revote").assertIsDisplayed()
+    composeRule.onNodeWithText("Owner decides").assertIsDisplayed()
+  }
 
   @Test fun detailedWinnerScreen() = renderPreview("VoteResultPreviews", "ClosedWinnerPreview")
 

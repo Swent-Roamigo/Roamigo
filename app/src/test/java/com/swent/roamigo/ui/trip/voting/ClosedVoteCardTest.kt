@@ -4,6 +4,9 @@ package com.swent.roamigo.ui.trip.voting
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -22,6 +25,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
+import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.model.trip.voting.VoteBallot
 import com.swent.roamigo.model.trip.voting.VoteOption
@@ -31,6 +35,7 @@ import com.swent.roamigo.model.trip.voting.VoteStatus
 import com.swent.roamigo.model.trip.voting.calculateVoteResult
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import com.swent.roamigo.ui.trip.voting.components.VoteResultContent
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.flow
 import org.junit.Assert.assertEquals
@@ -38,6 +43,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.Mockito.mock
 import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
@@ -99,6 +105,80 @@ class ClosedVoteCardTest {
   }
 
   @Test
+  fun missingOutcomeOptionsAndCountsKeepRowsOpenableWithoutInventingResults() {
+    val tied = result("a", "b")
+    val cases =
+        listOf(
+            Triple(vote.copy(resolvedOptionId = "missing"), tied, "Owner decided"),
+            Triple(
+                vote.copy(resolvedOptionId = "a"),
+                tied.copy(counts = emptyMap()),
+                "Owner decided",
+            ),
+            Triple(vote, VoteResult(mapOf("b" to 1), setOf("a")), "—"),
+            Triple(vote, VoteResult(mapOf("missing" to 2), setOf("missing")), "—"),
+            Triple(vote.copy(resolvedOptionId = "b"), tied, "Owner decided"),
+        )
+    var current by mutableStateOf(cases.first())
+    val opened = mutableListOf<String>()
+    composeRule.setContent {
+      RoamigoTheme {
+        VotesScreen(
+            VotesUiState.Ready(
+                emptyList(),
+                listOf(current.first),
+                finalSummaries = mapOf(vote.uid to current.second),
+            ),
+            "Trip",
+            opened::add,
+            {},
+            {},
+            onRevote = {},
+            onOwnerDecides = {},
+        )
+      }
+    }
+    for ((candidate, outcome, label) in cases) {
+      composeRule.runOnIdle { current = Triple(candidate, outcome, label) }
+      composeRule.onNodeWithText(vote.question).assertIsDisplayed()
+      composeRule
+          .onNodeWithTag(C.Tag.decidedVoteCount(vote.uid), useUnmergedTree = true)
+          .assertTextEquals(label)
+      if (
+          candidate.options.none {
+            it.uid == (candidate.resolvedOptionId ?: outcome.winningOptionIds.single())
+          }
+      ) {
+        composeRule.onNodeWithText("Decided ·", substring = true).assertDoesNotExist()
+      }
+      composeRule.onNodeWithText("Revote").assertDoesNotExist()
+      composeRule.onNodeWithText("Owner decides").assertDoesNotExist()
+      composeRule.onNodeWithText("Tie · no final decision").assertDoesNotExist()
+      composeRule.onNodeWithTag(C.Tag.decidedVote(vote.uid)).performClick()
+    }
+    composeRule.onNodeWithText("Decided · Restaurant").assertIsDisplayed()
+    composeRule.runOnIdle { assertEquals(List(cases.size) { vote.uid }, opened) }
+  }
+
+  @Test
+  fun detailWithMissingCountUsesPendingMarkerAndPreservesKnownBallotCounts() {
+    composeRule.setContent {
+      RoamigoTheme {
+        VoteResultContent(
+            vote.copy(resolvedOptionId = "missing"),
+            VoteResult(mapOf("a" to 1), setOf("a", "b")),
+        )
+      }
+    }
+    composeRule.onNodeWithText(vote.question).assertIsDisplayed()
+    composeRule.onNodeWithText("Owner decided").assertIsDisplayed()
+    composeRule.onNodeWithText("1 vote").assertIsDisplayed()
+    composeRule.onAllNodesWithText("—").assertCountEquals(2)
+    composeRule.onNodeWithText("0 votes").assertDoesNotExist()
+    composeRule.onNodeWithText("Owner selected:", substring = true).assertDoesNotExist()
+  }
+
+  @Test
   fun winnerUsesCompactDecidedRowWithCheckResultAndOpensDetails() {
     val opened = mutableListOf<String>()
     content(result("a", "a", "b"), opened::add)
@@ -110,7 +190,7 @@ class ClosedVoteCardTest {
         .assertIsDisplayed()
     composeRule
         .onNodeWithTag(C.Tag.decidedVoteCount(vote.uid), useUnmergedTree = true)
-        .assertTextEquals("2 votes")
+        .assertTextEquals("2/3 majority")
     composeRule.onNodeWithTag(C.Tag.closedVote(vote.uid)).assertDoesNotExist()
     composeRule
         .onNodeWithTag(C.Tag.voteCount(vote.uid, "c"), useUnmergedTree = true)
@@ -127,7 +207,7 @@ class ClosedVoteCardTest {
   @Test
   fun tieHighlightsAllThreeLeadersAndHasUsefulCalloutWithoutUnsupportedActions() {
     content(result("a", "b", "c"))
-    composeRule.onNodeWithText("Vote closed · tied").assertIsDisplayed()
+    composeRule.onNodeWithText("Tie · no final decision").assertIsDisplayed()
     composeRule.onNodeWithText("Decided").assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.decidedVote(vote.uid)).assertDoesNotExist()
     composeRule.onAllNodesWithText("Tied for first", useUnmergedTree = true).assertCountEquals(3)
@@ -165,7 +245,7 @@ class ClosedVoteCardTest {
     composeRule.onNodeWithText("Decided · Restaurant").assertIsDisplayed()
     composeRule
         .onNodeWithTag(C.Tag.decidedVoteCount(vote.uid), useUnmergedTree = true)
-        .assertTextEquals("1 vote")
+        .assertTextEquals("1/1 agreed")
     composeRule.onNodeWithTag(C.Tag.closedVote(vote.uid)).assertDoesNotExist()
   }
 
@@ -197,7 +277,18 @@ class ClosedVoteCardTest {
         }
     backend.emitBallots("trip", vote.uid, ballots("a"))
     composeRule.setContent {
-      RoamigoTheme { VotesRoute(repository, "trip", "member-0", "Trip", {}, {}, {}) }
+      RoamigoTheme {
+        VotesRoute(
+            repository,
+            "trip",
+            "member-0",
+            "Trip",
+            {},
+            {},
+            {},
+            tripRepository = mock(TripRepository::class.java),
+        )
+      }
     }
     composeRule.onNodeWithText("Change vote").assertIsDisplayed()
     composeRule.runOnIdle {
@@ -216,16 +307,16 @@ class ClosedVoteCardTest {
     composeRule.onNodeWithText("Decided · Restaurant · your vote").assertIsDisplayed()
     composeRule
         .onNodeWithTag(C.Tag.decidedVoteCount(vote.uid), useUnmergedTree = true)
-        .assertTextEquals("2 votes")
+        .assertTextEquals("2/2 agreed")
     composeRule.onNodeWithTag(C.Tag.closedVote(vote.uid)).assertDoesNotExist()
     composeRule.runOnIdle { backend.emitBallots("trip", vote.uid, ballots("b", "b", "a")) }
     composeRule
         .onNodeWithTag(C.Tag.decidedVoteCount(vote.uid), useUnmergedTree = true)
-        .assertTextEquals("2 votes")
+        .assertTextEquals("2/3 majority")
     // A delayed snapshot that changes the outcome must also update its presentation group.
     composeRule.runOnIdle { backend.emitBallots("trip", vote.uid, ballots("b", "b", "a", "a")) }
     composeRule.onNodeWithText("Decided").assertDoesNotExist()
-    composeRule.onNodeWithText("Vote closed · tied").assertIsDisplayed()
+    composeRule.onNodeWithText("Tie · no final decision").assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.decidedVote(vote.uid)).assertDoesNotExist()
     count("a", "2 votes")
     count("b", "2 votes")
@@ -239,11 +330,22 @@ class ClosedVoteCardTest {
     val backend = InMemoryVoteRepository(listOf(vote.copy(status = VoteStatus.OPEN)))
     backend.emitBallots("trip", vote.uid, ballots("a", "b"))
     composeRule.setContent {
-      RoamigoTheme { VotesRoute(backend, "trip", "member-0", "Trip", {}, {}, {}) }
+      RoamigoTheme {
+        VotesRoute(
+            backend,
+            "trip",
+            "member-0",
+            "Trip",
+            {},
+            {},
+            {},
+            tripRepository = mock(TripRepository::class.java),
+        )
+      }
     }
     composeRule.onNodeWithText("Change vote").assertIsDisplayed()
     composeRule.runOnIdle { backend.snapshots.value = Result.success(listOf(vote)) }
-    composeRule.onNodeWithText("Vote closed · tied").assertIsDisplayed()
+    composeRule.onNodeWithText("Tie · no final decision").assertIsDisplayed()
     composeRule.onNodeWithText("Decided").assertDoesNotExist()
     composeRule.onNodeWithText("Live vote").assertDoesNotExist()
     count("a", "1 vote")

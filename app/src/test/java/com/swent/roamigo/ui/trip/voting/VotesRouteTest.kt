@@ -9,16 +9,22 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.google.firebase.Timestamp
+import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.model.trip.voting.VoteStatus
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import com.swent.roamigo.ui.trip.details.detailsTestTrip
 import java.io.IOException
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.`when`
 
 @RunWith(AndroidJUnit4::class)
 class VotesRouteTest {
@@ -27,6 +33,19 @@ class VotesRouteTest {
   private val closed =
       live.copy(uid = "closed", question = "Breakfast?", status = VoteStatus.CLOSED)
   private val repository = InMemoryVoteRepository(listOf(live, closed))
+  private val trips =
+      mock(TripRepository::class.java).also {
+        runBlocking {
+          `when`(it.getTrip(live.tripId))
+              .thenReturn(
+                  detailsTestTrip()
+                      .copy(
+                          endDate = Timestamp(4102444800L, 0),
+                          memberIds = listOf(live.createdByUserId),
+                      )
+              )
+        }
+      }
   private val openedVotes = mutableListOf<String>()
   private val openedDialogs = mutableListOf<String>()
   private val closeRequests = mutableListOf<String>()
@@ -36,6 +55,7 @@ class VotesRouteTest {
       RoamigoTheme {
         VotesRoute(
             voteRepository = repository,
+            tripRepository = trips,
             tripId = live.tripId,
             currentUserId = live.createdByUserId,
             tripName = "Lisbon",

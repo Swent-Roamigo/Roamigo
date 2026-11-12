@@ -3,6 +3,7 @@ package com.swent.roamigo.ui.trip.voting
 
 import androidx.lifecycle.ViewModelStore
 import com.google.firebase.Timestamp
+import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.model.trip.voting.Vote
 import com.swent.roamigo.model.trip.voting.VoteBallot
 import com.swent.roamigo.model.trip.voting.VoteOption
@@ -86,6 +87,21 @@ class VoteViewModelTest {
   }
 
   private fun ballot(optionId: String) = VoteBallot("member", optionId, Timestamp(1, 0))
+
+  @Test
+  fun unchangedBallotCannotSubmitAndSwitchingBackDisablesUpdate() = runTest {
+    repository.ballots.value = listOf(ballot("a"))
+    createViewModel()
+    advanceUntilIdle()
+    assertFalse(ready().canSubmit)
+    viewModel.submitVote()
+    advanceUntilIdle()
+    assertTrue(repository.calls.isEmpty())
+    viewModel.selectOption("b")
+    assertTrue(ready().canSubmit)
+    viewModel.selectOption("a")
+    assertFalse(ready().canSubmit)
+  }
 
   @Test
   fun selectedVoteIgnoresUnrelatedVotesAndCollectionErrorsWhileDraftAndBallotsStayLive() = runTest {
@@ -384,7 +400,7 @@ class VoteViewModelTest {
     assertEquals(mapOf("a" to 0, "b" to 1), ready().voteCounts)
     assertEquals("b", ready().persistedOptionId)
     assertEquals(VoteSubmissionState.Idle, ready().submissionState)
-    assertTrue(ready().canSubmit)
+    assertFalse(ready().canSubmit)
   }
 
   @Test
@@ -643,10 +659,11 @@ class VoteViewModelTest {
 
   @Test
   fun remoteChangeDuringResubmissionCannotResetInFlightChoice() = runTest {
-    repository.ballots.value = listOf(ballot("a"))
+    repository.ballots.value = listOf(ballot("b"))
     createViewModel()
     advanceUntilIdle()
     repository.submitGate = CompletableDeferred()
+    viewModel.selectOption("a")
     viewModel.submitVote()
     runCurrent()
     repository.ballots.value = listOf(ballot("b"))
@@ -1002,6 +1019,25 @@ internal class InteractionVoteRepository : VoteRepository {
     persisted[ballot.userId] = ballot
     if (emitOnSubmit)
         ballots.value = ballots.value.filterNot { it.userId == ballot.userId } + ballot
+  }
+
+  override suspend fun createRevote(vote: Vote) = resolveWithBackend { it.createRevote(vote) }
+
+  override suspend fun resolveByOwner(
+      tripId: String,
+      voteId: String,
+      optionId: String,
+      userId: String,
+  ) = resolveWithBackend { backend ->
+    backend.tripOwnerIds[tripId] = "owner"
+    backend.resolveByOwner(tripId, voteId, optionId, userId)
+  }
+
+  private suspend fun resolveWithBackend(action: suspend (InMemoryVoteRepository) -> Unit) {
+    val backend = InMemoryVoteRepository(votes.value)
+    vote?.let { backend.emitBallots(it.tripId, it.uid, ballots.value) }
+    action(backend)
+    votes.value = backend.snapshots.value.getOrThrow()
   }
 
   override suspend fun createVote(vote: Vote) = error("Not used")

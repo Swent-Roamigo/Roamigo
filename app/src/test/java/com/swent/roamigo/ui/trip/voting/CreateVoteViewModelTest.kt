@@ -2,6 +2,7 @@
 package com.swent.roamigo.ui.trip.voting
 
 import com.google.firebase.Timestamp
+import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.model.trip.voting.Vote
 import com.swent.roamigo.model.trip.voting.VoteBallot
 import com.swent.roamigo.model.trip.voting.VoteRepository
@@ -47,6 +48,41 @@ class CreateVoteViewModelTest {
   @After
   fun tearDown() {
     Dispatchers.resetMain()
+  }
+
+  @Test
+  fun revoteRequiresConfirmationAndCreatesFreshLinkedRoundWithNormalMetadata() = runTest {
+    val calls = mutableListOf<Vote>()
+    val backend =
+        object : VoteRepository by repository {
+          override suspend fun createRevote(vote: Vote) {
+            calls += vote
+          }
+        }
+    val original = interactionVote().copy(status = VoteStatus.CLOSED, question = " Dinner? ")
+    val vm =
+        CreateVoteViewModel(backend, "trip", "member", Clock.fixed(now, ZoneOffset.UTC), original)
+    assertTrue(vm.uiState.value.isRevote)
+    assertEquals(original.question, vm.uiState.value.question)
+    assertEquals(original.options.map { it.name }, vm.uiState.value.options)
+    assertTrue(calls.isEmpty())
+    vm.updateQuestion("Changed")
+    vm.updateOption(0, "Changed")
+    vm.removeOption(0)
+    assertEquals(original.question, vm.uiState.value.question)
+    assertEquals(original.options.map { it.name }, vm.uiState.value.options)
+    vm.submitVote()
+    vm.submitVote()
+    advanceUntilIdle()
+    val next = calls.single()
+    assertNotEquals(original.uid, next.uid)
+    assertEquals(original.uid, next.parentVoteId)
+    assertEquals(original.options, next.options)
+    assertEquals(2, next.round)
+    assertEquals(VoteStatus.OPEN, next.status)
+    assertEquals("member", next.createdByUserId)
+    assertEquals(Timestamp(now.epochSecond, now.nano), next.creationTime)
+    assertEquals(VoteStatus.CLOSED, original.status)
   }
 
   @Test
@@ -280,6 +316,46 @@ class CreateVoteViewModelTest {
     assertFalse(state.canAddOption)
   }
 
+  @Test
+  fun revoteSubmissionWaitsForFreshEligibilityAndCanRetryAfterAccessRecovers() = runTest {
+    val original = interactionVote().copy(status = VoteStatus.CLOSED)
+    val calls = mutableListOf<Vote>()
+    val backend =
+        object : VoteRepository by repository {
+          override suspend fun createRevote(vote: Vote) {
+            calls += vote
+          }
+        }
+    var allowed = false
+    val gate = CompletableDeferred<Unit>()
+    val vm =
+        CreateVoteViewModel(
+            backend,
+            "trip",
+            "member",
+            revoteSource = original,
+            beforeSubmit = {
+              gate.await()
+              allowed
+            },
+        )
+    vm.submitVote()
+    runCurrent()
+    assertTrue(vm.uiState.value.isSubmitting)
+    assertTrue(calls.isEmpty())
+    gate.complete(Unit)
+    advanceUntilIdle()
+    assertFalse(vm.uiState.value.isSubmitting)
+    assertNull(vm.uiState.value.error)
+    assertTrue(calls.isEmpty())
+    allowed = true
+    vm.submitVote()
+    advanceUntilIdle()
+    assertEquals(1, calls.size)
+    assertEquals(calls.single().uid, vm.consumeVoteCreated())
+    assertNull(vm.consumeVoteCreated())
+  }
+
   private fun validDraft() {
     viewModel.updateQuestion("  Dinner?  ")
     viewModel.updateOption(0, " Market ")
@@ -298,6 +374,23 @@ class CreateVoteViewModelTest {
 }
 
 internal class FakeVoteRepository : VoteRepository {
+  val backend = InMemoryVoteRepository()
+
+  override suspend fun createRevote(vote: Vote) {
+    createCalls += vote
+    gate?.await()
+    failure?.let { throw it }
+    backend.createRevote(vote)
+    created += vote
+  }
+
+  override suspend fun resolveByOwner(
+      tripId: String,
+      voteId: String,
+      optionId: String,
+      userId: String,
+  ) = backend.resolveByOwner(tripId, voteId, optionId, userId)
+
   override suspend fun closeVote(tripId: String, voteId: String) = error("Not used")
 
   val createCalls = mutableListOf<Vote>()
@@ -309,6 +402,7 @@ internal class FakeVoteRepository : VoteRepository {
     createCalls += vote
     gate?.await()
     failure?.let { throw it }
+    backend.createVote(vote)
     created += vote
   }
 

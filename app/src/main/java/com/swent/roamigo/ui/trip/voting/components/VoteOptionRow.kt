@@ -27,7 +27,7 @@ fun VoteOptionRow(
     name: String,
     selected: Boolean,
     enabled: Boolean,
-    voteCount: Int,
+    voteCount: Int?,
     onClick: () -> Unit,
 ) {
   val contentColor =
@@ -60,11 +60,12 @@ fun VoteOptionRow(
         color = contentColor,
     )
     Spacer(Modifier.width(Spacing.small))
-    Text(
-        pluralStringResource(R.plurals.vote_count, voteCount, voteCount),
-        style = MaterialTheme.typography.bodySmall,
-        fontWeight = FontWeight.SemiBold,
-        color = contentColor,
-    )
+    if (voteCount != null)
+        Text(
+            pluralStringResource(R.plurals.vote_count, voteCount, voteCount),
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
+            color = contentColor,
+        )
   }
 }

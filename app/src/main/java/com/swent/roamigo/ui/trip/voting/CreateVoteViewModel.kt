@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class CreateVoteUiState(
+    val isRevote: Boolean = false,
     val question: String = "",
     val options: List<String> = listOf("", ""),
     val isSubmitting: Boolean = false,
@@ -35,7 +36,7 @@ data class CreateVoteUiState(
             options.all { it.isNotBlank() }
 
   val canAddOption: Boolean
-    get() = options.size < MAX_VOTE_OPTIONS && !isSubmitting && createdVoteId == null
+    get() = !isRevote && options.size < MAX_VOTE_OPTIONS && !isSubmitting && createdVoteId == null
 
   val canSubmit: Boolean
     get() = isValid && !isSubmitting && createdVoteId == null
@@ -55,8 +56,19 @@ class CreateVoteViewModel(
     private val tripId: String,
     private val createdByUserId: String,
     private val clock: Clock = Clock.systemUTC(),
+    private val revoteSource: Vote? = null,
+    private val beforeSubmit: suspend () -> Boolean = { true },
 ) : ViewModel() {
-  private val _uiState = MutableStateFlow(CreateVoteUiState())
+  private val _uiState =
+      MutableStateFlow(
+          revoteSource?.let {
+            CreateVoteUiState(
+                isRevote = true,
+                question = it.question,
+                options = it.options.map { option -> option.name },
+            )
+          } ?: CreateVoteUiState()
+      )
   val uiState: StateFlow<CreateVoteUiState> = _uiState.asStateFlow()
 
   // Retain the request after failure: the server may have committed it before the response was
@@ -69,7 +81,7 @@ class CreateVoteViewModel(
 
   private fun edit(transform: (CreateVoteUiState) -> CreateVoteUiState) {
     val state = _uiState.value
-    if (state.isSubmitting || state.createdVoteId != null) return
+    if (state.isRevote || state.isSubmitting || state.createdVoteId != null) return
     val updated = transform(state).copy(error = null)
     if (updated.question != state.question || updated.options != state.options) pendingVote = null
     _uiState.value = updated
@@ -101,8 +113,13 @@ class CreateVoteViewModel(
     _uiState.update { it.copy(isSubmitting = true, error = null) }
     viewModelScope.launch {
       try {
+        if (!beforeSubmit()) {
+          _uiState.update { it.copy(isSubmitting = false) }
+          return@launch
+        }
         val vote = pendingVote ?: buildVote(draft).also { pendingVote = it }
-        voteRepository.createVote(vote)
+        if (revoteSource == null) voteRepository.createVote(vote)
+        else voteRepository.createRevote(vote)
         _uiState.update {
           it.copy(isSubmitting = false, createdVoteId = vote.uid, pendingVoteCreatedId = vote.uid)
         }
@@ -120,13 +137,17 @@ class CreateVoteViewModel(
     return Vote(
         uid = UUID.randomUUID().toString(),
         tripId = tripId,
-        question = draft.question.trim(),
-        options = draft.options.map { VoteOption(UUID.randomUUID().toString(), it.trim()) },
+        question = revoteSource?.question ?: draft.question.trim(),
+        options =
+            revoteSource?.options
+                ?: draft.options.map { VoteOption(UUID.randomUUID().toString(), it.trim()) },
         createdByUserId = createdByUserId,
         status = VoteStatus.OPEN,
         creationTime = Timestamp(now.epochSecond, now.nano),
         closingTime = null,
         winningOptionId = null,
+        parentVoteId = revoteSource?.uid,
+        round = (revoteSource?.round ?: 0) + 1,
     )
   }
 }

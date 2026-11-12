@@ -24,6 +24,7 @@ import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -48,6 +49,115 @@ class VoteScreenTest {
   @get:Rule val composeRule = createComposeRule()
 
   private fun loaded() = VoteUiState.Ready(vote = interactionVote())
+
+  @Test
+  fun everyClosedDetailHasOnlyBackRegardlessOfOutcomeOrReadOnlyFlag() {
+    val vote = interactionVote().copy(status = VoteStatus.CLOSED)
+    val tied =
+        calculateVoteResult(
+            vote.options,
+            listOf(VoteBallot("1", "a", Timestamp(1, 0)), VoteBallot("2", "b", Timestamp(1, 0))),
+        )
+    val winner = calculateVoteResult(vote.options, listOf(VoteBallot("1", "a", Timestamp(1, 0))))
+    var state by mutableStateOf(VoteUiState.Closed(vote, tied))
+    var readOnly by mutableStateOf(false)
+    var backs = 0
+    composeRule.setContent {
+      RoamigoTheme { VoteScreen(state, {}, {}, {}, { backs++ }, readOnly = readOnly) }
+    }
+    for (closed in
+        listOf(
+            VoteUiState.Closed(vote, tied),
+            VoteUiState.Closed(vote, winner),
+            VoteUiState.Closed(vote.copy(resolvedOptionId = "a"), tied),
+            VoteUiState.Closed(vote.copy(parentVoteId = "parent", round = 2), winner),
+            VoteUiState.Closed(vote.copy(nextRoundVoteId = "round2"), tied),
+        )) {
+      for (onlyRead in listOf(false, true)) {
+        composeRule.runOnIdle {
+          state = closed
+          readOnly = onlyRead
+        }
+        for (label in
+            listOf(
+                "Revote",
+                "Owner decides",
+                "Open next round",
+                "Submit vote",
+                "Update vote",
+                "Close vote",
+            )) {
+          composeRule.onNodeWithText(label).assertDoesNotExist()
+        }
+        composeRule.onAllNodes(isSelectable()).assertCountEquals(0)
+        composeRule.onNodeWithText("Back").assertIsEnabled().performClick()
+      }
+    }
+    composeRule.runOnIdle { assertEquals(10, backs) }
+  }
+
+  @Test
+  fun finalLabelsDistinguishUnanimityMajorityPluralityAndSuppressTiesAndZero() {
+    val vote =
+        interactionVote()
+            .copy(
+                status = VoteStatus.CLOSED,
+                options = interactionVote().options + VoteOption("c", "Pizza"),
+            )
+    fun closed(vararg choices: String) =
+        VoteUiState.Closed(
+            vote,
+            calculateVoteResult(
+                vote.options,
+                choices.mapIndexed { i, id -> VoteBallot("$i", id, Timestamp(1, 0)) },
+            ),
+        )
+    var state by mutableStateOf(closed("a", "a", "a"))
+    composeRule.setContent { RoamigoTheme { VoteScreen(state, {}, {}, {}, {}) } }
+    composeRule.onNodeWithText("3/3 agreed").assertIsDisplayed()
+    composeRule.runOnIdle { state = closed("a", "a", "b") }
+    composeRule.onNodeWithText("2/3 majority").assertIsDisplayed()
+    composeRule.runOnIdle { state = closed("a", "a", "b", "c") }
+    composeRule.onNodeWithText("2/4 most votes").assertIsDisplayed()
+    composeRule.runOnIdle { state = closed("a", "b") }
+    composeRule.onNodeWithText("Tie · no final decision").assertIsDisplayed()
+    composeRule.onNodeWithText("most votes", substring = true).assertDoesNotExist()
+    composeRule.runOnIdle { state = closed() }
+    composeRule.onNodeWithText("majority", substring = true).assertDoesNotExist()
+    composeRule.onNodeWithText("agreed", substring = true).assertDoesNotExist()
+  }
+
+  @Test
+  fun ownerOutcomeIsSeparateFromOriginalTieAndRevoteHasExplicitLabel() {
+    val vote =
+        interactionVote()
+            .copy(status = VoteStatus.CLOSED, resolvedOptionId = "a", resolvedByUserId = "owner")
+    val result =
+        calculateVoteResult(
+            vote.options,
+            listOf(VoteBallot("1", "a", Timestamp(1, 0)), VoteBallot("2", "b", Timestamp(1, 0))),
+        )
+    var state by mutableStateOf(VoteUiState.Closed(vote, result))
+    composeRule.setContent { RoamigoTheme { VoteScreen(state, {}, {}, {}, {}) } }
+    composeRule.onNodeWithText("Owner decided").assertIsDisplayed()
+    composeRule.onNodeWithText("Owner selected: Market").assertIsDisplayed()
+    composeRule.onAllNodesWithText("1 vote").assertCountEquals(2)
+    composeRule.onNodeWithText("Winner").assertDoesNotExist()
+    composeRule.runOnIdle {
+      state =
+          VoteUiState.Closed(
+              vote.copy(
+                  resolvedOptionId = null,
+                  resolvedByUserId = null,
+                  parentVoteId = "previous",
+                  round = 2,
+              ),
+              calculateVoteResult(vote.options, listOf(VoteBallot("1", "a", Timestamp(1, 0)))),
+          )
+    }
+    composeRule.onNodeWithText("Decided after revote").assertIsDisplayed()
+    composeRule.onNodeWithText("Revote · Round 2").assertIsDisplayed()
+  }
 
   @Test
   @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -165,7 +275,7 @@ class VoteScreenTest {
     )
     composeRule.onNodeWithText("Restaurant").assertIsSelected()
     composeRule.onNodeWithText("Market").assertIsNotSelected()
-    composeRule.onNodeWithText("Update vote").assertIsEnabled()
+    composeRule.onNodeWithText("Update vote").assertIsNotEnabled()
   }
 
   @Test
@@ -183,6 +293,11 @@ class VoteScreenTest {
         )
       }
     }
+    composeRule.onNodeWithText("Update vote").assertIsNotEnabled()
+    composeRule.onNodeWithText("Restaurant").performClick()
+    composeRule.onNodeWithText("Update vote").assertIsEnabled()
+    composeRule.onNodeWithText("Market").performClick()
+    composeRule.onNodeWithText("Update vote").assertIsNotEnabled()
     composeRule.onNodeWithText("Market").assertIsSelected()
     assertCount("Market", "1 vote")
     assertCount("Restaurant", "0 votes")
@@ -347,7 +462,7 @@ class VoteScreenTest {
     assertCount("Restaurant", "1 vote")
     assertCount("Cafe", "3 votes")
     composeRule.onNodeWithText("Restaurant").assertIsSelected()
-    composeRule.onNodeWithText("Update vote").assertIsEnabled()
+    composeRule.onNodeWithText("Update vote").assertIsNotEnabled()
   }
 
   @Test
@@ -401,7 +516,7 @@ class VoteScreenTest {
     composeRule.onNodeWithText("Local market").assertIsNotSelected()
     composeRule.onNodeWithText("Restaurant").assertIsSelected()
     composeRule.onNodeWithText("Pizza place").assertIsNotSelected()
-    composeRule.onNodeWithText("Update vote").assertIsEnabled()
+    composeRule.onNodeWithText("Update vote").assertIsNotEnabled()
     composeRule.onNodeWithText("Submit vote").assertDoesNotExist()
     composeRule.onNodeWithText("Back").assertIsEnabled()
   }
@@ -454,7 +569,7 @@ class VoteScreenTest {
             )
         )
     )
-    composeRule.onNodeWithText("Vote closed · tied").assertIsDisplayed()
+    composeRule.onNodeWithText("Tie · no final decision").assertIsDisplayed()
     composeRule
         .onNode(hasText("Market") and hasText("Tied for first") and hasText("1 vote"))
         .assertIsDisplayed()

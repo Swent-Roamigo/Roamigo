@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
+import com.swent.roamigo.model.trip.voting.Vote
 import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.Spacing
@@ -54,10 +55,25 @@ fun CreateVoteRoute(
     currentUserId: String,
     onBack: () -> Unit,
     onVoteCreated: (String) -> Unit,
+    revoteSource: Vote? = null,
+    eligibility: ResolutionEligibility? = null,
+    onRetryEligibility: () -> Unit = {},
+    beforeSubmit: suspend () -> Boolean = { true },
 ) {
-  val viewModel = viewModel { CreateVoteViewModel(voteRepository, tripId, currentUserId) }
+  val viewModel =
+      viewModel(key = revoteSource?.let { "create-${it.uid}" }) {
+        CreateVoteViewModel(
+            voteRepository,
+            tripId,
+            currentUserId,
+            revoteSource = revoteSource,
+            beforeSubmit = beforeSubmit,
+        )
+      }
   val state by viewModel.uiState.collectAsStateWithLifecycle()
-  BackHandler(enabled = state.isSubmitting) { /* Wait for the pending write. */ }
+  BackHandler(enabled = state.isSubmitting || revoteSource != null) {
+    if (!state.isSubmitting) onBack()
+  }
   val currentOnVoteCreated by rememberUpdatedState(onVoteCreated)
   LaunchedEffect(state.pendingVoteCreatedId) {
     viewModel.consumeVoteCreated()?.let { currentOnVoteCreated(it) }
@@ -70,6 +86,8 @@ fun CreateVoteRoute(
       onRemoveOption = viewModel::removeOption,
       onSubmit = viewModel::submitVote,
       onBack = onBack,
+      eligibility = eligibility,
+      onRetryEligibility = onRetryEligibility,
   )
 }
 
@@ -83,8 +101,10 @@ fun CreateVoteScreen(
     onRemoveOption: (Int) -> Unit,
     onSubmit: () -> Unit,
     onBack: () -> Unit,
+    eligibility: ResolutionEligibility? = null,
+    onRetryEligibility: () -> Unit = {},
 ) {
-  val editable = !state.isSubmitting && state.createdVoteId == null
+  val editable = !state.isRevote && !state.isSubmitting && state.createdVoteId == null
   Column(
       Modifier.fillMaxSize()
           .background(MaterialTheme.colorScheme.background)
@@ -93,7 +113,10 @@ fun CreateVoteScreen(
           .padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium),
       verticalArrangement = Arrangement.spacedBy(Spacing.large),
   ) {
-    Text(stringResource(R.string.vote_new), style = MaterialTheme.typography.headlineLarge)
+    Text(
+        stringResource(if (state.isRevote) R.string.vote_revote else R.string.vote_new),
+        style = MaterialTheme.typography.headlineLarge,
+    )
     Column(
         Modifier.weight(1f).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(Spacing.large),
@@ -139,9 +162,10 @@ fun CreateVoteScreen(
           modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
       )
     }
+    eligibility?.let { ResolutionEligibilityContent(it, onRetryEligibility) }
     Button(
         onClick = onSubmit,
-        enabled = state.canSubmit,
+        enabled = state.canSubmit && (eligibility == null || eligibility.canResolve),
         modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp).testTag(C.Tag.vote_submit),
     ) {
       if (state.isSubmitting) {

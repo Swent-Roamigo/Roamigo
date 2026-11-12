@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -50,13 +51,15 @@ fun VoteCard(
     summary: LiveVoteSummary? = null,
     onCloseVote: (() -> Unit)? = null,
     finalResult: VoteResult? = null,
+    onRevote: (() -> Unit)? = null,
+    onOwnerDecides: (() -> Unit)? = null,
 ) {
   when (vote.status) {
     VoteStatus.OPEN -> LiveVoteCard(vote, onClick, summary, modifier, onCloseVote)
     VoteStatus.CLOSED ->
-        if (finalResult?.hasUniqueWinner == true)
+        if (finalResult != null && (finalResult.hasUniqueWinner || vote.resolvedOptionId != null))
             ClosedVoteRow(vote, finalResult, onClick, modifier)
-        else ClosedVoteCard(vote, finalResult, onClick, modifier)
+        else ClosedVoteCard(vote, finalResult, onClick, modifier, onRevote, onOwnerDecides)
   }
 }
 
@@ -80,7 +83,8 @@ private fun LiveVoteCard(
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
       Text(
-          stringResource(R.string.votes_live_vote),
+          if (vote.parentVoteId != null) stringResource(R.string.vote_revote_round, vote.round)
+          else stringResource(R.string.votes_live_vote),
           style = MaterialTheme.typography.bodySmall,
           fontSize = 13.sp,
           lineHeight = 18.sp,
@@ -103,11 +107,9 @@ private fun LiveVoteCard(
           horizontalArrangement = Arrangement.spacedBy(Spacing.small),
           verticalArrangement = Arrangement.spacedBy(Spacing.small),
       ) {
-        Button(
+        VoteCardPrimaryButton(
             onClick = onClick,
-            modifier = Modifier.heightIn(min = 48.dp).testTag(C.Tag.voteAction(vote.uid)),
-            shape = CircleShape,
-            colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Ink),
+            modifier = Modifier.testTag(C.Tag.voteAction(vote.uid)),
         ) {
           Text(
               stringResource(
@@ -135,6 +137,22 @@ private fun LiveVoteCard(
   }
 }
 
+/** Shared primary action styling for live votes and unresolved tie cards. */
+@Composable
+internal fun VoteCardPrimaryButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable RowScope.() -> Unit,
+) {
+  Button(
+      onClick = onClick,
+      modifier = modifier.heightIn(min = 48.dp),
+      shape = CircleShape,
+      colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Ink),
+      content = content,
+  )
+}
+
 @Composable
 private fun VoteCountRow(name: String, count: Int, tag: String) {
   Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -154,12 +172,12 @@ private fun VoteCountRow(name: String, count: Int, tag: String) {
 /** Compact S30 decided row; full option counts remain available by opening the vote. */
 @Composable
 private fun ClosedVoteRow(vote: Vote, result: VoteResult, onClick: () -> Unit, modifier: Modifier) {
-  val winnerId = result.winningOptionIds.single()
-  val winner = vote.options.first { it.uid == winnerId }
-  val winnerName =
-      if (result.currentUserOptionId == winnerId)
-          stringResource(R.string.vote_option_yours, winner.name)
-      else winner.name
+  val winnerId = vote.resolvedOptionId ?: result.winningOptionIds.singleOrNull()
+  val winner = vote.options.firstOrNull { it.uid == winnerId }
+  val winnerName = winner?.let {
+    if (result.currentUserOptionId == winnerId) stringResource(R.string.vote_option_yours, it.name)
+    else it.name
+  }
   Surface(
       onClick = onClick,
       modifier = modifier.fillMaxWidth().testTag(C.Tag.decidedVote(vote.uid)),
@@ -185,15 +203,19 @@ private fun ClosedVoteRow(vote: Vote, result: VoteResult, onClick: () -> Unit, m
       }
       Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)) {
         Text(vote.question, style = MaterialTheme.typography.titleSmall)
-        Text(
-            stringResource(R.string.vote_decided_summary, winnerName),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        winnerName?.let {
+          Text(
+              stringResource(R.string.vote_decided_summary, it),
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
       }
-      val count = result.counts.getValue(winnerId)
+      val count = winner?.let { result.counts[it.uid] }
       Text(
-          pluralStringResource(R.plurals.vote_count, count, count),
+          voteDecisionLabel(vote, result)
+              ?: if (count == null) stringResource(R.string.vote_result_pending_count)
+              else pluralStringResource(R.plurals.vote_count, count, count),
           modifier = Modifier.testTag(C.Tag.decidedVoteCount(vote.uid)),
           style = MaterialTheme.typography.bodySmall,
           fontWeight = FontWeight.SemiBold,

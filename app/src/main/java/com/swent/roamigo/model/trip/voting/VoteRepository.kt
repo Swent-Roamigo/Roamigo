@@ -7,7 +7,8 @@ import kotlinx.coroutines.flow.Flow
 /**
  * Data access for trip votes and live ballots backed by Firestore. One-shot operations suspend
  * until completion and propagate failures to the caller. Authorization is enforced by Firestore
- * rules. Document IDs must be non-blank, contain no slash, and differ from "." and "..".
+ * rules and trusted resolution callables. Document IDs must be non-blank, contain no slash, and
+ * differ from "." and "..".
  */
 interface VoteRepository {
   /**
@@ -20,6 +21,19 @@ interface VoteRepository {
    *   conflicting reused ID.
    */
   suspend fun createVote(vote: Vote)
+
+  /**
+   * Delegates a closed tie to a new round through the trusted backend; never rewrites ballots. The
+   * repository enforces the app's viewer-local calendar cutoff; the backend revalidates membership,
+   * the final tie and the atomic linkage independently of client input.
+   */
+  suspend fun createRevote(vote: Vote)
+
+  /**
+   * Resolves a tie through the trusted backend using the authenticated trip owner, not creator.
+   * Viewer-local ended-trip checks are repository policy, not a server authorization claim.
+   */
+  suspend fun resolveByOwner(tripId: String, voteId: String, optionId: String, userId: String)
 
   /**
    * Reads a vote directly from its trip and document IDs.
