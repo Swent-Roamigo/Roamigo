@@ -25,15 +25,16 @@ val TripActionButtonPadding: PaddingValues =
 
 /**
  * Full-width main action of a trip tab. Every tab uses this so the button keeps the same height and
- * shape; [outlined] only changes emphasis for secondary actions. A button that is not [enabled]
- * ignores clicks.
+ * shape; [outlined] only changes emphasis for secondary actions. While [loading] the button ignores
+ * clicks and reports itself as not enabled, but keeps its normal colours so the action does not
+ * look different while it works.
  */
 @Composable
 fun TripActionButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     outlined: Boolean = false,
-    enabled: Boolean = true,
+    loading: Boolean = false,
     content: @Composable RowScope.() -> Unit,
 ) {
   val sizedModifier = modifier.fillMaxWidth().heightIn(min = TripActionButtonMinHeight)
@@ -41,13 +42,15 @@ fun TripActionButton(
     OutlinedButton(
         onClick = onClick,
         modifier = sizedModifier,
-        enabled = enabled,
+        enabled = !loading,
         shape = MaterialTheme.shapes.small,
         border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outlineVariant),
         colors =
             ButtonDefaults.outlinedButtonColors(
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.onSurface,
+                disabledContainerColor = MaterialTheme.colorScheme.surface,
+                disabledContentColor = MaterialTheme.colorScheme.onSurface,
             ),
         content = content,
     )
@@ -55,8 +58,13 @@ fun TripActionButton(
     Button(
         onClick = onClick,
         modifier = sizedModifier,
-        enabled = enabled,
+        enabled = !loading,
         shape = MaterialTheme.shapes.small,
+        colors =
+            ButtonDefaults.buttonColors(
+                disabledContainerColor = MaterialTheme.colorScheme.primary,
+                disabledContentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
         content = content,
     )
   }

@@ -36,6 +36,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -526,11 +527,11 @@ private fun SharingButtonBar(
     onPauseSharing: () -> Unit,
 ) {
   Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.background) {
-    // Pausing stays possible once sharing is on, so only a pending start disables the button.
+    // Pausing stays possible once sharing is on, so only a pending start blocks clicks.
     val isStarting = isStartingSharing && !isSharing
     TripActionButton(
         onClick = if (isSharing) onPauseSharing else onTurnOnSharing,
-        enabled = !isStarting,
+        loading = isStarting,
         modifier =
             Modifier.windowInsetsPadding(
                     WindowInsets.safeDrawing.only(
@@ -544,10 +545,10 @@ private fun SharingButtonBar(
         CircularProgressIndicator(
             modifier = Modifier.size(SharingProgressSize).testTag(C.Tag.trip_map_sharing_loading),
             strokeWidth = SharingProgressStrokeWidth,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = LocalContentColor.current,
         )
         Spacer(Modifier.width(Spacing.small))
-        // Doubles as the accessible description of the button while it is disabled.
+        // Doubles as the accessible description of the button while it is loading.
         Text(stringResource(R.string.trip_map_sharing_starting_button))
       } else {
         Text(

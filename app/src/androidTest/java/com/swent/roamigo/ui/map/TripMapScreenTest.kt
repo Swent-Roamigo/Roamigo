@@ -16,10 +16,12 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -27,6 +29,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.height
 import androidx.core.app.ActivityOptionsCompat
 import androidx.lifecycle.Lifecycle
 import androidx.test.espresso.intent.Intents
@@ -53,6 +56,7 @@ import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.components.TripActionButtonMinHeight
 import com.swent.roamigo.ui.isNotImplemented
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import java.util.concurrent.atomic.AtomicInteger
@@ -452,6 +456,19 @@ class TripMapScreenTest {
     composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).performClick()
 
     composeRule.runOnIdle { assertEquals(0, turnOnRequests) }
+  }
+
+  @Test
+  fun startingSharingButtonKeepsTheHeightOfTheOffButton() {
+    setContent(loadedState)
+    val offHeight =
+        composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).getUnclippedBoundsInRoot().height
+    composeRule.runOnIdle { isStartingSharing.value = true }
+    composeRule.waitForIdle()
+
+    val button = composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button)
+    button.assertHeightIsAtLeast(TripActionButtonMinHeight)
+    assertEquals(offHeight, button.getUnclippedBoundsInRoot().height)
   }
 
   @Test
