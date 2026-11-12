@@ -29,6 +29,8 @@ import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.photo.PhotoRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TripRepository
+import com.swent.roamigo.model.trip.activity.ActivityRepository
+import com.swent.roamigo.model.trip.activity.FakeActivityRepository
 import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
@@ -61,9 +63,10 @@ import kotlinx.coroutines.launch
 /**
  * New sign-ins continue through the permissions explainer to trips; existing sessions open trips.
  *
- * Repository defaults provide placeholders for previews and tests; MainActivity supplies real trips
- * and votes.
+ * Repository defaults provide placeholders for previews and tests; MainActivity supplies real
+ * trips, activities, and votes.
  *
+ * @param activityRepository Provides live activity and suggestion updates for the trip map.
  * @param voteRepository Shared backend for trip vote discovery, creation, and individual ballots.
  * @param photoRepository Takes trip photos and keeps them until they are uploaded.
  * @param connectivityRepository Tells whether the device is online; the device's own by default.
@@ -74,6 +77,7 @@ import kotlinx.coroutines.launch
 fun RoamigoApp(
     voteRepository: VoteRepository,
     tripRepository: TripRepository = remember { FakeTripRepository() },
+    activityRepository: ActivityRepository = remember { FakeActivityRepository() },
     userRepository: UserRepository = remember { FakeUserRepository(User("alex", "Alex", null)) },
     navController: NavHostController = rememberNavController(),
     authRepository: AuthRepository = remember { AuthRepositoryFirebase() },
@@ -254,6 +258,7 @@ fun RoamigoApp(
           openMap = entry.opensMap(),
           authRepository = authRepository,
           tripRepository = tripRepository,
+          activityRepository = activityRepository,
           userRepository = userRepository,
           voteRepository = voteRepository,
           photoRepository = photoRepository,

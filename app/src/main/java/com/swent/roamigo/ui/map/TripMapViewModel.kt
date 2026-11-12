@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swent.roamigo.model.trip.TripRepository
+import com.swent.roamigo.model.trip.activity.ActivityRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
 import kotlinx.coroutines.CancellationException
@@ -15,28 +16,31 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Loads a single trip and its activity markers for the trip map, with a viewport covering its
- * destinations, activities and suggestions. The trip is shown without waiting for the members'
- * profiles, which may load more slowly.
+ * Loads a single trip and observes its activity markers, with a viewport covering its destinations,
+ * activities and suggestions. The trip is shown without waiting for the members' profiles, which
+ * may load more slowly.
  *
  * @param tripId identifier of the trip to show.
  * @param tripRepository the repository providing the user's trips.
+ * @param activityRepository the repository providing live activity and suggestion updates.
  * @param userRepository the repository providing the members' profiles.
  */
 class TripMapViewModel(
     private val tripId: String,
     private val tripRepository: TripRepository,
+    private val activityRepository: ActivityRepository,
     private val userRepository: UserRepository,
 ) : ViewModel() {
   private val _uiState = MutableStateFlow<TripMapUiState>(TripMapUiState.Loading)
   val uiState: StateFlow<TripMapUiState> = _uiState.asStateFlow()
 
   private var tripLoadJob: Job? = null
-  private var activitiesLoadJob: Job? = null
+  private var activitiesObserveJob: Job? = null
 
   init {
     retryTrip()
@@ -45,13 +49,13 @@ class TripMapViewModel(
   /**
    * Loads the trip again, cancelling any running load so only the latest one updates the UI.
    *
-   * The map is shown after the activity request finishes, even if it fails, with fallback
-   * information for every member. Activity failures leave the trip usable and can be retried
-   * separately. The members' profiles are filled in once they are fetched.
+   * The map is shown after the first activity snapshot or error, with fallback information for
+   * every member. Activity failures leave the trip usable and can be retried separately. The
+   * members' profiles are filled in once they are fetched.
    */
   fun retryTrip() {
     tripLoadJob?.cancel()
-    activitiesLoadJob?.cancel()
+    activitiesObserveJob?.cancel()
     tripLoadJob = viewModelScope.launch {
       _uiState.value = TripMapUiState.Loading
       try {
@@ -60,33 +64,20 @@ class TripMapViewModel(
           _uiState.value = TripMapUiState.Error(TRIP_NOT_FOUND_MESSAGE)
           return@launch
         }
-        // Attempt activities before framing the map, falling back to destinations on failure.
-        var activitiesLoadState = ActivitiesLoadState.LOADED
-        val activityMarkers =
-            try {
-              tripRepository.getActivitiesForTrip(tripId).toTripMarkerUiStates()
-            } catch (e: CancellationException) {
-              throw e
-            } catch (e: Exception) {
-              currentCoroutineContext().ensureActive()
-              Log.w(TAG, "Could not load activities for trip $tripId", e)
-              activitiesLoadState = ActivitiesLoadState.ERROR
-              emptyList()
-            }
         currentCoroutineContext().ensureActive()
-        val coordinates =
-            (trip.destinations.map { MapCoordinate(it.latitude, it.longitude) } +
-                    activityMarkers.map { MapCoordinate(it.latitude, it.longitude) })
-                .distinct()
-        _uiState.value =
+        observeActivities(
             TripMapUiState.Loaded(
                 trip = trip,
-                viewport = tripMapViewportOf(coordinates),
+                viewport =
+                    tripMapViewportOf(
+                        trip.destinations.map { MapCoordinate(it.latitude, it.longitude) }
+                    ),
                 members =
                     trip.memberIds.associateWith { userId -> memberDisplayInfo(userId, null) },
-                activityMarkers = activityMarkers,
-                activitiesLoadState = activitiesLoadState,
             )
+        )
+        // Frame the map after the first activity snapshot or error, then keep observing updates.
+        uiState.first { it is TripMapUiState.Loaded }
 
         val members = loadMembers(trip.memberIds)
         _uiState.update { state ->
@@ -107,15 +98,19 @@ class TripMapViewModel(
   }
 
   /**
-   * Refreshes activities and suggestions for an already loaded trip without reloading the trip.
+   * Restarts activity and suggestion observation without reloading the trip.
    *
-   * Cancels the previous activity request and preserves the trip, members and existing markers
-   * while loading or on failure. Calls made before the trip is loaded have no effect.
+   * Cancels the previous observer and preserves the trip, members and existing markers while
+   * loading or on failure. Calls made before the trip is loaded have no effect.
    */
   fun retryActivities() {
-    if (_uiState.value !is TripMapUiState.Loaded) return
-    activitiesLoadJob?.cancel()
-    activitiesLoadJob = viewModelScope.launch {
+    val state = _uiState.value as? TripMapUiState.Loaded ?: return
+    observeActivities(state)
+  }
+
+  private fun observeActivities(initialState: TripMapUiState.Loaded) {
+    activitiesObserveJob?.cancel()
+    activitiesObserveJob = viewModelScope.launch {
       _uiState.update { state ->
         if (state is TripMapUiState.Loaded && state.trip.uid == tripId) {
           state.copy(activitiesLoadState = ActivitiesLoadState.LOADING)
@@ -124,21 +119,20 @@ class TripMapViewModel(
         }
       }
       try {
-        val activityMarkers = tripRepository.getActivitiesForTrip(tripId).toTripMarkerUiStates()
-        currentCoroutineContext().ensureActive()
-        _uiState.update { state ->
-          if (state is TripMapUiState.Loaded && state.trip.uid == tripId) {
+        activityRepository.observeActivities(tripId).collect { activities ->
+          currentCoroutineContext().ensureActive()
+          val activityMarkers = activities.toTripMarkerUiStates()
+          _uiState.update { state ->
+            val loaded = state as? TripMapUiState.Loaded ?: initialState
             val coordinates =
-                (state.trip.destinations.map { MapCoordinate(it.latitude, it.longitude) } +
+                (loaded.trip.destinations.map { MapCoordinate(it.latitude, it.longitude) } +
                         activityMarkers.map { MapCoordinate(it.latitude, it.longitude) })
                     .distinct()
-            state.copy(
+            loaded.copy(
                 activityMarkers = activityMarkers,
                 viewport = tripMapViewportOf(coordinates),
                 activitiesLoadState = ActivitiesLoadState.LOADED,
             )
-          } else {
-            state
           }
         }
       } catch (e: CancellationException) {
@@ -147,11 +141,8 @@ class TripMapViewModel(
         currentCoroutineContext().ensureActive()
         Log.w(TAG, "Could not load activities for trip $tripId", e)
         _uiState.update { state ->
-          if (state is TripMapUiState.Loaded && state.trip.uid == tripId) {
-            state.copy(activitiesLoadState = ActivitiesLoadState.ERROR)
-          } else {
-            state
-          }
+          val loaded = state as? TripMapUiState.Loaded ?: initialState
+          loaded.copy(activitiesLoadState = ActivitiesLoadState.ERROR)
         }
       }
     }
@@ -183,12 +174,14 @@ class TripMapViewModel(
      *
      * @param tripId identifier of the trip to show.
      * @param tripRepository the repository providing the user's trips.
+     * @param activityRepository the repository providing live activity and suggestion updates.
      * @param userRepository the repository providing the members' profiles.
      * @return a factory capable of creating [TripMapViewModel] instances.
      */
     fun factory(
         tripId: String,
         tripRepository: TripRepository,
+        activityRepository: ActivityRepository,
         userRepository: UserRepository,
     ): ViewModelProvider.Factory =
         object : ViewModelProvider.Factory {
@@ -199,6 +192,7 @@ class TripMapViewModel(
               return TripMapViewModel(
                   tripId = tripId,
                   tripRepository = tripRepository,
+                  activityRepository = activityRepository,
                   userRepository = userRepository,
               )
                   as T

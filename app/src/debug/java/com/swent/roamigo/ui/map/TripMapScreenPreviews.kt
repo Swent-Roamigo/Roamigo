@@ -20,14 +20,18 @@ import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
-import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
+import com.swent.roamigo.model.trip.activity.ActivityRepository
+import com.swent.roamigo.model.trip.activity.FakeActivityRepository
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.theme.Spacing
 import java.time.Instant
 import java.util.Date
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 
 class TripMapScreenPreviews {
   @Preview(showBackground = true, widthDp = 390, heightDp = 844)
@@ -121,23 +125,20 @@ class TripMapScreenPreviews {
   @Composable
   private fun TripMapFakeRepositoryPreview() {
     val factory = remember {
-      val repository =
-          FakeTripRepository(
-              trips = listOf(previewTripWithActivities),
-              activitiesByTripId = mapOf(previewTripWithActivities.uid to previewTripActivities),
-          )
+      val repository = FakeActivityRepository(previewTripActivities)
       TripMapViewModel.factory(
           tripId = previewTripWithActivities.uid,
-          tripRepository =
-              object : TripRepository by repository {
+          tripRepository = FakeTripRepository(trips = listOf(previewTripWithActivities)),
+          activityRepository =
+              object : ActivityRepository by repository {
                 private var firstActivityRequest = true
 
-                override suspend fun getActivitiesForTrip(tripId: String): List<Activity> {
+                override fun observeActivities(tripId: String): Flow<List<Activity>> = flow {
                   if (firstActivityRequest) {
                     firstActivityRequest = false
                     throw IllegalStateException("Simulated activity loading failure")
                   }
-                  return repository.getActivitiesForTrip(tripId)
+                  emitAll(repository.observeActivities(tripId))
                 }
               },
           userRepository =

@@ -12,12 +12,18 @@ import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
+import com.swent.roamigo.model.trip.activity.ActivityRepository
+import com.swent.roamigo.model.trip.activity.FakeActivityRepository
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -182,10 +188,8 @@ class TripMapViewModelTest {
     val suggestion = activity("suggestion", ActivityType.SUGGESTION).copy(location = tokyo)
     val viewModel =
         createViewModel(
-            FakeTripRepository(
-                trips = listOf(trip(TRIP_ID, listOf(PARIS))),
-                activitiesByTripId = mapOf(TRIP_ID to listOf(accepted, suggestion)),
-            )
+            FakeTripRepository(trips = listOf(trip(TRIP_ID, listOf(PARIS)))),
+            activityRepository = FakeActivityRepository(listOf(accepted, suggestion)),
         )
 
     advanceUntilIdle()
@@ -207,10 +211,8 @@ class TripMapViewModelTest {
     val suggestion = activity("suggestion", ActivityType.SUGGESTION).copy(location = LONDON)
     val viewModel =
         createViewModel(
-            FakeTripRepository(
-                trips = listOf(trip(TRIP_ID)),
-                activitiesByTripId = mapOf(TRIP_ID to listOf(suggestion)),
-            )
+            FakeTripRepository(trips = listOf(trip(TRIP_ID))),
+            activityRepository = FakeActivityRepository(listOf(suggestion)),
         )
 
     advanceUntilIdle()
@@ -225,17 +227,14 @@ class TripMapViewModelTest {
   fun colocatedDestinationsActivitiesAndSuggestions_useOneViewportCoordinate() = runTest {
     val viewModel =
         createViewModel(
-            FakeTripRepository(
-                trips = listOf(trip(TRIP_ID, listOf(PARIS))),
-                activitiesByTripId =
-                    mapOf(
-                        TRIP_ID to
-                            listOf(
-                                activity("accepted"),
-                                activity("suggestion", ActivityType.SUGGESTION),
-                            )
-                    ),
-            )
+            FakeTripRepository(trips = listOf(trip(TRIP_ID, listOf(PARIS)))),
+            activityRepository =
+                FakeActivityRepository(
+                    listOf(
+                        activity("accepted"),
+                        activity("suggestion", ActivityType.SUGGESTION),
+                    )
+                ),
         )
 
     advanceUntilIdle()
@@ -291,14 +290,9 @@ class TripMapViewModelTest {
     val otherTripActivity = activity("other", tripId = OTHER_TRIP_ID)
     val viewModel =
         createViewModel(
-            FakeTripRepository(
-                trips = listOf(trip(TRIP_ID), trip(OTHER_TRIP_ID)),
-                activitiesByTripId =
-                    mapOf(
-                        TRIP_ID to listOf(suggestion, accepted),
-                        OTHER_TRIP_ID to listOf(otherTripActivity),
-                    ),
-            )
+            FakeTripRepository(trips = listOf(trip(TRIP_ID), trip(OTHER_TRIP_ID))),
+            activityRepository =
+                FakeActivityRepository(listOf(suggestion, accepted, otherTripActivity)),
         )
 
     advanceUntilIdle()
@@ -317,14 +311,12 @@ class TripMapViewModelTest {
     val requestedTripIds = mutableListOf<String>()
     val viewModel =
         createViewModel(
-            repository(
-                loadActivities = { tripId ->
+            repository { listOf(trip(TRIP_ID)) },
+            activityRepository =
+                activityRepository { tripId ->
                   requestedTripIds += tripId
                   pendingActivities.await()
-                }
-            ) {
-              listOf(trip(TRIP_ID))
-            }
+                },
         )
 
     runCurrent()
@@ -348,16 +340,16 @@ class TripMapViewModelTest {
     var activityRequests = 0
     val viewModel =
         createViewModel(
-            repository(
-                loadActivities = {
+            repository {
+              tripRequests++
+              listOf(trip)
+            },
+            activityRepository =
+                activityRepository {
                   activityRequests++
                   if (activityRequests == 1) throw IllegalStateException("Activities unavailable")
                   listOf(accepted)
-                }
-            ) {
-              tripRequests++
-              listOf(trip)
-            }
+                },
         )
 
     advanceUntilIdle()
@@ -395,9 +387,9 @@ class TripMapViewModelTest {
   fun failedActivityLoad_withoutDestinationsStillLoadsTheTrip() = runTest {
     val viewModel =
         createViewModel(
-            repository(loadActivities = { throw IllegalStateException("Activities unavailable") }) {
-              listOf(trip(TRIP_ID))
-            }
+            repository { listOf(trip(TRIP_ID)) },
+            activityRepository =
+                activityRepository { throw IllegalStateException("Activities unavailable") },
         )
 
     advanceUntilIdle()
@@ -415,7 +407,10 @@ class TripMapViewModelTest {
     val suggestion = activity("suggestion", ActivityType.SUGGESTION)
     var activities = listOf(accepted, suggestion)
     val viewModel =
-        createViewModel(repository(loadActivities = { activities }) { listOf(trip(TRIP_ID)) })
+        createViewModel(
+            repository { listOf(trip(TRIP_ID)) },
+            activityRepository = activityRepository { activities },
+        )
     advanceUntilIdle()
     assertEquals(
         listOf(accepted.toTripMarkerUiState(), suggestion.toTripMarkerUiState()),
@@ -439,8 +434,9 @@ class TripMapViewModelTest {
     var requests = 0
     val viewModel =
         createViewModel(
-            repository(
-                loadActivities = {
+            repository { listOf(trip(TRIP_ID)) },
+            activityRepository =
+                activityRepository {
                   requests++
                   if (requests == 1) {
                     try {
@@ -451,10 +447,7 @@ class TripMapViewModelTest {
                   } else {
                     latestActivities.await()
                   }
-                }
-            ) {
-              listOf(trip(TRIP_ID))
-            }
+                },
         )
     runCurrent()
 
@@ -482,8 +475,9 @@ class TripMapViewModelTest {
     var refreshCancelled = false
     val viewModel =
         createViewModel(
-            repository(
-                loadActivities = {
+            repository { listOf(trip(TRIP_ID)) },
+            activityRepository =
+                activityRepository {
                   when (++activityRequests) {
                     1 -> emptyList()
                     2 ->
@@ -494,10 +488,7 @@ class TripMapViewModelTest {
                         }
                     else -> listOf(latest)
                   }
-                }
-            ) {
-              listOf(trip(TRIP_ID))
-            }
+                },
         )
     advanceUntilIdle()
 
@@ -523,15 +514,15 @@ class TripMapViewModelTest {
     var activityRequests = 0
     val viewModel =
         createViewModel(
-            repository(
-                loadActivities = {
-                  activityRequests++
-                  if (activityRequests == 1) listOf(original) else pendingActivities.await()
-                }
-            ) {
+            repository {
               tripRequests++
               listOf(trip(TRIP_ID, listOf(PARIS)))
-            }
+            },
+            activityRepository =
+                activityRepository {
+                  activityRequests++
+                  if (activityRequests == 1) listOf(original) else pendingActivities.await()
+                },
         )
     advanceUntilIdle()
     val before = viewModel.uiState.value as TripMapUiState.Loaded
@@ -571,14 +562,12 @@ class TripMapViewModelTest {
     var activities = listOf(activity("original"))
     val viewModel =
         createViewModel(
-            repository(
-                loadActivities = {
+            repository { listOf(trip(TRIP_ID, listOf(PARIS))) },
+            activityRepository =
+                activityRepository {
                   if (failActivities) throw IllegalStateException("Activities unavailable")
                   activities
-                }
-            ) {
-              listOf(trip(TRIP_ID, listOf(PARIS)))
-            }
+                },
         )
     advanceUntilIdle()
     val before = viewModel.uiState.value as TripMapUiState.Loaded
@@ -614,8 +603,9 @@ class TripMapViewModelTest {
     var firstLoadCancelled = false
     val viewModel =
         createViewModel(
-            repository(
-                loadActivities = {
+            repository { listOf(trip(TRIP_ID)) },
+            activityRepository =
+                activityRepository {
                   when (++requests) {
                     1 -> emptyList()
                     2 ->
@@ -626,10 +616,7 @@ class TripMapViewModelTest {
                         }
                     else -> latestActivities.await()
                   }
-                }
-            ) {
-              listOf(trip(TRIP_ID))
-            }
+                },
         )
     advanceUntilIdle()
 
@@ -650,8 +637,159 @@ class TripMapViewModelTest {
   }
 
   @Test
+  fun liveActivities_addUpdateAndRemoveMarkersWithoutReloadingTheTrip() = runTest {
+    val original = activity("original")
+    val suggestion = activity("suggestion", ActivityType.SUGGESTION)
+    val updates = MutableStateFlow(listOf(original, suggestion))
+    var tripRequests = 0
+    val observedTripIds = mutableListOf<String>()
+    val trips =
+        object : TripRepository by FakeTripRepository() {
+          override suspend fun getTrips(): List<Trip> {
+            tripRequests++
+            return listOf(trip(TRIP_ID, listOf(PARIS)))
+          }
+
+          override suspend fun getActivitiesForTrip(tripId: String): List<Activity> =
+              error("The map must observe activities instead of reading them once")
+        }
+    val activities =
+        object : ActivityRepository by FakeActivityRepository() {
+          override fun observeActivities(tripId: String): Flow<List<Activity>> {
+            observedTripIds += tripId
+            return updates
+          }
+        }
+    val viewModel = createViewModel(trips, activityRepository = activities)
+    advanceUntilIdle()
+    val before = viewModel.uiState.value as TripMapUiState.Loaded
+    assertEquals(listOf(original, suggestion).toTripMarkerUiStates(), before.activityMarkers)
+
+    val accepted = suggestion.copy(activityType = ActivityType.ACCEPTED, location = LONDON)
+    val added = activity("added")
+    updates.value = listOf(accepted, added)
+    advanceUntilIdle()
+
+    assertEquals(
+        before.copy(
+            activityMarkers = listOf(accepted, added).toTripMarkerUiStates(),
+            viewport =
+                TripMapViewport.FitAll(
+                    listOf(
+                        MapCoordinate(PARIS.latitude, PARIS.longitude),
+                        MapCoordinate(LONDON.latitude, LONDON.longitude),
+                    )
+                ),
+        ),
+        viewModel.uiState.value,
+    )
+
+    updates.value = emptyList()
+    advanceUntilIdle()
+
+    assertEquals(before.copy(activityMarkers = emptyList()), viewModel.uiState.value)
+    assertEquals(1, tripRequests)
+    assertEquals(listOf(TRIP_ID), observedTripIds)
+  }
+
+  @Test
+  fun liveActivityFailure_preservesMarkersAndRetryResumesObservation() = runTest {
+    val original = activity("original")
+    val recovered = activity("recovered", ActivityType.SUGGESTION)
+    val updates = MutableStateFlow(listOf(recovered))
+    val failure = CompletableDeferred<Unit>()
+    var subscriptions = 0
+    val activities =
+        object : ActivityRepository by FakeActivityRepository() {
+          override fun observeActivities(tripId: String): Flow<List<Activity>> = flow {
+            if (++subscriptions == 1) {
+              emit(listOf(original))
+              failure.await()
+              error("Activities unavailable")
+            }
+            emitAll(updates)
+          }
+        }
+    val viewModel =
+        createViewModel(
+            FakeTripRepository(trips = listOf(trip(TRIP_ID))),
+            activityRepository = activities,
+        )
+    advanceUntilIdle()
+    val before = viewModel.uiState.value as TripMapUiState.Loaded
+
+    failure.complete(Unit)
+    advanceUntilIdle()
+
+    assertEquals(
+        before.copy(activitiesLoadState = ActivitiesLoadState.ERROR),
+        viewModel.uiState.value,
+    )
+
+    viewModel.retryActivities()
+    advanceUntilIdle()
+    assertEquals(
+        before.copy(activityMarkers = listOf(recovered.toTripMarkerUiState())),
+        viewModel.uiState.value,
+    )
+
+    updates.value = emptyList()
+    advanceUntilIdle()
+
+    assertEquals(
+        before.copy(activityMarkers = emptyList(), viewport = TripMapViewport.None),
+        viewModel.uiState.value,
+    )
+    assertEquals(2, subscriptions)
+  }
+
+  @Test
+  fun activityObserver_isReplacedOnRetriesAndCancelledWhenViewModelIsCleared() = runTest {
+    val updates = MutableStateFlow(emptyList<Activity>())
+    var cancellations = 0
+    val activities =
+        object : ActivityRepository by FakeActivityRepository() {
+          override fun observeActivities(tripId: String): Flow<List<Activity>> = flow {
+            try {
+              emitAll(updates)
+            } finally {
+              cancellations++
+            }
+          }
+        }
+    val viewModel =
+        createViewModel(
+            FakeTripRepository(trips = listOf(trip(TRIP_ID))),
+            activityRepository = activities,
+        )
+    advanceUntilIdle()
+    assertEquals(1, updates.subscriptionCount.value)
+
+    viewModel.retryActivities()
+    advanceUntilIdle()
+    assertEquals(1, updates.subscriptionCount.value)
+    assertEquals(1, cancellations)
+
+    viewModel.retryTrip()
+    advanceUntilIdle()
+    assertEquals(1, updates.subscriptionCount.value)
+    assertEquals(2, cancellations)
+
+    store.clear()
+    runCurrent()
+    assertEquals(0, updates.subscriptionCount.value)
+    assertEquals(3, cancellations)
+  }
+
+  @Test
   fun factory_createsTripMapViewModel_andRejectsOtherClasses() {
-    val factory = TripMapViewModel.factory(TRIP_ID, FakeTripRepository(), FakeUserRepository(ALICE))
+    val factory =
+        TripMapViewModel.factory(
+            TRIP_ID,
+            FakeTripRepository(),
+            FakeActivityRepository(),
+            FakeUserRepository(ALICE),
+        )
 
     assertTrue(factory.create(TripMapViewModel::class.java) is TripMapViewModel)
     assertThrows(IllegalArgumentException::class.java) {
@@ -838,16 +976,16 @@ class TripMapViewModelTest {
     var activityRequests = 0
     val viewModel =
         createViewModel(
-            repository(
-                loadActivities = {
-                  activityRequests++
-                  if (activityRequests == 1) listOf(original) else pendingActivities.await()
-                }
-            ) {
+            repository {
               tripRequests++
               listOf(trip(TRIP_ID, listOf(PARIS)))
             },
-            userRepository { pendingUsers.await() },
+            activityRepository =
+                activityRepository {
+                  activityRequests++
+                  if (activityRequests == 1) listOf(original) else pendingActivities.await()
+                },
+            userRepository = userRepository { pendingUsers.await() },
         )
     runCurrent()
     val initial = viewModel.uiState.value as TripMapUiState.Loaded
@@ -924,18 +1062,22 @@ class TripMapViewModelTest {
   private fun createViewModel(
       repository: TripRepository,
       userRepository: UserRepository = FakeUserRepository(ALICE),
+      activityRepository: ActivityRepository = FakeActivityRepository(),
   ): TripMapViewModel =
-      TripMapViewModel(TRIP_ID, repository, userRepository).also { store.put("map", it) }
+      TripMapViewModel(TRIP_ID, repository, activityRepository, userRepository).also {
+        store.put("map", it)
+      }
 
-  private fun repository(
-      loadActivities: suspend (String) -> List<Activity> = { emptyList() },
-      load: suspend () -> List<Trip>,
-  ): TripRepository =
+  private fun repository(load: suspend () -> List<Trip>): TripRepository =
       object : TripRepository by FakeTripRepository() {
         override suspend fun getTrips(): List<Trip> = load()
+      }
 
-        override suspend fun getActivitiesForTrip(tripId: String): List<Activity> =
-            loadActivities(tripId)
+  private fun activityRepository(load: suspend (String) -> List<Activity>): ActivityRepository =
+      object : ActivityRepository by FakeActivityRepository() {
+        override fun observeActivities(tripId: String): Flow<List<Activity>> = flow {
+          emit(load(tripId))
+        }
       }
 
   private fun userRepository(load: suspend () -> List<User>): UserRepository =
