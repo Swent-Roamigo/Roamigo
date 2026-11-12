@@ -577,7 +577,7 @@ private fun SharingButtonBar(
   }
 }
 
-private val SharingProgressSize = 18.dp
+private val SharingProgressSize = 20.dp
 private val SharingProgressStrokeWidth = 2.dp
 
 /** Floating card drawn over the map, styled like the map's notification banner. */
