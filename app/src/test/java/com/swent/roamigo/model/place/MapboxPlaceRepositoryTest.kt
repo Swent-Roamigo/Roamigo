@@ -366,6 +366,39 @@ class MapboxPlaceRepositoryTest {
     place.toTripLocation()
   }
 
+  @Test
+  fun unreadableSuccessfulRetrieveStillEndsTheSession() = runTest {
+    // Mapbox answered with a success status, so the retrieve is complete whatever the body is.
+    for (body in listOf("not json", "", "{")) {
+      requests.clear()
+      val repository = repository { 200 to body }
+
+      try {
+        repository.resolvePlace(candidate)
+        fail("Expected failure for body \"$body\"")
+      } catch (_: PlaceSearchException.Unavailable) {}
+      try {
+        repository.searchPlaces("cafe")
+      } catch (_: PlaceSearchException) {}
+
+      assertEquals(listOf("s1", "s2"), requests.map { it.url.queryParameter("session_token") })
+    }
+  }
+
+  @Test
+  fun unreadableSearchAnswerKeepsTheSession() = runTest {
+    // Only a retrieve ends the session; a broken suggest answer is just retried.
+    val repository = repository { 200 to "not json" }
+
+    repeat(2) {
+      try {
+        repository.searchPlaces("cafe")
+      } catch (_: PlaceSearchException.Unavailable) {}
+    }
+
+    assertEquals(listOf("s1", "s1"), requests.map { it.url.queryParameter("session_token") })
+  }
+
   private companion object {
     const val PROPERTIES =
         """{"name":"Cafe Romand","full_address":"Lausanne, Switzerland",

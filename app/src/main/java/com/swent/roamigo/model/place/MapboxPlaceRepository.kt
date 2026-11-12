@@ -20,11 +20,14 @@ import org.json.JSONObject
  * Place search through the Mapbox Search Box REST API.
  *
  * Mapbox bills a search as one session: the "suggest" calls typed so far plus the "retrieve" that
- * ends it must share a session token. The token is therefore kept here and renewed after each
- * answered [resolvePlace], or rejected by Mapbox. There is one session for the whole repository, so
- * two searches that overlap in time would share it. Mapbox limits Search Box results to temporary
- * use; the team accepted storing the chosen place anyway because the app is a course project that
- * is not distributed.
+ * ends it must share a session token. The token is therefore kept here. It is renewed as soon as
+ * [resolvePlace] gets a successful status, before the body is read, because that is the evidence
+ * that Mapbox completed the retrieve. It is also renewed when Mapbox refuses a request (HTTP 400 or
+ * 422), so that a bad session cannot fail every retry. Failures after which it is unknown whether
+ * Mapbox completed the retrieve (network errors, 5xx) keep the token, so that a retry stays in the
+ * same session. There is one session for the whole repository, so two searches that overlap in time
+ * would share it. Mapbox limits Search Box results to temporary use; the team accepted storing the
+ * chosen place anyway because the app is a course project that is not distributed.
  */
 class MapboxPlaceRepository(
     private val accessToken: String = BuildConfig.MAPBOX_ACCESS_TOKEN,
@@ -64,11 +67,10 @@ class MapboxPlaceRepository(
     // A blank id would request the retrieve root and fail as if the provider were down.
     if (candidate.id.isBlank()) throw PlaceSearchException.InvalidPlace()
     val url = baseUrl().addPathSegments("retrieve").addPathSegment(candidate.id).build()
-    val answer = getJson(url)
-    // The retrieve ends the session as soon as Mapbox has answered it, whatever the content turns
-    // out to be, so the next search must start a new one even if the place is unusable. A failed
-    // call keeps the session instead, because Mapbox has not completed the retrieve.
-    renewSession()
+    // A successful status means Mapbox completed the retrieve, so the session is over whatever the
+    // body turns out to be (unreadable, empty, or an unusable place): the next search starts a new
+    // one. Renewing before the body is read keeps it so even if reading or parsing throws.
+    val answer = getJson(url, onSuccessStatus = ::renewSession)
     val feature = answer.optJSONArray("features")?.optJSONObject(0)
     return (feature ?: throw PlaceSearchException.InvalidPlace()).toPlace(candidate.name)
   }
@@ -124,7 +126,10 @@ class MapboxPlaceRepository(
     return Place(name, properties.address(), latitude, longitude, countryCode)
   }
 
-  private suspend fun getJson(url: HttpUrl): JSONObject =
+  private suspend fun getJson(
+      url: HttpUrl,
+      onSuccessStatus: () -> Unit = {},
+  ): JSONObject =
       withContext(Dispatchers.IO) {
         val request =
             Request.Builder().url(url).header("User-Agent", DESTINATION_USER_AGENT).build()
@@ -147,6 +152,7 @@ class MapboxPlaceRepository(
                       "Place search failed: HTTP ${response.code}"
                   )
             }
+            onSuccessStatus()
             JSONObject(response.body?.string() ?: throw IOException("Empty response"))
           }
         } catch (cancelled: CancellationException) {
