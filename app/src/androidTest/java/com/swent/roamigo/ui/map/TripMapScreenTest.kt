@@ -384,7 +384,7 @@ class TripMapScreenTest {
   @Test
   fun observedActivityChangesUpdateTheDisplayedMarkers() {
     val activities = distantActivities()
-    val updates = MutableStateFlow(listOf(activities.first()))
+    val updates = MutableStateFlow(emptyList<TripActivity>())
     val activityRepository =
         object : ActivityRepository by FakeActivityRepository() {
           override fun observeActivities(tripId: String): Flow<List<TripActivity>> = updates
@@ -394,6 +394,8 @@ class TripMapScreenTest {
         RecordingLocationRepository(),
         activityRepository = activityRepository,
     )
+    // Replacing the map style can discard annotations added during initial composition.
+    composeRule.runOnIdle { updates.value = listOf(activities.first()) }
     assertActivityMarkersDisplayed(listOf(activities.first()))
 
     composeRule.runOnIdle { updates.value = activities }
@@ -864,7 +866,7 @@ class TripMapScreenTest {
       onPauseSharing: () -> Unit = {},
       readOnly: Boolean = false,
   ) {
-    uiState.value = initialState
+    uiState.value = TripMapUiState.Loading
     isSharing.value = sharing
     isStartingSharing.value = startingSharing
     composeRule.setContent {
@@ -882,6 +884,7 @@ class TripMapScreenTest {
       }
     }
     composeRule.loadLocalMapStyle()
+    composeRule.runOnIdle { uiState.value = initialState }
   }
 
   private fun waitForText(text: String) {
