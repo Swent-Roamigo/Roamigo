@@ -5,7 +5,8 @@ rules_version = '2';
 // Membership model: a trip document lists its members in memberIds, and ownerId is the
 // authoritative owner. Only members can read a trip and its subcollections. A client may only
 // create a new trip it owns, together with its own OWNER member document, in one transaction.
-// Trips and members cannot be changed or deleted by clients yet. Members can create activities,
+// Trips and members cannot be changed or deleted by clients yet. Joining a trip goes through the
+// invitation callable functions, which write the members as Admin, so no client can add one. Members can create activities,
 // but not change or delete them. Photos can be added by members and read by members, and never
 // changed.
 service cloud.firestore {
@@ -314,6 +315,12 @@ service cloud.firestore {
 
           allow delete: if false;
         }
+
+    // Invitation tokens are only created, read and accepted by the callable functions
+    // (functions/src/tripInvitations.ts). A client that could read them could join any trip.
+    match /tripInvitations/{invitationId} {
+      allow read, write: if false;
+    }
 
     match /friendships/{documentId} {
       allow get: if signedIn()
