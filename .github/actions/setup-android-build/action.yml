@@ -1,0 +1,38 @@
+# AI assistance was used for implementation support.
+name: Set up Android build
+description: Restores the Firebase configuration and prepares JDK, Gradle and gradlew for a job.
+
+inputs:
+  google-services:
+    description: Base64-encoded google-services.json, normally the GOOGLE_SERVICES secret.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # Composite actions cannot read secrets directly, so the caller passes the value as an input.
+    - name: Restore Firebase configuration
+      shell: bash
+      env:
+        GOOGLE_SERVICES: ${{ inputs.google-services }}
+      run: |
+        if [ -z "$GOOGLE_SERVICES" ]; then
+          echo "::error::Set the GOOGLE_SERVICES repository secret to the Base64-encoded google-services.json."
+          exit 1
+        fi
+        printf '%s' "$GOOGLE_SERVICES" | base64 --decode > app/google-services.json
+
+    - name: Setup JDK
+      uses: actions/setup-java@v6
+      with:
+        distribution: "temurin"
+        java-version: "21"
+
+    # A workflow starts from a clean environment, so the Gradle folder is cached to avoid
+    # downloading and processing the same files on every run.
+    - name: Gradle cache
+      uses: gradle/actions/setup-gradle@v6
+
+    - name: Grant execute permission for gradlew
+      shell: bash
+      run: chmod +x ./gradlew

@@ -31,29 +31,10 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Restore Firebase configuration
-        env:
-          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
-        run: |
-          if [ -z "$GOOGLE_SERVICES" ]; then
-            echo "::error::Set the GOOGLE_SERVICES repository secret to the Base64-encoded google-services.json."
-            exit 1
-          fi
-          printf '%s' "$GOOGLE_SERVICES" | base64 --decode > app/google-services.json
-
-      - name: Setup JDK
-        uses: actions/setup-java@v6
+      - name: Set up Android build
+        uses: ./.github/actions/setup-android-build
         with:
-          distribution: "temurin"
-          java-version: "21"
-
-      # A workflow starts from a clean environment, so the Gradle folder is cached to avoid
-      # downloading and processing the same files on every run.
-      - name: Gradle cache
-        uses: gradle/actions/setup-gradle@v6
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x ./gradlew
+          google-services: ${{ secrets.GOOGLE_SERVICES }}
 
       - name: Run formatting, debug, and JVM checks
         run: ./gradlew ktfmtCheck assembleDebug lintDebug check --build-cache
@@ -77,12 +58,18 @@ jobs:
           if-no-files-found: warn
           path: checks-outputs.tgz
 
-  # Runs at the same time as the checks job instead of after it.
+  # Runs at the same time as the checks job instead of after it. The instrumented tests are split
+  # into shards, each on its own emulator, so the slowest job is shorter. The required "CI"
+  # job below aggregates them, so renaming these jobs does not affect branch protection.
   connected-tests:
+    name: Connected tests (shard ${{ matrix.shard }})
     env:
       VOTE_FUNCTIONS_URL: http://127.0.0.1:5001/demo-roamigo/europe-west1
-    name: Connected tests
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
     steps:
       - name: Validate Mapbox access token
         run: |
@@ -96,35 +83,32 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Restore Firebase configuration
-        env:
-          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
-        run: |
-          if [ -z "$GOOGLE_SERVICES" ]; then
-            echo "::error::Set the GOOGLE_SERVICES repository secret to the Base64-encoded google-services.json."
-            exit 1
-          fi
-          printf '%s' "$GOOGLE_SERVICES" | base64 --decode > app/google-services.json
-
-      - name: Setup JDK
-        uses: actions/setup-java@v6
+      - name: Set up Android build
+        uses: ./.github/actions/setup-android-build
         with:
-          distribution: "temurin"
-          java-version: "21"
-
-      - name: Gradle cache
-        uses: gradle/actions/setup-gradle@v6
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x ./gradlew
+          google-services: ${{ secrets.GOOGLE_SERVICES }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "24"
 
+      # The CLI and the emulator jars it downloads are cached, because every shard would otherwise
+      # fetch them again on each run.
+      - name: Firebase CLI cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.npm
+          key: npm-firebase-tools-15.33.0
+
+      - name: Firebase emulators cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-15.33.0
+
       - name: Install Firebase CLI
-        run: npm install --global firebase-tools@15.33.0
+        run: npm install --global --prefer-offline --no-audit --no-fund firebase-tools@15.33.0
 
       - name: Build trusted vote-resolution backend
         run: |
@@ -182,28 +166,34 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            bash -o pipefail -c "firebase emulators:exec --only auth,database,firestore,functions --project demo-roamigo --non-interactive 'node --test tests/firestore/*.test.mjs && ./gradlew connectedCheck --build-cache' 2>&1 | tee firebase-emulator.log"
+            bash -o pipefail -c "firebase emulators:exec --only auth,database,firestore,functions --project demo-roamigo --non-interactive '${{ matrix.shard == 0 && 'node --test tests/firestore/*.test.mjs && ' || '' }}./gradlew connectedCheck --build-cache -Pandroid.testInstrumentationRunnerArguments.numShards=${{ strategy.job-total }} -Pandroid.testInstrumentationRunnerArguments.shardIndex=${{ matrix.shard }}' 2>&1 | tee firebase-emulator.log"
 
       - name: Upload connected test results and Firebase logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: connected-test-results-and-firebase-logs
+          name: connected-test-results-and-firebase-logs-${{ matrix.shard }}
           if-no-files-found: warn
           path: |
             firebase-emulator.log
             app/build/reports/androidTests/connected/**
             app/build/outputs/androidTest-results/connected/**
 
+      # Both shards run the same emulator, so the coverage folders have the same name. The report
+      # job reads "connected/*/coverage.ec", so each shard's folder is renamed to stay distinct.
       - name: Collect connected test coverage
-        run: tar czf connected-coverage.tgz app/build/outputs/code_coverage
+        run: |
+          for device in app/build/outputs/code_coverage/debugAndroidTest/connected/*/; do
+            mv "${device%/}" "${device%/}-shard${{ matrix.shard }}"
+          done
+          tar czf connected-coverage-${{ matrix.shard }}.tgz app/build/outputs/code_coverage
 
       - name: Upload connected test coverage
         uses: actions/upload-artifact@v4
         with:
-          name: connected-coverage
+          name: connected-coverage-${{ matrix.shard }}
           if-no-files-found: error
-          path: connected-coverage.tgz
+          path: connected-coverage-${{ matrix.shard }}.tgz
 
   # Merges both coverage sources and sends them to SonarCloud once both jobs have passed.
   report:
@@ -217,27 +207,10 @@ jobs:
           submodules: recursive
           fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of Sonar analysis
 
-      - name: Restore Firebase configuration
-        env:
-          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
-        run: |
-          if [ -z "$GOOGLE_SERVICES" ]; then
-            echo "::error::Set the GOOGLE_SERVICES repository secret to the Base64-encoded google-services.json."
-            exit 1
-          fi
-          printf '%s' "$GOOGLE_SERVICES" | base64 --decode > app/google-services.json
-
-      - name: Setup JDK
-        uses: actions/setup-java@v6
+      - name: Set up Android build
+        uses: ./.github/actions/setup-android-build
         with:
-          distribution: "temurin"
-          java-version: "21"
-
-      - name: Gradle cache
-        uses: gradle/actions/setup-gradle@v6
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x ./gradlew
+          google-services: ${{ secrets.GOOGLE_SERVICES }}
 
       - name: Download checks outputs
         uses: actions/download-artifact@v4
@@ -247,12 +220,13 @@ jobs:
       - name: Download connected test coverage
         uses: actions/download-artifact@v4
         with:
-          name: connected-coverage
+          pattern: connected-coverage-*
+          merge-multiple: true
 
       - name: Restore build outputs
         run: |
           tar xzf checks-outputs.tgz
-          tar xzf connected-coverage.tgz
+          for archive in connected-coverage-*.tgz; do tar xzf "$archive"; done
 
       - name: Generate Coverage Report
         run: ./gradlew jacocoTestReport
