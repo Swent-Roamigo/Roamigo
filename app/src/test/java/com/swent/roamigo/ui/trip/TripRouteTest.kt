@@ -1,7 +1,10 @@
+// Implemented with assistance from OpenAI Codex.
 package com.swent.roamigo.ui.trip
 
 import android.content.Context
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -11,17 +14,20 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
+import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.connectivity.FakeConnectivityRepository
 import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.photo.FakePhotoRepository
+import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
+import com.swent.roamigo.model.trip.activity.ActivityRepository
 import com.swent.roamigo.model.trip.activity.FakeActivityRepository
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.model.users.FakeUserRepository
@@ -33,6 +39,9 @@ import java.io.IOException
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -83,6 +92,57 @@ class TripRouteTest {
     composeRule.onNodeWithText("Photos").performClick()
     composeRule.onNodeWithText("Take a photo").assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.photos_screen).assertIsDisplayed()
+  }
+
+  @Test
+  fun slowActivitiesDoNotDelayTheHeaderTripActionsOrLocationObservation() {
+    val trip = trip()
+    val pendingActivities = CompletableDeferred<List<Activity>>()
+    val activities =
+        object : ActivityRepository by FakeActivityRepository() {
+          override fun observeActivities(tripId: String): Flow<List<Activity>> = flow {
+            emit(pendingActivities.await())
+          }
+        }
+    val locations = FakeLocationRepository()
+    composeRule.setContent {
+      RoamigoTheme {
+        CompositionLocalProvider(LocalInspectionMode provides true) {
+          TripRoute(
+              tripId = trip.uid,
+              fromHistory = false,
+              openMap = true,
+              authRepository = signedInAuth(),
+              tripRepository = FakeTripRepository(trips = listOf(trip)),
+              activityRepository = activities,
+              userRepository = FakeUserRepository(User("member", "Member", null)),
+              voteRepository = InMemoryVoteRepository(),
+              photoRepository = FakePhotoRepository(composeRule.activity.cacheDir),
+              connectivityRepository = FakeConnectivityRepository(),
+              locationRepository = locations,
+              onBack = {},
+              onAuthenticationRequired = {},
+              onOpenVote = { _, _ -> },
+              onCreateVote = {},
+              onMembersClick = {},
+              onTripsClick = {},
+              onMapClick = {},
+              onFriendsClick = {},
+          )
+        }
+      }
+    }
+
+    composeRule.onNodeWithText(trip.name).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_banner).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_loading).assertDoesNotExist()
+    composeRule.runOnIdle { assertEquals(1, locations.observeMemberLocationsCalls) }
+
+    composeRule
+        .onNodeWithText(composeRule.activity.getString(R.string.trip_details_tab))
+        .performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_add_button).assertIsDisplayed()
   }
 
   @Test

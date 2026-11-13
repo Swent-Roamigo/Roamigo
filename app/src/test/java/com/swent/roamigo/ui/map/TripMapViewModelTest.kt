@@ -306,7 +306,7 @@ class TripMapViewModelTest {
   }
 
   @Test
-  fun slowActivityLoad_keepsLoadingUntilMarkersAreAvailable() = runTest {
+  fun slowActivityLoad_showsTheTripAndProfilesBeforeMarkersAreAvailable() = runTest {
     val pendingActivities = CompletableDeferred<List<Activity>>()
     val requestedTripIds = mutableListOf<String>()
     val viewModel =
@@ -322,7 +322,11 @@ class TripMapViewModelTest {
     runCurrent()
 
     assertEquals(listOf(TRIP_ID), requestedTripIds)
-    assertEquals(TripMapUiState.Loading, viewModel.uiState.value)
+    val before = viewModel.uiState.value as TripMapUiState.Loaded
+    assertEquals(TRIP_ID, before.trip.uid)
+    assertEquals(ActivitiesLoadState.LOADING, before.activitiesLoadState)
+    assertTrue(before.activityMarkers.isEmpty())
+    assertEquals(MemberDisplayInfo("Alice", "A", ALICE_AVATAR), before.members[ALICE.uid])
 
     val suggestion = activity("suggestion", ActivityType.SUGGESTION)
     pendingActivities.complete(listOf(suggestion))
@@ -457,7 +461,9 @@ class TripMapViewModelTest {
     assertTrue(firstLoadCancelled)
     firstActivities.complete(listOf(activity("outdated", ActivityType.SUGGESTION)))
     runCurrent()
-    assertEquals(TripMapUiState.Loading, viewModel.uiState.value)
+    val pending = viewModel.uiState.value as TripMapUiState.Loaded
+    assertEquals(ActivitiesLoadState.LOADING, pending.activitiesLoadState)
+    assertTrue(pending.activityMarkers.isEmpty())
 
     val latest = activity("latest")
     latestActivities.complete(listOf(latest))
