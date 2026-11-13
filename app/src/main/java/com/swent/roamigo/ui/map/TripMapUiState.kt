@@ -19,7 +19,8 @@ sealed interface TripMapUiState {
    * The trip was loaded.
    *
    * @property trip the trip shown on the map.
-   * @property viewport camera target covering the trip's destinations, activities and suggestions.
+   * @property viewport latest bounds covering destinations, activities and suggestions. The UI
+   *   decides whether to apply them to the camera, preserving the user's gestures.
    * @property members display information of every trip member, keyed by user ID. Until the
    *   members' profiles are loaded, or if they cannot be, each entry holds fallback information.
    * @property activityMarkers markers for activities and suggestions belonging to the trip.
