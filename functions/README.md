@@ -79,4 +79,4 @@ AI assistance was used for implementation support.
 An unknown, revoked or expired token gives the same `not-found` answer, so tokens cannot be
 probed. The token is the invitation ID: 16 random bytes, URL-safe base64.
 
-Not covered yet: the Android client, the share and join screens, and push notifications.
+The Android side is `TripInvitationService` (calls these functions) with the invite sheet and the join screen. Run `npm --prefix functions run test:emulator` to exercise the functions on the Auth, Firestore and Functions emulators. Push notifications are not covered.
