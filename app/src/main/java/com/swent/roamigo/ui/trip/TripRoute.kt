@@ -30,6 +30,7 @@ import com.swent.roamigo.model.connectivity.DefaultConnectivityRepository
 import com.swent.roamigo.model.location.LocationRepository
 import com.swent.roamigo.model.photo.PhotoRepository
 import com.swent.roamigo.model.trip.TripRepository
+import com.swent.roamigo.model.trip.activity.ActivityRepository
 import com.swent.roamigo.model.trip.isCompletedOn
 import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.users.UserRepository
@@ -62,6 +63,7 @@ internal fun TripRoute(
     openMap: Boolean,
     authRepository: AuthRepository,
     tripRepository: TripRepository,
+    activityRepository: ActivityRepository,
     userRepository: UserRepository,
     voteRepository: VoteRepository,
     photoRepository: PhotoRepository,
@@ -88,8 +90,8 @@ internal fun TripRoute(
     return
   }
   val tripMapFactory =
-      remember(tripId, tripRepository, userRepository) {
-        TripMapViewModel.factory(tripId, tripRepository, userRepository)
+      remember(tripId, tripRepository, activityRepository, userRepository) {
+        TripMapViewModel.factory(tripId, tripRepository, activityRepository, userRepository)
       }
   val tripModel: TripMapViewModel = viewModel(key = "trip_map_$tripId", factory = tripMapFactory)
   val tripState by tripModel.uiState.collectAsStateWithLifecycle()

@@ -1,4 +1,4 @@
-// AI assistance was used for trip creation and user directory integration.
+// AI assistance was used for trip creation, user directory integration, and live map activities.
 package com.swent.roamigo
 
 import android.os.Bundle
@@ -19,6 +19,7 @@ import com.swent.roamigo.model.country.DataStoreCountryCodeCache
 import com.swent.roamigo.model.country.GeoNamesCountryCodeLookup
 import com.swent.roamigo.model.country.VisitedCountryRepository
 import com.swent.roamigo.model.trip.TripRepositoryFirestore
+import com.swent.roamigo.model.trip.activity.ActivityRepositoryFirestore
 import com.swent.roamigo.model.trip.voting.VoteRepositoryFirestore
 import com.swent.roamigo.model.users.UserRepositoryFirestore
 import com.swent.roamigo.resources.C
@@ -44,6 +45,12 @@ class MainActivity : ComponentActivity() {
               authRepository.getCurrentUser()?.uid
             }
           }
+          val activityRepository =
+              remember(authRepository) {
+                ActivityRepositoryFirestore(FirebaseFirestore.getInstance()) {
+                  authRepository.getCurrentUser()?.uid
+                }
+              }
           val voteRepository = remember { VoteRepositoryFirestore(FirebaseFirestore.getInstance()) }
 
           val userRepository = remember {
@@ -72,6 +79,7 @@ class MainActivity : ComponentActivity() {
 
           RoamigoApp(
               tripRepository = tripRepository,
+              activityRepository = activityRepository,
               authRepository = authRepository,
               voteRepository = voteRepository,
               destinationRepository = (application as RoamigoApplication).destinationRepository,

@@ -22,6 +22,7 @@ import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
+import com.swent.roamigo.model.trip.activity.FakeActivityRepository
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
@@ -58,6 +59,7 @@ class TripRouteTest {
             openMap = false,
             authRepository = auth,
             tripRepository = FakeTripRepository(failure = IOException("backend detail")),
+            activityRepository = FakeActivityRepository(),
             userRepository = FakeUserRepository(User("member", "Member", null)),
             voteRepository = InMemoryVoteRepository(),
             photoRepository = FakePhotoRepository(composeRule.activity.cacheDir),
@@ -103,6 +105,7 @@ class TripRouteTest {
             openMap = false,
             authRepository = signedInAuth(),
             tripRepository = repository,
+            activityRepository = FakeActivityRepository(),
             userRepository = FakeUserRepository(User("member", "Member", null)),
             voteRepository = InMemoryVoteRepository(),
             photoRepository = FakePhotoRepository(composeRule.activity.cacheDir),
@@ -144,6 +147,7 @@ class TripRouteTest {
             openMap = false,
             authRepository = signedInAuth(),
             tripRepository = FakeTripRepository(trips = listOf(trip)),
+            activityRepository = FakeActivityRepository(),
             userRepository = FakeUserRepository(User("member", "Member", null)),
             voteRepository = InMemoryVoteRepository(),
             photoRepository = FakePhotoRepository(composeRule.activity.cacheDir),
@@ -181,6 +185,7 @@ class TripRouteTest {
               openMap = false,
               authRepository = signedInAuth(),
               tripRepository = FakeTripRepository(trips = listOf(trip())),
+              activityRepository = FakeActivityRepository(),
               userRepository = FakeUserRepository(User("member", "Member", null)),
               voteRepository = InMemoryVoteRepository(listOf(vote)),
               photoRepository = FakePhotoRepository(composeRule.activity.cacheDir),
@@ -228,6 +233,7 @@ class TripRouteTest {
             openMap = false,
             authRepository = signedInAuth(),
             tripRepository = FakeTripRepository(trips = listOf(trip)),
+            activityRepository = FakeActivityRepository(),
             userRepository = FakeUserRepository(User("member", "Member", null)),
             voteRepository = InMemoryVoteRepository(),
             photoRepository = FakePhotoRepository(composeRule.activity.cacheDir),

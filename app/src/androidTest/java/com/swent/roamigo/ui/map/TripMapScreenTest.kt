@@ -14,8 +14,10 @@ import androidx.activity.result.ActivityResultRegistryOwner
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -43,6 +45,7 @@ import androidx.test.espresso.intent.matcher.IntentMatchers.hasData
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.Timestamp
+import com.mapbox.geojson.Point
 import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.connectivity.ConnectivityRepository
@@ -56,6 +59,8 @@ import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
+import com.swent.roamigo.model.trip.activity.ActivityRepository
+import com.swent.roamigo.model.trip.activity.FakeActivityRepository
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
@@ -64,10 +69,12 @@ import com.swent.roamigo.ui.isNotImplemented
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.theme.Spacing
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.abs
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.hamcrest.Matchers.allOf
@@ -320,14 +327,16 @@ class TripMapScreenTest {
             tripRequests.incrementAndGet()
             return listOf(trip)
           }
-
-          override suspend fun getActivitiesForTrip(tripId: String): List<TripActivity> {
+        }
+    val activityRepository =
+        object : ActivityRepository by FakeActivityRepository() {
+          override fun observeActivities(tripId: String): Flow<List<TripActivity>> = flow {
             assertEquals(TRIP_ID, tripId)
             if (activityRequests.incrementAndGet() == 1) error("Activities unavailable")
-            return pendingActivities.await()
+            emit(pendingActivities.await())
           }
         }
-    setScreen(repository, RecordingLocationRepository())
+    setScreen(repository, RecordingLocationRepository(), activityRepository = activityRepository)
 
     composeRule.onNodeWithTag(C.Tag.trip_map_retry_activities).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.trip_map_error).assertDoesNotExist()
@@ -357,18 +366,94 @@ class TripMapScreenTest {
   fun delayedInitialLoadDisplaysDistantActivityAndSuggestionMarkers() {
     val activities = distantActivities()
     val pendingActivities = CompletableDeferred<List<TripActivity>>()
-    val repository =
-        object : TripRepository by FakeTripRepository(trips = listOf(trip)) {
-          override suspend fun getActivitiesForTrip(tripId: String): List<TripActivity> =
-              pendingActivities.await()
+    val activityRepository =
+        object : ActivityRepository by FakeActivityRepository() {
+          override fun observeActivities(tripId: String): Flow<List<TripActivity>> = flow {
+            emit(pendingActivities.await())
+          }
         }
-    setScreen(repository, RecordingLocationRepository())
+    setScreen(
+        FakeTripRepository(trips = listOf(trip)),
+        RecordingLocationRepository(),
+        activityRepository = activityRepository,
+    )
     composeRule.onNodeWithTag(C.Tag.trip_map_loading).assertIsDisplayed()
 
     composeRule.runOnIdle { pendingActivities.complete(activities) }
 
     assertActivityMarkersDisplayed(activities)
     composeRule.onNodeWithTag(C.Tag.trip_map_loading).assertDoesNotExist()
+  }
+
+  @Test
+  fun observedActivityChangesUpdateTheDisplayedMarkers() {
+    val activities = distantActivities()
+    val updates = MutableStateFlow(emptyList<TripActivity>())
+    val activityRepository =
+        object : ActivityRepository by FakeActivityRepository() {
+          override fun observeActivities(tripId: String): Flow<List<TripActivity>> = updates
+        }
+    setScreen(
+        FakeTripRepository(trips = listOf(trip)),
+        RecordingLocationRepository(),
+        activityRepository = activityRepository,
+    )
+    // Replacing the map style can discard annotations added during initial composition.
+    composeRule.runOnIdle { updates.value = listOf(activities.first()) }
+    assertActivityMarkersDisplayed(listOf(activities.first()))
+
+    composeRule.runOnIdle { updates.value = activities }
+    assertActivityMarkersDisplayed(activities)
+
+    composeRule.runOnIdle { updates.value = emptyList() }
+    composeRule.waitUntil(timeoutMillis = MAP_TEST_TIMEOUT_MILLIS) {
+      activities.all {
+        composeRule
+            .onAllNodesWithTag(TripMarkerTestTags.markerFor(it.toTripMarkerUiState().id))
+            .fetchSemanticsNodes()
+            .isEmpty()
+      }
+    }
+  }
+
+  @Test
+  fun observedActivityLocationChangeMovesTheExistingMarker() {
+    val original =
+        activity(
+            uid = "moving",
+            location = trip.destinations.single().copy(name = "Original stop"),
+            activityType = ActivityType.ACCEPTED,
+        )
+    val moved =
+        original.copy(
+            location =
+                original.location.copy(
+                    latitude = original.location.latitude + 0.01,
+                    longitude = original.location.longitude + 0.01,
+                    name = "Updated stop",
+                )
+        )
+    val updates = MutableStateFlow(emptyList<TripActivity>())
+    val activityRepository =
+        object : ActivityRepository by FakeActivityRepository() {
+          override fun observeActivities(tripId: String): Flow<List<TripActivity>> = updates
+        }
+    // Keep the framing unchanged so this test isolates the annotation's position update.
+    val tripWithBothLocations = trip.copy(destinations = listOf(original.location, moved.location))
+    setScreen(
+        FakeTripRepository(trips = listOf(tripWithBothLocations)),
+        RecordingLocationRepository(),
+        activityRepository = activityRepository,
+    )
+    val markerTag = TripMarkerTestTags.markerFor(original.toTripMarkerUiState().id)
+
+    composeRule.runOnIdle { updates.value = listOf(original) }
+    assertActivityMarkersDisplayed(listOf(original))
+    assertActivityMarkerDrawnAt(markerTag, original.location)
+
+    composeRule.runOnIdle { updates.value = listOf(moved) }
+    assertActivityMarkersDisplayed(listOf(moved))
+    assertActivityMarkerDrawnAt(markerTag, moved.location)
   }
 
   @Test
@@ -825,7 +910,7 @@ class TripMapScreenTest {
       onPauseSharing: () -> Unit = {},
       readOnly: Boolean = false,
   ) {
-    uiState.value = initialState
+    uiState.value = TripMapUiState.Loading
     isSharing.value = sharing
     isStartingSharing.value = startingSharing
     composeRule.setContent {
@@ -843,6 +928,7 @@ class TripMapScreenTest {
       }
     }
     composeRule.loadLocalMapStyle()
+    composeRule.runOnIdle { uiState.value = initialState }
   }
 
   private fun waitForText(text: String) {
@@ -856,6 +942,7 @@ class TripMapScreenTest {
       locationRepository: LocationRepository,
       activityResultRegistry: ActivityResultRegistry = registry,
       recordStartedIntents: Boolean = true,
+      activityRepository: ActivityRepository = FakeActivityRepository(),
   ) {
     val registryOwner =
         object : ActivityResultRegistryOwner {
@@ -865,6 +952,7 @@ class TripMapScreenTest {
         TripMapViewModel.factory(
             tripId = TRIP_ID,
             tripRepository = tripRepository,
+            activityRepository = activityRepository,
             userRepository = FakeUserRepository(User(USER_ID, "Alex", null)),
         )
     val locationViewModelFactory =
@@ -945,6 +1033,25 @@ class TripMapScreenTest {
           .onNodeWithTag(tag)
           .assertIsDisplayed()
           .assertContentDescriptionEquals(activity.location.name)
+    }
+  }
+
+  private fun assertActivityMarkerDrawnAt(tag: String, location: TripLocation) {
+    composeRule.onAllNodesWithTag(tag).assertCountEquals(1)
+    composeRule.waitUntil(timeoutMillis = MAP_TEST_TIMEOUT_MILLIS) {
+      val expected = composeRule.runOnIdle {
+        val mapView = composeRule.findMapView()
+        val pixel =
+            mapView.mapboxMap.pixelForCoordinate(
+                Point.fromLngLat(location.longitude, location.latitude)
+            )
+        val mapOrigin = IntArray(2).also(mapView::getLocationInWindow)
+        Offset((mapOrigin[0] + pixel.x).toFloat(), (mapOrigin[1] + pixel.y).toFloat())
+      }
+      val bounds = composeRule.onNodeWithTag(tag).fetchSemanticsNode().boundsInWindow
+      // Activity pins are anchored at their bottom center.
+      abs(bounds.center.x - expected.x) < POSITION_TOLERANCE_PX &&
+          abs(bounds.bottom - expected.y) < POSITION_TOLERANCE_PX
     }
   }
 
@@ -1035,5 +1142,6 @@ class TripMapScreenTest {
   private companion object {
     const val TRIP_ID = "trip_lisbon"
     const val USER_ID = "user_1"
+    const val POSITION_TOLERANCE_PX = 4f
   }
 }
