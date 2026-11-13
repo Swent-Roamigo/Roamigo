@@ -16,7 +16,6 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -49,9 +48,9 @@ class TripMapViewModel(
   /**
    * Loads the trip again, cancelling any running load so only the latest one updates the UI.
    *
-   * The map is shown after the first activity snapshot or error, with fallback information for
-   * every member. Activity failures leave the trip usable and can be retried separately. The
-   * members' profiles are filled in once they are fetched.
+   * The trip is shown as soon as it is fetched, with fallback information for every member.
+   * Activities and member profiles load independently. Activity failures leave the trip usable and
+   * can be retried separately.
    */
   fun retryTrip() {
     tripLoadJob?.cancel()
@@ -65,7 +64,7 @@ class TripMapViewModel(
           return@launch
         }
         currentCoroutineContext().ensureActive()
-        observeActivities(
+        val loaded =
             TripMapUiState.Loaded(
                 trip = trip,
                 viewport =
@@ -75,9 +74,8 @@ class TripMapViewModel(
                 members =
                     trip.memberIds.associateWith { userId -> memberDisplayInfo(userId, null) },
             )
-        )
-        // Frame the map after the first activity snapshot or error, then keep observing updates.
-        uiState.first { it is TripMapUiState.Loaded }
+        _uiState.value = loaded
+        observeActivities(loaded)
 
         val members = loadMembers(trip.memberIds)
         _uiState.update { state ->
