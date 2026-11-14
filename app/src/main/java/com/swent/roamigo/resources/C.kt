@@ -126,6 +126,7 @@ object C {
     const val trip_map_error = "trip_map_error"
     const val trip_map_retry = "trip_map_retry"
     const val trip_map_retry_activities = "trip_map_retry_activities"
+    const val trip_map_show_all_locations = "trip_map_show_all_locations"
     const val trip_map_offline = "trip_map_offline"
     const val trip_map_location_error = "trip_map_location_error"
     const val photos_screen = "photos_screen"

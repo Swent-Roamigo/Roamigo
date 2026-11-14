@@ -102,27 +102,31 @@ import com.swent.roamigo.ui.theme.WarningSurface
  *
  * @param tripId identifier of the trip to show. Must be the trip both factories were built for.
  * @param tripMapViewModelFactory creates the [TripMapViewModel] of the trip.
- * @param locationViewModelFactory creates the [LocationViewModel] of the trip.
+ * @param locationViewModelFactory creates the location ViewModel, or null while it is unavailable.
  * @param modifier modifier applied to the screen.
  * @param permissionChecker tells whether the location permission is granted, and whether the system
  *   would ask for it again after a refusal.
  * @param startActivity starts the activity of an intent, such as the app's settings.
+ * @param readOnly whether location sharing controls are hidden for this trip.
  */
 @Composable
 fun TripMapRoute(
     tripId: String,
     tripMapViewModelFactory: ViewModelProvider.Factory,
-    locationViewModelFactory: ViewModelProvider.Factory,
+    locationViewModelFactory: ViewModelProvider.Factory?,
     modifier: Modifier = Modifier,
     permissionChecker: LocationPermissionChecker = rememberLocationPermissionChecker(),
     startActivity: (Intent) -> Unit = LocalContext.current::startActivity,
+    readOnly: Boolean = false,
 ) {
   val tripMapViewModel: TripMapViewModel =
       viewModel(key = "trip_map_$tripId", factory = tripMapViewModelFactory)
-  val locationViewModel: LocationViewModel =
-      viewModel(key = "trip_map_location_$tripId", factory = locationViewModelFactory)
+  val locationViewModel: LocationViewModel? = locationViewModelFactory?.let {
+    viewModel(key = "trip_map_location_$tripId", factory = it)
+  }
   val tripUiState by tripMapViewModel.uiState.collectAsStateWithLifecycle()
-  val locationUiState by locationViewModel.uiState.collectAsStateWithLifecycle()
+  val locationUiState =
+      locationViewModel?.uiState?.collectAsStateWithLifecycle()?.value ?: LocationUiState()
   val context = LocalContext.current
 
   val permissionLauncher =
@@ -130,14 +134,14 @@ fun TripMapRoute(
           results ->
         // Asked after the answer: only then does the system tell a refusal it will repeat from one
         // that is final.
-        locationViewModel.onPermissionResult(
+        locationViewModel?.onPermissionResult(
             granted = results.values.any { it },
             shouldShowRationale = permissionChecker.shouldShowRationale(),
         )
       }
 
   LaunchedEffect(locationViewModel) {
-    locationViewModel.effects.collect { effect ->
+    locationViewModel?.effects?.collect { effect ->
       when (effect) {
         LocationEffect.RequestPermission -> permissionLauncher.launch(LOCATION_PERMISSIONS)
         LocationEffect.OpenSettings ->
@@ -152,7 +156,7 @@ fun TripMapRoute(
   }
 
   LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-    locationViewModel.onPermissionChecked(permissionChecker.isGranted())
+    locationViewModel?.onPermissionChecked(permissionChecker.isGranted())
   }
 
   TripMapScreen(
@@ -166,15 +170,16 @@ fun TripMapRoute(
       isOffline = locationUiState.isOffline,
       onRetry = tripMapViewModel::retryTrip,
       onRetryActivities = tripMapViewModel::retryActivities,
-      onTurnOnSharing = { locationViewModel.onTurnOnSharingClick(permissionChecker.isGranted()) },
-      onPauseSharing = locationViewModel::stopSharing,
+      onTurnOnSharing = { locationViewModel?.onTurnOnSharingClick(permissionChecker.isGranted()) },
+      onPauseSharing = { locationViewModel?.stopSharing() },
       modifier = modifier,
+      readOnly = readOnly || locationViewModel == null,
   )
   LocationPermissionSheet(
       sheet = locationUiState.permissionSheet,
-      onContinue = { locationViewModel.onRationaleContinue(permissionChecker.isGranted()) },
-      onOpenSettings = locationViewModel::onOpenSettings,
-      onDismiss = locationViewModel::onPermissionSheetDismissed,
+      onContinue = { locationViewModel?.onRationaleContinue(permissionChecker.isGranted()) },
+      onOpenSettings = { locationViewModel?.onOpenSettings() },
+      onDismiss = { locationViewModel?.onPermissionSheetDismissed() },
   )
 }
 
@@ -208,6 +213,7 @@ private val MyLocationDotBorderWidth = 3.dp
  * @param onRetryActivities called when the user retries loading activities and suggestions.
  * @param onTurnOnSharing called when the user asks to start sharing their location.
  * @param onPauseSharing called when the user asks to stop sharing their location.
+ * @param cameraState UI-owned camera interaction state for gestures and pending viewport updates.
  * @param modifier modifier applied to the screen.
  */
 @Composable
@@ -227,9 +233,13 @@ fun TripMapScreen(
     isOffline: Boolean = false,
     nowMillis: Long = rememberCurrentTimeMillis(isTicking = memberLocations.isNotEmpty()),
     isStartingSharing: Boolean = false,
+    cameraState: TripMapCameraState = rememberTripMapCameraState(),
 ) {
   // Until the trip is loaded the camera keeps its position, so the map stays usable underneath.
   val viewport = (uiState as? TripMapUiState.Loaded)?.viewport ?: TripMapViewport.None
+  val mapState = rememberTripMapGesturesState { cameraState.onCameraGesture(viewport) }
+  val mapViewportState =
+      rememberTripMapViewportState(viewport, autoFrame = !cameraState.hasUserMovedCamera)
   val onMarkerClick = rememberNotImplementedAction()
   val members = (uiState as? TripMapUiState.Loaded)?.members.orEmpty()
   val snackbarHostState = remember { SnackbarHostState() }
@@ -265,7 +275,8 @@ fun TripMapScreen(
     ) {
       MapboxMap(
           modifier = Modifier.fillMaxSize().testTag(C.Tag.trip_map_map),
-          mapViewportState = rememberTripMapViewportState(viewport),
+          mapViewportState = mapViewportState,
+          mapState = mapState,
           // Top end: the sharing chip and the offline banner are stacked at the top start, and the
           // logo and attribution stay at the bottom.
           scaleBar = {
@@ -368,6 +379,20 @@ fun TripMapScreen(
                 hostState = snackbarHostState,
                 modifier = Modifier.testTag(C.Tag.trip_map_location_error),
             )
+            if (cameraState.shouldShowAllLocations(viewport)) {
+              Button(
+                  onClick = cameraState::showAllLocations,
+                  shape = MaterialTheme.shapes.medium,
+                  modifier =
+                      Modifier.padding(
+                              horizontal = Spacing.screenPadding,
+                              vertical = Spacing.medium,
+                          )
+                          .testTag(C.Tag.trip_map_show_all_locations),
+              ) {
+                Text(stringResource(R.string.trip_map_show_all_locations))
+              }
+            }
             if (
                 uiState is TripMapUiState.Loaded &&
                     uiState.activitiesLoadState == ActivitiesLoadState.ERROR

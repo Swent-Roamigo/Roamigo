@@ -37,7 +37,6 @@ import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.map.LocationViewModel
 import com.swent.roamigo.ui.map.TripMapRoute
-import com.swent.roamigo.ui.map.TripMapScreen
 import com.swent.roamigo.ui.map.TripMapUiState
 import com.swent.roamigo.ui.map.TripMapViewModel
 import com.swent.roamigo.ui.photos.PhotosRoute
@@ -188,25 +187,14 @@ internal fun TripRoute(
                 onPhotosClick = { tab = TripSection.Photos },
                 onMembersClick = onMembersClick,
             )
-        TripSection.Map -> {
-          if (readOnly) {
-            TripMapScreen(
-                uiState = tripState,
-                isSharing = false,
-                onRetry = tripModel::retryTrip,
-                onRetryActivities = tripModel::retryActivities,
-                onTurnOnSharing = {},
-                onPauseSharing = {},
-                readOnly = true,
-            )
-          } else {
+        // Keep the map and its camera state when trip loading changes action availability.
+        TripSection.Map ->
             TripMapRoute(
                 tripId = tripId,
                 tripMapViewModelFactory = tripMapFactory,
-                locationViewModelFactory = requireNotNull(locationFactory),
+                locationViewModelFactory = locationFactory,
+                readOnly = readOnly,
             )
-          }
-        }
         TripSection.Votes ->
             TripVotes(
                 tripId,
