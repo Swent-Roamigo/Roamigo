@@ -42,6 +42,7 @@ import com.swent.roamigo.model.trip.inviting.TripInvitationService
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.TripActionButton
 import com.swent.roamigo.ui.theme.Spacing
+import java.util.UUID
 
 /** Creates the invitation link of [tripId] and shows it in a bottom sheet. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -51,9 +52,14 @@ fun InviteRoute(
     service: TripInvitationService,
     onDismiss: () -> Unit,
 ) {
+  // The sheet is shown outside the navigation graph, so its ViewModel lives as long as the
+  // Activity. Without a key that changes every time the sheet opens, reopening it would show the
+  // state of the last visit (for example "stopped") instead of a fresh link. The ID is saved so a
+  // rotation keeps the same ViewModel.
+  val openingId = rememberSaveable { UUID.randomUUID().toString() }
   val viewModel: InviteViewModel =
       viewModel(
-          key = "invite_$tripId",
+          key = "invite_${tripId}_$openingId",
           factory = InviteViewModel.factory(tripId, service),
       )
   val state by viewModel.uiState.collectAsStateWithLifecycle()

@@ -37,7 +37,7 @@ import com.swent.roamigo.model.trip.activity.ActivityRepository
 import com.swent.roamigo.model.trip.activity.FakeActivityRepository
 import com.swent.roamigo.model.trip.inviting.InvitationLinks
 import com.swent.roamigo.model.trip.inviting.TripInvitationService
-import com.swent.roamigo.model.trip.inviting.TripInvitationServiceFunctions
+import com.swent.roamigo.model.trip.inviting.UnavailableTripInvitationService
 import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
@@ -82,6 +82,7 @@ import kotlinx.coroutines.launch
  * @param photoRepository Takes trip photos and keeps them until they are uploaded.
  * @param connectivityRepository Tells whether the device is online; the device's own by default.
  * @param invitationService Creates, previews and accepts the links that invite people to a trip.
+ *   Every call fails by default, so only production wiring talks to the backend.
  * @param locationRepository Shares the user's location on a trip map; the app-wide instance of
  *   [RoamigoApplication] by default, since sharing must go through a single instance.
  */
@@ -99,7 +100,7 @@ fun RoamigoApp(
     connectivityRepository: ConnectivityRepository? = null,
     locationRepository: LocationRepository? = null,
     countryCounts: VisitedCountryCounts = remember { VisitedCountryCounts { emptyMap() } },
-    invitationService: TripInvitationService = remember { TripInvitationServiceFunctions() },
+    invitationService: TripInvitationService = UnavailableTripInvitationService,
 ) {
   val context = LocalContext.current
   val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }
@@ -225,6 +226,7 @@ fun RoamigoApp(
       ProfileRoute(
           authRepository = authRepository,
           onSignedOut = {
+            pendingJoinToken = null
             scope.launch {
               try {
                 manager.clearCredentialState(ClearCredentialStateRequest())

@@ -154,7 +154,7 @@ class TripsScreenTest {
         TripsRoute(
             tripRepository = tripRepository,
             userRepository = userRepository,
-            onInviteClick = { inviteClicks++ },
+            onInviteTrip = { inviteClicks++ },
             clock = clock,
         )
       }

@@ -51,10 +51,44 @@ interface TripInvitationService {
   suspend fun revokeLinks(tripId: String)
 }
 
-internal class TripInvitationServiceFunctions(
+/**
+ * The service when no backend is provided, for previews and tests that do not exercise invitations:
+ * every call fails, and nothing reaches the network. Production passes
+ * [TripInvitationServiceFunctions] explicitly.
+ */
+internal object UnavailableTripInvitationService : TripInvitationService {
+  override suspend fun createLink(tripId: String): InvitationLink =
+      throw InvitationException.Unavailable()
+
+  override suspend fun preview(token: String): InvitationPreview =
+      throw InvitationException.Unavailable()
+
+  override suspend fun accept(token: String): String = throw InvitationException.Unavailable()
+
+  override suspend fun revokeLinks(tripId: String): Unit = throw InvitationException.Unavailable()
+}
+
+/** Calls a Cloud Function by name and returns the data it answered with. */
+internal fun interface CallableInvoker {
+  suspend fun call(name: String, arguments: Map<String, String>): Any?
+}
+
+/** The callable functions of the real project, in the region the backend is deployed to. */
+internal class FirebaseCallableInvoker(
     private val functions: () -> FirebaseFunctions = {
       FirebaseFunctions.getInstance("europe-west1")
     },
+) : CallableInvoker {
+  override suspend fun call(name: String, arguments: Map<String, String>): Any? =
+      try {
+        functions().getHttpsCallable(name).call(arguments).await().getData()
+      } catch (exception: FirebaseFunctionsException) {
+        throw invitationExceptionFor(exception.code, exception)
+      }
+}
+
+internal class TripInvitationServiceFunctions(
+    private val invoker: CallableInvoker = FirebaseCallableInvoker(),
 ) : TripInvitationService {
   override suspend fun createLink(tripId: String): InvitationLink {
     val data = call("createTripInvitation", mapOf("tripId" to tripId))
@@ -82,21 +116,19 @@ internal class TripInvitationServiceFunctions(
   }
 
   private suspend fun call(name: String, arguments: Map<String, String>): Map<*, *> =
-      try {
-        functions().getHttpsCallable(name).call(arguments).await().getData() as? Map<*, *>
-            ?: throw InvitationException.Unavailable()
-      } catch (exception: FirebaseFunctionsException) {
-        throw exception.toInvitationException()
-      }
+      invoker.call(name, arguments) as? Map<*, *> ?: throw InvitationException.Unavailable()
 
   private fun Map<*, *>.string(key: String): String =
       (this[key] as? String)?.takeIf { it.isNotBlank() } ?: throw InvitationException.Unavailable()
 }
 
-internal fun FirebaseFunctionsException.toInvitationException(): InvitationException =
+internal fun invitationExceptionFor(
+    code: FirebaseFunctionsException.Code,
+    cause: Throwable? = null,
+): InvitationException =
     when (code) {
-      FirebaseFunctionsException.Code.NOT_FOUND -> InvitationException.Invalid(this)
-      FirebaseFunctionsException.Code.RESOURCE_EXHAUSTED -> InvitationException.Full(this)
-      FirebaseFunctionsException.Code.PERMISSION_DENIED -> InvitationException.NotAllowed(this)
-      else -> InvitationException.Unavailable(this)
+      FirebaseFunctionsException.Code.NOT_FOUND -> InvitationException.Invalid(cause)
+      FirebaseFunctionsException.Code.RESOURCE_EXHAUSTED -> InvitationException.Full(cause)
+      FirebaseFunctionsException.Code.PERMISSION_DENIED -> InvitationException.NotAllowed(cause)
+      else -> InvitationException.Unavailable(cause)
     }

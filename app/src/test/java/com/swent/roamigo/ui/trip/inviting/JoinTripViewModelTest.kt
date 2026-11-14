@@ -1,6 +1,8 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.ui.trip.inviting
 
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import com.swent.roamigo.model.trip.inviting.FakeTripInvitationService
 import com.swent.roamigo.model.trip.inviting.InvitationException
 import com.swent.roamigo.model.trip.inviting.InvitationPreview
@@ -15,6 +17,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 
@@ -159,4 +162,50 @@ class JoinTripViewModelTest {
 
         assertEquals(JoinTripUiState.Ready(member), model.uiState.value)
       }
+
+  @Test
+  fun theFactoryBuildsTheViewModelAndClosingItCancelsARunningCheck() =
+      runTest(dispatcher) {
+        service.gate = CompletableDeferred()
+        val store = ViewModelStore()
+        val model =
+            ViewModelProvider(store, JoinTripViewModel.factory("tok", service))[
+                JoinTripViewModel::class.java]
+        advanceUntilIdle()
+        assertEquals(JoinTripUiState.Loading, model.uiState.value)
+
+        store.clear()
+        advanceUntilIdle()
+
+        assertEquals(JoinTripUiState.Loading, model.uiState.value)
+        assertEquals(listOf("tok"), service.previewed)
+      }
+
+  @Test
+  fun closingTheViewModelCancelsAJoinInProgress() =
+      runTest(dispatcher) {
+        val store = ViewModelStore()
+        val model =
+            ViewModelProvider(store, JoinTripViewModel.factory("tok", service))[
+                JoinTripViewModel::class.java]
+        advanceUntilIdle()
+        service.gate = CompletableDeferred()
+        model.join()
+        advanceUntilIdle()
+        assertEquals(JoinTripUiState.Joining(preview), model.uiState.value)
+
+        store.clear()
+        advanceUntilIdle()
+
+        assertEquals(JoinTripUiState.Joining(preview), model.uiState.value)
+      }
+
+  @Test
+  fun theFactoryOnlyBuildsTheJoinViewModel() {
+    val factory = JoinTripViewModel.factory("tok", service)
+
+    assertThrows(IllegalArgumentException::class.java) {
+      factory.create(InviteViewModel::class.java)
+    }
+  }
 }

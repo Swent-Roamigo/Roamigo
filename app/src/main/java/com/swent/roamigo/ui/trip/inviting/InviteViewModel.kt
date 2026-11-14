@@ -41,9 +41,12 @@ class InviteViewModel(
     load()
   }
 
-  /** Creates the link again, after a failure or after it was stopped. */
+  /**
+   * Creates the link again, after a failure or after it was stopped. Does nothing while another
+   * request is running, so a late retry cannot cancel a revoke that the server is already handling.
+   */
   fun load() {
-    job?.cancel()
+    if (job?.isActive == true) return
     _uiState.value = InviteUiState.Loading
     job = viewModelScope.launch {
       _uiState.value =
@@ -64,9 +67,13 @@ class InviteViewModel(
     }
   }
 
-  /** Stops every link of the trip. People who already joined stay on it. */
+  /**
+   * Stops every link of the trip. People who already joined stay on it. A second tap while the
+   * request is running does nothing.
+   */
   fun stopSharing() {
-    job?.cancel()
+    if (job?.isActive == true) return
+    _uiState.value = InviteUiState.Loading
     job = viewModelScope.launch {
       _uiState.value =
           try {

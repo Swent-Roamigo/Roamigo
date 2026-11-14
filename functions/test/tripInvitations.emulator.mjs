@@ -77,5 +77,24 @@ await db.doc("trips/t1").update({memberIds: Array.from({length: 10}, (_, i) => `
 r = await call("acceptTripInvitation", other, {token: t3});
 check("a full trip refuses", r.body.error?.status === "RESOURCE_EXHAUSTED", r);
 
+// Two quick calls (a double tap, or a retry) must not create two links.
+await db.doc("trips/t4").set({name: "Porto", ownerId: owner.uid, memberIds: [owner.uid], travelMode: "GROUP", travelerCount: 4});
+const burst = await Promise.all(Array.from({length: 5}, () => call("createTripInvitation", owner, {tripId: "t4"})));
+const tokens = new Set(burst.map((x) => x.body.result?.token));
+const pending = await db.collection("tripInvitations").where("tripId", "==", "t4").where("status", "==", "PENDING").get();
+check("concurrent creates share one link", tokens.size === 1 && !tokens.has(undefined) && pending.size === 1, [[...tokens], pending.size]);
+
+// A solo trip that gains a member becomes a group trip, as firestore.rules require.
+await db.doc("trips/t5").set({name: "Alone", ownerId: owner.uid, memberIds: [owner.uid], travelMode: "SOLO", travelerCount: 1});
+const t5 = (await call("createTripInvitation", owner, {tripId: "t5"})).body.result.token;
+r = await call("acceptTripInvitation", guest, {token: t5});
+trip = (await db.doc("trips/t5").get()).data();
+check("joining a solo trip makes it a group trip", r.body.result?.tripId === "t5" && trip.travelMode === "GROUP" && trip.travelerCount === 2, [r, trip]);
+await db.doc("trips/t6").set({name: "Crew", ownerId: owner.uid, memberIds: [owner.uid], travelMode: "GROUP", travelerCount: 5});
+const t6 = (await call("createTripInvitation", owner, {tripId: "t6"})).body.result.token;
+await call("acceptTripInvitation", guest, {token: t6});
+trip = (await db.doc("trips/t6").get()).data();
+check("a group trip keeps its planned traveler count", trip.travelMode === "GROUP" && trip.travelerCount === 5, trip);
+
 console.log(failures === 0 ? "ALL PASSED" : `${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

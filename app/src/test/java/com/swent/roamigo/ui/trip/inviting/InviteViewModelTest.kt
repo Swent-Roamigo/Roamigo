@@ -1,6 +1,8 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.ui.trip.inviting
 
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import com.swent.roamigo.model.trip.inviting.FakeTripInvitationService
 import com.swent.roamigo.model.trip.inviting.InvitationException
 import com.swent.roamigo.model.trip.inviting.InvitationLink
@@ -15,6 +17,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 
@@ -129,4 +132,100 @@ class InviteViewModelTest {
         advanceUntilIdle()
         assertEquals(true, model.uiState.value is InviteUiState.Ready)
       }
+
+  @Test
+  fun stoppingShowsProgressAndASecondTapRevokesOnlyOnce() =
+      runTest(dispatcher) {
+        val model = InviteViewModel("trip", service)
+        advanceUntilIdle()
+        service.gate = CompletableDeferred()
+
+        model.stopSharing()
+        advanceUntilIdle()
+        assertEquals(InviteUiState.Loading, model.uiState.value)
+
+        model.stopSharing()
+        service.gate!!.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(listOf("trip"), service.revokedFor)
+        assertEquals(InviteUiState.Stopped, model.uiState.value)
+      }
+
+  @Test
+  fun aLinkIsNotCreatedWhileTheTripIsBeingRevoked() =
+      runTest(dispatcher) {
+        val model = InviteViewModel("trip", service)
+        advanceUntilIdle()
+        service.gate = CompletableDeferred()
+        model.stopSharing()
+        advanceUntilIdle()
+
+        model.load()
+        service.gate!!.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(1, service.createdFor.size)
+        assertEquals(InviteUiState.Stopped, model.uiState.value)
+      }
+
+  @Test
+  fun aFailedStopByAMemberWhoIsNotTheOrganiserIsExplained() =
+      runTest(dispatcher) {
+        val model = InviteViewModel("trip", service)
+        advanceUntilIdle()
+        service.failure = InvitationException.NotAllowed()
+
+        model.stopSharing()
+        advanceUntilIdle()
+
+        assertEquals(InviteUiState.Failed(notAllowed = true), model.uiState.value)
+      }
+
+  @Test
+  fun theFactoryBuildsTheViewModelAndClosingItCancelsARunningRequest() =
+      runTest(dispatcher) {
+        service.gate = CompletableDeferred()
+        val store = ViewModelStore()
+        val model =
+            ViewModelProvider(store, InviteViewModel.factory("trip", service))[
+                InviteViewModel::class.java]
+        advanceUntilIdle()
+        assertEquals(InviteUiState.Loading, model.uiState.value)
+
+        store.clear()
+        advanceUntilIdle()
+
+        // The cancelled request neither failed nor succeeded.
+        assertEquals(InviteUiState.Loading, model.uiState.value)
+        assertEquals(listOf("trip"), service.createdFor)
+      }
+
+  @Test
+  fun closingTheViewModelCancelsARunningRevoke() =
+      runTest(dispatcher) {
+        val store = ViewModelStore()
+        val model =
+            ViewModelProvider(store, InviteViewModel.factory("trip", service))[
+                InviteViewModel::class.java]
+        advanceUntilIdle()
+        service.gate = CompletableDeferred()
+        model.stopSharing()
+        advanceUntilIdle()
+
+        store.clear()
+        advanceUntilIdle()
+
+        assertEquals(InviteUiState.Loading, model.uiState.value)
+        assertEquals(listOf("trip"), service.revokedFor)
+      }
+
+  @Test
+  fun theFactoryOnlyBuildsTheInviteViewModel() {
+    val factory = InviteViewModel.factory("trip", service)
+
+    assertThrows(IllegalArgumentException::class.java) {
+      factory.create(JoinTripViewModel::class.java)
+    }
+  }
 }
