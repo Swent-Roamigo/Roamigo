@@ -213,6 +213,7 @@ private val MyLocationDotBorderWidth = 3.dp
  * @param onRetryActivities called when the user retries loading activities and suggestions.
  * @param onTurnOnSharing called when the user asks to start sharing their location.
  * @param onPauseSharing called when the user asks to stop sharing their location.
+ * @param cameraState UI-owned camera interaction state for gestures and pending viewport updates.
  * @param modifier modifier applied to the screen.
  */
 @Composable
@@ -232,12 +233,13 @@ fun TripMapScreen(
     isOffline: Boolean = false,
     nowMillis: Long = rememberCurrentTimeMillis(isTicking = memberLocations.isNotEmpty()),
     isStartingSharing: Boolean = false,
+    cameraState: TripMapCameraState = rememberTripMapCameraState(),
 ) {
   // Until the trip is loaded the camera keeps its position, so the map stays usable underneath.
   val viewport = (uiState as? TripMapUiState.Loaded)?.viewport ?: TripMapViewport.None
-  var hasUserMovedCamera by rememberSaveable { mutableStateOf(false) }
-  val mapState = rememberTripMapGesturesState { hasUserMovedCamera = true }
-  val mapViewportState = rememberTripMapViewportState(viewport, autoFrame = !hasUserMovedCamera)
+  val mapState = rememberTripMapGesturesState { cameraState.onCameraGesture(viewport) }
+  val mapViewportState =
+      rememberTripMapViewportState(viewport, autoFrame = !cameraState.hasUserMovedCamera)
   val onMarkerClick = rememberNotImplementedAction()
   val members = (uiState as? TripMapUiState.Loaded)?.members.orEmpty()
   val snackbarHostState = remember { SnackbarHostState() }
@@ -377,6 +379,20 @@ fun TripMapScreen(
                 hostState = snackbarHostState,
                 modifier = Modifier.testTag(C.Tag.trip_map_location_error),
             )
+            if (cameraState.shouldShowAllLocations(viewport)) {
+              Button(
+                  onClick = cameraState::showAllLocations,
+                  shape = MaterialTheme.shapes.medium,
+                  modifier =
+                      Modifier.padding(
+                              horizontal = Spacing.screenPadding,
+                              vertical = Spacing.medium,
+                          )
+                          .testTag(C.Tag.trip_map_show_all_locations),
+              ) {
+                Text(stringResource(R.string.trip_map_show_all_locations))
+              }
+            }
             if (
                 uiState is TripMapUiState.Loaded &&
                     uiState.activitiesLoadState == ActivitiesLoadState.ERROR

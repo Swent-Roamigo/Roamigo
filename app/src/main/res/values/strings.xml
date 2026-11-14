@@ -152,6 +152,7 @@
     <!-- Trip map -->
     <string name="trip_map_trip_loading">Loading trip…</string>
     <string name="trip_map_retry_activities">Retry loading activities</string>
+    <string name="trip_map_show_all_locations">Show all locations</string>
     <string name="trip_map_trip_load_error">Unable to load this trip. Please try again.</string>
     <string name="trip_map_sharing_off_title">Location off</string>
     <string name="trip_map_sharing_on_title">Sharing location</string>
