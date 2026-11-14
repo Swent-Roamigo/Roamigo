@@ -49,6 +49,7 @@ import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.trips.components.HistoryButton
+import com.swent.roamigo.ui.trips.components.JoinTripButton
 import com.swent.roamigo.ui.trips.components.MainTripCard
 import com.swent.roamigo.ui.trips.components.NextActivityCard
 import com.swent.roamigo.ui.trips.components.OtherTripCard
@@ -66,7 +67,10 @@ import java.time.Clock
  * @param userRepository the repository providing the current user and member profiles.
  * @param mainTripImageRes the optional image resource displayed for the highlighted trip.
  * @param nextActivityImageRes the optional image resource displayed for the next activity.
- * @param onInviteClick invoked when the user selects the invite action.
+ * @param onInviteTrip invoked with the highlighted trip's ID when the user selects the invite
+ *   action. Shows the "not implemented" feedback when it is not set.
+ * @param onJoinClick invoked when the user wants to join a trip with a code. The action is only
+ *   shown when it is set.
  * @param onNewTripClick invoked when the user selects the new-trip action.
  * @param onTripsClick invoked when the Trips navigation destination is selected.
  * @param onMapClick invoked when the Map navigation destination is selected.
@@ -86,7 +90,8 @@ fun TripsRoute(
     authRepository: AuthRepository? = null,
     @DrawableRes mainTripImageRes: Int? = null,
     @DrawableRes nextActivityImageRes: Int? = null,
-    onInviteClick: () -> Unit = rememberNotImplementedAction(),
+    onInviteTrip: ((tripId: String) -> Unit)? = null,
+    onJoinClick: (() -> Unit)? = null,
     onNewTripClick: () -> Unit = rememberNotImplementedAction(),
     onTripsClick: () -> Unit = {},
     onMapClick: () -> Unit = rememberNotImplementedAction(),
@@ -117,12 +122,18 @@ fun TripsRoute(
     }
   }
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  val inviteNotImplemented = rememberNotImplementedAction()
+  val inviteMainTrip: () -> Unit = {
+    val tripId = uiState.mainTrip?.id
+    if (tripId != null && onInviteTrip != null) onInviteTrip(tripId) else inviteNotImplemented()
+  }
 
   TripsScreen(
       uiState = uiState,
       mainTripImageRes = mainTripImageRes,
       nextActivityImageRes = nextActivityImageRes,
-      onInviteClick = onInviteClick,
+      onInviteClick = inviteMainTrip,
+      onJoinClick = onJoinClick,
       onNewTripClick = onNewTripClick,
       onTripsClick = onTripsClick,
       onMapClick = onMapClick,
@@ -145,6 +156,7 @@ fun TripsRoute(
  * @param mainTripImageRes the optional image resource displayed for the highlighted trip.
  * @param nextActivityImageRes the optional image resource displayed for the next activity.
  * @param onInviteClick invoked when the user selects the invite action.
+ * @param onJoinClick invoked when the user wants to join a trip with a code, shown when set.
  * @param onNewTripClick invoked when the user selects the new-trip action.
  * @param onTripsClick invoked when the Trips navigation destination is selected.
  * @param onMapClick invoked when the Map navigation destination is selected.
@@ -161,6 +173,7 @@ fun TripsScreen(
     @DrawableRes mainTripImageRes: Int? = null,
     @DrawableRes nextActivityImageRes: Int? = null,
     onInviteClick: () -> Unit = rememberNotImplementedAction(),
+    onJoinClick: (() -> Unit)? = null,
     onNewTripClick: () -> Unit = rememberNotImplementedAction(),
     onTripsClick: () -> Unit = {},
     onMapClick: () -> Unit = rememberNotImplementedAction(),
@@ -288,7 +301,10 @@ fun TripsScreen(
                 Spacer(modifier = Modifier.weight(1f))
               }
 
-              HistoryButton(onClick = onHistoryClick)
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                if (onJoinClick != null) JoinTripButton(onClick = onJoinClick)
+                HistoryButton(onClick = onHistoryClick)
+              }
             }
           }
           if (uiState.errorMessage == null) {

@@ -7,7 +7,8 @@
     "shell": "npm run build && firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "logs": "firebase functions:log",
+    "test:emulator": "npm run build && firebase emulators:exec --only auth,firestore,functions --project demo-roamigo \"node test/tripInvitations.emulator.mjs\""
   },
   "engines": {
     "node": "24"

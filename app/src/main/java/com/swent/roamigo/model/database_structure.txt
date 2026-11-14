@@ -5,7 +5,14 @@ users/{userId}
 
 friendships/{friendshipId} // later feature
 
-tripInvitations/{invitationId} // later feature
+tripInvitations/{token}      // written and read only by Cloud Functions, never by clients
+    uid: string                // same as the document ID and the token (22 random URL-safe chars)
+    tripId: string
+    inviterUserId: string      // the trip owner
+    inviteeUserId: string | null  // null for a link anyone can use
+    status: "PENDING" | "REVOKED"  // PENDING until revoked or expired
+    creationTime: timestamp
+    expirationTime: timestamp  // 7 days after creation
 
 trips/{tripId}
     name: string

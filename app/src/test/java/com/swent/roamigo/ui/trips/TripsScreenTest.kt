@@ -154,7 +154,7 @@ class TripsScreenTest {
         TripsRoute(
             tripRepository = tripRepository,
             userRepository = userRepository,
-            onInviteClick = { inviteClicks++ },
+            onInviteTrip = { inviteClicks++ },
             clock = clock,
         )
       }
@@ -184,6 +184,67 @@ class TripsScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.trips_invite_button).performClick()
 
     assertEquals(1, inviteClicks)
+  }
+
+  @Test
+  fun inviteOpensTheInvitationOfTheHighlightedTrip() {
+    val now = Instant.parse("2026-10-08T12:00:00Z")
+    val mainTrip =
+        trip(
+            uid = "main",
+            name = "Lisbon & Porto",
+            start = now.minusSeconds(24 * 60 * 60),
+            end = now.plusSeconds(3 * 24 * 60 * 60),
+            status = TripStatus.ACTIVE,
+            ownerId = "alex",
+        )
+    var invitedTrip: String? = null
+
+    composeTestRule.setContent {
+      MaterialTheme {
+        TripsRoute(
+            tripRepository =
+                FakeTripRepository(
+                    trips = listOf(mainTrip),
+                    membersByTripId = mapOf(mainTrip.uid to listOf(member("alex", now))),
+                ),
+            userRepository = FakeUserRepository(currentUser = User("alex", "Alex", null)),
+            onInviteTrip = { invitedTrip = it },
+            clock = Clock.fixed(now, ZoneOffset.UTC),
+        )
+      }
+    }
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule
+          .onAllNodesWithTag(C.Tag.trips_invite_button)
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.trips_invite_button).performClick()
+
+    assertEquals("main", invitedTrip)
+  }
+
+  @Test
+  fun joinActionIsOnlyShownWhenItIsProvided() {
+    var joinClicks = 0
+    var provided by mutableStateOf(false)
+    composeTestRule.setContent {
+      MaterialTheme {
+        TripsScreen(
+            uiState = TripsUiState(isLoading = false),
+            onJoinClick = if (provided) ({ joinClicks++ }) else null,
+        )
+      }
+    }
+
+    composeTestRule.onAllNodesWithTag(C.Tag.trips_join_button).assertCountEquals(0)
+
+    provided = true
+    composeTestRule.onNodeWithTag(C.Tag.trips_join_button).performClick()
+
+    assertEquals(1, joinClicks)
   }
 
   @Test

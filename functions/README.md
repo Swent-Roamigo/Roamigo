@@ -57,3 +57,26 @@ Android client. With restrictive rules but missing callables, resolution fails c
 no direct-write fallback. Deployment is not performed by these tests. If any earlier permissive
 resolution rules were deployed, audit historical resolution/linkage metadata before trusting it;
 tightening rules does not retroactively validate old writes.
+
+# Trip invitations
+
+AI assistance was used for implementation support.
+
+`createTripInvitation`, `previewTripInvitation`, `acceptTripInvitation` and
+`revokeTripInvitations` are authenticated callable functions in `europe-west1`
+(`functions/src/tripInvitations.ts`). They are the only way to join a trip: clients cannot edit
+`memberIds` or create another user's member document, and cannot read `tripInvitations` at all.
+
+- `createTripInvitation({tripId})` requires the trip owner. It returns a link token that expires
+  after 7 days. Asking again returns the same token while it is valid.
+- `previewTripInvitation({token})` returns the trip name, the inviter's name and whether the caller
+  is already a member, so the join screen can be shown before the trip becomes readable.
+- `acceptTripInvitation({token})` adds the caller to `memberIds` and creates their `EDITOR` member
+  document in one transaction (which also triggers `syncTripMember`). It is idempotent for an
+  existing member and refuses a trip that already has 10 members.
+- `revokeTripInvitations({tripId})` requires the trip owner and revokes every pending link.
+
+An unknown, revoked or expired token gives the same `not-found` answer, so tokens cannot be
+probed. The token is the invitation ID: 16 random bytes, URL-safe base64.
+
+The Android side is `TripInvitationService` (calls these functions) with the invite sheet and the join screen. Run `npm --prefix functions run test:emulator` to exercise the functions on the Auth, Firestore and Functions emulators. Push notifications are not covered.

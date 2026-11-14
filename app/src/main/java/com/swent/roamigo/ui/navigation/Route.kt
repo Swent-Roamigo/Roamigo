@@ -23,6 +23,9 @@ object Route {
   const val NEW_VOTE = "trip/{tripId}/new_vote"
   const val MEMBERS = "trip/{tripId}/members"
   const val TRIP_OVERVIEW_MAP = "trip_overview_map"
+  const val JOIN = "join/{token}"
+
+  fun join(token: String): String = "join/${Uri.encode(token)}"
 
   fun tripDetails(tripId: String, readOnly: Boolean = false, openMap: Boolean = false): String =
       "trip/${Uri.encode(tripId)}/details?readOnly=$readOnly&initialTab=${if (openMap) "map" else "detail"}"
@@ -39,6 +42,9 @@ object Route {
 
 /** The trip this destination was opened for. */
 internal fun NavBackStackEntry.tripId(): String = requireNotNull(arguments?.getString("tripId"))
+
+/** The invitation token this destination was opened for. */
+internal fun NavBackStackEntry.token(): String = requireNotNull(arguments?.getString("token"))
 
 /** The vote this destination was opened for. */
 internal fun NavBackStackEntry.voteId(): String = requireNotNull(arguments?.getString("voteId"))
