@@ -121,6 +121,44 @@ class TripMapCameraTest {
 
     waitForAllLocations()
     assertTrue(camera().zoom < before.zoom)
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).assertDoesNotExist()
+  }
+
+  @Test
+  fun showAllLocationsFitsTheLatestBoundsAndCanBeUsedAgainAfterAnotherGesture() {
+    setScreen()
+    pan()
+    val moved = camera()
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).assertDoesNotExist()
+
+    composeRule.runOnIdle {
+      uiState.value =
+          distantState.copy(
+              activityMarkers = distantMarkers.take(1),
+              viewport =
+                  tripMapViewportOf(
+                      listOf(MapCoordinate(38.7223, -9.1393), MapCoordinate(51.5074, -0.1278))
+                  ),
+          )
+    }
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).assertIsDisplayed()
+    composeRule.runOnIdle { uiState.value = distantState }
+    assertCameraEquals(moved)
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).performClick()
+
+    waitForAllLocations()
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).assertDoesNotExist()
+    pan()
+    composeRule.runOnIdle { uiState.value = loadedState }
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).performClick()
+    composeRule.waitUntil(MAP_TEST_TIMEOUT_MILLIS) {
+      val current = camera()
+      abs(current.center.latitude() - 38.7223) < CAMERA_TOLERANCE &&
+          abs(current.center.longitude() + 9.1393) < CAMERA_TOLERANCE &&
+          abs(current.zoom - SINGLE_POINT_ZOOM) < CAMERA_TOLERANCE
+    }
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).assertDoesNotExist()
   }
 
   @Test
