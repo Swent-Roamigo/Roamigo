@@ -100,6 +100,7 @@ object C {
     const val invite_copy = "invite_copy"
     const val invite_stop = "invite_stop"
     const val invite_stop_confirm = "invite_stop_confirm"
+    const val invite_stop_failed = "invite_stop_failed"
     const val invite_new_link = "invite_new_link"
     const val invite_retry = "invite_retry"
     const val trip_history_retry = "trip_history_retry"

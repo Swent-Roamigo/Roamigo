@@ -381,13 +381,13 @@
     <string name="invite_stop_title">Stop sharing this link?</string>
     <string name="invite_stop_message">Nobody can join with it any more. People who already joined stay on the trip.</string>
     <string name="invite_stop_confirm">Stop sharing</string>
+    <string name="invite_stop_failed">Unable to stop sharing the link. It still works. Please try again.</string>
     <string name="invite_stopped">The link no longer works. People who already joined stay on the trip.</string>
     <string name="invite_new_link">Create a new link</string>
     <string name="invite_failed">Unable to create the link. Please try again.</string>
     <string name="invite_not_allowed">Only the organiser can invite people to this trip.</string>
     <string name="invite_retry">Retry</string>
     <string name="invite_cancel">Cancel</string>
-    <string name="invite_close">Close</string>
 
     <string name="trip_ready_suggest">Suggest places</string>
     <string name="trip_ready_suggest_detail">Add sights and hotels for the group to vote on</string>

@@ -14,9 +14,11 @@ join are a separate change, and this page is extended there.
    shows the invite sheet with the code. Asking again returns the same link while it is valid.
 2. **Share.** "Share link" opens Android's share sheet with the text
    `Join my trip on Roamigo: roamigo://invite/<code>` and the code on a second line. "Copy code"
-   puts the code on the clipboard. Nothing is sent by Roamigo itself.
+   puts the code on the clipboard, marked as sensitive on Android 13 and later. Nothing is sent by
+   Roamigo itself.
 3. **Stop.** "Stop sharing this link" asks for confirmation and calls `revokeTripInvitations`. People
-   who already joined stay on the trip.
+   who already joined stay on the trip. If stopping fails, for example offline, the link stays on
+   screen with a message that it still works, so it is never mistaken for stopped.
 
 Only the trip organiser can create or stop a link. Another member who opens the sheet is told so.
 

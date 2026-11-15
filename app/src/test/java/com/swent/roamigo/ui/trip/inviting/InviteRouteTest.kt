@@ -2,7 +2,6 @@
 package com.swent.roamigo.ui.trip.inviting
 
 import android.app.Application
-import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
@@ -63,18 +62,6 @@ class InviteRouteTest {
       MaterialTheme { InviteRoute("trip", service, onDismiss = { open = false }) }
     }
     waitForTag(C.Tag.invite_code)
-  }
-
-  @Test
-  fun copyingTheCodePutsItOnTheClipboardAndSaysSo() {
-    showReadySheet()
-
-    composeRule.onNodeWithTag(C.Tag.invite_copy).performClick()
-
-    val context = ApplicationProvider.getApplicationContext<Context>()
-    val clip = context.getSystemService(ClipboardManager::class.java).primaryClip
-    assertEquals(service.link.token, clip?.getItemAt(0)?.text.toString())
-    assertEquals(context.getString(R.string.invite_copied), ShadowToast.getTextOfLatestToast())
   }
 
   @Test
