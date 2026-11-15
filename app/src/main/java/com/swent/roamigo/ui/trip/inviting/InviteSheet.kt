@@ -10,6 +10,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.PersistableBundle
 import android.widget.Toast
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -115,11 +116,7 @@ fun InviteSheetContent(
               color = MaterialTheme.colorScheme.error,
           )
         }
-        Text(
-            stringResource(R.string.invite_description),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        MutedText(R.string.invite_description)
         Surface(
             shape = MaterialTheme.shapes.small,
             color = MaterialTheme.colorScheme.surfaceVariant,
@@ -143,57 +140,25 @@ fun InviteSheetContent(
             )
           }
         }
-        TripActionButton(
-            onClick = { onShare(state) },
-            modifier = Modifier.testTag(C.Tag.invite_share),
-        ) {
-          Text(stringResource(R.string.invite_share))
+        ActionButton(R.string.invite_share, C.Tag.invite_share) { onShare(state) }
+        ActionButton(R.string.invite_copy_code, C.Tag.invite_copy, outlined = true) {
+          onCopyCode(state)
         }
-        TripActionButton(
-            onClick = { onCopyCode(state) },
-            modifier = Modifier.testTag(C.Tag.invite_copy),
-            outlined = true,
+        DestructiveTextButton(
+            R.string.invite_stop,
+            Modifier.fillMaxWidth().testTag(C.Tag.invite_stop),
         ) {
-          Text(stringResource(R.string.invite_copy_code))
-        }
-        TextButton(
-            onClick = { confirmingStop = true },
-            modifier = Modifier.fillMaxWidth().testTag(C.Tag.invite_stop),
-        ) {
-          Text(
-              stringResource(R.string.invite_stop),
-              color = MaterialTheme.colorScheme.error,
-          )
+          confirmingStop = true
         }
       }
       InviteUiState.Stopped -> {
-        Text(
-            stringResource(R.string.invite_stopped),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        TripActionButton(
-            onClick = onCreateLink,
-            modifier = Modifier.testTag(C.Tag.invite_new_link),
-        ) {
-          Text(stringResource(R.string.invite_new_link))
-        }
+        MutedText(R.string.invite_stopped)
+        ActionButton(R.string.invite_new_link, C.Tag.invite_new_link, onClick = onCreateLink)
       }
       is InviteUiState.Failed -> {
-        Text(
-            stringResource(
-                if (state.notAllowed) R.string.invite_not_allowed else R.string.invite_failed
-            ),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        MutedText(if (state.notAllowed) R.string.invite_not_allowed else R.string.invite_failed)
         if (!state.notAllowed) {
-          TripActionButton(
-              onClick = onCreateLink,
-              modifier = Modifier.testTag(C.Tag.invite_retry),
-          ) {
-            Text(stringResource(R.string.invite_retry))
-          }
+          ActionButton(R.string.invite_retry, C.Tag.invite_retry, onClick = onCreateLink)
         }
       }
     }
@@ -205,17 +170,12 @@ fun InviteSheetContent(
         title = { Text(stringResource(R.string.invite_stop_title)) },
         text = { Text(stringResource(R.string.invite_stop_message)) },
         confirmButton = {
-          TextButton(
-              onClick = {
-                confirmingStop = false
-                onStopSharing()
-              },
-              modifier = Modifier.testTag(C.Tag.invite_stop_confirm),
+          DestructiveTextButton(
+              R.string.invite_stop_confirm,
+              Modifier.testTag(C.Tag.invite_stop_confirm),
           ) {
-            Text(
-                stringResource(R.string.invite_stop_confirm),
-                color = MaterialTheme.colorScheme.error,
-            )
+            confirmingStop = false
+            onStopSharing()
           }
         },
         dismissButton = {
@@ -226,6 +186,31 @@ fun InviteSheetContent(
     )
   }
 }
+
+@Composable
+private fun MutedText(@StringRes text: Int) =
+    Text(
+        stringResource(text),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+
+@Composable
+private fun ActionButton(
+    @StringRes label: Int,
+    tag: String,
+    outlined: Boolean = false,
+    onClick: () -> Unit,
+) =
+    TripActionButton(onClick = onClick, modifier = Modifier.testTag(tag), outlined = outlined) {
+      Text(stringResource(label))
+    }
+
+@Composable
+private fun DestructiveTextButton(@StringRes label: Int, modifier: Modifier, onClick: () -> Unit) =
+    TextButton(onClick = onClick, modifier = modifier) {
+      Text(stringResource(label), color = MaterialTheme.colorScheme.error)
+    }
 
 private fun shareInvitation(context: Context, ready: InviteUiState.Ready) {
   val message = context.getString(R.string.invite_share_message, ready.link, ready.token)
