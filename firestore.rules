@@ -316,11 +316,9 @@ service cloud.firestore {
           allow delete: if false;
         }
 
-    // Invitation tokens are only created, read and accepted by the callable functions
-    // (functions/src/tripInvitations.ts). A client that could read them could join any trip.
-    match /tripInvitations/{invitationId} {
-      allow read, write: if false;
-    }
+    // tripInvitations has no rule on purpose: the catch-all below denies clients, and the callable
+    // functions (functions/src/tripInvitations.ts) read and write it as Admin. A client that could
+    // read the tokens could join any trip.
 
         // Private metadata used to remove an obsolete email index.
         match /userSearchMetadata/{userId} {
