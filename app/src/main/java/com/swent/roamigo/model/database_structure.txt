@@ -10,7 +10,7 @@ tripInvitations/{token}      // written and read only by Cloud Functions, never 
     tripId: string
     inviterUserId: string      // the trip owner
     inviteeUserId: string | null  // null for a link anyone can use
-    status: "PENDING" | "REVOKED"  // PENDING until revoked or expired
+    status: "PENDING" | "REVOKED" | "EXPIRED"  // PENDING until revoked; EXPIRED is set when an expired link is next seen
     creationTime: timestamp
     expirationTime: timestamp  // 7 days after creation
 

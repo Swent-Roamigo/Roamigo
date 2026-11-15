@@ -6,7 +6,7 @@ import com.google.firebase.functions.FirebaseFunctionsException
 import kotlinx.coroutines.tasks.await
 
 /** A link anyone can use to join a trip, until it expires or the organiser revokes it. */
-data class InvitationLink(val token: String, val expiresAtMillis: Long?)
+data class InvitationLink(val token: String)
 
 /** What a person sees before joining: the trip is not readable to them yet. */
 data class InvitationPreview(
@@ -92,10 +92,7 @@ internal class TripInvitationServiceFunctions(
 ) : TripInvitationService {
   override suspend fun createLink(tripId: String): InvitationLink {
     val data = call("createTripInvitation", mapOf("tripId" to tripId))
-    return InvitationLink(
-        token = data.string("token"),
-        expiresAtMillis = (data["expirationTime"] as? Number)?.toLong(),
-    )
+    return InvitationLink(token = data.string("token"))
   }
 
   override suspend fun preview(token: String): InvitationPreview {

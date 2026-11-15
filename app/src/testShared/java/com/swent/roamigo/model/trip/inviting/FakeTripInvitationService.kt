@@ -3,7 +3,7 @@ package com.swent.roamigo.model.trip.inviting
 
 /** In-memory invitations for tests: records calls and fails on demand. */
 class FakeTripInvitationService(
-    var link: InvitationLink = InvitationLink("fake-invitation-token", 1_000L),
+    var link: InvitationLink = InvitationLink("fake-invitation-token"),
     var preview: InvitationPreview = InvitationPreview("trip", "Lisbon", "Alex", false),
     var failure: Exception? = null,
 ) : TripInvitationService {

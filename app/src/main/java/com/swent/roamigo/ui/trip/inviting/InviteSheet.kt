@@ -3,9 +3,12 @@ package com.swent.roamigo.ui.trip.inviting
 
 import android.content.ActivityNotFoundException
 import android.content.ClipData
+import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.os.PersistableBundle
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,10 +62,7 @@ fun InviteRoute(
   // rotation keeps the same ViewModel.
   val openingId = rememberSaveable { UUID.randomUUID().toString() }
   val viewModel: InviteViewModel =
-      viewModel(
-          key = "invite_${tripId}_$openingId",
-          factory = InviteViewModel.factory(tripId, service),
-      )
+      viewModel(key = "invite_${tripId}_$openingId") { InviteViewModel(tripId, service) }
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   val context = LocalContext.current
   ModalBottomSheet(
@@ -107,6 +107,14 @@ fun InviteSheetContent(
             CircularProgressIndicator()
           }
       is InviteUiState.Ready -> {
+        if (state.stopFailed) {
+          Text(
+              stringResource(R.string.invite_stop_failed),
+              modifier = Modifier.testTag(C.Tag.invite_stop_failed),
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.error,
+          )
+        }
         Text(
             stringResource(R.string.invite_description),
             style = MaterialTheme.typography.bodyMedium,
@@ -236,8 +244,16 @@ private fun shareInvitation(context: Context, ready: InviteUiState.Ready) {
 
 private fun copyCode(context: Context, token: String) {
   val clipboard = context.getSystemService(ClipboardManager::class.java) ?: return
-  clipboard.setPrimaryClip(
-      ClipData.newPlainText(context.getString(R.string.invite_code_label), token)
-  )
-  Toast.makeText(context, R.string.invite_copied, Toast.LENGTH_SHORT).show()
+  val clip = ClipData.newPlainText(context.getString(R.string.invite_code_label), token)
+  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+    // The code lets anyone join the trip, so the clipboard preview and keyboards should not show
+    // it.
+    clip.description.extras =
+        PersistableBundle().apply { putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true) }
+  }
+  clipboard.setPrimaryClip(clip)
+  // Android 13 and later confirms a copy itself.
+  if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+    Toast.makeText(context, R.string.invite_copied, Toast.LENGTH_SHORT).show()
+  }
 }

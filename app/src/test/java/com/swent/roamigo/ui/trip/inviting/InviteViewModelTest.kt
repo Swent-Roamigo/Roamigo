@@ -3,6 +3,8 @@ package com.swent.roamigo.ui.trip.inviting
 
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.swent.roamigo.model.trip.inviting.FakeTripInvitationService
 import com.swent.roamigo.model.trip.inviting.InvitationException
 import com.swent.roamigo.model.trip.inviting.InvitationLink
@@ -17,15 +19,15 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class InviteViewModelTest {
   private val dispatcher = StandardTestDispatcher()
-  private val service =
-      FakeTripInvitationService(link = InvitationLink("token-0123456789abcd", 5_000L))
+  private val service = FakeTripInvitationService(link = InvitationLink("token-0123456789abcd"))
+
+  private fun factory() = viewModelFactory { initializer { InviteViewModel("trip", service) } }
 
   @Before fun setUp() = Dispatchers.setMain(dispatcher)
 
@@ -40,11 +42,7 @@ class InviteViewModelTest {
 
         assertEquals(listOf("trip"), service.createdFor)
         assertEquals(
-            InviteUiState.Ready(
-                "roamigo://invite/token-0123456789abcd",
-                "token-0123456789abcd",
-                5_000L,
-            ),
+            InviteUiState.Ready("roamigo://invite/token-0123456789abcd", "token-0123456789abcd"),
             model.uiState.value,
         )
       }
@@ -92,16 +90,35 @@ class InviteViewModelTest {
       }
 
   @Test
-  fun aFailedStopLeavesAnErrorToRetry() =
+  fun aFailedStopKeepsTheLinkOnScreenAndSaysItStillWorks() =
       runTest(dispatcher) {
         val model = InviteViewModel("trip", service)
         advanceUntilIdle()
+        val shown = model.uiState.value as InviteUiState.Ready
         service.failure = IOException("offline")
 
         model.stopSharing()
         advanceUntilIdle()
 
-        assertEquals(InviteUiState.Failed(notAllowed = false), model.uiState.value)
+        assertEquals(shown.copy(stopFailed = true), model.uiState.value)
+        assertEquals(listOf("trip"), service.createdFor)
+      }
+
+  @Test
+  fun stoppingCanBeTriedAgainAfterItFailed() =
+      runTest(dispatcher) {
+        val model = InviteViewModel("trip", service)
+        advanceUntilIdle()
+        service.failure = IOException("offline")
+        model.stopSharing()
+        advanceUntilIdle()
+        service.failure = null
+
+        model.stopSharing()
+        advanceUntilIdle()
+
+        assertEquals(InviteUiState.Stopped, model.uiState.value)
+        assertEquals(listOf("trip", "trip"), service.revokedFor)
       }
 
   @Test
@@ -187,9 +204,7 @@ class InviteViewModelTest {
       runTest(dispatcher) {
         service.gate = CompletableDeferred()
         val store = ViewModelStore()
-        val model =
-            ViewModelProvider(store, InviteViewModel.factory("trip", service))[
-                InviteViewModel::class.java]
+        val model = ViewModelProvider(store, factory())[InviteViewModel::class.java]
         advanceUntilIdle()
         assertEquals(InviteUiState.Loading, model.uiState.value)
 
@@ -205,9 +220,7 @@ class InviteViewModelTest {
   fun closingTheViewModelCancelsARunningRevoke() =
       runTest(dispatcher) {
         val store = ViewModelStore()
-        val model =
-            ViewModelProvider(store, InviteViewModel.factory("trip", service))[
-                InviteViewModel::class.java]
+        val model = ViewModelProvider(store, factory())[InviteViewModel::class.java]
         advanceUntilIdle()
         service.gate = CompletableDeferred()
         model.stopSharing()
@@ -219,13 +232,4 @@ class InviteViewModelTest {
         assertEquals(InviteUiState.Loading, model.uiState.value)
         assertEquals(listOf("trip"), service.revokedFor)
       }
-
-  @Test
-  fun theFactoryOnlyBuildsTheInviteViewModel() {
-    val factory = InviteViewModel.factory("trip", service)
-
-    assertThrows(IllegalArgumentException::class.java) {
-      factory.create(JoinTripViewModel::class.java)
-    }
-  }
 }

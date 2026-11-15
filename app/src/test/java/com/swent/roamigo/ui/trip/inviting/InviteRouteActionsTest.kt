@@ -1,6 +1,7 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.ui.trip.inviting
 
+import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
@@ -56,18 +57,34 @@ class InviteRouteActionsTest {
   }
 
   @Test
-  fun copyingPutsTheCodeOnTheClipboardAndSaysSo() {
+  @Config(sdk = [34])
+  fun copyingMarksTheCodeSensitiveAndLeavesTheConfirmationToAndroid() {
     showSheet()
     ShadowToast.reset()
 
     composeRule.onNodeWithTag(C.Tag.invite_copy).performClick()
 
-    val clipboard =
-        composeRule.activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    assertEquals("fake-invitation-token", clipboard.primaryClip?.getItemAt(0)?.text.toString())
+    val clip = clipboard().primaryClip
+    assertEquals("fake-invitation-token", clip?.getItemAt(0)?.text.toString())
+    assertEquals(true, clip?.description?.extras?.getBoolean(ClipDescription.EXTRA_IS_SENSITIVE))
+    assertEquals(0, ShadowToast.shownToastCount())
+  }
+
+  @Test
+  @Config(sdk = [30])
+  fun copyingOnOlderAndroidSaysSo() {
+    showSheet()
+    ShadowToast.reset()
+
+    composeRule.onNodeWithTag(C.Tag.invite_copy).performClick()
+
+    assertEquals("fake-invitation-token", clipboard().primaryClip?.getItemAt(0)?.text.toString())
     assertEquals(
         composeRule.activity.getString(R.string.invite_copied),
         ShadowToast.getTextOfLatestToast(),
     )
   }
+
+  private fun clipboard() =
+      composeRule.activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 }

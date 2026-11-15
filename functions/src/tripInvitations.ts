@@ -186,13 +186,14 @@ export const revokeTripInvitations = onCall(callableOptions, async (request) => 
   const userId = userIdOf(request);
   const tripId = documentId(request.data?.tripId);
   const db = getFirestore();
-  requireOwner((await db.doc(`trips/${tripId}`).get()).data(), userId);
-  const pending = await db.collection("tripInvitations")
-    .where("tripId", "==", tripId)
-    .where("status", "==", "PENDING")
-    .get();
-  const batch = db.batch();
-  pending.docs.forEach((doc) => batch.update(doc.ref, {status: "REVOKED"}));
-  await batch.commit();
-  return {revoked: pending.size};
+  // One transaction, like creating a link, so the links it revokes are the ones it read.
+  const revoked = await db.runTransaction(async (transaction) => {
+    requireOwner((await transaction.get(db.doc(`trips/${tripId}`))).data(), userId);
+    const pending = await transaction.get(db.collection("tripInvitations")
+      .where("tripId", "==", tripId)
+      .where("status", "==", "PENDING"));
+    pending.docs.forEach((doc) => transaction.update(doc.ref, {status: "REVOKED"}));
+    return pending.size;
+  });
+  return {revoked};
 });

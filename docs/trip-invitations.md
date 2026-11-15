@@ -13,7 +13,8 @@ security model, how to deploy the backend, and how to test it with two emulators
    shows the invite sheet with the code. Asking again returns the same link while it is valid.
 2. **Share.** "Share link" opens Android's share sheet with the text
    `Join my trip on Roamigo: roamigo://invite/<code>` and the code on a second line. "Copy code"
-   puts the code on the clipboard. Nothing is sent by Roamigo itself.
+   puts the code on the clipboard, marked as sensitive on Android 13 and later. Nothing is sent by
+   Roamigo itself.
 3. **Open.** The other person either taps the link, which opens Roamigo through the `roamigo://invite`
    intent filter of `MainActivity`, or taps "Join" on Trips home and pastes the link, the whole
    message, or the bare code. The app calls `previewTripInvitation` and shows who invited them to
@@ -21,7 +22,8 @@ security model, how to deploy the backend, and how to test it with two emulators
 4. **Join.** "Join trip" calls `acceptTripInvitation`, which adds them to the trip. The app then
    opens the trip.
 5. **Stop.** "Stop sharing this link" asks for confirmation and calls `revokeTripInvitations`. People
-   who already joined stay on the trip.
+   who already joined stay on the trip. If stopping fails, for example offline, the link stays on
+   screen with a message that it still works, so it is never mistaken for stopped.
 
 A link opened while signed out is kept, and followed after the user has signed in. A link opened while
 the app is already running reaches `MainActivity` as a new intent (it is `singleTop`), which

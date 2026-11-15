@@ -27,7 +27,7 @@ class InviteSheetContentTest {
   @get:Rule val composeRule = createComposeRule()
 
   private val ready =
-      InviteUiState.Ready("roamigo://invite/token-0123456789abcd", "token-0123456789abcd", null)
+      InviteUiState.Ready("roamigo://invite/token-0123456789abcd", "token-0123456789abcd")
   private var shared: InviteUiState.Ready? = null
   private var copied: InviteUiState.Ready? = null
   private var stops = 0
@@ -119,5 +119,24 @@ class InviteSheetContentTest {
 
     composeRule.onNodeWithTag(C.Tag.invite_sheet).assertIsDisplayed()
     composeRule.onAllNodesWithTag(C.Tag.invite_share).assertCountEquals(0)
+  }
+
+  @Test
+  fun aLinkThatCouldNotBeStoppedSaysSoAndStillOffersToStopIt() {
+    show(ready.copy(stopFailed = true))
+
+    composeRule.onNodeWithTag(C.Tag.invite_stop_failed).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.invite_code).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.invite_stop).performClick()
+    composeRule.onNodeWithTag(C.Tag.invite_stop_confirm).performClick()
+
+    assertEquals(1, stops)
+  }
+
+  @Test
+  fun aLinkThatWasStoppedNormallyShowsNoStopError() {
+    show(ready)
+
+    composeRule.onAllNodesWithTag(C.Tag.invite_stop_failed).assertCountEquals(0)
   }
 }
