@@ -18,7 +18,6 @@ class FakePhotoRepository(
     private val directory: File = File(System.getProperty("java.io.tmpdir"), "roamigo-photos"),
     private val userId: String = "alex",
     initialPhotos: List<PendingPhoto> = emptyList(),
-    private val clock: () -> Long = System::currentTimeMillis,
 ) : PhotoRepository {
   private val files = PhotoFileStore(directory)
   private val photos = MutableStateFlow(initialPhotos)
@@ -43,9 +42,22 @@ class FakePhotoRepository(
 
   override fun fileOf(photo: PendingPhoto): File = files.fileOf(photo)
 
-  override suspend fun savePhoto(tripId: String, file: File) {
+  override suspend fun savePhoto(
+      tripId: String,
+      file: File,
+      takenAtMillis: Long,
+      coordinates: PhotoCoordinates?,
+  ) {
     photos.value +=
-        PendingPhoto(files.idOf(file), tripId, userId, file.name, takenAtMillis = clock())
+        PendingPhoto(
+            files.idOf(file),
+            tripId,
+            userId,
+            file.name,
+            takenAtMillis,
+            coordinates?.latitude,
+            coordinates?.longitude,
+        )
   }
 
   override fun discard(file: File) = files.delete(file)

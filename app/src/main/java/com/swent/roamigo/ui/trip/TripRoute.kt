@@ -222,9 +222,13 @@ internal fun TripRoute(
         TripSection.Photos -> {
           val connectivity =
               connectivityRepository ?: remember(context) { DefaultConnectivityRepository(context) }
+          val location =
+              locationRepository
+                  ?: (context.applicationContext as RoamigoApplication).locationRepository
           PhotosRoute(
               photoRepository = photoRepository,
               connectivityRepository = connectivity,
+              locationRepository = location,
               tripId = tripId,
               currentUserId = userId,
               tripName = loaded?.trip?.name.orEmpty(),

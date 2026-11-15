@@ -13,14 +13,14 @@ import org.junit.rules.TemporaryFolder
 class FakePhotoRepositoryTest {
   @get:Rule val folder = TemporaryFolder()
 
-  private fun repository() = FakePhotoRepository(File(folder.root, "photos"), "me") { 7L }
+  private fun repository() = FakePhotoRepository(File(folder.root, "photos"), "me")
 
   @Test
   fun keepsSavedPhotosPerTrip() = runTest {
     val repository = repository()
     val file = repository.newPhotoFile()
-    repository.savePhoto("trip", file)
-    repository.savePhoto("other", repository.newPhotoFile())
+    repository.savePhoto("trip", file, 7L, PhotoCoordinates(46.5, 6.6))
+    repository.savePhoto("other", repository.newPhotoFile(), 8L, null)
 
     val photos = repository.pendingPhotos("trip").first()
 
@@ -28,6 +28,8 @@ class FakePhotoRepositoryTest {
     assertEquals("me", photos.single().userId)
     assertEquals(7L, photos.single().takenAtMillis)
     assertEquals(file.name, photos.single().fileName)
+    assertEquals(46.5, photos.single().latitude)
+    assertEquals(6.6, photos.single().longitude)
     assertEquals(file, repository.fileOf(photos.single()))
   }
 
@@ -85,7 +87,7 @@ class FakePhotoRepositoryTest {
   fun hasUsableDefaults() = runTest {
     val repository = FakePhotoRepository()
     val file = repository.newPhotoFile()
-    repository.savePhoto("trip", file)
+    repository.savePhoto("trip", file, 1L, null)
 
     assertEquals("alex", repository.pendingPhotos("trip").first().single().userId)
     repository.discard(file)

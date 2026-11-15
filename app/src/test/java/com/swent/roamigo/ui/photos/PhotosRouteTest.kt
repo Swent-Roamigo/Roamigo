@@ -25,6 +25,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.R
 import com.swent.roamigo.model.connectivity.FakeConnectivityRepository
+import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.photo.PhotoModule
 import com.swent.roamigo.model.photo.tripPhoto
@@ -110,6 +111,7 @@ class PhotosRouteTest {
           PhotosRoute(
               photoRepository = repository,
               connectivityRepository = connectivity,
+              locationRepository = FakeLocationRepository(),
               tripId = "trip",
               tripName = "Lisbon",
               currentUserId = null,
