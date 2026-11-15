@@ -300,6 +300,7 @@ fun RoamigoApp(
           },
           onCreateVote = { navController.navigate(Route.newVote(tripId)) },
           onMembersClick = { navController.navigate(Route.members(tripId)) },
+          onInviteClick = { inviteTripId = tripId },
           onTripsClick = onTripsClick,
           onMapClick = onMapClick,
           onFriendsClick = onFriendsClick,
