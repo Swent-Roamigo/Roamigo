@@ -9,8 +9,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
@@ -31,6 +34,8 @@ import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.activity.ActivityRepository
 import com.swent.roamigo.model.trip.activity.FakeActivityRepository
+import com.swent.roamigo.model.trip.inviting.TripInvitationService
+import com.swent.roamigo.model.trip.inviting.UnavailableTripInvitationService
 import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
@@ -53,6 +58,7 @@ import com.swent.roamigo.ui.trip.TripRoute
 import com.swent.roamigo.ui.trip.creation.CreateTripRoute
 import com.swent.roamigo.ui.trip.creation.TripReadyRoute
 import com.swent.roamigo.ui.trip.history.TripHistoryRoute
+import com.swent.roamigo.ui.trip.inviting.InviteRoute
 import com.swent.roamigo.ui.trip.members.TripMembersRoute
 import com.swent.roamigo.ui.trip.voting.CreateVoteRoute
 import com.swent.roamigo.ui.trip.voting.VoteRoute
@@ -70,6 +76,8 @@ import kotlinx.coroutines.launch
  * @param voteRepository Shared backend for trip vote discovery, creation, and individual ballots.
  * @param photoRepository Takes trip photos and keeps them until they are uploaded.
  * @param connectivityRepository Tells whether the device is online; the device's own by default.
+ * @param invitationService Creates and stops the links that invite people to a trip. Every call
+ *   fails by default, so only production wiring talks to the backend.
  * @param locationRepository Shares the user's location on a trip map; the app-wide instance of
  *   [RoamigoApplication] by default, since sharing must go through a single instance.
  */
@@ -87,10 +95,13 @@ fun RoamigoApp(
     connectivityRepository: ConnectivityRepository? = null,
     locationRepository: LocationRepository? = null,
     countryCounts: VisitedCountryCounts = remember { VisitedCountryCounts { emptyMap() } },
+    invitationService: TripInvitationService = UnavailableTripInvitationService,
 ) {
   val context = LocalContext.current
   val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }
   val scope = rememberCoroutineScope()
+  // The trip whose invitation sheet is open.
+  var inviteTripId by rememberSaveable { mutableStateOf<String?>(null) }
   LaunchedEffect(authRepository, userRepository) {
     if (authRepository.getCurrentUser() != null) {
       publishProfileSafely(userRepository)
@@ -141,6 +152,7 @@ fun RoamigoApp(
           userRepository = userRepository,
           destinationRepository = destinationRepository,
           authRepository = authRepository,
+          onInviteTrip = { tripId -> inviteTripId = tripId },
           onNewTripClick = { navController.navigate(Route.NEW_TRIP) },
           onProfileClick = { navController.navigate(Route.PROFILE) },
           onFriendsClick = onFriendsClick,
@@ -274,6 +286,7 @@ fun RoamigoApp(
           },
           onCreateVote = { navController.navigate(Route.newVote(tripId)) },
           onMembersClick = { navController.navigate(Route.members(tripId)) },
+          onInviteClick = { inviteTripId = tripId },
           onTripsClick = onTripsClick,
           onMapClick = onMapClick,
           onFriendsClick = onFriendsClick,
@@ -284,7 +297,6 @@ fun RoamigoApp(
       val id = entry.tripId()
       val photo by
           entry.savedStateHandle.getStateFlow<Bundle?>("ready_photo", null).collectAsState()
-      val onInviteClick = rememberNotImplementedAction()
       val onSuggestClick = rememberNotImplementedAction()
       fun openTrip(openMap: Boolean) {
         navController.navigate(Route.tripDetails(id, openMap = openMap)) {
@@ -297,7 +309,7 @@ fun RoamigoApp(
           tripRepository = tripRepository,
           tripId = id,
           photo = photo,
-          onInviteClick = onInviteClick,
+          onInviteClick = { inviteTripId = id },
           onSuggestClick = onSuggestClick,
           onShareLocationClick = { openTrip(openMap = true) },
           onOpenItineraryClick = { openTrip(openMap = false) },
@@ -354,6 +366,9 @@ fun RoamigoApp(
           onFriendsClick = onFriendsClick,
       )
     }
+  }
+  inviteTripId?.let { tripId ->
+    InviteRoute(tripId, invitationService, onDismiss = { inviteTripId = null })
   }
 }
 
