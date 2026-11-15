@@ -75,6 +75,10 @@ class TripInvitationServiceTest {
             is InvitationException.Invalid
     )
     assertTrue(
+        invitationExceptionFor(FirebaseFunctionsException.Code.INVALID_ARGUMENT, cause)
+            is InvitationException.Invalid
+    )
+    assertTrue(
         invitationExceptionFor(FirebaseFunctionsException.Code.RESOURCE_EXHAUSTED, cause)
             is InvitationException.Full
     )
