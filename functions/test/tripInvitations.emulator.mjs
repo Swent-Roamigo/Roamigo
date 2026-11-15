@@ -126,5 +126,13 @@ check("a link of a former owner is refused", r.body.error?.status === "NOT_FOUND
 r = await call("previewTripInvitation", guest, {token: t7});
 check("a link of a former owner has no preview", r.body.error?.status === "NOT_FOUND", r);
 
+// A member document left behind by an earlier membership must not block joining.
+await db.doc("trips/t8").set({name: "Again", ownerId: owner.uid, memberIds: [owner.uid], travelMode: "GROUP", travelerCount: 3});
+await db.doc(`trips/t8/members/${guest.uid}`).set({userId: guest.uid, role: "EDITOR", joinTime: Timestamp.fromMillis(1)});
+const t8 = (await call("createTripInvitation", owner, {tripId: "t8"})).body.result.token;
+r = await call("acceptTripInvitation", guest, {token: t8});
+trip = (await db.doc("trips/t8").get()).data();
+check("a leftover member document does not block joining", r.body.result?.tripId === "t8" && trip.memberIds.includes(guest.uid), [r, trip]);
+
 console.log(failures === 0 ? "ALL PASSED" : `${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

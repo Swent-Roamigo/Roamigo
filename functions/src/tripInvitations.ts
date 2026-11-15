@@ -172,7 +172,9 @@ export const acceptTripInvitation = onCall(callableOptions, async (request) => {
       travelMode: "GROUP",
       travelerCount: Math.max(travelerCount, memberIds.length + 1),
     });
-    transaction.create(tripRef.collection("members").doc(userId), {
+    // set, not create: a member document left behind by an earlier membership must not make the
+    // join fail with ALREADY_EXISTS, which the app would show as a retry that can never work.
+    transaction.set(tripRef.collection("members").doc(userId), {
       userId, role: "EDITOR", joinTime: Timestamp.now(),
     });
     return invitation.tripId as string;
