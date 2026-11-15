@@ -124,7 +124,10 @@ internal fun invitationExceptionFor(
     cause: Throwable? = null,
 ): InvitationException =
     when (code) {
-      FirebaseFunctionsException.Code.NOT_FOUND -> InvitationException.Invalid(cause)
+      // The server answers a malformed token with invalid-argument. It is as unusable as an unknown
+      // one, and retrying it can never work.
+      FirebaseFunctionsException.Code.NOT_FOUND,
+      FirebaseFunctionsException.Code.INVALID_ARGUMENT -> InvitationException.Invalid(cause)
       FirebaseFunctionsException.Code.RESOURCE_EXHAUSTED -> InvitationException.Full(cause)
       FirebaseFunctionsException.Code.PERMISSION_DENIED -> InvitationException.NotAllowed(cause)
       else -> InvitationException.Unavailable(cause)
