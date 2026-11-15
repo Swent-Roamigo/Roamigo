@@ -13,6 +13,7 @@ class FakeUserRepository(
     private val currentUser: User,
     users: List<User> = emptyList(),
     private val failure: Exception? = null,
+    private val emailsByUserId: Map<String, String> = emptyMap(),
 ) : UserRepository {
 
   private val usersById = (users + currentUser).associateBy { it.uid }
@@ -30,11 +31,25 @@ class FakeUserRepository(
   override suspend fun searchUsers(query: String): List<User> {
     throwIfNeeded()
     val normalized = query.trim().lowercase(Locale.ROOT)
-    require(normalized.length <= 120) { "Search query is too long" }
+    require(normalized.length <= if ('@' in normalized) 254 else 120)
+
     if (normalized.isEmpty()) return emptyList()
-    return usersById.values
-        .filter { it.displayName.trim().lowercase(Locale.ROOT).startsWith(normalized) }
-        .take(20)
+
+    val byEmail =
+        if ('@' in normalized) {
+          usersById.values.filter { user ->
+            emailsByUserId[user.uid]?.trim()?.lowercase(Locale.ROOT) == normalized
+          }
+        } else {
+          emptyList()
+        }
+
+    val byName =
+        usersById.values.filter { user ->
+          user.displayName.trim().lowercase(Locale.ROOT).startsWith(normalized)
+        }
+
+    return (byEmail + byName).distinctBy(User::uid).take(20)
   }
 
   override suspend fun publishCurrentUser() {
