@@ -58,6 +58,9 @@ class FakePhotoUploader : PhotoUploader {
   /** Ids of the photos uploaded, in order. */
   val uploaded = mutableListOf<String>()
 
+  /** The photos uploaded, as the uploader received them. */
+  val uploadedPhotos = mutableListOf<PendingPhoto>()
+
   /** The exception to throw for a photo, or null to let it upload. */
   var failure: (PendingPhoto) -> Throwable? = { null }
 
@@ -68,6 +71,7 @@ class FakePhotoUploader : PhotoUploader {
     onUpload(photo)
     failure(photo)?.let { throw it }
     uploaded += photo.id
+    uploadedPhotos += photo
   }
 }
 
