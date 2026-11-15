@@ -20,4 +20,5 @@ enum class InvitationStatus {
   ACCEPTED,
   DECLINED,
   EXPIRED,
+  REVOKED,
 }

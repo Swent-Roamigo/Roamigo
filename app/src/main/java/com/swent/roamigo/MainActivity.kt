@@ -20,6 +20,7 @@ import com.swent.roamigo.model.country.GeoNamesCountryCodeLookup
 import com.swent.roamigo.model.country.VisitedCountryRepository
 import com.swent.roamigo.model.trip.TripRepositoryFirestore
 import com.swent.roamigo.model.trip.activity.ActivityRepositoryFirestore
+import com.swent.roamigo.model.trip.inviting.TripInvitationServiceFunctions
 import com.swent.roamigo.model.trip.voting.VoteRepositoryFirestore
 import com.swent.roamigo.model.users.UserRepositoryFirestore
 import com.swent.roamigo.resources.C
@@ -88,6 +89,7 @@ class MainActivity : ComponentActivity() {
                   remember { (application as RoamigoApplication).locationRepository },
               countryCounts = countryCounts,
               userRepository = userRepository,
+              invitationService = remember { TripInvitationServiceFunctions() },
           )
         }
       }

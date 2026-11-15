@@ -77,6 +77,7 @@ internal fun TripRoute(
     onTripsClick: () -> Unit,
     onMapClick: () -> Unit,
     onFriendsClick: () -> Unit,
+    onInviteClick: (() -> Unit)? = null,
 ) {
   val context = LocalContext.current
   var tab by rememberSaveable {
@@ -187,6 +188,7 @@ internal fun TripRoute(
                 },
                 onPhotosClick = { tab = TripSection.Photos },
                 onMembersClick = onMembersClick,
+                onInviteClick = onInviteClick ?: notImplemented,
             )
         TripSection.Map -> {
           if (readOnly) {
