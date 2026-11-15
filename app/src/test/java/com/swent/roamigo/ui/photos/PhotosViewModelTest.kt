@@ -19,6 +19,8 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.launchIn
@@ -30,6 +32,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -782,6 +785,227 @@ class PhotosViewModelTest {
     viewModel.onPreviewClosed()
 
     assertNull(state.previewLocation)
+  }
+
+  /** A view model with its own saved state and locator, listening to its effects. */
+  private fun modelWith(
+      handle: SavedStateHandle,
+      locator: PhotoLocator,
+  ): PhotosViewModel =
+      PhotosViewModel(
+              repository,
+              connectivity,
+              "trip",
+              locator,
+              savedStateHandle = handle,
+              clock = clock,
+          )
+          .also {
+            it.effects.onEach { effect -> effects += effect }.launchIn(CoroutineScope(dispatcher))
+          }
+
+  private fun capture(model: PhotosViewModel): java.io.File {
+    model.onTakePhotoClick(permissionGranted = true)
+    val file = (effects.last() as PhotosEffect.LaunchCamera).file
+    file.writeText("jpeg")
+    model.onPictureTaken(true)
+    return file
+  }
+
+  /** What Android does on process death: the saved state goes through a Parcel and comes back. */
+  private fun afterProcessDeath(handle: SavedStateHandle): SavedStateHandle {
+    val parcel = Parcel.obtain()
+    parcel.writeBundle(handle.savedStateProvider().saveState())
+    parcel.setDataPosition(0)
+    val restored = SavedStateHandle.createHandle(parcel.readBundle(javaClass.classLoader), null)
+    parcel.recycle()
+    return restored
+  }
+
+  @Test
+  fun retakingCancelsTheFetchAndStartsAFreshOneWithANewTime() = runTest {
+    locator.answerLater()
+    advanceTimeBy(1_000)
+    takePicture()
+    advanceTimeBy(2.seconds)
+
+    viewModel.onRetake()
+
+    assertEquals(1, locator.cancelledCalls)
+    assertNull(state.previewLocation)
+    assertNull(state.preview)
+
+    advanceTimeBy(10.seconds)
+    locator.answer(PhotoLocationResult.Found(PhotoCoordinates(1.0, 2.0)))
+    val file = (effects.last() as PhotosEffect.LaunchCamera).file.also { it.writeText("jpeg") }
+    viewModel.onPictureTaken(true)
+    viewModel.onSave()
+
+    assertEquals(listOf(PHOTO_LOCATION_TIMEOUT, PHOTO_LOCATION_TIMEOUT), locator.timeouts)
+    val saved = repository.savedPhotos.single()
+    assertEquals(file, saved.file)
+    assertEquals(PhotoCoordinates(1.0, 2.0), saved.coordinates)
+    assertEquals(13_000L, saved.takenAtMillis)
+  }
+
+  @Test
+  fun aLateResultFromTheOldFetchDoesNotChangeTheNewPreview() = runTest {
+    val late = CompletableDeferred<PhotoLocationResult>()
+    var calls = 0
+    val stubborn =
+        object : PhotoLocator {
+          override suspend fun locate(timeout: kotlin.time.Duration): PhotoLocationResult {
+            // The first read still returns after it was cancelled.
+            if (++calls == 1) return withContext(NonCancellable) { late.await() }
+            awaitCancellation()
+          }
+        }
+    viewModel = PhotosViewModel(repository, connectivity, "trip", stubborn, clock = clock)
+    viewModel.effects.onEach { effects += it }.launchIn(CoroutineScope(dispatcher))
+    takePicture()
+    viewModel.onRetake()
+    (effects.last() as PhotosEffect.LaunchCamera).file.writeText("jpeg")
+    viewModel.onPictureTaken(true)
+
+    late.complete(PhotoLocationResult.Found(PhotoCoordinates(9.0, 9.0)))
+    runCurrent()
+
+    assertEquals(PhotoLocationStatus.Locating, state.previewLocation)
+    viewModel.onSave()
+    advanceTimeBy(5.seconds)
+    runCurrent()
+    assertNull(repository.savedPhotos.single().coordinates)
+  }
+
+  @Test
+  fun closingThePreviewCancelsTheFetch() = runTest {
+    locator.answerLater()
+    takePicture()
+
+    viewModel.onPreviewClosed()
+
+    assertEquals(1, locator.cancelledCalls)
+    assertNull(state.previewLocation)
+  }
+
+  @Test
+  fun aPositionFoundBeforeTheProcessWasKilledIsRestoredAndSavedAsIs() = runTest {
+    locator.answer(PhotoLocationResult.Found(PhotoCoordinates(46.5, 6.6)))
+    val handle = SavedStateHandle()
+    advanceTimeBy(1_000)
+    val file = capture(modelWith(handle, locator))
+    val restoredHandle = afterProcessDeath(handle)
+    advanceTimeBy(30.seconds)
+    val newLocator = FakePhotoLocator()
+
+    val restored = modelWith(restoredHandle, newLocator)
+    restored.onSave()
+
+    assertEquals(emptyList<kotlin.time.Duration>(), newLocator.timeouts)
+    val saved = repository.savedPhotos.single()
+    assertEquals(file, saved.file)
+    assertEquals(PhotoCoordinates(46.5, 6.6), saved.coordinates)
+    assertEquals(1_000L, saved.takenAtMillis)
+  }
+
+  @Test
+  fun aRestoredPreviewShowsItsPosition() = runTest {
+    locator.answer(PhotoLocationResult.Found(PhotoCoordinates(46.5, 6.6)))
+    val handle = SavedStateHandle()
+    val file = capture(modelWith(handle, locator))
+
+    val restored = modelWith(afterProcessDeath(handle), FakePhotoLocator())
+
+    assertEquals(file, restored.uiState.value.preview)
+    assertEquals(PhotoLocationStatus.Attached(46.5, 6.6), restored.uiState.value.previewLocation)
+  }
+
+  @Test
+  fun aPositionStillBeingReadWhenTheProcessWasKilledIsFetchedAgainWithTheTimeLeft() = runTest {
+    locator.answerLater()
+    val handle = SavedStateHandle()
+    advanceTimeBy(1_000)
+    capture(modelWith(handle, locator))
+    val restoredHandle = afterProcessDeath(handle)
+    advanceTimeBy(2.seconds)
+    val newLocator = FakePhotoLocator()
+    val fix = newLocator.answerLater()
+
+    val restored = modelWith(restoredHandle, newLocator)
+
+    assertEquals(listOf(3.seconds), newLocator.timeouts)
+    assertEquals(PhotoLocationStatus.Locating, restored.uiState.value.previewLocation)
+    fix.complete(PhotoLocationResult.Found(PhotoCoordinates(1.0, 2.0)))
+    advanceTimeBy(10.seconds)
+    restored.onSave()
+    val saved = repository.savedPhotos.single()
+    assertEquals(PhotoCoordinates(1.0, 2.0), saved.coordinates)
+    // The original camera time is kept, not the time of the restore.
+    assertEquals(1_000L, saved.takenAtMillis)
+  }
+
+  @Test
+  fun withNoTimeLeftARestoredPositionIsUnavailableWithoutAskingTheLocator() = runTest {
+    locator.answerLater()
+    val handle = SavedStateHandle()
+    advanceTimeBy(1_000)
+    capture(modelWith(handle, locator))
+    val restoredHandle = afterProcessDeath(handle)
+    advanceTimeBy(6.seconds)
+    val newLocator = FakePhotoLocator()
+
+    val restored = modelWith(restoredHandle, newLocator)
+
+    assertEquals(emptyList<kotlin.time.Duration>(), newLocator.timeouts)
+    assertEquals(PhotoLocationStatus.Unavailable, restored.uiState.value.previewLocation)
+    restored.onSave()
+    assertNull(repository.savedPhotos.single().coordinates)
+    assertEquals(1_000L, repository.savedPhotos.single().takenAtMillis)
+  }
+
+  @Test
+  fun anOffOrUnavailablePositionIsNotFetchedAgainAfterTheProcessWasKilled() = runTest {
+    listOf(
+            PhotoLocationResult.PermissionOff to PhotoLocationStatus.Off,
+            PhotoLocationResult.Unavailable to PhotoLocationStatus.Unavailable,
+        )
+        .forEach { (result, status) ->
+          locator.answer(result)
+          val handle = SavedStateHandle()
+          capture(modelWith(handle, locator))
+          val newLocator = FakePhotoLocator()
+
+          val restored = modelWith(afterProcessDeath(handle), newLocator)
+
+          assertEquals(status, restored.uiState.value.previewLocation)
+          assertEquals(emptyList<kotlin.time.Duration>(), newLocator.timeouts)
+        }
+  }
+
+  @Test
+  fun aSavedPhotoIsNotRestoredAfterTheProcessWasKilled() = runTest {
+    val handle = SavedStateHandle()
+    val model = modelWith(handle, locator)
+    capture(model)
+    model.onSave()
+
+    val restored = modelWith(afterProcessDeath(handle), FakePhotoLocator())
+
+    assertNull(restored.uiState.value.preview)
+    assertNull(restored.uiState.value.previewLocation)
+  }
+
+  @Test
+  fun aPreviewWhoseFileIsGoneIsNotRestored() = runTest {
+    val handle = SavedStateHandle()
+    val file = capture(modelWith(handle, locator))
+    val restoredHandle = afterProcessDeath(handle)
+    file.delete()
+
+    val restored = modelWith(restoredHandle, FakePhotoLocator())
+
+    assertNull(restored.uiState.value.preview)
+    assertNull(restored.uiState.value.previewLocation)
   }
 
   private fun clear() {
