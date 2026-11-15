@@ -3,9 +3,14 @@
 // Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui
 
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
+import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -15,6 +20,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.util.Consumer
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.ClearCredentialException
@@ -105,6 +111,14 @@ fun RoamigoApp(
   val context = LocalContext.current
   val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }
   val scope = rememberCoroutineScope()
+  // MainActivity is singleTop, so a link opened while the app is running arrives as a new intent
+  // on the same activity. The navigation graph only follows it when it is told about it.
+  val hostActivity = remember(context) { context.findComponentActivity() }
+  DisposableEffect(navController, hostActivity) {
+    val listener = Consumer<Intent> { navController.handleDeepLink(it) }
+    hostActivity?.addOnNewIntentListener(listener)
+    onDispose { hostActivity?.removeOnNewIntentListener(listener) }
+  }
   // The trip whose invitation sheet is open, and whether the "join with a code" dialog is.
   var inviteTripId by rememberSaveable { mutableStateOf<String?>(null) }
   var joinCodeOpen by rememberSaveable { mutableStateOf(false) }
@@ -451,6 +465,13 @@ private fun redirectToAuthentication(navController: NavHostController) {
   navController.navigate(Route.AUTHENTICATION) {
     popUpTo(navController.graph.id)
     launchSingleTop = true
+private tailrec fun Context.findComponentActivity(): ComponentActivity? =
+    when (this) {
+      is ComponentActivity -> this
+      is ContextWrapper -> baseContext.findComponentActivity()
+      else -> null
+    }
+
   }
 }
 
