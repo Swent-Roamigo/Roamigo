@@ -1,6 +1,7 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.ui.friends
 
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.friends.FriendRepository
@@ -48,6 +49,24 @@ class FriendsViewModelTest {
 
   private fun viewModel(): FriendsViewModel =
       FriendsViewModel(repository, users, "alice").also { viewModelStore.put("friends", it) }
+
+  @Test
+  fun factoryCreatesAnObservingViewModelAndHealthyRetryKeepsItsListeners() =
+      runTest(dispatcher) {
+        val request = bob.sendFriendRequest("alice")
+        val factory = FriendsViewModel.factory(repository, users, "alice")
+        val model = ViewModelProvider(viewModelStore, factory)[FriendsViewModel::class.java]
+        advanceUntilIdle()
+
+        assertEquals(listOf(request), model.uiState.value.incomingRequests)
+        assertEquals("Bob", model.uiState.value.profiles["bob"]?.displayName)
+        assertEquals(3, alice.activeObservers)
+
+        model.retry()
+        advanceUntilIdle()
+        assertEquals(3, alice.activeObservers)
+        assertEquals(1, users.lookupCount)
+      }
 
   @Test
   fun loadsSeparateRelationshipListsAndAvailableProfiles() =
@@ -123,6 +142,41 @@ class FriendsViewModelTest {
         assertTrue(model.uiState.value.friends.isEmpty())
         assertTrue(bob.getFriends().isEmpty())
         assertEquals("bob" to request.uid, repository.lastTarget)
+      }
+
+  @Test
+  fun recipientCanDismissRemovalFailureAndRetryWithoutLosingFriendship() =
+      runTest(dispatcher) {
+        val request = bob.sendFriendRequest("alice")
+        alice.acceptFriendRequest("bob", request.uid)
+        val model = viewModel()
+        advanceUntilIdle()
+        repository.actionFailure = FriendRepositoryException.Network()
+
+        model.removeFriend(request.uid)
+        advanceUntilIdle()
+
+        assertEquals(listOf(request.uid), model.uiState.value.friends.map { it.uid })
+        assertEquals(alice.getFriends(), bob.getFriends())
+        assertEquals("bob" to request.uid, repository.lastTarget)
+        assertTrue(model.uiState.value.processingIds.isEmpty())
+        assertEquals(
+            FriendsActionFailure(request.uid, FriendsAction.REMOVE),
+            model.uiState.value.actionFailure,
+        )
+
+        model.dismissActionFailure()
+        assertNull(model.uiState.value.actionFailure)
+        assertEquals(listOf(request.uid), model.uiState.value.friends.map { it.uid })
+
+        repository.actionFailure = null
+        model.removeFriend(request.uid)
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.friends.isEmpty())
+        assertTrue(model.uiState.value.profiles.isEmpty())
+        assertTrue(bob.getFriends().isEmpty())
+        assertEquals(2, repository.actionCount)
       }
 
   @Test
@@ -258,6 +312,54 @@ class FriendsViewModelTest {
       }
 
   @Test
+  fun newerRelationshipsCancelPendingProfileLookupAndPublishCurrentProfiles() =
+      runTest(dispatcher) {
+        val incoming = bob.sendFriendRequest("alice")
+        val gate = CompletableDeferred<Unit>()
+        users.lookupGate = gate
+        val model = viewModel()
+        runCurrent()
+        assertEquals(listOf(incoming), model.uiState.value.incomingRequests)
+        assertEquals(1, users.lookupCount)
+
+        val newerIncoming = carol.sendFriendRequest("alice")
+        runCurrent()
+        assertEquals(2, users.lookupCount)
+        assertNull(model.uiState.value.loadError)
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(
+            setOf(incoming.uid, newerIncoming.uid),
+            model.uiState.value.incomingRequests.map { it.uid }.toSet(),
+        )
+        assertEquals(setOf("bob", "carol"), model.uiState.value.profiles.keys)
+        assertNull(model.uiState.value.loadError)
+      }
+
+  @Test
+  fun profileAuthenticationFailureClearsPrivateStateAndReleasesListeners() =
+      runTest(dispatcher) {
+        bob.sendFriendRequest("alice")
+        users.lookupFailure = UserRepositoryException.NotAuthenticated()
+        val model = viewModel()
+        advanceUntilIdle()
+
+        assertEquals(
+            FriendsState(isLoading = false, loadError = FriendsLoadError.SESSION),
+            model.uiState.value,
+        )
+        assertEquals(0, alice.activeObservers)
+
+        users.lookupFailure = null
+        model.retry()
+        advanceUntilIdle()
+        assertEquals(FriendsLoadError.SESSION, model.uiState.value.loadError)
+        assertEquals(0, alice.activeObservers)
+      }
+
+  @Test
   fun missingProfileDoesNotDropTheRequest() =
       runTest(dispatcher) {
         val request = FakeFriendRepository("unpublished", store).sendFriendRequest("alice")
@@ -304,6 +406,37 @@ class FriendsViewModelTest {
 
         assertEquals(FriendsLoadError.SESSION, model.uiState.value.loadError)
         assertEquals(0, alice.activeObservers)
+      }
+
+  @Test
+  fun accountMismatchDuringActionCancelsOtherWritesAndClearsPrivateState() =
+      runTest(dispatcher) {
+        val incoming = bob.sendFriendRequest("alice")
+        val otherIncoming = carol.sendFriendRequest("alice")
+        val model = viewModel()
+        advanceUntilIdle()
+        val gate = CompletableDeferred<Unit>()
+        repository.gate = gate
+        model.acceptRequest(incoming.uid)
+        runCurrent()
+        assertEquals(setOf(incoming.uid), model.uiState.value.processingIds)
+
+        users.currentUser = User("other", "Other", null)
+        model.declineRequest(otherIncoming.uid)
+        advanceUntilIdle()
+
+        assertEquals(
+            FriendsState(isLoading = false, loadError = FriendsLoadError.SESSION),
+            model.uiState.value,
+        )
+        assertEquals(0, alice.activeObservers)
+        assertEquals(1, repository.actionCount)
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertTrue(alice.getFriends().isEmpty())
+        assertEquals(listOf(incoming), bob.getOutgoingRequests())
+        assertEquals(listOf(otherIncoming), carol.getOutgoingRequests())
       }
 
   @Test
@@ -360,6 +493,7 @@ class FriendsViewModelTest {
       UserRepository by FakeUserRepository(User("alice", "Alice", null)) {
     var currentUser = User("alice", "Alice", null)
     var lookupFailure: Exception? = null
+    var lookupGate: CompletableDeferred<Unit>? = null
     var lookupCount = 0
     private val profiles =
         listOf(
@@ -372,6 +506,7 @@ class FriendsViewModelTest {
 
     override suspend fun getUsers(userIds: Set<String>): List<User> {
       lookupCount++
+      lookupGate?.await()
       lookupFailure?.let { throw it }
       return profiles.filter { it.uid in userIds }
     }
