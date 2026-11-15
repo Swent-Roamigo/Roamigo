@@ -1,7 +1,9 @@
 // AI assistance was used for implementation support.
 import {randomBytes} from "node:crypto";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {getAuth} from "firebase-admin/auth";
 import {FieldValue, getFirestore, Timestamp} from "firebase-admin/firestore";
+import {logger} from "firebase-functions/v2";
 
 // Joining a trip changes its members, which clients can never do themselves (see firestore.rules),
 // so invitations are created, read and accepted here, with the Admin SDK.
@@ -24,6 +26,37 @@ function documentId(value: unknown): string {
   return value;
 }
 
+// Mirrors MAX_NAME in model/users/UserRepositoryFirestore.kt and the profile rules.
+const MAX_PROFILE_NAME_LENGTH = 120;
+
+// Other members read a person's name from users/<uid>, which the app publishes after sign-in. When
+// that save never happened (it only logs a warning when it fails), the person shows up as an
+// unknown traveller to everyone else. Joining and inviting are the moments others start to see
+// them, so the profile is created here from the account itself when it is missing. An existing
+// profile is never touched, and a failure here never fails the join.
+async function ensureProfile(userId: string): Promise<void> {
+  try {
+    const ref = getFirestore().doc(`users/${userId}`);
+    if ((await ref.get()).exists) return;
+    const account = await getAuth().getUser(userId);
+    const name = (account.displayName ?? "").trim().slice(0, MAX_PROFILE_NAME_LENGTH).trim();
+    if (!name) return;
+    const photo = account.photoURL;
+    await ref.create({
+      uid: userId,
+      displayName: name,
+      nameKey: name.toLowerCase(),
+      photoUrl: photo && photo.length <= 2048 && photo.startsWith("https://") ? photo : null,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  } catch (error) {
+    // 6 is ALREADY_EXISTS: the app published the profile at the same moment.
+    if ((error as {code?: number}).code !== 6) {
+      logger.warn("Could not create the user profile", {userId, error});
+    }
+  }
+}
+
 function requireOwner(trip: FirebaseFirestore.DocumentData | undefined, userId: string): void {
   if (!trip) throw new HttpsError("not-found", "Trip not found");
   if (trip.ownerId !== userId || !Array.isArray(trip.memberIds) ||
@@ -42,6 +75,15 @@ function requireUsable(invitation: FirebaseFirestore.DocumentData | undefined, n
   return invitation;
 }
 
+// A link only works while the person who made it still owns the trip, so removing or replacing an
+// owner does not leave their links admitting people.
+function requireInviterOwns(invitation: FirebaseFirestore.DocumentData,
+  trip: FirebaseFirestore.DocumentData): void {
+  if (trip.ownerId !== invitation.inviterUserId) {
+    throw new HttpsError("not-found", "This invitation is no longer valid");
+  }
+}
+
 // The invitation ID is its token, so it is unguessable and the link carries nothing else.
 export const createTripInvitation = onCall(callableOptions, async (request) => {
   const userId = userIdOf(request);
@@ -49,7 +91,7 @@ export const createTripInvitation = onCall(callableOptions, async (request) => {
   const db = getFirestore();
   // Reading the existing links and creating one happen in one transaction, so two quick calls
   // (a double tap, or a retry after a timeout) cannot each create a link.
-  return db.runTransaction(async (transaction) => {
+  const link = await db.runTransaction(async (transaction) => {
     requireOwner((await transaction.get(db.doc(`trips/${tripId}`))).data(), userId);
 
     const now = Timestamp.now();
@@ -58,12 +100,17 @@ export const createTripInvitation = onCall(callableOptions, async (request) => {
     const existing = await transaction.get(db.collection("tripInvitations")
       .where("tripId", "==", tripId)
       .where("status", "==", "PENDING"));
+    let usable: {token: string, expirationTime: number | null} | null = null;
     for (const doc of existing.docs) {
       const expiration: Timestamp | null = doc.get("expirationTime");
       if (expiration === null || expiration.toMillis() > now.toMillis()) {
-        return {token: doc.id, expirationTime: expiration?.toMillis() ?? null};
+        usable ??= {token: doc.id, expirationTime: expiration?.toMillis() ?? null};
+      } else {
+        // Expired links are marked so that later calls do not scan them again.
+        transaction.update(doc.ref, {status: "EXPIRED"});
       }
     }
+    if (usable) return usable;
 
     const token = randomBytes(16).toString("base64url");
     const expirationTime = Timestamp.fromMillis(now.toMillis() + INVITATION_LIFETIME_MS);
@@ -73,6 +120,9 @@ export const createTripInvitation = onCall(callableOptions, async (request) => {
     });
     return {token, expirationTime: expirationTime.toMillis()};
   });
+  // The join screen shows the inviter by name, so their profile has to exist before anyone opens it.
+  await ensureProfile(userId);
+  return link;
 });
 
 // What a person sees before joining. They cannot read the trip yet, so only what the invitation
@@ -85,6 +135,7 @@ export const previewTripInvitation = onCall(callableOptions, async (request) => 
     (await db.doc(`tripInvitations/${token}`).get()).data(), Timestamp.now());
   const trip = (await db.doc(`trips/${invitation.tripId}`).get()).data();
   if (!trip) throw new HttpsError("not-found", "This invitation is no longer valid");
+  requireInviterOwns(invitation, trip);
   const inviter = (await db.doc(`users/${invitation.inviterUserId}`).get()).data();
   return {
     tripId: invitation.tripId,
@@ -104,6 +155,7 @@ export const acceptTripInvitation = onCall(callableOptions, async (request) => {
     const tripRef = db.doc(`trips/${invitation.tripId}`);
     const trip = (await transaction.get(tripRef)).data();
     if (!trip) throw new HttpsError("not-found", "This invitation is no longer valid");
+    requireInviterOwns(invitation, trip);
     const memberIds: string[] = Array.isArray(trip.memberIds) ? trip.memberIds : [];
     // A second tap, or a link opened by an existing member, changes nothing.
     if (memberIds.includes(userId)) return invitation.tripId as string;
@@ -125,6 +177,7 @@ export const acceptTripInvitation = onCall(callableOptions, async (request) => {
     });
     return invitation.tripId as string;
   });
+  await ensureProfile(userId);
   return {tripId};
 });
 

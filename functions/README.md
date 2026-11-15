@@ -74,6 +74,10 @@ AI assistance was used for implementation support.
 - `acceptTripInvitation({token})` adds the caller to `memberIds` and creates their `EDITOR` member
   document in one transaction (which also triggers `syncTripMember`). It is idempotent for an
   existing member and refuses a trip that already has 10 members.
+- Both `createTripInvitation` and `acceptTripInvitation` create the caller's `users/<uid>` profile
+  from their Firebase account when it is missing, so other members never see them as an unknown
+  traveller. An existing profile is never changed, an account without a name gets none, and a
+  failure there never fails the call.
 - `revokeTripInvitations({tripId})` requires the trip owner and revokes every pending link.
 
 An unknown, revoked or expired token gives the same `not-found` answer, so tokens cannot be
