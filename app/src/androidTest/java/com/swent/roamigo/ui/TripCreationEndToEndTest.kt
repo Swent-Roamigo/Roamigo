@@ -25,6 +25,7 @@ import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthRepositoryFirebase
 import com.swent.roamigo.model.destination.sampleDestination
 import com.swent.roamigo.model.destination.sampleDestinationRepository
+import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.trip.TripMemberRole
 import com.swent.roamigo.model.trip.TripRepositoryFirestore
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
@@ -105,6 +106,7 @@ class TripCreationEndToEndTest {
     composeRule.setContent {
       RoamigoTheme {
         RoamigoApp(
+            friendRepository = FakeFriendRepository(ownerId),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
             tripRepository = repository,

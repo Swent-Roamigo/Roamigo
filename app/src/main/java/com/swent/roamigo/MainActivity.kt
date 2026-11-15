@@ -18,6 +18,7 @@ import com.swent.roamigo.model.country.CachedCountryCodeResolver
 import com.swent.roamigo.model.country.DataStoreCountryCodeCache
 import com.swent.roamigo.model.country.GeoNamesCountryCodeLookup
 import com.swent.roamigo.model.country.VisitedCountryRepository
+import com.swent.roamigo.model.friends.FriendRepositoryFirestore
 import com.swent.roamigo.model.trip.TripRepositoryFirestore
 import com.swent.roamigo.model.trip.activity.ActivityRepositoryFirestore
 import com.swent.roamigo.model.trip.voting.VoteRepositoryFirestore
@@ -52,6 +53,9 @@ class MainActivity : ComponentActivity() {
                 }
               }
           val voteRepository = remember { VoteRepositoryFirestore(FirebaseFirestore.getInstance()) }
+          val friendRepository = remember {
+            FriendRepositoryFirestore(FirebaseFirestore.getInstance(), FirebaseAuth.getInstance())
+          }
 
           val userRepository = remember {
             UserRepositoryFirestore(
@@ -78,6 +82,7 @@ class MainActivity : ComponentActivity() {
               }
 
           RoamigoApp(
+              friendRepository = friendRepository,
               tripRepository = tripRepository,
               activityRepository = activityRepository,
               authRepository = authRepository,
