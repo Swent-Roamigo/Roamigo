@@ -33,6 +33,7 @@ import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.FakeDestinationRepository
+import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.RoamigoApp
@@ -94,6 +95,7 @@ class AuthenticationRotationTest {
           }
       RoamigoTheme {
         RoamigoApp(
+            friendRepository = FakeFriendRepository(user.uid),
             destinationRepository = FakeDestinationRepository(),
             voteRepository = votes,
             authRepository = repository,

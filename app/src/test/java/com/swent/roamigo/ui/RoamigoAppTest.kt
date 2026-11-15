@@ -28,11 +28,14 @@ import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.sampleDestination
 import com.swent.roamigo.model.destination.sampleDestinationRepository
+import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.TripDraft
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
+import com.swent.roamigo.model.users.FakeUserRepository
+import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.authentication.AuthenticationScreenTestTags
 import com.swent.roamigo.ui.theme.RoamigoTheme
@@ -56,6 +59,8 @@ import org.junit.runner.RunWith
 class RoamigoAppTest {
   @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
   private val repository = FakeTripRepository(currentUserId = "alex")
+  private val friendStore = FakeFriendRepository.Store()
+  private val friends = FakeFriendRepository("alex", friendStore)
   private val authRepository =
       FakeAuthRepository(AuthenticatedUser("alex", "Alex", null, null), initiallySignedIn = true)
 
@@ -68,6 +73,9 @@ class RoamigoAppTest {
     composeRule.setContent {
       RoamigoTheme {
         RoamigoApp(
+            friendRepository = friends,
+            userRepository =
+                FakeUserRepository(User("alex", "Alex", null), listOf(User("bob", "Bob", null))),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
             authRepository = authRepository,
@@ -492,6 +500,23 @@ class RoamigoAppTest {
     waitForTrips()
     composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
     composeRule.onAllNodesWithTag(C.Tag.friends_screen).assertCountEquals(0)
+  }
+
+  @Test
+  fun friendsTabDisplaysInjectedRepositoryDataAndLiveRemoval() {
+    val bob = FakeFriendRepository("bob", friendStore)
+    val request = runBlocking {
+      val request = bob.sendFriendRequest("alex")
+      friends.acceptFriendRequest("bob", request.uid)
+      request
+    }
+    waitForTrips()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_friends).performClick()
+    composeRule.onNodeWithText("Bob").assertIsDisplayed()
+
+    composeRule.runOnIdle { runBlocking { bob.removeFriend("alex", request.uid) } }
+    composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertIsDisplayed()
+    composeRule.onNodeWithText("Bob").assertDoesNotExist()
   }
 
   @Test

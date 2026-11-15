@@ -27,6 +27,7 @@ import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.sampleDestinationRepository
+import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
@@ -37,6 +38,8 @@ import com.swent.roamigo.model.trip.voting.Vote
 import com.swent.roamigo.model.trip.voting.VoteBallot
 import com.swent.roamigo.model.trip.voting.VoteOption
 import com.swent.roamigo.model.trip.voting.VoteStatus
+import com.swent.roamigo.model.users.FakeUserRepository
+import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.theme.RoamigoTheme
@@ -98,6 +101,8 @@ class VotesNavigationTest {
       navController = rememberNavController()
       RoamigoTheme {
         RoamigoApp(
+            friendRepository = FakeFriendRepository("member"),
+            userRepository = FakeUserRepository(User("member", "Member", null)),
             voteRepository = repository,
             destinationRepository = sampleDestinationRepository(),
             tripRepository =

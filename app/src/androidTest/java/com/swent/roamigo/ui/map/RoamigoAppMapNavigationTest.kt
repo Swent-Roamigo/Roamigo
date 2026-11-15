@@ -21,6 +21,7 @@ import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.Destination
 import com.swent.roamigo.model.destination.DestinationPhoto
 import com.swent.roamigo.model.destination.DestinationRepository
+import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.location.DeviceLocation
 import com.swent.roamigo.model.location.LocationRepository
 import com.swent.roamigo.model.location.MemberLocation
@@ -125,6 +126,7 @@ class RoamigoAppMapNavigationTest {
       navController = rememberNavController()
       RoamigoTheme {
         RoamigoApp(
+            friendRepository = FakeFriendRepository("alex"),
             voteRepository = InMemoryVoteRepository(),
             tripRepository = tripRepository,
             activityRepository = activityRepository,

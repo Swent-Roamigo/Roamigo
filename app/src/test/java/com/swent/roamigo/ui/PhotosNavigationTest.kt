@@ -18,6 +18,7 @@ import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.connectivity.FakeConnectivityRepository
 import com.swent.roamigo.model.destination.sampleDestinationRepository
+import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.photo.PhotoRepository
@@ -27,6 +28,8 @@ import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
+import com.swent.roamigo.model.users.FakeUserRepository
+import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.photos.TestPhotoRepository
@@ -72,6 +75,8 @@ class PhotosNavigationTest {
       navController = rememberNavController()
       RoamigoTheme {
         RoamigoApp(
+            friendRepository = FakeFriendRepository("member"),
+            userRepository = FakeUserRepository(User("member", "Member", null)),
             voteRepository = InMemoryVoteRepository(emptyList()),
             destinationRepository = sampleDestinationRepository(),
             tripRepository =
