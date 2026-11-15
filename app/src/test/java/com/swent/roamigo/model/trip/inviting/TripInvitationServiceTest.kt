@@ -52,6 +52,48 @@ class TripInvitationServiceTest {
   }
 
   @Test
+  fun previewReadsTheTripInviterAndMembership() = runTest {
+    answer =
+        mapOf(
+            "tripId" to "trip-1",
+            "tripName" to "Lisbon",
+            "inviterName" to "Alex",
+            "alreadyMember" to true,
+        )
+
+    val preview = service.preview("tok")
+
+    assertEquals(listOf("previewTripInvitation" to mapOf("token" to "tok")), calls)
+    assertEquals(InvitationPreview("trip-1", "Lisbon", "Alex", true), preview)
+  }
+
+  @Test
+  fun aMissingOrBlankInviterNameBecomesNull() = runTest {
+    answer = mapOf("tripId" to "t", "tripName" to "Lisbon", "inviterName" to "  ")
+    assertNull(service.preview("tok").inviterName)
+
+    answer = mapOf("tripId" to "t", "tripName" to "Lisbon")
+    val preview = service.preview("tok")
+    assertNull(preview.inviterName)
+    assertEquals(false, preview.alreadyMember)
+  }
+
+  @Test
+  fun aPreviewWithoutATripNameIsUnavailable() = runTest {
+    answer = mapOf("tripId" to "t")
+
+    assertTrue(failureOf { service.preview("tok") } is InvitationException.Unavailable)
+  }
+
+  @Test
+  fun acceptReturnsTheTripJoined() = runTest {
+    answer = mapOf("tripId" to "trip-9")
+
+    assertEquals("trip-9", service.accept("tok"))
+    assertEquals(listOf("acceptTripInvitation" to mapOf("token" to "tok")), calls)
+  }
+
+  @Test
   fun revokeCallsTheFunctionForTheTrip() = runTest {
     answer = mapOf("revoked" to 1)
 
@@ -71,7 +113,7 @@ class TripInvitationServiceTest {
   fun anInvitationFailureFromTheBackendReachesTheCaller() = runTest {
     failure = InvitationException.Full()
 
-    assertTrue(failureOf { service.createLink("trip-1") } is InvitationException.Full)
+    assertTrue(failureOf { service.accept("tok") } is InvitationException.Full)
   }
 
   @Test
@@ -110,6 +152,8 @@ class TripInvitationServiceTest {
 
     listOf<suspend () -> Unit>(
             { unavailable.createLink("t") },
+            { unavailable.preview("tok") },
+            { unavailable.accept("tok") },
             { unavailable.revokeLinks("t") },
         )
         .forEach { call -> assertTrue(failureOf { call() } is InvitationException.Unavailable) }

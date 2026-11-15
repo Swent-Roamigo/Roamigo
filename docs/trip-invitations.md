@@ -4,8 +4,7 @@ AI assistance was used for implementation support.
 
 An organiser invites people to a trip with a link and a code. Anyone who has either can join the
 trip until the organiser stops the link or it expires. This page describes the flow, the data, the
-security model, and how to deploy and test the backend. The screens a person uses to open a link and
-join are a separate change, and this page is extended there.
+security model, how to deploy the backend, and how to test it with two emulators.
 
 ## The flow
 
@@ -15,10 +14,18 @@ join are a separate change, and this page is extended there.
 2. **Share.** "Share link" opens Android's share sheet with the text
    `Join my trip on Roamigo: roamigo://invite/<code>` and the code on a second line. "Copy code"
    puts the code on the clipboard. Nothing is sent by Roamigo itself.
-3. **Stop.** "Stop sharing this link" asks for confirmation and calls `revokeTripInvitations`. People
+3. **Open.** The other person either taps the link, which opens Roamigo through the `roamigo://invite`
+   intent filter of `MainActivity`, or taps "Join a trip" on Trips home and pastes the link, the whole
+   message, or the bare code. The app calls `previewTripInvitation` and shows who invited them to
+   which trip.
+4. **Join.** "Join trip" calls `acceptTripInvitation`, which adds them to the trip. The app then
+   opens the trip.
+5. **Stop.** "Stop sharing this link" asks for confirmation and calls `revokeTripInvitations`. People
    who already joined stay on the trip.
 
-Only the trip organiser can create or stop a link. Another member who opens the sheet is told so.
+A link opened while signed out is kept, and followed after the user has signed in. A link opened while
+the app is already running reaches `MainActivity` as a new intent (it is `singleTop`), which
+`RoamigoApp` passes to the navigation controller.
 
 ## Data
 
@@ -72,17 +79,37 @@ retry the setting. A request without a sign-in must answer `401 UNAUTHENTICATED`
 
 ## Tests
 
-- Unit and Compose tests (Robolectric): `./gradlew testDebugUnitTest`. They cover the service, the
-  invite sheet and its ViewModel, and the entry points, with `FakeTripInvitationService`.
+- Unit and Compose tests (Robolectric): `./gradlew testDebugUnitTest`. They cover link parsing, the
+  service, both ViewModels, the invite sheet, the join screen and dialog, and the navigation, with
+  `FakeTripInvitationService`.
 - Functions on the emulators: `npm --prefix functions run test:emulator`. It runs real calls with
   Auth emulator tokens: permissions, expiry, revoking, joining twice, the member limit and the
   profile creation.
 - Rules: `TripRepositoryFirestoreEmulatorTest` checks that a non-member cannot join by editing
   `memberIds` or adding a member, and that clients cannot read or write `tripInvitations`.
 
+## Trying it with two emulators
+
+The app talks to the real Firebase project, so the invitation functions must be deployed first.
+
+1. Use two **different images**, for example `Pixel_10a` and `Small_Phone`. Two copies of the same image
+   (`-read-only`) start with the same Google account, because it lives in the image.
+2. Add a different Google account on each (Settings, Passwords & accounts), and sign in to Roamigo.
+3. On the first, create a trip and open the invite sheet. Note the code.
+4. Open the link on the second:
+   ```sh
+   adb -s emulator-5556 shell am start -a android.intent.action.VIEW -d "roamigo://invite/<code>"
+   ```
+   Or tap "Join a trip" on Trips home and paste it. The clipboard is not shared between emulators.
+5. Tap "Join trip". Then open the trip's Members screen on the first emulator: the second person is
+   listed by name.
+
+If an emulator cannot reach Google, restart it with `-dns-server 8.8.8.8,1.1.1.1`. Closing a
+`-read-only` emulator discards everything on it.
+
 ## Limits
 
-- `roamigo://` is not a web address, and many chat apps do not make it tappable. A web link needs
-  Firebase Hosting and an app-links file.
-- Opening a link or entering a code in the app comes with the screens for joining.
+- `roamigo://` is not a web address, and many chat apps do not make it tappable. The code covers that.
+  A web link needs Firebase Hosting and an app-links file.
+- The person needs Roamigo installed. There is no web page to fall back on.
 - Inviting a friend from the Friends list, and notifications about invitations, are not part of this.

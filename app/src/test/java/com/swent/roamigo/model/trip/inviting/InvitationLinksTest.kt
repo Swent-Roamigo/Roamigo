@@ -2,14 +2,68 @@
 package com.swent.roamigo.model.trip.inviting
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class InvitationLinksTest {
+  private val token = "AbCdEfGh_ijkLMNo-pQrSt"
+
   @Test
-  fun aLinkHoldsTheTokenAfterTheSchemeAndHost() {
-    assertEquals(
-        "roamigo://invite/AbCdEfGh_ijkLMNo-pQrSt",
-        InvitationLinks.linkFor("AbCdEfGh_ijkLMNo-pQrSt"),
-    )
+  fun aLinkHoldsTheTokenAndIsReadBack() {
+    val link = InvitationLinks.linkFor(token)
+
+    assertEquals("roamigo://invite/$token", link)
+    assertEquals(token, InvitationLinks.tokenFrom(link))
+  }
+
+  @Test
+  fun aBareCodeIsAccepted() {
+    assertEquals(token, InvitationLinks.tokenFrom(token))
+  }
+
+  @Test
+  fun spacesAroundAPastedLinkAreIgnored() {
+    assertEquals(token, InvitationLinks.tokenFrom("  roamigo://invite/$token \n"))
+  }
+
+  @Test
+  fun aQueryOrFragmentAfterTheTokenIsDropped() {
+    assertEquals(token, InvitationLinks.tokenFrom("roamigo://invite/$token?utm=chat#top"))
+  }
+
+  @Test
+  fun theSchemeIsMatchedWithoutRegardToCase() {
+    assertEquals(token, InvitationLinks.tokenFrom("ROAMIGO://INVITE/$token"))
+  }
+
+  @Test
+  fun theWholeSharedMessageIsAccepted() {
+    val message =
+        "Join my trip on Roamigo: ${InvitationLinks.linkFor(token)}\n" +
+            "Or enter this code in the app: $token"
+
+    assertEquals(token, InvitationLinks.tokenFrom(message))
+  }
+
+  @Test
+  fun aLinkInsideOtherTextIsAccepted() {
+    assertEquals(token, InvitationLinks.tokenFrom("Hi! roamigo://invite/$token, see you there"))
+  }
+
+  @Test
+  fun aTooLongTokenInsideALinkIsNotShortened() {
+    assertNull(InvitationLinks.tokenFrom("roamigo://invite/" + "a".repeat(65)))
+  }
+
+  @Test
+  fun textThatIsNotATokenIsRejected() {
+    assertNull(InvitationLinks.tokenFrom(""))
+    assertNull(InvitationLinks.tokenFrom("   "))
+    assertNull(InvitationLinks.tokenFrom("hello"))
+    assertNull(InvitationLinks.tokenFrom("https://example.com/invite/$token"))
+    assertNull(InvitationLinks.tokenFrom("roamigo://invite/"))
+    assertNull(InvitationLinks.tokenFrom("roamigo://other/$token"))
+    assertNull(InvitationLinks.tokenFrom("$token and more words"))
+    assertNull(InvitationLinks.tokenFrom("a".repeat(65)))
   }
 }

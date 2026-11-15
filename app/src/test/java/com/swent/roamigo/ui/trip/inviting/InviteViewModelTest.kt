@@ -6,7 +6,6 @@ import androidx.lifecycle.ViewModelStore
 import com.swent.roamigo.model.trip.inviting.FakeTripInvitationService
 import com.swent.roamigo.model.trip.inviting.InvitationException
 import com.swent.roamigo.model.trip.inviting.InvitationLink
-import com.swent.roamigo.ui.trips.TripsViewModel
 import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -226,7 +225,7 @@ class InviteViewModelTest {
     val factory = InviteViewModel.factory("trip", service)
 
     assertThrows(IllegalArgumentException::class.java) {
-      factory.create(TripsViewModel::class.java)
+      factory.create(JoinTripViewModel::class.java)
     }
   }
 }
