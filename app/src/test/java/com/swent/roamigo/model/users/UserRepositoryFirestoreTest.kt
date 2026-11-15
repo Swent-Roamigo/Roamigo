@@ -14,6 +14,7 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.Source
+import java.security.MessageDigest
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -298,6 +299,37 @@ class UserRepositoryFirestoreTest {
       val error = runCatching { repository.publishCurrentUser() }.exceptionOrNull()
 
       assertTrue("Expected ${expectedType.simpleName}, got $error", expectedType.isInstance(error))
+    }
+  }
+
+  @Test
+  fun emailLookupRejectsMalformedUserIds() = runBlocking {
+    val email = "bob@example.org"
+    val hash =
+        MessageDigest.getInstance("SHA-256").digest(email.toByteArray(Charsets.UTF_8)).joinToString(
+            ""
+        ) {
+          "%02x".format(it.toInt() and 255)
+        }
+
+    val indexes = mock(CollectionReference::class.java)
+    val indexReference = mock(DocumentReference::class.java)
+    val indexSnapshot = mock(DocumentSnapshot::class.java)
+
+    `when`(db.collection("userEmailLookups")).thenReturn(indexes)
+    `when`(indexes.document(hash)).thenReturn(indexReference)
+    `when`(indexReference.get(Source.SERVER)).thenReturn(Tasks.forResult(indexSnapshot))
+    `when`(indexSnapshot.exists()).thenReturn(true)
+
+    for (invalidId in listOf<String?>(null, "", "invalid/id", ".", "..")) {
+      `when`(indexSnapshot.getString("uid")).thenReturn(invalidId)
+
+      val error = runCatching { repository.searchUsers(email) }.exceptionOrNull()
+
+      assertTrue(
+          "Expected InvalidData for UID '$invalidId', got $error",
+          error is UserRepositoryException.InvalidData,
+      )
     }
   }
 }

@@ -15,9 +15,9 @@ interface UserRepository {
   /** Returns user profiles matching the requested identifiers. */
   suspend fun getUsers(userIds: Set<String>): List<User>
 
-  /** Searches public profiles by name prefix, returning at most 20 results. */
+  /** Searches public profiles by name prefix or exact email, returning at most 20 results. */
   suspend fun searchUsers(query: String): List<User>
 
-  /** Publishes the authenticated user's public profile. */
+  /** Publishes the authenticated user's profile and verified email lookup. */
   suspend fun publishCurrentUser()
 }
