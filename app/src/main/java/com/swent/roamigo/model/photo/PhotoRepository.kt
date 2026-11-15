@@ -25,13 +25,19 @@ interface PhotoRepository {
   fun fileOf(photo: PendingPhoto): File
 
   /**
-   * Keeps [file], which the camera wrote, as a photo of the trip and schedules its upload. The
-   * photo is tagged with the current position if the location permission is already granted and a
-   * position is available in time; it is saved without one otherwise.
+   * Keeps [file], which the camera wrote, as a photo of the trip and schedules its upload.
    *
+   * @param takenAtMillis when the camera returned the photo, in epoch milliseconds.
+   * @param coordinates where the photo was taken, or null if the position is unknown. It is stored
+   *   as missing, never as a made-up position.
    * @throws IllegalStateException if no user is signed in, or [file] is empty.
    */
-  suspend fun savePhoto(tripId: String, file: File)
+  suspend fun savePhoto(
+      tripId: String,
+      file: File,
+      takenAtMillis: Long,
+      coordinates: PhotoCoordinates?,
+  )
 
   /** Deletes [file], e.g. a photo the user did not keep. */
   fun discard(file: File)

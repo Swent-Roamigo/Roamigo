@@ -5,9 +5,15 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.swent.roamigo.model.connectivity.ConnectivityRepository
+import com.swent.roamigo.model.photo.PHOTO_LOCATION_TIMEOUT
+import com.swent.roamigo.model.photo.PhotoCoordinates
+import com.swent.roamigo.model.photo.PhotoLocationResult
+import com.swent.roamigo.model.photo.PhotoLocator
 import com.swent.roamigo.model.photo.PhotoRepository
 import com.swent.roamigo.model.photo.TripPhoto
 import java.io.File
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -22,6 +28,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Takes photos for one trip, shows the ones waiting to be uploaded, and the ones the trip already
@@ -29,13 +36,21 @@ import kotlinx.coroutines.withContext
  *
  * The camera permission is asked in context, only once the user wants to take a photo, and the
  * screen is told what to do through [effects]: this class holds the steps but no Android types.
+ *
+ * A photo is tagged with the position read when the camera returns it, using only a location
+ * permission that is already granted: this screen never asks for it.
+ *
+ * @param locator reads where a photo is taken.
+ * @param clock returns the current time in epoch milliseconds.
  */
 class PhotosViewModel(
     private val repository: PhotoRepository,
     connectivity: ConnectivityRepository,
     val tripId: String,
+    private val locator: PhotoLocator,
     private val currentUserId: String? = null,
     private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
+    private val clock: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
 
   private data class Local(
@@ -43,6 +58,7 @@ class PhotosViewModel(
       val preview: File? = null,
       val saving: Boolean = false,
       val saveFailed: Boolean = false,
+      val location: PhotoLocationStatus? = null,
       val viewingId: String? = null,
   )
 
@@ -63,6 +79,12 @@ class PhotosViewModel(
     set(value) = savedStateHandle.set(CAPTURE_FILE_KEY, value?.path)
 
   private var cleared = false
+
+  // When the camera returned the photo in the preview, and when its position fetch started. The
+  // fetch start gives the part of the timeout that is left when the user saves.
+  private var takenAtMillis = 0L
+  private var fetchStartedAtMillis = 0L
+  private var locationJob: Job? = null
 
   // Set while the user is in the app's settings, to resume the photo they asked for.
   private var awaitingSettings = false
@@ -86,6 +108,7 @@ class PhotosViewModel(
                 preview = local.preview,
                 saving = local.saving,
                 saveFailed = local.saveFailed,
+                previewLocation = local.location,
             )
           }
           .stateIn(viewModelScope, SharingStarted.Eagerly, PhotosUiState(galleryLoading = true))
@@ -166,8 +189,13 @@ class PhotosViewModel(
   fun onPictureTaken(taken: Boolean) {
     val file = captureFile ?: return
     captureFile = null
-    if (taken) local.update { it.copy(preview = file, saveFailed = false) }
-    else repository.discard(file)
+    if (!taken) return repository.discard(file)
+    takenAtMillis = clock()
+    fetchStartedAtMillis = takenAtMillis
+    local.update {
+      it.copy(preview = file, saveFailed = false, location = PhotoLocationStatus.Locating)
+    }
+    locationJob = viewModelScope.launch { fetchLocation() }
   }
 
   /** Keeps the photo shown in the preview. */
@@ -180,8 +208,10 @@ class PhotosViewModel(
       // Leaving the screen must not stop the save: the file is only safe once it is in the queue.
       withContext(NonCancellable) {
         try {
-          repository.savePhoto(tripId, file)
-          local.update { it.copy(preview = null, saving = false) }
+          val coordinates = awaitCoordinates()
+          repository.savePhoto(tripId, file, takenAtMillis, coordinates)
+          locationJob = null
+          local.update { it.copy(preview = null, saving = false, location = null) }
         } catch (_: Exception) {
           // The photo stays in the preview so the user can try again, unless nobody is left to.
           if (cleared) repository.discard(file)
@@ -229,6 +259,51 @@ class PhotosViewModel(
     }
   }
 
+  private suspend fun fetchLocation() {
+    val status =
+        try {
+          locator.locate(PHOTO_LOCATION_TIMEOUT).toStatus()
+        } catch (e: CancellationException) {
+          throw e
+        } catch (_: Exception) {
+          // A photo is worth more than its position.
+          PhotoLocationStatus.Unavailable
+        }
+    local.update { if (it.preview != null) it.copy(location = status) else it }
+  }
+
+  /**
+   * The position to save the photo with, or null if there is none. Waits only for what is left of
+   * the fetch's time budget, so the user never waits longer than the timeout in total.
+   */
+  private suspend fun awaitCoordinates(): PhotoCoordinates? {
+    val job = locationJob
+    if (job != null && local.value.location == PhotoLocationStatus.Locating) {
+      val elapsed = (clock() - fetchStartedAtMillis).milliseconds
+      val remaining = (PHOTO_LOCATION_TIMEOUT - elapsed).coerceAtLeast(Duration.ZERO)
+      // A fetch cancelled with the view model also ends the join, and counts as no position.
+      withTimeoutOrNull(remaining) { job.join() }
+      job.cancel()
+      local.update {
+        if (it.location == PhotoLocationStatus.Locating) {
+          it.copy(location = PhotoLocationStatus.Unavailable)
+        } else it
+      }
+    }
+    return (local.value.location as? PhotoLocationStatus.Attached)?.let {
+      PhotoCoordinates(it.latitude, it.longitude)
+    }
+  }
+
+  private fun PhotoLocationResult.toStatus(): PhotoLocationStatus =
+      when (this) {
+        is PhotoLocationResult.Found ->
+            PhotoLocationStatus.Attached(coordinates.latitude, coordinates.longitude)
+        PhotoLocationResult.PermissionOff -> PhotoLocationStatus.Off
+        PhotoLocationResult.Unavailable,
+        PhotoLocationResult.TimedOut -> PhotoLocationStatus.Unavailable
+      }
+
   private fun showStep(step: CameraStep) = local.update { it.copy(cameraStep = step) }
 
   private fun startCapture() {
@@ -244,7 +319,9 @@ class PhotosViewModel(
     val file = current.preview ?: return false
     if (current.saving) return false
     repository.discard(file)
-    local.update { it.copy(preview = null, saveFailed = false) }
+    locationJob?.cancel()
+    locationJob = null
+    local.update { it.copy(preview = null, saveFailed = false, location = null) }
     return true
   }
 

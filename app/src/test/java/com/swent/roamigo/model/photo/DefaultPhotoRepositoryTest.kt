@@ -1,12 +1,8 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.model.photo
 
-import com.swent.roamigo.model.location.DeviceLocation
-import com.swent.roamigo.model.location.FakeLocationRepository
 import java.io.File
-import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -25,24 +21,20 @@ class DefaultPhotoRepositoryTest {
 
   private val queue = InMemoryPhotoQueue()
   private val scheduler = FakePhotoScheduler()
-  private val location = FakeLocationRepository()
   private val gallery = MutableStateFlow<List<TripPhoto>>(emptyList())
   private var userId: String? = "u1"
   private lateinit var files: PhotoFileStore
   private lateinit var repository: DefaultPhotoRepository
 
-  private fun create(locationTimeout: kotlin.time.Duration = 5.seconds) {
+  private fun create() {
     files = PhotoFileStore(folder.newFolder())
     repository =
         DefaultPhotoRepository(
             queue = queue,
             files = files,
             scheduler = scheduler,
-            locationRepository = location,
             gallery = { gallery },
             currentUserId = { userId },
-            clock = { 1234L },
-            locationTimeout = locationTimeout,
         )
   }
 
@@ -54,7 +46,7 @@ class DefaultPhotoRepositoryTest {
     create()
     val file = takePhoto()
 
-    repository.savePhoto("trip", file)
+    repository.savePhoto("trip", file, 1234L, null)
 
     assertEquals(
         listOf(
@@ -73,68 +65,24 @@ class DefaultPhotoRepositoryTest {
   }
 
   @Test
-  fun tagsThePhotoWithThePositionWhenLocationIsAllowed() = runTest {
+  fun queuesThePhotoWithTheTimeAndPositionItIsGiven() = runTest {
     create()
-    location.hasPermission = true
-    location.currentLocation = DeviceLocation(46.5, 6.6)
 
-    repository.savePhoto("trip", takePhoto())
+    repository.savePhoto("trip", takePhoto(), 99L, PhotoCoordinates(46.5, 6.6))
 
+    assertEquals(99L, queue.current.single().takenAtMillis)
     assertEquals(46.5, queue.current.single().latitude)
     assertEquals(6.6, queue.current.single().longitude)
   }
 
   @Test
-  fun neverAsksForAPositionWithoutThePermission() = runTest {
+  fun keepsAMissingPositionMissingInsteadOfZero() = runTest {
     create()
-    location.hasPermission = false
-    location.currentLocation = DeviceLocation(46.5, 6.6)
 
-    repository.savePhoto("trip", takePhoto())
+    repository.savePhoto("trip", takePhoto(), 99L, null)
 
-    assertEquals(0, location.getCurrentLocationCalls)
     assertNull(queue.current.single().latitude)
     assertNull(queue.current.single().longitude)
-  }
-
-  @Test
-  fun savesWithoutAPositionWhenNoneIsAvailable() = runTest {
-    create()
-    location.hasPermission = true
-    location.currentLocation = null
-
-    repository.savePhoto("trip", takePhoto())
-
-    assertNull(queue.current.single().latitude)
-  }
-
-  @Test
-  fun doesNotWaitLongerThanTheTimeoutForAPosition() = runTest {
-    create(locationTimeout = 2.seconds)
-    location.hasPermission = true
-    val slow =
-        object : com.swent.roamigo.model.location.LocationRepository by location {
-          override suspend fun getCurrentLocation(): DeviceLocation? {
-            delay(60.seconds)
-            return DeviceLocation(1.0, 2.0)
-          }
-        }
-    repository =
-        DefaultPhotoRepository(
-            queue,
-            files,
-            scheduler,
-            slow,
-            { gallery },
-            { userId },
-            { 1L },
-            2.seconds,
-        )
-
-    repository.savePhoto("trip", takePhoto())
-
-    assertNull(queue.current.single().latitude)
-    assertEquals(1, scheduler.calls)
   }
 
   @Test
@@ -144,7 +92,7 @@ class DefaultPhotoRepositoryTest {
     val file = takePhoto()
 
     assertThrows(IllegalStateException::class.java) {
-      kotlinx.coroutines.runBlocking { repository.savePhoto("trip", file) }
+      kotlinx.coroutines.runBlocking { repository.savePhoto("trip", file, 1L, null) }
     }
 
     assertEquals(emptyList<PendingPhoto>(), queue.current)
@@ -157,7 +105,7 @@ class DefaultPhotoRepositoryTest {
     val file = takePhoto(content = "")
 
     assertThrows(IllegalStateException::class.java) {
-      kotlinx.coroutines.runBlocking { repository.savePhoto("trip", file) }
+      kotlinx.coroutines.runBlocking { repository.savePhoto("trip", file, 1L, null) }
     }
 
     assertEquals(emptyList<PendingPhoto>(), queue.current)
@@ -166,8 +114,8 @@ class DefaultPhotoRepositoryTest {
   @Test
   fun listsTheTripsPendingPhotosOnly() = runTest {
     create()
-    repository.savePhoto("trip", takePhoto())
-    repository.savePhoto("other", takePhoto())
+    repository.savePhoto("trip", takePhoto(), 1L, null)
+    repository.savePhoto("other", takePhoto(), 1L, null)
 
     assertEquals(1, repository.pendingPhotos("trip").first().size)
     assertEquals(emptyList<PendingPhoto>(), repository.pendingPhotos("none").first())
@@ -200,7 +148,7 @@ class DefaultPhotoRepositoryTest {
   fun givesTheFileOfAPhoto() = runTest {
     create()
     val file = takePhoto()
-    repository.savePhoto("trip", file)
+    repository.savePhoto("trip", file, 1L, null)
 
     assertEquals(file, repository.fileOf(queue.current.single()))
   }
@@ -235,7 +183,6 @@ class DefaultPhotoRepositoryTest {
             queue,
             files,
             scheduler,
-            location,
             { tripId ->
               requested += tripId
               gallery

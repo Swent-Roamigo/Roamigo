@@ -32,7 +32,7 @@ class RoamigoApplication : Application(), ImageLoaderFactory, Configuration.Prov
   }
 
   // Outside any screen, because the uploads run in the background.
-  val photos: PhotoModule by lazy { PhotoModule(this, locationRepository) }
+  val photos: PhotoModule by lazy { PhotoModule(this) }
 
   override val workManagerConfiguration: Configuration
     get() =

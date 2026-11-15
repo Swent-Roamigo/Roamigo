@@ -64,7 +64,7 @@ class TripRouteTest {
             voteRepository = InMemoryVoteRepository(),
             photoRepository = FakePhotoRepository(composeRule.activity.cacheDir),
             connectivityRepository = FakeConnectivityRepository(),
-            locationRepository = null,
+            locationRepository = FakeLocationRepository(),
             onBack = {},
             onAuthenticationRequired = {},
             onOpenVote = { _, _ -> },
