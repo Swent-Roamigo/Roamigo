@@ -15,7 +15,7 @@ security model, how to deploy the backend, and how to test it with two emulators
    `Join my trip on Roamigo: roamigo://invite/<code>` and the code on a second line. "Copy code"
    puts the code on the clipboard. Nothing is sent by Roamigo itself.
 3. **Open.** The other person either taps the link, which opens Roamigo through the `roamigo://invite`
-   intent filter of `MainActivity`, or taps "Join a trip" on Trips home and pastes the link, the whole
+   intent filter of `MainActivity`, or taps "Join" on Trips home and pastes the link, the whole
    message, or the bare code. The app calls `previewTripInvitation` and shows who invited them to
    which trip.
 4. **Join.** "Join trip" calls `acceptTripInvitation`, which adds them to the trip. The app then
@@ -100,7 +100,7 @@ The app talks to the real Firebase project, so the invitation functions must be 
    ```sh
    adb -s emulator-5556 shell am start -a android.intent.action.VIEW -d "roamigo://invite/<code>"
    ```
-   Or tap "Join a trip" on Trips home and paste it. The clipboard is not shared between emulators.
+   Or tap "Join" on Trips home and paste it. The clipboard is not shared between emulators.
 5. Tap "Join trip". Then open the trip's Members screen on the first emulator: the second person is
    listed by name.
 
