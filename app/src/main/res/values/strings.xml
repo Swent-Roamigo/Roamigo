@@ -243,6 +243,26 @@
 
     <!-- Friends -->
     <string name="friends_title">Friends</string>
+    <string name="friends_loading">Loading friends…</string>
+    <string name="friends_load_failed">Could not load friends and requests.</string>
+    <string name="friends_profiles_failed">Some names and photos could not be loaded.</string>
+    <string name="friends_session_ended">Your session has ended. Please sign in again.</string>
+    <string name="friends_retry">Retry</string>
+    <string name="friends_unknown_traveler">Unknown traveler</string>
+    <string name="friends_incoming_title">Incoming requests</string>
+    <string name="friends_established_title">Your friends</string>
+    <string name="friends_outgoing_title">Outgoing requests</string>
+    <string name="friends_accept">Accept</string>
+    <string name="friends_decline">Decline</string>
+    <string name="friends_remove">Remove friend</string>
+    <string name="friends_updating">Updating…</string>
+    <string name="friends_accept_accessibility">Accept friend request from %1$s</string>
+    <string name="friends_decline_accessibility">Decline friend request from %1$s</string>
+    <string name="friends_remove_accessibility">Remove %1$s from friends</string>
+    <string name="friends_accept_failed">Could not accept the request. Please try again.</string>
+    <string name="friends_decline_failed">Could not decline the request. Please try again.</string>
+    <string name="friends_remove_failed">Could not remove the friend. Please try again.</string>
+    <string name="friends_no_matches">No matching friends or requests.</string>
     <string name="friends_privacy_subtitle">Maps are visible to friends only</string>
     <string name="profile_log_out_title">Log out of Roamigo?</string>
     <string name="profile_log_out_message">Your trips stay saved. Trips you opened offline will need a connection after you sign in again.</string>
