@@ -49,19 +49,13 @@ class JoinTripViewModel(
   }
 
   fun load() {
-    job?.cancel()
     _uiState.value = JoinTripUiState.Loading
-    job = viewModelScope.launch {
-      _uiState.value =
-          try {
-            JoinTripUiState.Ready(service.preview(token))
-          } catch (exception: CancellationException) {
-            throw exception
-          } catch (exception: InvitationException.Invalid) {
-            JoinTripUiState.Invalid
-          } catch (exception: Exception) {
-            JoinTripUiState.Failed
-          }
+    launchState(
+        onError = {
+          if (it is InvitationException.Invalid) JoinTripUiState.Invalid else JoinTripUiState.Failed
+        }
+    ) {
+      JoinTripUiState.Ready(service.preview(token))
     }
   }
 
@@ -73,19 +67,35 @@ class JoinTripViewModel(
           else -> return
         }
     _uiState.value = JoinTripUiState.Joining(preview)
+    launchState(
+        onError = {
+          when (it) {
+            is InvitationException.Invalid -> JoinTripUiState.Invalid
+            is InvitationException.Full -> JoinTripUiState.Full(preview)
+            else -> JoinTripUiState.Ready(preview, joinFailed = true)
+          }
+        }
+    ) {
+      JoinTripUiState.Joined(service.accept(token))
+    }
+  }
+
+  /**
+   * Replaces the running request: [block] gives the next state, or [onError] does when it fails.
+   */
+  private fun launchState(
+      onError: (Exception) -> JoinTripUiState,
+      block: suspend () -> JoinTripUiState,
+  ) {
     job?.cancel()
     job = viewModelScope.launch {
       _uiState.value =
           try {
-            JoinTripUiState.Joined(service.accept(token))
+            block()
           } catch (exception: CancellationException) {
             throw exception
-          } catch (exception: InvitationException.Invalid) {
-            JoinTripUiState.Invalid
-          } catch (exception: InvitationException.Full) {
-            JoinTripUiState.Full(preview)
           } catch (exception: Exception) {
-            JoinTripUiState.Ready(preview, joinFailed = true)
+            onError(exception)
           }
     }
   }

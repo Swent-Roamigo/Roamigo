@@ -3,12 +3,11 @@
 // Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui
 
-import android.content.Context
-import android.content.ContextWrapper
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -113,7 +112,7 @@ fun RoamigoApp(
   val scope = rememberCoroutineScope()
   // MainActivity is singleTop, so a link opened while the app is running arrives as a new intent
   // on the same activity. The navigation graph only follows it when it is told about it.
-  val hostActivity = remember(context) { context.findComponentActivity() }
+  val hostActivity = LocalActivity.current as? ComponentActivity
   DisposableEffect(navController, hostActivity) {
     val listener = Consumer<Intent> { navController.handleDeepLink(it) }
     hostActivity?.addOnNewIntentListener(listener)
@@ -469,13 +468,6 @@ private fun SignedIn(
     content(userId)
   }
 }
-
-private tailrec fun Context.findComponentActivity(): ComponentActivity? =
-    when (this) {
-      is ComponentActivity -> this
-      is ContextWrapper -> baseContext.findComponentActivity()
-      else -> null
-    }
 
 private fun redirectToAuthentication(navController: NavHostController) {
   navController.navigate(Route.AUTHENTICATION) {

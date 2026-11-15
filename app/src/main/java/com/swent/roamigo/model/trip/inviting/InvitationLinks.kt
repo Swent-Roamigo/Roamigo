@@ -25,11 +25,6 @@ object InvitationLinks {
    * The token in a pasted link, message containing a link, or bare code, or null when the text
    * holds none.
    */
-  fun tokenFrom(text: String): String? {
-    val trimmed = text.trim()
-    linkPattern.find(trimmed)?.let {
-      return it.groupValues[1]
-    }
-    return trimmed.takeIf { tokenPattern.matches(it) }
-  }
+  fun tokenFrom(text: String): String? =
+      linkPattern.find(text)?.groupValues?.get(1) ?: text.trim().takeIf { tokenPattern.matches(it) }
 }

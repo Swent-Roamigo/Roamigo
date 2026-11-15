@@ -389,7 +389,6 @@
     <string name="invite_retry">Retry</string>
     <string name="invite_cancel">Cancel</string>
 
-    <string name="join_title">Join a trip</string>
     <string name="join_loading">Checking the invitation…</string>
     <string name="join_invited_by">%1$s invited you to join</string>
     <string name="join_invited">You are invited to join</string>
