@@ -24,6 +24,7 @@ import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.authentication.AuthRepositoryFirebase
 import com.swent.roamigo.model.connectivity.ConnectivityRepository
 import com.swent.roamigo.model.destination.DestinationRepository
+import com.swent.roamigo.model.friends.FriendRepository
 import com.swent.roamigo.model.location.LocationRepository
 import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.photo.PhotoRepository
@@ -37,8 +38,7 @@ import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.ui.authentication.AuthenticationRoute
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
-import com.swent.roamigo.ui.friends.FriendsScreen
-import com.swent.roamigo.ui.friends.FriendsUiState
+import com.swent.roamigo.ui.friends.FriendsRoute
 import com.swent.roamigo.ui.heatmap.ExploredWorldRoute
 import com.swent.roamigo.ui.heatmap.VisitedCountryCounts
 import com.swent.roamigo.ui.map.TripOverviewMapRoute
@@ -76,6 +76,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun RoamigoApp(
     voteRepository: VoteRepository,
+    friendRepository: FriendRepository,
     tripRepository: TripRepository = remember { FakeTripRepository() },
     activityRepository: ActivityRepository = remember { FakeActivityRepository() },
     userRepository: UserRepository = remember { FakeUserRepository(User("alex", "Alex", null)) },
@@ -191,11 +192,16 @@ fun RoamigoApp(
       }
     }
     composable(Route.FRIENDS) {
-      FriendsScreen(
-          uiState = FriendsUiState(),
-          onTripsClick = onTripsClick,
-          onMapClick = onMapClick,
-      )
+      SignedIn(authRepository, navController) { userId ->
+        FriendsRoute(
+            friendRepository = friendRepository,
+            userRepository = userRepository,
+            currentUserId = userId,
+            onSessionEnded = { redirectToAuthentication(navController) },
+            onTripsClick = onTripsClick,
+            onMapClick = onMapClick,
+        )
+      }
     }
     composable(Route.PROFILE) {
       ProfileRoute(

@@ -15,6 +15,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.sampleDestinationRepository
+import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
@@ -37,6 +38,7 @@ class RoamigoAppProfileTest {
     composeRule.setContent {
       RoamigoTheme {
         RoamigoApp(
+            friendRepository = FakeFriendRepository("u1"),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
             authRepository = authRepository,
@@ -63,6 +65,7 @@ class RoamigoAppProfileTest {
     composeRule.setContent {
       RoamigoTheme {
         RoamigoApp(
+            friendRepository = FakeFriendRepository("u1"),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
             authRepository = authRepository,
@@ -91,6 +94,7 @@ class RoamigoAppProfileTest {
     composeRule.setContent {
       RoamigoTheme {
         RoamigoApp(
+            friendRepository = FakeFriendRepository("u1"),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
             authRepository = authRepository,
