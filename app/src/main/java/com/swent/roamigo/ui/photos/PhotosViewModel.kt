@@ -81,10 +81,15 @@ class PhotosViewModel(
   private var cleared = false
 
   // When the camera returned the photo in the preview, and when its position fetch started. The
-  // fetch start gives the part of the timeout that is left when the user saves.
+  // fetch start gives the part of the timeout that is left when the user saves, or after the
+  // process was killed. Both are kept in the saved state along with the position.
   private var takenAtMillis = 0L
   private var fetchStartedAtMillis = 0L
   private var locationJob: Job? = null
+
+  // Identifies the current fetch, so that a result arriving after a retake, a close or a timeout
+  // cannot overwrite the state of the photo that replaced it.
+  private var fetchGeneration = 0
 
   // Set while the user is in the app's settings, to resume the photo they asked for.
   private var awaitingSettings = false
@@ -123,6 +128,7 @@ class PhotosViewModel(
 
   init {
     observeGallery()
+    restorePreview()
   }
 
   /** Reads the trip's photos again after they could not be read. */
@@ -192,10 +198,12 @@ class PhotosViewModel(
     if (!taken) return repository.discard(file)
     takenAtMillis = clock()
     fetchStartedAtMillis = takenAtMillis
-    local.update {
-      it.copy(preview = file, saveFailed = false, location = PhotoLocationStatus.Locating)
-    }
-    locationJob = viewModelScope.launch { fetchLocation() }
+    local.update { it.copy(preview = file, saveFailed = false) }
+    savedStateHandle[PREVIEW_FILE_KEY] = file.path
+    savedStateHandle[TAKEN_AT_KEY] = takenAtMillis
+    savedStateHandle[FETCH_STARTED_AT_KEY] = fetchStartedAtMillis
+    setLocation(PhotoLocationStatus.Locating)
+    startLocationFetch(PHOTO_LOCATION_TIMEOUT)
   }
 
   /** Keeps the photo shown in the preview. */
@@ -210,8 +218,8 @@ class PhotosViewModel(
         try {
           val coordinates = awaitCoordinates()
           repository.savePhoto(tripId, file, takenAtMillis, coordinates)
-          locationJob = null
-          local.update { it.copy(preview = null, saving = false, location = null) }
+          clearCapture()
+          local.update { it.copy(preview = null, saving = false) }
         } catch (_: Exception) {
           // The photo stays in the preview so the user can try again, unless nobody is left to.
           if (cleared) repository.discard(file)
@@ -259,17 +267,22 @@ class PhotosViewModel(
     }
   }
 
-  private suspend fun fetchLocation() {
-    val status =
-        try {
-          locator.locate(PHOTO_LOCATION_TIMEOUT).toStatus()
-        } catch (e: CancellationException) {
-          throw e
-        } catch (_: Exception) {
-          // A photo is worth more than its position.
-          PhotoLocationStatus.Unavailable
-        }
-    local.update { if (it.preview != null) it.copy(location = status) else it }
+  private fun startLocationFetch(budget: Duration) {
+    locationJob?.cancel()
+    val generation = ++fetchGeneration
+    locationJob = viewModelScope.launch {
+      val status =
+          try {
+            locator.locate(budget).toStatus()
+          } catch (e: CancellationException) {
+            throw e
+          } catch (_: Exception) {
+            // A photo is worth more than its position.
+            PhotoLocationStatus.Unavailable
+          }
+      // A cancelled fetch may still return a result, e.g. one it had already read.
+      if (generation == fetchGeneration) setLocation(status)
+    }
   }
 
   /**
@@ -277,21 +290,82 @@ class PhotosViewModel(
    * the fetch's time budget, so the user never waits longer than the timeout in total.
    */
   private suspend fun awaitCoordinates(): PhotoCoordinates? {
-    val job = locationJob
-    if (job != null && local.value.location == PhotoLocationStatus.Locating) {
-      val elapsed = (clock() - fetchStartedAtMillis).milliseconds
-      val remaining = (PHOTO_LOCATION_TIMEOUT - elapsed).coerceAtLeast(Duration.ZERO)
+    if (local.value.location == PhotoLocationStatus.Locating) {
       // A fetch cancelled with the view model also ends the join, and counts as no position.
-      withTimeoutOrNull(remaining) { job.join() }
-      job.cancel()
-      local.update {
-        if (it.location == PhotoLocationStatus.Locating) {
-          it.copy(location = PhotoLocationStatus.Unavailable)
-        } else it
+      withTimeoutOrNull(remainingBudget()) { locationJob?.join() }
+      locationJob?.cancel()
+      fetchGeneration++
+      if (local.value.location == PhotoLocationStatus.Locating) {
+        setLocation(PhotoLocationStatus.Unavailable)
       }
     }
     return (local.value.location as? PhotoLocationStatus.Attached)?.let {
       PhotoCoordinates(it.latitude, it.longitude)
+    }
+  }
+
+  private fun remainingBudget(): Duration =
+      (PHOTO_LOCATION_TIMEOUT - (clock() - fetchStartedAtMillis).milliseconds).coerceIn(
+          Duration.ZERO,
+          PHOTO_LOCATION_TIMEOUT,
+      )
+
+  /** Shows [status] for the preview, if there still is one, and keeps it in the saved state. */
+  private fun setLocation(status: PhotoLocationStatus) {
+    if (local.value.preview == null) return
+    local.update { it.copy(location = status) }
+    savedStateHandle[LOCATION_STATUS_KEY] =
+        when (status) {
+          PhotoLocationStatus.Locating -> STATUS_LOCATING
+          is PhotoLocationStatus.Attached -> STATUS_ATTACHED
+          PhotoLocationStatus.Unavailable -> STATUS_UNAVAILABLE
+          PhotoLocationStatus.Off -> STATUS_OFF
+        }
+    val attached = status as? PhotoLocationStatus.Attached
+    savedStateHandle[LATITUDE_KEY] = attached?.latitude
+    savedStateHandle[LONGITUDE_KEY] = attached?.longitude
+  }
+
+  /** Forgets the position and times of the photo that leaves the preview, and stops its fetch. */
+  private fun clearCapture() {
+    locationJob?.cancel()
+    locationJob = null
+    fetchGeneration++
+    takenAtMillis = 0L
+    fetchStartedAtMillis = 0L
+    PREVIEW_KEYS.forEach { savedStateHandle.remove<Any>(it) }
+    local.update { it.copy(location = null) }
+  }
+
+  /** Brings back the preview that was open when the process was killed, and its position. */
+  private fun restorePreview() {
+    val file = savedStateHandle.get<String>(PREVIEW_FILE_KEY)?.let(::File)
+    if (file == null || !file.exists()) {
+      // Without its photo the position belongs to nothing.
+      PREVIEW_KEYS.forEach { savedStateHandle.remove<Any>(it) }
+      return
+    }
+    takenAtMillis = savedStateHandle.get<Long>(TAKEN_AT_KEY) ?: clock()
+    fetchStartedAtMillis = savedStateHandle.get<Long>(FETCH_STARTED_AT_KEY) ?: takenAtMillis
+    local.update { it.copy(preview = file) }
+    val latitude = savedStateHandle.get<Double>(LATITUDE_KEY)
+    val longitude = savedStateHandle.get<Double>(LONGITUDE_KEY)
+    when (savedStateHandle.get<String>(LOCATION_STATUS_KEY)) {
+      STATUS_ATTACHED ->
+          setLocation(
+              if (latitude != null && longitude != null) {
+                PhotoLocationStatus.Attached(latitude, longitude)
+              } else PhotoLocationStatus.Unavailable
+          )
+      STATUS_OFF -> setLocation(PhotoLocationStatus.Off)
+      STATUS_LOCATING -> {
+        val budget = remainingBudget()
+        if (budget > Duration.ZERO) {
+          setLocation(PhotoLocationStatus.Locating)
+          startLocationFetch(budget)
+        } else setLocation(PhotoLocationStatus.Unavailable)
+      }
+      else -> setLocation(PhotoLocationStatus.Unavailable)
     }
   }
 
@@ -319,13 +393,31 @@ class PhotosViewModel(
     val file = current.preview ?: return false
     if (current.saving) return false
     repository.discard(file)
-    locationJob?.cancel()
-    locationJob = null
-    local.update { it.copy(preview = null, saveFailed = false, location = null) }
+    clearCapture()
+    local.update { it.copy(preview = null, saveFailed = false) }
     return true
   }
 
   private companion object {
     const val CAPTURE_FILE_KEY = "capture_file"
+    const val PREVIEW_FILE_KEY = "preview_file"
+    const val LOCATION_STATUS_KEY = "preview_location_status"
+    const val LATITUDE_KEY = "preview_latitude"
+    const val LONGITUDE_KEY = "preview_longitude"
+    const val TAKEN_AT_KEY = "preview_taken_at"
+    const val FETCH_STARTED_AT_KEY = "preview_fetch_started_at"
+    val PREVIEW_KEYS =
+        listOf(
+            PREVIEW_FILE_KEY,
+            LOCATION_STATUS_KEY,
+            LATITUDE_KEY,
+            LONGITUDE_KEY,
+            TAKEN_AT_KEY,
+            FETCH_STARTED_AT_KEY,
+        )
+    const val STATUS_LOCATING = "locating"
+    const val STATUS_ATTACHED = "attached"
+    const val STATUS_UNAVAILABLE = "unavailable"
+    const val STATUS_OFF = "off"
   }
 }
