@@ -368,6 +368,12 @@ fun RoamigoApp(
               // The join screen is removed, not the trips list below it, which a link opened on a
               // cold start does not have. Otherwise back would return to a joined screen that
               // joins again.
+              // Trips home does not know the trip yet. Creating a trip refreshes it the same way.
+              try {
+                navController.getBackStackEntry(Route.TRIPS).savedStateHandle["trip_created"] = true
+              } catch (_: IllegalArgumentException) {
+                // Trips home is not on the back stack, so it loads fresh when it is opened.
+              }
               navController.navigate(Route.tripDetails(tripId)) {
                 popUpTo(Route.JOIN) { inclusive = true }
                 launchSingleTop = true

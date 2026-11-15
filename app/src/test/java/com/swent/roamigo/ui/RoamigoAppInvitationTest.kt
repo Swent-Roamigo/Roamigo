@@ -78,6 +78,13 @@ class RoamigoAppInvitationTest {
     composeRule.waitUntil(5_000) { route() == Route.TRIP_DETAILS }
 
     assertEquals(listOf(token), service.accepted)
+    // Trips home is asked to refresh, so the joined trip is listed when the user goes back.
+    assertEquals(
+        true,
+        composeRule.runOnUiThread {
+          navController.getBackStackEntry(Route.TRIPS).savedStateHandle.get<Boolean>("trip_created")
+        },
+    )
   }
 
   @Test
