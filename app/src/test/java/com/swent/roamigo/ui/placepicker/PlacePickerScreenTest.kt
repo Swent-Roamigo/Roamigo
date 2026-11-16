@@ -2,19 +2,29 @@
 package com.swent.roamigo.ui.placepicker
 
 import android.os.Parcel
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.StateRestorationTester
-import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.createSavedStateHandle
+import androidx.lifecycle.viewmodel.CreationExtras
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.place.*
 import com.swent.roamigo.ui.theme.RoamigoTheme
@@ -29,8 +39,63 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class PlacePickerScreenTest {
-  @get:Rule val compose = createComposeRule()
+  @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
   private val candidate = PlaceCandidate("cafe", "Café Romand", "Lausanne", "Provider attribution")
+
+  @Test
+  fun twoPickersInSameParentHaveIndependentDrafts() {
+    val repo = FakePlaceRepository()
+    compose.setContent {
+      Column {
+        Box(Modifier.weight(1f)) {
+          PlacePickerRoute(repo, {}, {}, initialLocation = TripLocation(1.0, 2.0, "First"))
+        }
+        Box(Modifier.weight(1f)) {
+          PlacePickerRoute(repo, {}, {}, initialLocation = TripLocation(3.0, 4.0, "Second"))
+        }
+      }
+    }
+    compose.onAllNodesWithTag(PlacePickerTestTags.QUERY)[0].performTextInput("first query")
+    compose
+        .onAllNodesWithTag(PlacePickerTestTags.QUERY)[1]
+        .assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
+    compose.onNodeWithText("Selected place: First").assertExists()
+    compose.onNodeWithText("Selected place: Second").assertExists()
+  }
+
+  @Test
+  fun removingPickerClearsItsViewModelAndReopeningCreatesFreshInstance() {
+    val models = mutableListOf<PlacePickerViewModel>()
+    var cleared = 0
+    var showing by mutableStateOf(true)
+    val repo = FakePlaceRepository()
+    val factory =
+        object : ViewModelProvider.Factory {
+          @Suppress("UNCHECKED_CAST")
+          override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
+            return PlacePickerViewModel(repo, extras.createSavedStateHandle()).also {
+              models += it
+              it.addCloseable { cleared++ }
+            } as T
+          }
+        }
+    compose.setContent { if (showing) PlacePickerRoute(repo, {}, {}, viewModelFactory = factory) }
+    compose.onNodeWithTag(PlacePickerTestTags.QUERY).performTextInput("old query")
+    repeat(3) { opening ->
+      compose.runOnIdle { showing = false }
+      compose.runOnIdle { assertEquals(opening + 1, cleared) }
+      compose.runOnIdle { showing = true }
+      compose
+          .onNodeWithTag(PlacePickerTestTags.QUERY)
+          .assert(
+              SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString(""))
+          )
+      compose.runOnIdle {
+        assertEquals(opening + 2, models.size)
+        assertNotSame(models[opening], models[opening + 1])
+      }
+    }
+  }
 
   @Test
   fun searchAndResolveAreSeparateAndConfirmationReturnsOnlyOnce() {
@@ -142,8 +207,9 @@ class PlacePickerScreenTest {
   fun parentDraftSurvivesQuotaFailureCancelReopenAndSuccessfulReturn() {
     val repo = FakePlaceRepository(search = { _, _ -> throw PlaceSearchException.QuotaExceeded() })
     var parentLocation = TripLocation(0.0, 0.0, "Original")
-    val parentTitle = "Existing title"
-    var showing by mutableStateOf(true)
+    var parentTitle by mutableStateOf("")
+    var parentDescription by mutableStateOf("")
+    var showing by mutableStateOf(false)
     compose.setContent {
       RoamigoTheme {
         if (showing)
@@ -156,20 +222,40 @@ class PlacePickerScreenTest {
                 { showing = false },
                 initialLocation = parentLocation,
             )
-        else Button(onClick = { showing = true }) { Text(parentTitle) }
+        else
+            Column {
+              OutlinedTextField(parentTitle, { parentTitle = it }, Modifier.testTag("title"))
+              OutlinedTextField(
+                  parentDescription,
+                  { parentDescription = it },
+                  Modifier.testTag("description"),
+              )
+              Button(onClick = { showing = true }) { Text("Open picker") }
+            }
       }
     }
+    compose.onNodeWithTag("title").performTextInput("Edited title")
+    compose.onNodeWithTag("description").performTextInput("Edited description")
+    compose.onNodeWithText("Open picker").performClick()
     compose.onNodeWithTag(PlacePickerTestTags.QUERY).performTextInput("café")
     awaitTag(PlacePickerTestTags.ERROR)
     compose.onNodeWithTag(PlacePickerTestTags.SELECTED).assertTextEquals("Selected place: Original")
+    compose.runOnIdle {
+      assertEquals("Edited title", parentTitle)
+      assertEquals("Edited description", parentDescription)
+      assertEquals(TripLocation(0.0, 0.0, "Original"), parentLocation)
+    }
     compose.onNodeWithTag(PlacePickerTestTags.CANCEL).performClick()
     compose.runOnIdle {
-      assertEquals("Existing title", parentTitle)
-      assertEquals("Original", parentLocation.name)
+      assertEquals("Edited title", parentTitle)
+      assertEquals("Edited description", parentDescription)
+      assertEquals(TripLocation(0.0, 0.0, "Original"), parentLocation)
       repo.search = { _, _ -> listOf(candidate) }
     }
-    compose.onNodeWithText("Existing title").performClick()
-    compose.onNodeWithTag(PlacePickerTestTags.QUERY).assertTextContains("")
+    compose.onNodeWithText("Open picker").performClick()
+    compose
+        .onNodeWithTag(PlacePickerTestTags.QUERY)
+        .assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
     compose.onNodeWithTag(PlacePickerTestTags.ERROR).assertDoesNotExist()
     compose.onNodeWithTag(PlacePickerTestTags.QUERY).performTextInput("café")
     awaitTag(PlacePickerTestTags.candidate(candidate.id))
@@ -181,31 +267,36 @@ class PlacePickerScreenTest {
     compose.onNodeWithTag(PlacePickerTestTags.CONFIRM).performClick()
     compose.waitUntil { !showing }
     compose.runOnIdle {
-      assertEquals("Café Romand", parentLocation.name)
-      assertEquals("Existing title", parentTitle)
+      assertEquals(TripLocation(46.52, 6.63, "Café Romand"), parentLocation)
+      assertEquals("Edited title", parentTitle)
+      assertEquals("Edited description", parentDescription)
     }
     // Reopening uses the caller's current value, not a completed picker ViewModel/result.
-    compose.onNodeWithText("Existing title").performClick()
+    compose.onNodeWithText("Open picker").performClick()
     compose.onNodeWithTag(PlacePickerTestTags.CONFIRM).assertIsEnabled()
   }
 
   @Test
-  fun routeKeyAndDraftSurviveCompositionRestorationWithoutRetrievingAgain() {
-    val restoration = StateRestorationTester(compose)
+  fun draftSurvivesActivityRecreationWithoutRetrievingOrDeliveringAgain() {
     val repo = FakePlaceRepository(search = { _, _ -> listOf(candidate) })
     val deliveries = mutableListOf<TripLocation>()
-    restoration.setContent { RoamigoTheme { PlacePickerRoute(repo, { deliveries += it }, {}) } }
+    val content: @Composable () -> Unit = {
+      RoamigoTheme { PlacePickerRoute(repo, { deliveries += it }, {}) }
+    }
+    compose.setContent(content)
     compose.onNodeWithTag(PlacePickerTestTags.QUERY).performTextInput("café")
     awaitTag(PlacePickerTestTags.candidate(candidate.id))
     compose.onNodeWithTag(PlacePickerTestTags.candidate(candidate.id)).performClick()
     awaitTag(PlacePickerTestTags.SELECTED)
-    restoration.emulateSavedInstanceStateRestore()
+    compose.activityRule.scenario.recreate()
+    compose.activityRule.scenario.onActivity { it.setContent(content = content) }
     compose
         .onNodeWithTag(PlacePickerTestTags.SELECTED)
         .assertTextEquals("Selected place: Café Romand")
     compose.onNodeWithTag(PlacePickerTestTags.CONFIRM).performClick()
     compose.waitUntil { deliveries.size == 1 }
-    restoration.emulateSavedInstanceStateRestore()
+    compose.activityRule.scenario.recreate()
+    compose.activityRule.scenario.onActivity { it.setContent(content = content) }
     compose.runOnIdle {
       assertEquals(1, deliveries.size)
       assertEquals(1, repo.resolveRequests.size)

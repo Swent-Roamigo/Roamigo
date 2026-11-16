@@ -26,8 +26,12 @@ import org.json.JSONObject
  * 422), so that a bad session cannot fail every retry. Failures after which it is unknown whether
  * Mapbox completed the retrieve (network errors, 5xx) keep the token, so that a retry stays in the
  * same session. There is one session for the whole repository, so two searches that overlap in time
- * would share it. Mapbox limits Search Box results to temporary use; the team accepted storing the
- * chosen place anyway because the app is a course project that is not distributed.
+ * would share it. This repository does not track abandoned sessions, the 180-second expiry, or the
+ * 50-suggest limit. HTTP 400/422 recovery is reactive, not proactive expiry handling. A future
+ * session API should scope tokens to a search interaction and invalidate its candidates on expiry;
+ * rotating a token independently before retrieve would detach it from the original suggestions.
+ * Mapbox limits Search Box results to temporary use; the team accepted storing the chosen place
+ * anyway because the app is a course project that is not distributed.
  */
 class MapboxPlaceRepository(
     private val accessToken: String = BuildConfig.MAPBOX_ACCESS_TOKEN,

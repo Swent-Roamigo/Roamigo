@@ -49,6 +49,22 @@ class PlacePickerViewModelTest {
   private fun repository() = FakePlaceRepository(search = { _, _ -> listOf(candidate) })
 
   @Test
+  fun queryIsLimitedAtProviderBoundary() =
+      runTest(dispatcher) {
+        val repo = repository()
+        val vm = picker(repo)
+        val boundary = "a".repeat(MAX_PLACE_QUERY_LENGTH)
+        vm.updateQuery(boundary)
+        advanceUntilIdle()
+        assertEquals(boundary, vm.uiState.value.query)
+        vm.updateQuery(boundary + "b")
+        advanceUntilIdle()
+        assertEquals(boundary, vm.uiState.value.query)
+        assertEquals(1, repo.searchRequests.size)
+        assertEquals(boundary, repo.searchRequests.single().first)
+      }
+
+  @Test
   fun shortQueriesSkipRepositoryAndDebounceIsExactly300Millis() =
       runTest(dispatcher) {
         val repo = repository()

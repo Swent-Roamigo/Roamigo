@@ -12,6 +12,7 @@ import com.swent.roamigo.model.MAX_LONGITUDE
 import com.swent.roamigo.model.MIN_LATITUDE
 import com.swent.roamigo.model.MIN_LONGITUDE
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.place.MAX_PLACE_QUERY_LENGTH
 import com.swent.roamigo.model.place.MIN_PLACE_QUERY_LENGTH
 import com.swent.roamigo.model.place.Place
 import com.swent.roamigo.model.place.PlaceCandidate
@@ -64,7 +65,8 @@ class PlacePickerViewModel(
     saveSelection(selection)
   }
 
-  fun updateQuery(query: String) {
+  fun updateQuery(input: String) {
+    val query = input.take(MAX_PLACE_QUERY_LENGTH)
     if (uiState.value.finished) return
     val normalized = query.trim()
     val previous = uiState.value.query.trim()
