@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -215,6 +216,7 @@ class FriendsViewModel(
           try {
             ensureCurrentUser()
             operation()
+            awaitActionConfirmation(id, action)
           } catch (cancelled: CancellationException) {
             throw cancelled
           } catch (error: Exception) {
@@ -227,6 +229,17 @@ class FriendsViewModel(
         }
     actionJobs[id] = job
     job.start()
+  }
+
+  private suspend fun awaitActionConfirmation(id: String, action: FriendsAction) {
+    // Keep stale controls disabled until observation catches up, including after load retry.
+    _uiState.first { state ->
+      when (action) {
+        FriendsAction.ACCEPT,
+        FriendsAction.DECLINE -> state.incomingRequests.none { it.uid == id }
+        FriendsAction.REMOVE -> state.friends.none { it.uid == id }
+      }
+    }
   }
 
   private suspend fun ensureCurrentUser() {
