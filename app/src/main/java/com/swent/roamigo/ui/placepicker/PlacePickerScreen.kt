@@ -36,6 +36,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import com.swent.roamigo.R
 import com.swent.roamigo.model.place.MIN_PLACE_QUERY_LENGTH
 import com.swent.roamigo.model.place.PlaceCandidate
@@ -194,7 +195,14 @@ fun PlacePickerScreen(
           enabled = state.canConfirm,
           modifier = Modifier.fillMaxWidth().testTag(PlacePickerTestTags.CONFIRM),
       ) {
-        Text(stringResource(R.string.place_picker_confirm))
+        Text(
+            text =
+                state.selectedLocation?.let {
+                  stringResource(R.string.place_picker_confirm_named, it.name)
+                } ?: stringResource(R.string.place_picker_confirm),
+            modifier = Modifier.weight(1f),
+            textAlign = TextAlign.Center,
+        )
       }
     }
   }

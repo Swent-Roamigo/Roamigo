@@ -35,6 +35,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -131,7 +132,7 @@ class PlacePickerScreenTest {
         .assertIsDisplayed()
         .assertTextEquals("Selected place: Chosen café")
     compose.onNodeWithText("Search for a place and select a result.").assertDoesNotExist()
-    compose.onNodeWithText("Confirm location").assertIsEnabled()
+    compose.onNodeWithText("Confirm Chosen café").assertIsEnabled()
     compose.onNodeWithTag(PlacePickerTestTags.CONFIRM).performClick()
     compose.waitUntil { results.size == 1 }
     compose.onNodeWithTag(PlacePickerTestTags.CONFIRM).assertIsNotEnabled()
@@ -300,7 +301,113 @@ class PlacePickerScreenTest {
     compose.runOnIdle {
       assertEquals(1, deliveries.size)
       assertEquals(1, repo.resolveRequests.size)
+      assertEquals(1, repo.searchRequests.size)
     }
+  }
+
+  @Test
+  fun displayedSearchResultsSurviveActualActivityRecreationWithoutAnotherRequest() {
+    val repo = FakePlaceRepository(search = { _, _ -> listOf(candidate) })
+    val content: @Composable () -> Unit = { RoamigoTheme { PlacePickerRoute(repo, {}, {}) } }
+    compose.setContent(content)
+    compose.onNodeWithTag(PlacePickerTestTags.QUERY).performTextInput("café")
+    awaitTag(PlacePickerTestTags.candidate(candidate.id))
+    compose.activityRule.scenario.recreate()
+    compose.activityRule.scenario.onActivity { it.setContent(content = content) }
+    compose.onNodeWithTag(PlacePickerTestTags.candidate(candidate.id)).assertIsDisplayed()
+    compose
+        .onNodeWithTag(PlacePickerTestTags.QUERY)
+        .assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("café"))
+        )
+    compose.onNodeWithTag(PlacePickerTestTags.candidate(candidate.id)).performClick()
+    awaitTag(PlacePickerTestTags.SELECTED)
+    compose.runOnIdle {
+      assertEquals(1, repo.searchRequests.size)
+      assertEquals(1, repo.resolveRequests.size)
+    }
+  }
+
+  @Test
+  fun pendingSearchSurvivesActualActivityRecreationAndPublishesOnce() {
+    val answer = CompletableDeferred<List<PlaceCandidate>>()
+    val repo = FakePlaceRepository(search = { _, _ -> answer.await() })
+    val content: @Composable () -> Unit = {
+      RoamigoTheme {
+        PlacePickerRoute(repo, {}, {}, initialLocation = TripLocation(0.0, 0.0, "Previous"))
+      }
+    }
+    compose.setContent(content)
+    compose.onNodeWithTag(PlacePickerTestTags.QUERY).performTextInput("café")
+    compose.waitUntil(5_000) { compose.runOnIdle { repo.searchRequests.size == 1 } }
+    compose.activityRule.scenario.recreate()
+    compose.activityRule.scenario.onActivity { it.setContent(content = content) }
+    compose.onNodeWithTag(PlacePickerTestTags.LOADING).assertExists()
+    compose.onNodeWithTag(PlacePickerTestTags.CONFIRM).assertIsNotEnabled()
+    compose
+        .onNodeWithTag(PlacePickerTestTags.QUERY)
+        .assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("café"))
+        )
+    compose.onNodeWithTag(PlacePickerTestTags.SELECTED).assertTextEquals("Selected place: Previous")
+    answer.complete(listOf(candidate))
+    awaitTag(PlacePickerTestTags.candidate(candidate.id))
+    compose.onNodeWithTag(PlacePickerTestTags.CONFIRM).assertIsEnabled()
+    compose.runOnIdle { assertEquals(1, repo.searchRequests.size) }
+  }
+
+  @Test
+  fun searchingGenevaDisablesConfirmationAndStillNamesLausanneAfterEmptyResultsOrFailure() {
+    val lausanne = PlaceCandidate("lausanne", "Lausanne", null)
+    val geneva = PlaceCandidate("geneva", "Geneva", null)
+    val search = CompletableDeferred<List<PlaceCandidate>>()
+    val resolution = CompletableDeferred<Place>()
+    val repo = FakePlaceRepository(search = { _, _ -> listOf(lausanne) })
+    val deliveries = mutableListOf<TripLocation>()
+    compose.setContent { RoamigoTheme { PlacePickerRoute(repo, { deliveries += it }, {}) } }
+    compose.onNodeWithTag(PlacePickerTestTags.CONFIRM).assertTextEquals("Confirm location")
+    compose.onNodeWithTag(PlacePickerTestTags.QUERY).performTextInput("Lausanne")
+    awaitTag(PlacePickerTestTags.candidate(lausanne.id))
+    compose.onNodeWithTag(PlacePickerTestTags.candidate(lausanne.id)).performClick()
+    awaitTag(PlacePickerTestTags.SELECTED)
+    compose.onNodeWithTag(PlacePickerTestTags.CONFIRM).assertTextEquals("Confirm Lausanne")
+    compose.runOnIdle { repo.search = { _, _ -> search.await() } }
+    compose.onNodeWithTag(PlacePickerTestTags.QUERY).performTextReplacement("Geneva")
+    compose.onNodeWithTag(PlacePickerTestTags.CONFIRM).assertIsNotEnabled().performClick()
+    search.complete(emptyList())
+    awaitTag(PlacePickerTestTags.EMPTY)
+    compose
+        .onNodeWithTag(PlacePickerTestTags.CONFIRM)
+        .assertIsEnabled()
+        .assertTextEquals("Confirm Lausanne")
+    compose.runOnIdle {
+      repo.search = { _, _ -> throw PlaceSearchException.Unavailable("offline") }
+    }
+    compose.onNodeWithTag(PlacePickerTestTags.QUERY).performImeAction()
+    awaitTag(PlacePickerTestTags.ERROR)
+    compose
+        .onNodeWithTag(PlacePickerTestTags.CONFIRM)
+        .assertIsEnabled()
+        .assertTextEquals("Confirm Lausanne")
+    compose.runOnIdle {
+      repo.search = { _, _ -> listOf(geneva) }
+      repo.resolve = { resolution.await() }
+    }
+    compose.onNodeWithTag(PlacePickerTestTags.RETRY).performScrollTo().performClick()
+    awaitTag(PlacePickerTestTags.candidate(geneva.id))
+    compose.onNodeWithTag(PlacePickerTestTags.candidate(geneva.id)).performClick()
+    awaitTag(PlacePickerTestTags.RESOLVING)
+    compose
+        .onNodeWithTag(PlacePickerTestTags.CONFIRM)
+        .assertIsNotEnabled()
+        .assertTextEquals("Confirm Lausanne")
+    resolution.complete(Place("Geneva", null, 46.2, 6.14))
+    compose.waitUntil(5_000) {
+      compose.onAllNodesWithText("Confirm Geneva").fetchSemanticsNodes().isNotEmpty()
+    }
+    compose.onNodeWithTag(PlacePickerTestTags.CONFIRM).assertIsEnabled().performClick()
+    compose.waitUntil { deliveries.size == 1 }
+    compose.runOnIdle { assertEquals("Geneva", deliveries.single().name) }
   }
 
   @Test
@@ -334,9 +441,12 @@ class PlacePickerScreenTest {
   }
 
   @Test
+  @GraphicsMode(GraphicsMode.Mode.NATIVE)
   fun compactPortraitKeepsConfirmationVisibleAndCandidatesScrollable() = compactLayout(320, 420)
 
-  @Test fun landscapeKeepsConfirmationVisibleAndCandidatesScrollable() = compactLayout(640, 280)
+  @Test
+  @GraphicsMode(GraphicsMode.Mode.NATIVE)
+  fun landscapeKeepsConfirmationVisibleAndCandidatesScrollable() = compactLayout(640, 280)
 
   private fun compactLayout(width: Int, height: Int) {
     var confirms = 0
@@ -348,7 +458,12 @@ class PlacePickerScreenTest {
                   query = "café",
                   searchStatus = PlaceSearchStatus.RESULTS,
                   candidates = (1..8).map { candidate.copy(id = it.toString()) },
-                  selectedLocation = TripLocation(0.0, 0.0, "Chosen"),
+                  selectedLocation =
+                      TripLocation(
+                          0.0,
+                          0.0,
+                          "Lausanne – Place Saint-François and the surrounding old town",
+                      ),
               ),
               {},
               {},
@@ -364,6 +479,24 @@ class PlacePickerScreenTest {
         .assertIsDisplayed()
         .assertIsEnabled()
         .performClick()
+    val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+    compose
+        .onNodeWithText(
+            "Confirm Lausanne – Place Saint-François and the surrounding old town",
+            useUnmergedTree = true,
+        )
+        .performSemanticsAction(
+            androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult
+        ) {
+          it(layouts)
+        }
+    compose.runOnIdle {
+      assertFalse(
+          "Confirmation label must fit: ${layouts.single()}",
+          layouts.single().hasVisualOverflow,
+      )
+      if (width == 320) assertTrue(layouts.single().lineCount > 1)
+    }
     compose.onNodeWithTag(PlacePickerTestTags.candidate("8")).performScrollTo().assertIsDisplayed()
     compose.onNodeWithTag(PlacePickerTestTags.CONFIRM).assertIsDisplayed()
     compose.runOnIdle { assertEquals(1, confirms) }

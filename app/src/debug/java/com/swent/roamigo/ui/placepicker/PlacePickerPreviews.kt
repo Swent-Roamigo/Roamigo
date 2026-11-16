@@ -28,7 +28,8 @@ private fun PlacePickerSelectedPreview() =
     PickerPreview(
         PlacePickerUiState(
             query = "café",
-            selectedLocation = TripLocation(46.52, 6.63, "Café Romand", "CH"),
+            selectedLocation =
+                TripLocation(46.52, 6.63, "Café Romand – Place Saint-François, Lausanne", "CH"),
         )
     )
 

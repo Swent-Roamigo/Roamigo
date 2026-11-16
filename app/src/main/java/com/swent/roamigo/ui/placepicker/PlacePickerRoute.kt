@@ -3,7 +3,6 @@ package com.swent.roamigo.ui.placepicker
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -45,7 +44,6 @@ fun PlacePickerRoute(
   val state by picker.uiState.collectAsStateWithLifecycle()
   val currentOnPlacePicked by rememberUpdatedState(onPlacePicked)
   LaunchedEffect(state.finished) { picker.consumeResult()?.let { currentOnPlacePicked(it) } }
-  DisposableEffect(picker) { onDispose { picker.stop() } }
   val cancel = { if (picker.cancel()) onCancel() }
   BackHandler(onBack = cancel)
   PlacePickerScreen(

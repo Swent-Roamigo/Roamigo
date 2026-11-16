@@ -536,5 +536,6 @@
     <string name="place_picker_unavailable">Could not reach place search. Check your connection and try again.</string>
     <string name="place_picker_retry">Search again</string>
     <string name="place_picker_confirm">Confirm location</string>
+    <string name="place_picker_confirm_named">Confirm %1$s</string>
     <string name="place_picker_attribution">© Mapbox and its suppliers · Terms and attribution</string>
 </resources>
