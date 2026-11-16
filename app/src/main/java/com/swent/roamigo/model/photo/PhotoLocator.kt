@@ -5,10 +5,36 @@ import com.swent.roamigo.model.location.DeviceLocation
 import com.swent.roamigo.model.location.LocationRepository
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** A valid position where a photo was taken. */
-data class PhotoCoordinates(val latitude: Double, val longitude: Double)
+/**
+ * A valid position where a photo was taken.
+ *
+ * @throws IllegalArgumentException if a value is not finite or is out of range. Use [orNull] for
+ *   values that are not known to be valid.
+ */
+data class PhotoCoordinates(val latitude: Double, val longitude: Double) {
+  init {
+    require(isValid(latitude, longitude)) { "Invalid photo coordinates: $latitude, $longitude" }
+  }
+
+  companion object {
+    // Same bounds as isValidNewPhoto in firestore.rules, which rejects the whole photo otherwise.
+    private const val MAX_LATITUDE = 90.0
+    private const val MAX_LONGITUDE = 180.0
+
+    /** The coordinates for this pair, or null if it is not a valid position. */
+    fun orNull(latitude: Double, longitude: Double): PhotoCoordinates? =
+        if (isValid(latitude, longitude)) PhotoCoordinates(latitude, longitude) else null
+
+    private fun isValid(latitude: Double, longitude: Double): Boolean =
+        latitude.isFinite() &&
+            longitude.isFinite() &&
+            latitude in -MAX_LATITUDE..MAX_LATITUDE &&
+            longitude in -MAX_LONGITUDE..MAX_LONGITUDE
+  }
+}
 
 /**
  * How long reading the position of a photo may take before the photo is saved without one. A slow
@@ -37,6 +63,10 @@ interface PhotoLocator {
    * uses one that is already granted, e.g. on the trip map. The call is cancellable, and a
    * cancelled read does not return a result.
    *
+   * It never throws, except [CancellationException]: a failure is reported as
+   * [PhotoLocationResult.PermissionOff], [PhotoLocationResult.Unavailable] or
+   * [PhotoLocationResult.TimedOut].
+   *
    * @param timeout how long to wait for a position. A zero or negative value times out at once.
    */
   suspend fun locate(timeout: Duration = PHOTO_LOCATION_TIMEOUT): PhotoLocationResult
@@ -64,18 +94,6 @@ class DefaultPhotoLocator(private val locationRepository: LocationRepository) : 
 
   private class Read(val location: DeviceLocation?)
 
-  // Same bounds as isValidNewPhoto in firestore.rules, which rejects the whole photo otherwise.
-  private fun DeviceLocation.toValidCoordinates(): PhotoCoordinates? {
-    val valid =
-        latitude.isFinite() &&
-            longitude.isFinite() &&
-            latitude in -MAX_LATITUDE..MAX_LATITUDE &&
-            longitude in -MAX_LONGITUDE..MAX_LONGITUDE
-    return if (valid) PhotoCoordinates(latitude, longitude) else null
-  }
-
-  private companion object {
-    const val MAX_LATITUDE = 90.0
-    const val MAX_LONGITUDE = 180.0
-  }
+  private fun DeviceLocation.toValidCoordinates(): PhotoCoordinates? =
+      PhotoCoordinates.orNull(latitude, longitude)
 }

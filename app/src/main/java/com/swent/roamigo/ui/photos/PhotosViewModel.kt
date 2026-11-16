@@ -277,7 +277,8 @@ class PhotosViewModel(
           } catch (e: CancellationException) {
             throw e
           } catch (_: Exception) {
-            // A photo is worth more than its position.
+            // Safety net: the locator promises not to throw, but a photo is worth more than its
+            // position.
             PhotoLocationStatus.Unavailable
           }
       // A cancelled fetch may still return a result, e.g. one it had already read.
@@ -300,7 +301,7 @@ class PhotosViewModel(
       }
     }
     return (local.value.location as? PhotoLocationStatus.Attached)?.let {
-      PhotoCoordinates(it.latitude, it.longitude)
+      PhotoCoordinates.orNull(it.latitude, it.longitude)
     }
   }
 
@@ -353,8 +354,11 @@ class PhotosViewModel(
     when (savedStateHandle.get<String>(LOCATION_STATUS_KEY)) {
       STATUS_ATTACHED ->
           setLocation(
+              // A corrupt saved pair must not reach awaitCoordinates, which would then throw.
               if (latitude != null && longitude != null) {
-                PhotoLocationStatus.Attached(latitude, longitude)
+                PhotoCoordinates.orNull(latitude, longitude)?.let {
+                  PhotoLocationStatus.Attached(it.latitude, it.longitude)
+                } ?: PhotoLocationStatus.Unavailable
               } else PhotoLocationStatus.Unavailable
           )
       STATUS_OFF -> setLocation(PhotoLocationStatus.Off)
