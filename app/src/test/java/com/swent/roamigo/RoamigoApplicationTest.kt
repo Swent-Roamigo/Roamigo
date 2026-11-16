@@ -25,6 +25,13 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class RoamigoApplicationTest {
   @Test
+  fun placeSearchIsOneRealInstanceForTheWholeApp() {
+    val application = RuntimeEnvironment.getApplication() as RoamigoApplication
+    assertSame(application.placeRepository, application.placeRepository)
+    assertTrue(application.placeRepository is com.swent.roamigo.model.place.MapboxPlaceRepository)
+  }
+
+  @Test
   fun destinationImageRequestsIdentifyTheApp() {
     val application = RuntimeEnvironment.getApplication() as RoamigoApplication
     val request = Request.Builder().url("https://images.example/city.jpg").build()
