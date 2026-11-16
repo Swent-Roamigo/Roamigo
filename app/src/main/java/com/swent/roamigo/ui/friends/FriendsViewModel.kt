@@ -166,33 +166,8 @@ class FriendsViewModel(
               )
             }
             .collectLatest { (friends, incoming, outgoing) ->
-              val ids =
-                  (friends.flatMap { listOf(it.firstUserId, it.secondUserId) } +
-                          incoming.map { it.senderUserId } +
-                          outgoing.map { it.recipientUserId })
-                      .toSet() - currentUserId
-              _uiState.update {
-                it.copy(
-                    friends = friends,
-                    incomingRequests = incoming,
-                    outgoingRequests = outgoing,
-                    profiles = it.profiles.filterKeys { id -> id in ids },
-                    isLoading = false,
-                    loadError = null,
-                )
-              }
-              try {
-                val profiles =
-                    if (ids.isEmpty()) emptyMap()
-                    else
-                        userRepository.getUsers(ids).filter { it.uid in ids }.associateBy { it.uid }
-                _uiState.update { it.copy(profiles = profiles) }
-              } catch (cancelled: CancellationException) {
-                throw cancelled
-              } catch (error: Exception) {
-                if (error.isSessionFailure()) throw error
-                _uiState.update { it.copy(loadError = FriendsLoadError.PROFILES) }
-              }
+              val ids = publishRelationships(friends, incoming, outgoing)
+              loadProfiles(ids)
             }
       } catch (cancelled: CancellationException) {
         throw cancelled
@@ -203,6 +178,43 @@ class FriendsViewModel(
               it.copy(isLoading = false, loadError = FriendsLoadError.RELATIONSHIPS)
             }
       }
+    }
+  }
+
+  private fun publishRelationships(
+      friends: List<Friendship>,
+      incoming: List<FriendRequest>,
+      outgoing: List<FriendRequest>,
+  ): Set<String> {
+    val ids =
+        (friends.flatMap { listOf(it.firstUserId, it.secondUserId) } +
+                incoming.map { it.senderUserId } +
+                outgoing.map { it.recipientUserId })
+            .toSet() - currentUserId
+    _uiState.update {
+      it.copy(
+          friends = friends,
+          incomingRequests = incoming,
+          outgoingRequests = outgoing,
+          profiles = it.profiles.filterKeys { id -> id in ids },
+          isLoading = false,
+          loadError = null,
+      )
+    }
+    return ids
+  }
+
+  private suspend fun loadProfiles(ids: Set<String>) {
+    try {
+      val profiles =
+          if (ids.isEmpty()) emptyMap()
+          else userRepository.getUsers(ids).filter { it.uid in ids }.associateBy { it.uid }
+      _uiState.update { it.copy(profiles = profiles) }
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (error: Exception) {
+      if (error.isSessionFailure()) throw error
+      _uiState.update { it.copy(loadError = FriendsLoadError.PROFILES) }
     }
   }
 
