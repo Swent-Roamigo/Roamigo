@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.friends.FriendRepository
 import com.swent.roamigo.model.friends.FriendRepositoryException
 import com.swent.roamigo.model.friends.FriendRequest
@@ -64,6 +65,7 @@ data class FriendsState(
 class FriendsViewModel(
     private val friendRepository: FriendRepository,
     private val userRepository: UserRepository,
+    private val authRepository: AuthRepository,
     private val currentUserId: String,
 ) : ViewModel() {
   private val _uiState = MutableStateFlow(FriendsState())
@@ -224,9 +226,12 @@ class FriendsViewModel(
     fun factory(
         friendRepository: FriendRepository,
         userRepository: UserRepository,
+        authRepository: AuthRepository,
         currentUserId: String,
     ): ViewModelProvider.Factory = viewModelFactory {
-      initializer { FriendsViewModel(friendRepository, userRepository, currentUserId) }
+      initializer {
+        FriendsViewModel(friendRepository, userRepository, authRepository, currentUserId)
+      }
     }
   }
 }

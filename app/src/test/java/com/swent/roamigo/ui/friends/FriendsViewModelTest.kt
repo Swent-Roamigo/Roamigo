@@ -3,6 +3,8 @@ package com.swent.roamigo.ui.friends
 
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
+import com.swent.roamigo.model.authentication.AuthenticatedUser
+import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.friends.FriendRepository
 import com.swent.roamigo.model.friends.FriendRepositoryException
@@ -38,6 +40,8 @@ class FriendsViewModelTest {
   private val carol = FakeFriendRepository("carol", store)
   private val repository = ControlledFriendRepository(alice)
   private val users = ControlledUserRepository()
+  private val auth =
+      FakeAuthRepository(AuthenticatedUser("alice", "Alice", null, null), initiallySignedIn = true)
 
   @Before fun setUp() = Dispatchers.setMain(dispatcher)
 
@@ -48,13 +52,13 @@ class FriendsViewModelTest {
   }
 
   private fun viewModel(): FriendsViewModel =
-      FriendsViewModel(repository, users, "alice").also { viewModelStore.put("friends", it) }
+      FriendsViewModel(repository, users, auth, "alice").also { viewModelStore.put("friends", it) }
 
   @Test
   fun factoryCreatesAnObservingViewModelAndHealthyRetryKeepsItsListeners() =
       runTest(dispatcher) {
         val request = bob.sendFriendRequest("alice")
-        val factory = FriendsViewModel.factory(repository, users, "alice")
+        val factory = FriendsViewModel.factory(repository, users, auth, "alice")
         val model = ViewModelProvider(viewModelStore, factory)[FriendsViewModel::class.java]
         advanceUntilIdle()
 
