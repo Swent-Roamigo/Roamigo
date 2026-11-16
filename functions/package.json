@@ -7,7 +7,8 @@
     "shell": "npm run build && firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "logs": "firebase functions:log",
+    "test:emulator": "npm run build && VOTE_FUNCTIONS_URL=http://127.0.0.1:5001/demo-roamigo/europe-west1 firebase emulators:exec --only auth,database,firestore,functions --project demo-roamigo \"node --test ../tests/firestore/trip-invitations-backend.test.mjs\""
   },
   "engines": {
     "node": "24"

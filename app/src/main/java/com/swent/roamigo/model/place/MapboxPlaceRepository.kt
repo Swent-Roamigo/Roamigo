@@ -26,8 +26,12 @@ import org.json.JSONObject
  * 422), so that a bad session cannot fail every retry. Failures after which it is unknown whether
  * Mapbox completed the retrieve (network errors, 5xx) keep the token, so that a retry stays in the
  * same session. There is one session for the whole repository, so two searches that overlap in time
- * would share it. Mapbox limits Search Box results to temporary use; the team accepted storing the
- * chosen place anyway because the app is a course project that is not distributed.
+ * would share it. This repository does not track abandoned sessions, the 180-second expiry, or the
+ * 50-suggest limit. HTTP 400/422 recovery is reactive, not proactive expiry handling. A future
+ * session API should scope tokens to a search interaction and invalidate its candidates on expiry;
+ * rotating a token independently before retrieve would detach it from the original suggestions.
+ * Mapbox limits Search Box results to temporary use; the team accepted storing the chosen place
+ * anyway because the app is a course project that is not distributed.
  */
 class MapboxPlaceRepository(
     private val accessToken: String = BuildConfig.MAPBOX_ACCESS_TOKEN,
@@ -56,9 +60,13 @@ class MapboxPlaceRepository(
               }
             }
             .build()
-    val suggestions = getJson(url).optJSONArray("suggestions") ?: return emptyList()
+    val answer = getJson(url)
+    val attribution = answer.optString("attribution").takeIf(String::isNotBlank)
+    val suggestions = answer.optJSONArray("suggestions") ?: return emptyList()
     return (0 until suggestions.length())
-        .mapNotNull { index -> suggestions.optJSONObject(index)?.toCandidate() }
+        .mapNotNull { index ->
+          suggestions.optJSONObject(index)?.toCandidate()?.copy(attribution = attribution)
+        }
         .distinctBy { it.id }
   }
 
@@ -72,7 +80,12 @@ class MapboxPlaceRepository(
     // one. Renewing before the body is read keeps it so even if reading or parsing throws.
     val answer = getJson(url, onSuccessStatus = ::renewSession)
     val feature = answer.optJSONArray("features")?.optJSONObject(0)
-    return (feature ?: throw PlaceSearchException.InvalidPlace()).toPlace(candidate.name)
+    return (feature ?: throw PlaceSearchException.InvalidPlace())
+        .toPlace(candidate.name)
+        .copy(
+            attribution =
+                answer.optString("attribution").takeIf(String::isNotBlank) ?: candidate.attribution,
+        )
   }
 
   private fun renewSession() {

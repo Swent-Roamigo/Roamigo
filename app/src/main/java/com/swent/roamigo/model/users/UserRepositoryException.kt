@@ -17,6 +17,9 @@ sealed class UserRepositoryException(
   class InvalidData(cause: Throwable? = null) :
       UserRepositoryException("Invalid directory data", cause)
 
+  class Conflict(cause: Throwable? = null) :
+      UserRepositoryException("Email index belongs to another account", cause)
+
   class Unknown(cause: Throwable? = null) :
       UserRepositoryException("Directory operation failed", cause)
 }

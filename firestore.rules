@@ -5,9 +5,10 @@ rules_version = '2';
 // Membership model: a trip document lists its members in memberIds, and ownerId is the
 // authoritative owner. Only members can read a trip and its subcollections. A client may only
 // create a new trip it owns, together with its own OWNER member document, in one transaction.
-// Trips and members cannot be changed or deleted by clients yet. Members can create activities,
-// but not change or delete them. Photos can be added by members and read by members, and never
-// changed.
+// Trips and members cannot be changed or deleted by clients yet. Joining a trip goes through the
+// invitation callable functions, which write the members as Admin, so no client can add one.
+// Members can create activities, but not change or delete them. Photos can be added by members and
+// read by members, and never changed.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -313,6 +314,66 @@ service cloud.firestore {
               && validProfile(request.resource.data);
 
           allow delete: if false;
+        }
+
+    // tripInvitations has no rule on purpose: the catch-all below denies clients, and the callable
+    // functions (functions/src/tripInvitations.ts) read and write it as Admin. A client that could
+    // read the tokens could join any trip.
+
+        // Private metadata used to remove an obsolete email index.
+        match /userSearchMetadata/{userId} {
+          function verifiedEmailHash() {
+            return request.auth.token.get('email_verified', false) == true
+                ? hashing.sha256(
+                    request.auth.token.email.trim().lower().toUtf8()
+                  ).toHexString().lower()
+                : null;
+          }
+
+          allow get: if signedIn() && request.auth.uid == userId;
+          allow list: if false;
+
+          allow create, update: if signedIn()
+              && request.auth.uid == userId
+              && request.resource.data.keys().hasAll([
+                  'emailHash', 'updatedAt'
+              ])
+              && request.resource.data.keys().hasOnly([
+                  'emailHash', 'updatedAt'
+              ])
+              && request.resource.data.emailHash == verifiedEmailHash()
+              && request.resource.data.updatedAt == request.time;
+
+          allow delete: if false;
+        }
+
+        // Exact email lookup, available only to authenticated users.
+        match /userEmailLookups/{emailHash} {
+          function matchesVerifiedEmail() {
+            return request.auth.token.get('email_verified', false) == true
+                && emailHash == hashing.sha256(
+                    request.auth.token.email.trim().lower().toUtf8()
+                  ).toHexString().lower();
+          }
+
+          function validLookup(data) {
+            return data.keys().hasAll(['uid'])
+                && data.keys().hasOnly(['uid'])
+                && data.uid == request.auth.uid;
+          }
+
+          allow get: if signedIn();
+          allow list: if false;
+
+          allow create: if signedIn()
+              && matchesVerifiedEmail()
+              && validLookup(request.resource.data);
+
+            // Existing lookups can only be reassigned by the trusted backend.
+          allow update: if false;
+
+          allow delete: if signedIn()
+              && resource.data.uid == request.auth.uid;
         }
 
     match /friendships/{documentId} {

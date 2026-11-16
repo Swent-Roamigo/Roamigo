@@ -19,6 +19,21 @@ enum class CameraStep {
   BLOCKED,
 }
 
+/** Whether the photo in the preview has a position, as far as the user can tell. */
+sealed interface PhotoLocationStatus {
+  /** The position is still being read. */
+  data object Locating : PhotoLocationStatus
+
+  /** The photo is tagged with this position. */
+  data class Attached(val latitude: Double, val longitude: Double) : PhotoLocationStatus
+
+  /** The permission is granted, but no position could be read in time. */
+  data object Unavailable : PhotoLocationStatus
+
+  /** The location permission is off, so the photo has no position. */
+  data object Off : PhotoLocationStatus
+}
+
 /**
  * @param isOnline whether the device can reach the internet.
  * @param photos the trip's photos saved on this device and not uploaded yet.
@@ -31,6 +46,7 @@ enum class CameraStep {
  * @param preview the photo just taken, waiting for the user to keep it or retake it.
  * @param saving whether [preview] is being saved.
  * @param saveFailed whether the last attempt to save [preview] failed.
+ * @param previewLocation whether [preview] has a position, or null when there is no preview.
  */
 data class PhotosUiState(
     val isOnline: Boolean = true,
@@ -44,6 +60,7 @@ data class PhotosUiState(
     val preview: File? = null,
     val saving: Boolean = false,
     val saveFailed: Boolean = false,
+    val previewLocation: PhotoLocationStatus? = null,
 )
 
 /** One-off requests to the screen, which owns the Android parts: permission, camera, settings. */

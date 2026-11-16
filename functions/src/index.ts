@@ -53,3 +53,9 @@ export const purgeStaleLocations = onSchedule(
   });
 
 export {createRevote, resolveVoteByOwner} from "./voteResolution.js";
+
+export {
+  createTripInvitation, previewTripInvitation, acceptTripInvitation, revokeTripInvitations,
+} from "./tripInvitations.js";
+
+export {reclaimEmailLookup} from "./userEmailLookup.js";

@@ -103,9 +103,7 @@ internal fun TripRoute(
   if (tab == TripSection.Map && !readOnly) SideEffect { hasOpenedMap = true }
   val locationFactory =
       if ((tab == TripSection.Map || hasOpenedMap) && (!readOnly || hasOpenedMap)) {
-        val location =
-            locationRepository
-                ?: (context.applicationContext as RoamigoApplication).locationRepository
+        val location = resolveLocationRepository(locationRepository, context)
         val connectivity =
             connectivityRepository ?: remember(context) { DefaultConnectivityRepository(context) }
         remember(tripId, userId, location, connectivity) {
@@ -120,9 +118,7 @@ internal fun TripRoute(
       if (locationModel != null) {
         locationModel.onLeaveTrip()
       } else {
-        val location =
-            locationRepository
-                ?: (context.applicationContext as RoamigoApplication).locationRepository
+        val location = resolveLocationRepository(locationRepository, context)
         runCatching { location.stopSharing(tripId) }
             .onFailure { Log.w("TripRoute", "Could not stop sharing for completed trip", it) }
       }
@@ -210,9 +206,11 @@ internal fun TripRoute(
         TripSection.Photos -> {
           val connectivity =
               connectivityRepository ?: remember(context) { DefaultConnectivityRepository(context) }
+          val location = resolveLocationRepository(locationRepository, context)
           PhotosRoute(
               photoRepository = photoRepository,
               connectivityRepository = connectivity,
+              locationRepository = location,
               tripId = tripId,
               currentUserId = userId,
               tripName = loaded?.trip?.name.orEmpty(),
@@ -232,6 +230,13 @@ internal fun TripRoute(
     }
   }
 }
+
+/** Returns the injected repository, or the application's one when none was injected. */
+private fun resolveLocationRepository(
+    injected: LocationRepository?,
+    context: Context,
+): LocationRepository =
+    injected ?: (context.applicationContext as RoamigoApplication).locationRepository
 
 @Composable
 internal fun rememberLocalDate(zone: ZoneId) =

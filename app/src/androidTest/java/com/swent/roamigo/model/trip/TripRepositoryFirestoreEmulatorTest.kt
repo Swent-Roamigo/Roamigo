@@ -8,6 +8,7 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.FirebaseFirestoreSettings
@@ -127,6 +128,37 @@ class TripRepositoryFirestoreEmulatorTest {
 
     assertPermissionDenied { memberDocument(bob, tripId).set(ownerMemberData(bob.userId)).await() }
     assertEquals(listOf(alice.userId), alice.repository.getMembersForTrip(tripId).map { it.userId })
+  }
+
+  @Test
+  fun nonMemberCannotJoinByEditingTheMemberListOrAddingAnEditor() = runBlocking {
+    alice.repository.createTrip(tripId, draft)
+    val trip = bob.db.collection("trips").document(tripId)
+
+    assertPermissionDenied { trip.update("memberIds", FieldValue.arrayUnion(bob.userId)).await() }
+    assertPermissionDenied {
+      memberDocument(bob, tripId)
+          .set(mapOf("userId" to bob.userId, "role" to "EDITOR", "joinTime" to Timestamp.now()))
+          .await()
+    }
+    assertEquals(listOf(alice.userId), alice.repository.getMembersForTrip(tripId).map { it.userId })
+  }
+
+  @Test
+  fun clientsCannotReadOrWriteInvitationTokens() = runBlocking {
+    alice.repository.createTrip(tripId, draft)
+    val invitation = alice.db.collection("tripInvitations").document("a-token-1234567890")
+
+    // Joining goes through the trusted functions, and a client that could read a token could join.
+    assertPermissionDenied {
+      invitation
+          .set(mapOf("tripId" to tripId, "inviterUserId" to alice.userId, "status" to "PENDING"))
+          .await()
+    }
+    assertPermissionDenied { invitation.get().await() }
+    assertPermissionDenied {
+      alice.db.collection("tripInvitations").whereEqualTo("tripId", tripId).get().await()
+    }
   }
 
   @Test

@@ -7,7 +7,6 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.swent.roamigo.RoamigoApplication
-import com.swent.roamigo.model.location.FakeLocationRepository
 import java.io.File
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -44,7 +43,7 @@ class PhotoModuleTest {
 
   @Test
   fun savesPhotosInsideTheAppsPrivatePhotoFolder() {
-    val module = PhotoModule(application, FakeLocationRepository()) { "me" }
+    val module = PhotoModule(application) { "me" }
 
     val file = module.repository.newPhotoFile()
 
@@ -57,10 +56,10 @@ class PhotoModuleTest {
         application,
         Configuration.Builder().build(),
     )
-    val module = PhotoModule(application, FakeLocationRepository()) { "me" }
+    val module = PhotoModule(application) { "me" }
     val file = module.repository.newPhotoFile().also { it.writeText("jpeg") }
 
-    runBlocking { module.repository.savePhoto("trip", file) }
+    runBlocking { module.repository.savePhoto("trip", file, 1L, null) }
 
     val saved = runBlocking { module.repository.pendingPhotos("trip").first() }
     assertEquals(listOf(file.name), saved.map { it.fileName })

@@ -18,6 +18,7 @@ import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.connectivity.FakeConnectivityRepository
 import com.swent.roamigo.model.destination.sampleDestinationRepository
+import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.photo.PhotoRepository
 import com.swent.roamigo.model.photo.TripPhoto
@@ -94,6 +95,7 @@ class PhotosNavigationTest {
                 ),
             photoRepository = photoRepository,
             connectivityRepository = connectivity,
+            locationRepository = FakeLocationRepository(),
             navController = navController,
         )
       }
