@@ -8,6 +8,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
+import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.friends.FriendRepository
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
@@ -17,6 +18,7 @@ import com.swent.roamigo.ui.components.rememberNotImplementedAction
 fun FriendsRoute(
     friendRepository: FriendRepository,
     userRepository: UserRepository,
+    authRepository: AuthRepository,
     currentUserId: String,
     onSessionEnded: () -> Unit,
     onTripsClick: () -> Unit,
@@ -27,7 +29,13 @@ fun FriendsRoute(
   val model: FriendsViewModel =
       viewModel(
           key = "friends_$currentUserId",
-          factory = FriendsViewModel.factory(friendRepository, userRepository, currentUserId),
+          factory =
+              FriendsViewModel.factory(
+                  friendRepository,
+                  userRepository,
+                  authRepository,
+                  currentUserId,
+              ),
       )
   val state by model.uiState.collectAsStateWithLifecycle()
   LaunchedEffect(state.loadError) {
