@@ -21,6 +21,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -376,6 +377,272 @@ class FriendsViewModelTest {
         advanceUntilIdle()
         assertTrue(model.uiState.value.processingIds.isEmpty())
         assertEquals(1, model.uiState.value.friends.size)
+      }
+
+  @Test
+  fun acceptedWriteStaysProcessingUntilFriendshipObservationConfirmsIt() =
+      runTest(dispatcher) {
+        val request = bob.sendFriendRequest("alice")
+        val snapshots = IndependentFriendRepository(repository)
+        snapshots.incoming.value = listOf(request)
+        val model = viewModel(friendRepository = snapshots)
+        runCurrent()
+
+        model.acceptRequest(request.uid)
+        runCurrent()
+        assertEquals(1, alice.getFriends().size)
+        assertTrue(model.uiState.value.friends.isEmpty())
+        assertEquals(listOf(request), model.uiState.value.incomingRequests)
+        assertEquals(setOf(request.uid), model.uiState.value.processingIds)
+
+        model.acceptRequest(request.uid)
+        model.declineRequest(request.uid)
+        runCurrent()
+        assertEquals(1, repository.actionCount)
+
+        snapshots.friends.value = alice.getFriends()
+        runCurrent()
+        assertEquals(alice.getFriends(), model.uiState.value.friends)
+        assertTrue(model.uiState.value.incomingRequests.isEmpty())
+        assertTrue(model.uiState.value.processingIds.isEmpty())
+        assertNull(model.uiState.value.actionFailure)
+      }
+
+  @Test
+  fun acceptedWriteCanBeConfirmedByRequestRemovalBeforeFriendshipArrival() =
+      runTest(dispatcher) {
+        val request = bob.sendFriendRequest("alice")
+        val snapshots = IndependentFriendRepository(repository)
+        snapshots.incoming.value = listOf(request)
+        val model = viewModel(friendRepository = snapshots)
+        runCurrent()
+        model.acceptRequest(request.uid)
+        runCurrent()
+        assertEquals(setOf(request.uid), model.uiState.value.processingIds)
+
+        snapshots.incoming.value = emptyList()
+        runCurrent()
+        assertTrue(model.uiState.value.processingIds.isEmpty())
+        assertTrue(model.uiState.value.incomingRequests.isEmpty())
+        assertTrue(model.uiState.value.friends.isEmpty())
+        assertNull(model.uiState.value.actionFailure)
+
+        snapshots.friends.value = alice.getFriends()
+        runCurrent()
+        assertEquals(alice.getFriends(), model.uiState.value.friends)
+      }
+
+  @Test
+  fun declinedWriteWaitsForItsGenerationToDisappearWithoutBlockingAReplacement() =
+      runTest(dispatcher) {
+        val request = bob.sendFriendRequest("alice")
+        val snapshots = IndependentFriendRepository(repository)
+        snapshots.incoming.value = listOf(request)
+        val model = viewModel(friendRepository = snapshots)
+        runCurrent()
+        model.declineRequest(request.uid)
+        runCurrent()
+        assertTrue(alice.getIncomingRequests().isEmpty())
+        assertEquals(listOf(request), model.uiState.value.incomingRequests)
+        assertEquals(setOf(request.uid), model.uiState.value.processingIds)
+
+        model.declineRequest(request.uid)
+        model.acceptRequest(request.uid)
+        runCurrent()
+        assertEquals(1, repository.actionCount)
+
+        val replacement = bob.sendFriendRequest("alice")
+        snapshots.incoming.value = listOf(replacement)
+        runCurrent()
+        assertTrue(model.uiState.value.processingIds.isEmpty())
+        assertEquals(listOf(replacement), model.uiState.value.incomingRequests)
+        model.declineRequest(replacement.uid)
+        runCurrent()
+        assertEquals(2, repository.actionCount)
+        assertEquals(setOf(replacement.uid), model.uiState.value.processingIds)
+
+        snapshots.incoming.value = emptyList()
+        runCurrent()
+        assertTrue(model.uiState.value.processingIds.isEmpty())
+        assertNull(model.uiState.value.actionFailure)
+      }
+
+  @Test
+  fun removalAndDeclineWaitForTheirOwnObservedConfirmations() =
+      runTest(dispatcher) {
+        val accepted = bob.sendFriendRequest("alice")
+        val friendship = alice.acceptFriendRequest("bob", accepted.uid)
+        val incoming = carol.sendFriendRequest("alice")
+        val snapshots = IndependentFriendRepository(repository)
+        snapshots.friends.value = listOf(friendship)
+        snapshots.incoming.value = listOf(incoming)
+        val model = viewModel(friendRepository = snapshots)
+        runCurrent()
+
+        model.removeFriend(friendship.uid)
+        model.declineRequest(incoming.uid)
+        runCurrent()
+        assertTrue(alice.getFriends().isEmpty())
+        assertTrue(alice.getIncomingRequests().isEmpty())
+        assertEquals(listOf(friendship), model.uiState.value.friends)
+        assertEquals(setOf(friendship.uid, incoming.uid), model.uiState.value.processingIds)
+        model.removeFriend(friendship.uid)
+        runCurrent()
+        assertEquals(2, repository.actionCount)
+
+        snapshots.friends.value = emptyList()
+        runCurrent()
+        assertTrue(model.uiState.value.friends.isEmpty())
+        assertEquals(listOf(incoming), model.uiState.value.incomingRequests)
+        assertEquals(setOf(incoming.uid), model.uiState.value.processingIds)
+
+        snapshots.incoming.value = emptyList()
+        runCurrent()
+        assertTrue(model.uiState.value.processingIds.isEmpty())
+        assertNull(model.uiState.value.actionFailure)
+      }
+
+  @Test
+  fun observedConfirmationDoesNotReleaseProcessingBeforeTheWriteReturns() =
+      runTest(dispatcher) {
+        val request = bob.sendFriendRequest("alice")
+        val snapshots = IndependentFriendRepository(repository)
+        snapshots.incoming.value = listOf(request)
+        val gate = CompletableDeferred<Unit>()
+        repository.gate = gate
+        val model = viewModel(friendRepository = snapshots)
+        runCurrent()
+        model.acceptRequest(request.uid)
+        runCurrent()
+
+        snapshots.incoming.value = emptyList()
+        runCurrent()
+        assertEquals(setOf(request.uid), model.uiState.value.processingIds)
+        assertTrue(alice.getFriends().isEmpty())
+
+        gate.complete(Unit)
+        runCurrent()
+        assertEquals(1, alice.getFriends().size)
+        assertTrue(model.uiState.value.processingIds.isEmpty())
+        assertNull(model.uiState.value.actionFailure)
+      }
+
+  @Test
+  fun failedWriteReleasesProcessingAndRetryWaitsForObservation() =
+      runTest(dispatcher) {
+        val request = bob.sendFriendRequest("alice")
+        val snapshots = IndependentFriendRepository(repository)
+        snapshots.incoming.value = listOf(request)
+        val model = viewModel(friendRepository = snapshots)
+        runCurrent()
+        repository.actionFailure = FriendRepositoryException.Network()
+        model.acceptRequest(request.uid)
+        runCurrent()
+        assertTrue(model.uiState.value.processingIds.isEmpty())
+        assertEquals(listOf(request), model.uiState.value.incomingRequests)
+        assertEquals(
+            FriendsActionFailure(request.uid, FriendsAction.ACCEPT),
+            model.uiState.value.actionFailure,
+        )
+
+        repository.actionFailure = null
+        model.acceptRequest(request.uid)
+        runCurrent()
+        assertEquals(2, repository.actionCount)
+        assertNull(model.uiState.value.actionFailure)
+        assertEquals(setOf(request.uid), model.uiState.value.processingIds)
+
+        snapshots.friends.value = alice.getFriends()
+        runCurrent()
+        assertTrue(model.uiState.value.processingIds.isEmpty())
+      }
+
+  @Test
+  fun observationFailureAfterSuccessfulWriteKeepsProcessingUntilLoadRetryConfirmsIt() =
+      runTest(dispatcher) {
+        val request = bob.sendFriendRequest("alice")
+        val snapshots = IndependentFriendRepository(repository)
+        snapshots.incoming.value = listOf(request)
+        val model = viewModel(friendRepository = snapshots)
+        runCurrent()
+        model.acceptRequest(request.uid)
+        runCurrent()
+        assertEquals(1, alice.getFriends().size)
+
+        snapshots.failure.value = FriendRepositoryException.Network()
+        runCurrent()
+        assertEquals(FriendsLoadError.RELATIONSHIPS, model.uiState.value.loadError)
+        assertEquals(setOf(request.uid), model.uiState.value.processingIds)
+        assertEquals(listOf(request), model.uiState.value.incomingRequests)
+        assertNull(model.uiState.value.actionFailure)
+        model.acceptRequest(request.uid)
+        model.declineRequest(request.uid)
+        runCurrent()
+        assertEquals(1, repository.actionCount)
+
+        snapshots.failure.value = null
+        model.retry()
+        runCurrent()
+        assertNull(model.uiState.value.loadError)
+        assertEquals(setOf(request.uid), model.uiState.value.processingIds)
+        assertEquals(1, repository.actionCount)
+
+        snapshots.friends.value = alice.getFriends()
+        runCurrent()
+        assertTrue(model.uiState.value.processingIds.isEmpty())
+        assertEquals(alice.getFriends(), model.uiState.value.friends)
+        assertNull(model.uiState.value.actionFailure)
+        assertEquals(1, repository.actionCount)
+      }
+
+  @Test
+  fun sessionInvalidationCancelsConfirmationWaitsWithoutRestoringPrivateState() =
+      runTest(dispatcher) {
+        for (account in listOf(null, AuthenticatedUser("other", "Other", null, null))) {
+          auth.setCurrentAccount(AuthenticatedUser("alice", "Alice", null, null))
+          val request = bob.sendFriendRequest("alice")
+          val snapshots = IndependentFriendRepository(repository)
+          snapshots.incoming.value = listOf(request)
+          val model = viewModel(friendRepository = snapshots)
+          runCurrent()
+          model.declineRequest(request.uid)
+          runCurrent()
+          assertTrue(alice.getIncomingRequests().isEmpty())
+          assertEquals(setOf(request.uid), model.uiState.value.processingIds)
+
+          auth.setCurrentAccount(account)
+          runCurrent()
+          val ended = FriendsState(isLoading = false, loadError = FriendsLoadError.SESSION)
+          assertEquals(ended, model.uiState.value)
+          snapshots.incoming.value = emptyList()
+          model.retry()
+          runCurrent()
+          assertEquals(ended, model.uiState.value)
+          viewModelStore.clear()
+        }
+      }
+
+  @Test
+  fun clearingTheViewModelCancelsConfirmationWaitsAndReleasesProcessing() =
+      runTest(dispatcher) {
+        val request = bob.sendFriendRequest("alice")
+        val snapshots = IndependentFriendRepository(repository)
+        snapshots.incoming.value = listOf(request)
+        val model = viewModel(friendRepository = snapshots)
+        runCurrent()
+        model.declineRequest(request.uid)
+        runCurrent()
+        assertTrue(alice.getIncomingRequests().isEmpty())
+        assertEquals(setOf(request.uid), model.uiState.value.processingIds)
+
+        viewModelStore.clear()
+        runCurrent()
+        assertTrue(model.uiState.value.processingIds.isEmpty())
+        assertNull(model.uiState.value.actionFailure)
+        val cleared = model.uiState.value
+        snapshots.incoming.value = emptyList()
+        runCurrent()
+        assertEquals(cleared, model.uiState.value)
       }
 
   @Test
@@ -805,8 +1072,13 @@ class FriendsViewModelTest {
     val friends = MutableStateFlow<List<Friendship>>(emptyList())
     val incoming = MutableStateFlow<List<FriendRequest>>(emptyList())
     val outgoing = MutableStateFlow<List<FriendRequest>>(emptyList())
+    val failure = MutableStateFlow<Exception?>(null)
 
-    override fun observeFriends(): Flow<List<Friendship>> = friends
+    override fun observeFriends(): Flow<List<Friendship>> =
+        combine(friends, failure) { snapshot, error ->
+          error?.let { throw it }
+          snapshot
+        }
 
     override fun observeIncomingRequests(): Flow<List<FriendRequest>> = incoming
 
