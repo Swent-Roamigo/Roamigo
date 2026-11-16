@@ -206,7 +206,11 @@ class PhotosViewModel(
     startLocationFetch(PHOTO_LOCATION_TIMEOUT)
   }
 
-  /** Keeps the photo shown in the preview. */
+  /**
+   * Keeps the photo shown in the preview. If the screen is left while the position is still being
+   * read, the photo is still saved, but without a position, because no new read is started once the
+   * ViewModel is cleared.
+   */
   fun onSave() {
     val current = local.value
     val file = current.preview ?: return

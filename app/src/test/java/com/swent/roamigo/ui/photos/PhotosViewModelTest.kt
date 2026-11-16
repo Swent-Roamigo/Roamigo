@@ -748,19 +748,20 @@ class PhotosViewModelTest {
   }
 
   @Test
-  fun aPhotoBeingSavedWhenTheScreenIsLeftIsStillSavedWithTheRemainingWait() = runTest {
+  fun aPhotoBeingSavedWhenTheScreenIsLeftIsSavedAtOnceWithoutAPosition() = runTest {
     locator.answerLater()
     takePicture()
     advanceTimeBy(1.seconds)
     viewModel.onSave()
+    val savePressedAt = currentTime
 
     clear()
     viewModel.viewModelScope.cancel()
-    advanceTimeBy(4.seconds)
     runCurrent()
 
     assertEquals(1, repository.savedPhotos.size)
     assertNull(repository.savedPhotos.single().coordinates)
+    assertEquals(savePressedAt, currentTime)
   }
 
   @Test
