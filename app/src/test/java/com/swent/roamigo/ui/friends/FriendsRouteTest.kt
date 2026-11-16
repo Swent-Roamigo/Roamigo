@@ -24,6 +24,7 @@ import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.friends.FriendRepository
 import com.swent.roamigo.model.friends.FriendRepositoryException
+import com.swent.roamigo.model.friends.FriendRequest
 import com.swent.roamigo.model.friends.Friendship
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
@@ -33,6 +34,7 @@ import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
@@ -293,6 +295,163 @@ class FriendsRouteTest {
   }
 
   @Test
+  fun acceptedWriteKeepsControlsDisabledUntilFriendshipSnapshotReplacesThePendingRow() {
+    val request = runBlocking { bob.sendFriendRequest("alice") }
+    val outgoing = runBlocking { alice.sendFriendRequest("carol") }
+    val actions = ActionRepository(alice)
+    val snapshots = IndependentSnapshotsRepository(actions)
+    snapshots.incoming.value = listOf(request)
+    snapshots.outgoing.value = listOf(outgoing)
+    show(snapshots)
+    composeRule
+        .onNodeWithTag(C.Tag.friends_accept_prefix + request.uid)
+        .performScrollTo()
+        .performClick()
+
+    composeRule.runOnIdle {
+      runBlocking { assertEquals(1, alice.getFriends().size) }
+      assertEquals(1, actions.calls)
+    }
+    composeRule
+        .onNodeWithTag(C.Tag.friends_accept_prefix + request.uid)
+        .assertIsNotEnabled()
+        .performClick()
+    composeRule
+        .onNodeWithTag(C.Tag.friends_decline_prefix + request.uid)
+        .assertIsNotEnabled()
+        .performClick()
+    composeRule.onNodeWithTag(C.Tag.friends_remove_prefix + request.uid).assertDoesNotExist()
+    composeRule.runOnIdle {
+      assertEquals(1, actions.calls)
+      snapshots.friends.value = runBlocking { alice.getFriends() }
+    }
+
+    composeRule
+        .onNodeWithTag(C.Tag.friends_incoming_request_prefix + request.uid)
+        .assertDoesNotExist()
+    composeRule
+        .onNodeWithTag(C.Tag.friends_remove_prefix + request.uid)
+        .performScrollTo()
+        .assertIsDisplayed()
+        .assertIsEnabled()
+    composeRule.onNodeWithText("Carol").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.friends_pending_request_row).assertIsDisplayed()
+  }
+
+  @Test
+  fun pendingRemovalBeforeFriendshipSnapshotShowsEmptyStateUntilTheFriendArrives() {
+    val request = runBlocking { bob.sendFriendRequest("alice") }
+    val actions = ActionRepository(alice)
+    val snapshots = IndependentSnapshotsRepository(actions)
+    snapshots.incoming.value = listOf(request)
+    show(snapshots)
+    composeRule
+        .onNodeWithTag(C.Tag.friends_accept_prefix + request.uid)
+        .performScrollTo()
+        .performClick()
+    composeRule.onNodeWithTag(C.Tag.friends_accept_prefix + request.uid).assertIsNotEnabled()
+    composeRule.runOnIdle {
+      runBlocking { assertEquals(1, alice.getFriends().size) }
+      snapshots.incoming.value = emptyList()
+    }
+
+    composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.friends_remove_prefix + request.uid).assertDoesNotExist()
+    composeRule.runOnIdle { snapshots.friends.value = runBlocking { alice.getFriends() } }
+    composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertDoesNotExist()
+    composeRule
+        .onNodeWithTag(C.Tag.friends_remove_prefix + request.uid)
+        .performScrollTo()
+        .assertIsDisplayed()
+        .assertIsEnabled()
+    composeRule.runOnIdle { assertEquals(1, actions.calls) }
+  }
+
+  @Test
+  fun declinedWriteKeepsBothControlsDisabledUntilThePendingSnapshotCatchesUp() {
+    val request = runBlocking { bob.sendFriendRequest("alice") }
+    val actions = ActionRepository(alice)
+    val snapshots = IndependentSnapshotsRepository(actions)
+    snapshots.incoming.value = listOf(request)
+    show(snapshots)
+    composeRule
+        .onNodeWithTag(C.Tag.friends_decline_prefix + request.uid)
+        .performScrollTo()
+        .performClick()
+
+    composeRule.runOnIdle { runBlocking { assertTrue(alice.getIncomingRequests().isEmpty()) } }
+    composeRule
+        .onNodeWithTag(C.Tag.friends_decline_prefix + request.uid)
+        .assertIsNotEnabled()
+        .performClick()
+    composeRule
+        .onNodeWithTag(C.Tag.friends_accept_prefix + request.uid)
+        .assertIsNotEnabled()
+        .performClick()
+    composeRule.runOnIdle {
+      assertEquals(1, actions.calls)
+      snapshots.incoming.value = emptyList()
+    }
+    composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertIsDisplayed()
+    composeRule
+        .onNodeWithTag(C.Tag.friends_incoming_request_prefix + request.uid)
+        .assertDoesNotExist()
+  }
+
+  @Test
+  fun removedFriendStaysVisibleWithDisabledControlUntilFriendshipSnapshotCatchesUp() {
+    val friendship = runBlocking {
+      val request = bob.sendFriendRequest("alice")
+      alice.acceptFriendRequest("bob", request.uid)
+    }
+    val actions = ActionRepository(alice)
+    val snapshots = IndependentSnapshotsRepository(actions)
+    snapshots.friends.value = listOf(friendship)
+    show(snapshots)
+    composeRule
+        .onNodeWithTag(C.Tag.friends_remove_prefix + friendship.uid)
+        .performScrollTo()
+        .performClick()
+
+    composeRule.runOnIdle { runBlocking { assertTrue(alice.getFriends().isEmpty()) } }
+    composeRule.onNodeWithText("Bob").assertIsDisplayed()
+    composeRule
+        .onNodeWithTag(C.Tag.friends_remove_prefix + friendship.uid)
+        .assertIsNotEnabled()
+        .performClick()
+    composeRule.runOnIdle {
+      assertEquals(1, actions.calls)
+      snapshots.friends.value = emptyList()
+    }
+    composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertIsDisplayed()
+    composeRule.onNodeWithText("Bob").assertDoesNotExist()
+  }
+
+  @Test
+  fun friendshipSnapshotHidesAnOutgoingRequestBeforeItsPendingSnapshotCatchesUp() {
+    val request = runBlocking { alice.sendFriendRequest("bob") }
+    val snapshots = IndependentSnapshotsRepository(alice)
+    snapshots.outgoing.value = listOf(request)
+    show(snapshots)
+    composeRule.onNodeWithTag(C.Tag.friends_pending_request_row).assertIsDisplayed()
+
+    composeRule.runOnIdle {
+      snapshots.friends.value =
+          listOf(runBlocking { bob.acceptFriendRequest("alice", request.uid) })
+    }
+    composeRule.onNodeWithTag(C.Tag.friends_pending_request_row).assertDoesNotExist()
+    composeRule
+        .onNodeWithTag(C.Tag.friends_remove_prefix + request.uid)
+        .performScrollTo()
+        .assertIsDisplayed()
+    composeRule.onNodeWithText("Pending").assertDoesNotExist()
+
+    composeRule.runOnIdle { snapshots.outgoing.value = emptyList() }
+    composeRule.onNodeWithTag(C.Tag.friends_remove_prefix + request.uid).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.friends_pending_request_row).assertDoesNotExist()
+  }
+
+  @Test
   fun failedAcceptanceKeepsTheRequestAndAllowsAnotherAttempt() {
     val request = runBlocking { bob.sendFriendRequest("alice") }
     val controlled = ActionRepository(alice)
@@ -426,6 +585,19 @@ class FriendsRouteTest {
     composeRule.runOnIdle { alice.failure = null }
     composeRule.onNodeWithTag(C.Tag.friends_retry).performClick()
     composeRule.onNodeWithTag(C.Tag.friends_empty_state).performScrollTo().assertIsDisplayed()
+  }
+
+  private class IndependentSnapshotsRepository(delegate: FriendRepository) :
+      FriendRepository by delegate {
+    val friends = MutableStateFlow<List<Friendship>>(emptyList())
+    val incoming = MutableStateFlow<List<FriendRequest>>(emptyList())
+    val outgoing = MutableStateFlow<List<FriendRequest>>(emptyList())
+
+    override fun observeFriends(): Flow<List<Friendship>> = friends
+
+    override fun observeIncomingRequests(): Flow<List<FriendRequest>> = incoming
+
+    override fun observeOutgoingRequests(): Flow<List<FriendRequest>> = outgoing
   }
 
   private class ActionRepository(private val delegate: FriendRepository) :
