@@ -1,22 +1,13 @@
 // AI assistance was used for implementation support.
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getFirestore, Timestamp} from "firebase-admin/firestore";
+import {callableOptions, documentId} from "./callable.js";
 
 type Option = {uid: string; name: string};
-
-function documentId(value: unknown): string {
-  if (typeof value !== "string" || !value.trim() || value.includes("/") ||
-      value === "." || value === "..") {
-    throw new HttpsError("invalid-argument", "Invalid document ID");
-  }
-  return value;
-}
 
 // No calendar approximation: Trip.isCompletedOn uses the viewing device's local date/zone.
 // The Android repository enforces that policy before calling. These endpoints enforce the
 // shared, server-verifiable membership, owner, immutable-ballot and resolution invariants.
-const callableOptions = {region: "europe-west1", maxInstances: 2};
-
 export const createRevote = onCall(callableOptions, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first");
   const userId = request.auth.uid;
