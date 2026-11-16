@@ -909,6 +909,21 @@ class PhotosViewModelTest {
   }
 
   @Test
+  fun aRestoredPositionOutOfRangeIsUnavailableAndSavedWithoutCoordinates() = runTest {
+    locator.answer(PhotoLocationResult.Found(PhotoCoordinates(46.5, 6.6)))
+    val handle = SavedStateHandle()
+    capture(modelWith(handle, locator))
+    handle["preview_latitude"] = 123.0
+    handle["preview_longitude"] = 6.6
+
+    val restored = modelWith(afterProcessDeath(handle), FakePhotoLocator())
+    assertEquals(PhotoLocationStatus.Unavailable, restored.uiState.value.previewLocation)
+    restored.onSave()
+
+    assertNull(repository.savedPhotos.single().coordinates)
+  }
+
+  @Test
   fun aRestoredPreviewShowsItsPosition() = runTest {
     locator.answer(PhotoLocationResult.Found(PhotoCoordinates(46.5, 6.6)))
     val handle = SavedStateHandle()
