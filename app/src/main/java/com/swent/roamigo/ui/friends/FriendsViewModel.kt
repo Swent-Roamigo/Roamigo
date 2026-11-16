@@ -156,7 +156,13 @@ class FriendsViewModel(
                 friendRepository.observeIncomingRequests().requireSession(),
                 friendRepository.observeOutgoingRequests().requireSession(),
             ) { friends, incoming, outgoing ->
-              Triple(friends, incoming, outgoing)
+              // Independent queries can still report an accepted generation as pending.
+              val establishedIds = friends.mapTo(hashSetOf()) { it.uid }
+              Triple(
+                  friends,
+                  incoming.filterNot { it.uid in establishedIds },
+                  outgoing.filterNot { it.uid in establishedIds },
+              )
             }
             .collectLatest { (friends, incoming, outgoing) ->
               val ids =
