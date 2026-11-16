@@ -52,6 +52,21 @@ class MapboxPlaceRepositoryTest {
   private val candidate = PlaceCandidate("id-1", "Cafe Romand", "Lausanne")
 
   @Test
+  fun attributionIsPreservedFromSearchAndRetrieveWithCandidateFallback() = runTest {
+    val repository = repository { request ->
+      200 to
+          if (request.url.encodedPath.endsWith("suggest"))
+              """{"attribution":"Search notice","suggestions":[{"name":"Cafe","mapbox_id":"id-1"}]}"""
+          else feature().dropLast(1) + ",\"attribution\":\"Retrieve notice\"}"
+    }
+    val found = repository.searchPlaces("cafe").single()
+    assertEquals("Search notice", found.attribution)
+    assertEquals("Retrieve notice", repository.resolvePlace(found).attribution)
+    val fallback = repository { 200 to feature() }
+    assertEquals("Search notice", fallback.resolvePlace(found).attribution)
+  }
+
+  @Test
   fun suggestMapsResultsAndSendsQueryProximityAndSession() = runTest {
     val repository = repository {
       200 to
@@ -76,6 +91,7 @@ class MapboxPlaceRepositoryTest {
     val url = requests.single().url
     assertEquals("/search/searchbox/v1/suggest", url.encodedPath)
     assertEquals("cafe", url.queryParameter("q"))
+    assertEquals("8", url.queryParameter("limit"))
     assertEquals("6.6,46.5", url.queryParameter("proximity"))
     assertEquals("pk.test", url.queryParameter("access_token"))
     assertEquals("s1", url.queryParameter("session_token"))

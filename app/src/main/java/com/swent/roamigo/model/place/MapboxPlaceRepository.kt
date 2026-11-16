@@ -56,9 +56,13 @@ class MapboxPlaceRepository(
               }
             }
             .build()
-    val suggestions = getJson(url).optJSONArray("suggestions") ?: return emptyList()
+    val answer = getJson(url)
+    val attribution = answer.optString("attribution").takeIf(String::isNotBlank)
+    val suggestions = answer.optJSONArray("suggestions") ?: return emptyList()
     return (0 until suggestions.length())
-        .mapNotNull { index -> suggestions.optJSONObject(index)?.toCandidate() }
+        .mapNotNull { index ->
+          suggestions.optJSONObject(index)?.toCandidate()?.copy(attribution = attribution)
+        }
         .distinctBy { it.id }
   }
 
@@ -72,7 +76,12 @@ class MapboxPlaceRepository(
     // one. Renewing before the body is read keeps it so even if reading or parsing throws.
     val answer = getJson(url, onSuccessStatus = ::renewSession)
     val feature = answer.optJSONArray("features")?.optJSONObject(0)
-    return (feature ?: throw PlaceSearchException.InvalidPlace()).toPlace(candidate.name)
+    return (feature ?: throw PlaceSearchException.InvalidPlace())
+        .toPlace(candidate.name)
+        .copy(
+            attribution =
+                answer.optString("attribution").takeIf(String::isNotBlank) ?: candidate.attribution,
+        )
   }
 
   private fun renewSession() {
