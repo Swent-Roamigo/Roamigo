@@ -196,6 +196,7 @@ fun RoamigoApp(
         FriendsRoute(
             friendRepository = friendRepository,
             userRepository = userRepository,
+            authRepository = authRepository,
             currentUserId = userId,
             onSessionEnded = { redirectToAuthentication(navController) },
             onTripsClick = onTripsClick,

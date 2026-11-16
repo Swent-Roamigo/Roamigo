@@ -19,6 +19,8 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.R
+import com.swent.roamigo.model.authentication.AuthenticatedUser
+import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.friends.FriendRepository
 import com.swent.roamigo.model.friends.FriendRepositoryException
@@ -47,6 +49,8 @@ class FriendsRouteTest {
   private val store = FakeFriendRepository.Store()
   private val alice = FakeFriendRepository("alice", store)
   private val bob = FakeFriendRepository("bob", store)
+  private val auth =
+      FakeAuthRepository(AuthenticatedUser("alice", "Alice", null, null), initiallySignedIn = true)
   private val users =
       FakeUserRepository(
           User("alice", "Alice", null),
@@ -70,6 +74,7 @@ class FriendsRouteTest {
         FriendsRoute(
             friendRepository = friendRepository,
             userRepository = userRepository,
+            authRepository = auth,
             currentUserId = "alice",
             onSessionEnded = { endedSessions++ },
             onTripsClick = {},
@@ -173,6 +178,23 @@ class FriendsRouteTest {
         .onNodeWithTag(C.Tag.friends_avatar_prefix + "unpublished")
         .assert(hasAnyDescendant(hasText("U")))
     composeRule.onNodeWithText("Pending").assertIsDisplayed()
+  }
+
+  @Test
+  fun authSignOutAfterObservationFailureClearsRowsAndInvokesNavigation() {
+    runBlocking { alice.sendFriendRequest("bob") }
+    show()
+    composeRule.onNodeWithText("Bob").assertIsDisplayed()
+
+    composeRule.runOnIdle { alice.failure = FriendRepositoryException.Network() }
+    composeRule.onNodeWithTag(C.Tag.friends_load_error).assertIsDisplayed()
+    composeRule.onNodeWithText("Bob").assertIsDisplayed()
+
+    composeRule.runOnIdle { auth.signOut() }
+
+    composeRule.onNodeWithText("Bob").assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.friends_retry).assertDoesNotExist()
+    composeRule.runOnIdle { assertEquals(1, endedSessions) }
   }
 
   @Test
