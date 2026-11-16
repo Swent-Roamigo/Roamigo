@@ -20,4 +20,7 @@ enum class InvitationStatus {
   ACCEPTED,
   DECLINED,
   EXPIRED,
+
+  /** The organiser stopped the link. Written by `revokeTripInvitations`. */
+  REVOKED,
 }
