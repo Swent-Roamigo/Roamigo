@@ -8,22 +8,22 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.rememberViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.place.PlaceProximity
 import com.swent.roamigo.model.place.PlaceRepository
-import java.util.UUID
 
 /**
  * Full-screen search picker. Supply RoamigoApplication.placeRepository through the owning Route;
  * keep the caller's draft in its own ViewModel and update only its location in [onPlacePicked].
  * Cancel leaves that draft untouched. No navigation controller or persistence is required.
  *
- * A composition-owned, saveable key isolates each opening even when callers share a ViewModelStore.
- * Configuration restoration keeps the key; removing and reopening the picker creates a fresh one.
+ * A composition-scoped owner isolates each opening and clears its ViewModels on removal. AndroidX
+ * retains the owner across configuration changes and restores its saved state.
  */
 @Composable
 fun PlacePickerRoute(
@@ -33,13 +33,15 @@ fun PlacePickerRoute(
     modifier: Modifier = Modifier,
     initialLocation: TripLocation? = null,
     proximity: PlaceProximity? = null,
+    viewModelFactory: ViewModelProvider.Factory? = null,
 ) {
-  val instance = rememberSaveable { UUID.randomUUID().toString() }
+  val owner = rememberViewModelStoreOwner()
   val factory =
-      remember(placeRepository, instance) {
+      remember(placeRepository, initialLocation, proximity) {
         PlacePickerViewModel.factory(placeRepository, initialLocation, proximity)
       }
-  val picker: PlacePickerViewModel = viewModel(key = "place_picker_$instance", factory = factory)
+  val picker: PlacePickerViewModel =
+      viewModel(viewModelStoreOwner = owner, factory = viewModelFactory ?: factory)
   val state by picker.uiState.collectAsStateWithLifecycle()
   val currentOnPlacePicked by rememberUpdatedState(onPlacePicked)
   LaunchedEffect(state.finished) { picker.consumeResult()?.let { currentOnPlacePicked(it) } }
