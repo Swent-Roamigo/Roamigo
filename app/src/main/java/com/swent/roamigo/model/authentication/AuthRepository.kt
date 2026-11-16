@@ -1,6 +1,7 @@
 package com.swent.roamigo.model.authentication
 
 import androidx.credentials.Credential
+import kotlinx.coroutines.flow.Flow
 
 /**
  * Handles authentication operations such as signing in with Google and signing out.
@@ -20,6 +21,12 @@ interface AuthRepository {
 
   /** Returns a snapshot of the current account, or null when no user is signed in. */
   fun getCurrentUser(): AuthenticatedUser?
+
+  /**
+   * Observes the current account and later sign-in, sign-out, or account changes independently of
+   * data queries. Each collector owns its subscription and releases it when collection ends.
+   */
+  fun observeCurrentUser(): Flow<AuthenticatedUser?>
 
   /**
    * Signs out the currently authenticated Firebase user. The caller clears Credential Manager

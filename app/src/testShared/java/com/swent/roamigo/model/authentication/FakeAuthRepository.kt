@@ -2,13 +2,16 @@
 package com.swent.roamigo.model.authentication
 
 import androidx.credentials.Credential
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /** In-memory authentication for a single supplied account, without Firebase calls. */
 internal class FakeAuthRepository(
     private val user: AuthenticatedUser,
     initiallySignedIn: Boolean = false,
 ) : AuthRepository {
-  private var currentAccount: AuthenticatedUser? = if (initiallySignedIn) user else null
+  private val currentAccount = MutableStateFlow(if (initiallySignedIn) user else null)
   var lastCredential: Credential? = null
     private set
   var failure: Exception? = null
@@ -17,15 +20,22 @@ internal class FakeAuthRepository(
   override suspend fun signInWithGoogle(credential: Credential): Result<AuthenticatedUser> {
     lastCredential = credential
     failure?.let { return Result.failure(it) }
-    currentAccount = user
+    setCurrentAccount(user)
     return Result.success(user)
   }
 
-  override fun getCurrentUser(): AuthenticatedUser? = currentAccount
+  override fun getCurrentUser(): AuthenticatedUser? = currentAccount.value
+
+  override fun observeCurrentUser(): Flow<AuthenticatedUser?> = currentAccount.asStateFlow()
+
+  /** Simulates an external account change without credentials or Firebase. */
+  fun setCurrentAccount(account: AuthenticatedUser?) {
+    currentAccount.value = account
+  }
 
   override fun signOut(): Result<Unit> {
     signOutFailure?.let { return Result.failure(it) }
-    currentAccount = null
+    setCurrentAccount(null)
     return Result.success(Unit)
   }
 }
