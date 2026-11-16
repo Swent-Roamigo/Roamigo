@@ -107,7 +107,7 @@ import com.swent.roamigo.ui.theme.WarningSurface
  * @param permissionChecker tells whether the location permission is granted, and whether the system
  *   would ask for it again after a refusal.
  * @param startActivity starts the activity of an intent, such as the app's settings.
- * @param readOnly whether location sharing controls are hidden for this trip.
+ * @param readOnly whether location sharing controls and permission requests are disabled.
  */
 @Composable
 fun TripMapRoute(
@@ -132,6 +132,8 @@ fun TripMapRoute(
   val permissionLauncher =
       rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
           results ->
+        // The trip may become read-only while the system permission dialog is open.
+        if (readOnly) locationViewModel?.onPermissionSheetDismissed()
         // Asked after the answer: only then does the system tell a refusal it will repeat from one
         // that is final.
         locationViewModel?.onPermissionResult(
@@ -140,8 +142,10 @@ fun TripMapRoute(
         )
       }
 
-  LaunchedEffect(locationViewModel) {
+  LaunchedEffect(locationViewModel, readOnly) {
+    if (readOnly) locationViewModel?.onPermissionSheetDismissed()
     locationViewModel?.effects?.collect { effect ->
+      if (readOnly) return@collect
       when (effect) {
         LocationEffect.RequestPermission -> permissionLauncher.launch(LOCATION_PERMISSIONS)
         LocationEffect.OpenSettings ->
@@ -175,12 +179,14 @@ fun TripMapRoute(
       modifier = modifier,
       readOnly = readOnly || locationViewModel == null,
   )
-  LocationPermissionSheet(
-      sheet = locationUiState.permissionSheet,
-      onContinue = { locationViewModel?.onRationaleContinue(permissionChecker.isGranted()) },
-      onOpenSettings = { locationViewModel?.onOpenSettings() },
-      onDismiss = { locationViewModel?.onPermissionSheetDismissed() },
-  )
+  if (!readOnly) {
+    LocationPermissionSheet(
+        sheet = locationUiState.permissionSheet,
+        onContinue = { locationViewModel?.onRationaleContinue(permissionChecker.isGranted()) },
+        onOpenSettings = { locationViewModel?.onOpenSettings() },
+        onDismiss = { locationViewModel?.onPermissionSheetDismissed() },
+    )
+  }
 }
 
 private val MyLocationDotSize = 18.dp

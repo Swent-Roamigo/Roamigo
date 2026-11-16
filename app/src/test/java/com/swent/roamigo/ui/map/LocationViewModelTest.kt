@@ -1,4 +1,4 @@
-// Implemented with assistance from Claude (Anthropic).
+// Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui.map
 
 import androidx.lifecycle.ViewModel
@@ -1305,6 +1305,31 @@ class LocationViewModelTest {
     assertEquals(LocationPermissionSheet.None, viewModel.uiState.value.permissionSheet)
     assertTrue(effects.isEmpty())
     assertTrue(repository.startSharingCalls.isEmpty())
+  }
+
+  @Test
+  fun permissionSheetDismissed_cancelsPendingPermissionResults() = runLocationTest {
+    listOf(
+            GRANTED to Granted,
+            DENIED_WITH_RATIONALE to Denied,
+            DENIED_WITHOUT_RATIONALE to Revoked,
+        )
+        .forEach { (result, expectedState) ->
+          val viewModel = createViewModel(hasPermission = false)
+          viewModel.onTurnOnSharingClick(permissionGranted = false)
+          viewModel.onRationaleContinue(permissionGranted = false)
+          runCurrent()
+
+          viewModel.onPermissionSheetDismissed()
+          repository.hasPermission = result.granted
+          viewModel.onPermissionResult(result.granted, result.shouldShowRationale)
+          runCurrent()
+
+          assertEquals(expectedState, viewModel.uiState.value.permissionState)
+          assertEquals(LocationPermissionSheet.None, viewModel.uiState.value.permissionSheet)
+          assertFalse(viewModel.uiState.value.isSharing)
+          assertTrue(repository.startSharingCalls.isEmpty())
+        }
   }
 
   @Test
