@@ -4,10 +4,10 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getAuth} from "firebase-admin/auth";
 import {FieldValue, getFirestore, Timestamp} from "firebase-admin/firestore";
 import {logger} from "firebase-functions/v2";
+import {callableOptions, documentId} from "./callable.js";
 
 // Joining a trip changes its members, which clients can never do themselves (see firestore.rules),
 // so invitations are created, read and accepted here, with the Admin SDK.
-const callableOptions = {region: "europe-west1", maxInstances: 2};
 
 const INVITATION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 // Mirrors the travelerCount limit of a group trip in model/trip/Trip.kt.
@@ -16,14 +16,6 @@ const MAX_MEMBERS = 10;
 function userIdOf(request: {auth?: {uid: string}}): string {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first");
   return request.auth.uid;
-}
-
-function documentId(value: unknown): string {
-  if (typeof value !== "string" || !value.trim() || value.includes("/") ||
-      value === "." || value === "..") {
-    throw new HttpsError("invalid-argument", "Invalid document ID");
-  }
-  return value;
 }
 
 // Mirrors MAX_NAME in model/users/UserRepositoryFirestore.kt and the profile rules.
