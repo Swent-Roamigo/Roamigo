@@ -11,6 +11,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -88,5 +89,20 @@ class PhotoOfflineDataPathTest {
     assertNull(uploaded.latitude)
     assertNull(uploaded.longitude)
     assertEquals(4_242L, uploaded.takenAtMillis)
+  }
+
+  @Test
+  fun aPhotoSavedTwiceIsQueuedOnceAndUploadedOnceThenItsFileIsGone() = runTest {
+    val file = repository.newPhotoFile().also { it.writeText("jpeg") }
+    // The second save is what a restored preview does after the process died mid-save.
+    repeat(2) { repository.savePhoto("trip", file, takenAtMillis = 4_242L, coordinates = null) }
+
+    assertEquals(1, queue.all().size)
+
+    syncer.sync()
+
+    assertEquals(1, uploader.uploadedPhotos.size)
+    assertEquals(emptyList<PendingPhoto>(), queue.all())
+    assertFalse(file.exists())
   }
 }

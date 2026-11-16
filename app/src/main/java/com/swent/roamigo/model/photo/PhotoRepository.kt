@@ -25,7 +25,9 @@ interface PhotoRepository {
   fun fileOf(photo: PendingPhoto): File
 
   /**
-   * Keeps [file], which the camera wrote, as a photo of the trip and schedules its upload.
+   * Keeps [file], which the camera wrote, as a photo of the trip and schedules its upload. Saving
+   * the same file again replaces the queued photo instead of adding a second one, so it is safe to
+   * retry, for example after process death.
    *
    * @param takenAtMillis when the camera returned the photo, in epoch milliseconds.
    * @param coordinates where the photo was taken, or null if the position is unknown. It is stored
