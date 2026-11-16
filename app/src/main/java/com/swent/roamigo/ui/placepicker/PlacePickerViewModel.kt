@@ -63,6 +63,10 @@ class PlacePickerViewModel(
 
   init {
     saveSelection(selection)
+    // Only primitives survive process death; get fresh candidates in the new provider session.
+    if (savedStateHandle.get<Boolean>("searchActive") == true && !uiState.value.finished) {
+      search(debounce = false)
+    }
   }
 
   fun updateQuery(input: String) {
@@ -85,6 +89,7 @@ class PlacePickerViewModel(
   private fun search(debounce: Boolean) {
     val query = uiState.value.query.trim()
     val request = supersede()
+    savedStateHandle["searchActive"] = query.length >= MIN_PLACE_QUERY_LENGTH
     _uiState.update {
       it.copy(
           candidates = emptyList(),
@@ -101,33 +106,39 @@ class PlacePickerViewModel(
       if (debounce) delay(300)
       session.mutex.withLock {
         ensureActive()
-        try {
-          session.revision++
-          val results = repository.searchPlaces(query, proximity)
-          if (request != generation) return@withLock
-          candidateRevision = session.revision
-          val candidates =
-              results.filter { it.id.isNotBlank() && it.name.isNotBlank() }.distinctBy { it.id }
-          _uiState.update {
-            it.copy(
-                candidates = candidates,
-                searchStatus =
-                    if (candidates.isEmpty()) PlaceSearchStatus.EMPTY
-                    else PlaceSearchStatus.RESULTS,
-                attribution =
-                    results.firstNotNullOfOrNull { candidate -> candidate.attribution }
-                        ?: it.attribution,
-            )
-          }
-        } catch (cancelled: CancellationException) {
-          throw cancelled
-        } catch (error: Exception) {
-          if (request == generation)
-              _uiState.update {
-                it.copy(searchStatus = PlaceSearchStatus.ERROR, searchError = error.toPickerError())
-              }
+        executeSearch(query, request)
+      }
+    }
+  }
+
+  private suspend fun executeSearch(query: String, request: Long) {
+    try {
+      session.revision++
+      val results = repository.searchPlaces(query, proximity)
+      if (request == generation) showSearchResults(results)
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (error: Exception) {
+      if (request == generation) {
+        _uiState.update {
+          it.copy(searchStatus = PlaceSearchStatus.ERROR, searchError = error.toPickerError())
         }
       }
+    }
+  }
+
+  private fun showSearchResults(results: List<PlaceCandidate>) {
+    candidateRevision = session.revision
+    val candidates =
+        results.filter { it.id.isNotBlank() && it.name.isNotBlank() }.distinctBy { it.id }
+    _uiState.update {
+      it.copy(
+          candidates = candidates,
+          searchStatus =
+              if (candidates.isEmpty()) PlaceSearchStatus.EMPTY else PlaceSearchStatus.RESULTS,
+          attribution =
+              results.firstNotNullOfOrNull { candidate -> candidate.attribution } ?: it.attribution,
+      )
     }
   }
 
@@ -151,34 +162,43 @@ class PlacePickerViewModel(
     operation = viewModelScope.launch {
       session.mutex.withLock {
         ensureActive()
-        // Another picker may have completed a retrieve while this one waited for the lock.
-        if (candidateRevision != session.revision) {
-          if (request == generation) search(debounce = false)
-          return@withLock
-        }
-        session.revision++
-        try {
-          val place = repository.resolvePlace(candidate)
-          val location = place.validatedLocation() ?: throw PlaceSearchException.InvalidPlace()
-          if (request != generation) return@withLock
-          saveSelection(location)
-          savedStateHandle["attribution"] = place.attribution ?: candidate.attribution
-          _uiState.update {
-            it.copy(
-                selectedLocation = location,
-                resolvingCandidateId = null,
-                attribution = place.attribution ?: candidate.attribution ?: it.attribution,
-            )
-          }
-        } catch (cancelled: CancellationException) {
-          throw cancelled
-        } catch (error: Exception) {
-          if (request == generation)
-              _uiState.update {
-                it.copy(resolvingCandidateId = null, resolutionError = error.toPickerError())
-              }
+        resolveCandidate(candidate, request)
+      }
+    }
+  }
+
+  private suspend fun resolveCandidate(candidate: PlaceCandidate, request: Long) {
+    // Another picker may have completed a retrieve while this one waited for the lock.
+    if (candidateRevision != session.revision) {
+      if (request == generation) search(debounce = false)
+      return
+    }
+    session.revision++
+    try {
+      val place = repository.resolvePlace(candidate)
+      val location = place.validatedLocation() ?: throw PlaceSearchException.InvalidPlace()
+      if (request == generation) showResolvedPlace(place, candidate, location)
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (error: Exception) {
+      if (request == generation) {
+        _uiState.update {
+          it.copy(resolvingCandidateId = null, resolutionError = error.toPickerError())
         }
       }
+    }
+  }
+
+  private fun showResolvedPlace(place: Place, candidate: PlaceCandidate, location: TripLocation) {
+    saveSelection(location)
+    savedStateHandle["searchActive"] = false
+    savedStateHandle["attribution"] = place.attribution ?: candidate.attribution
+    _uiState.update {
+      it.copy(
+          selectedLocation = location,
+          resolvingCandidateId = null,
+          attribution = place.attribution ?: candidate.attribution ?: it.attribution,
+      )
     }
   }
 
@@ -203,9 +223,13 @@ class PlacePickerViewModel(
     return true
   }
 
-  /**
-   * Stop work when the picker leaves composition, including when its owner retains the ViewModel.
-   */
+  // AndroidX retains this scope across configuration changes and clears it on actual removal.
+  // Invalidate even non-cooperative provider calls when that scope is finally destroyed.
+  override fun onCleared() {
+    stop()
+  }
+
+  /** Cancels work and discards provider candidates when this picker is shut down. */
   fun stop() {
     supersede()
     _uiState.update {
@@ -225,6 +249,7 @@ class PlacePickerViewModel(
 
   private fun finish() {
     supersede()
+    savedStateHandle["searchActive"] = false
     savedStateHandle["finished"] = true
     _uiState.update { it.copy(finished = true, resolvingCandidateId = null) }
   }

@@ -17,7 +17,11 @@ data class PlacePickerUiState(
     val finished: Boolean = false,
 ) {
   val canConfirm: Boolean
-    get() = selectedLocation != null && resolvingCandidateId == null && !finished
+    get() =
+        selectedLocation != null &&
+            searchStatus != PlaceSearchStatus.LOADING &&
+            resolvingCandidateId == null &&
+            !finished
 }
 
 enum class PlaceSearchStatus {

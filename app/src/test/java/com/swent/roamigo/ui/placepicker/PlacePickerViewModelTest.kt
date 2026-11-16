@@ -411,6 +411,93 @@ class PlacePickerViewModelTest {
       }
 
   @Test
+  fun processRestorationRefreshesActiveSearchWithoutSavingProviderCandidates() =
+      runTest(dispatcher) {
+        val handle = SavedStateHandle()
+        val old = picker(repository(), handle, original)
+        old.updateQuery("café")
+        advanceUntilIdle()
+        stores.last().clear()
+        val freshCandidate = candidate.copy(id = "fresh-session")
+        val repo = FakePlaceRepository(search = { _, _ -> listOf(freshCandidate) })
+        val restored = picker(repo, handle)
+        assertEquals(PlaceSearchStatus.LOADING, restored.uiState.value.searchStatus)
+        assertTrue(restored.uiState.value.candidates.isEmpty())
+        assertEquals(original, restored.uiState.value.selectedLocation)
+        assertFalse(restored.uiState.value.canConfirm)
+        restored.confirm()
+        assertNull(restored.consumeResult())
+        runCurrent()
+        assertEquals(listOf(freshCandidate), restored.uiState.value.candidates)
+        restored.selectCandidate(candidate)
+        runCurrent()
+        assertTrue(repo.resolveRequests.isEmpty())
+        assertEquals(listOf("café" to null), repo.searchRequests)
+      }
+
+  @Test
+  fun interruptedSearchOrRetrievalRestoresAsFreshSearchAndNeverRepeatsRetrieve() =
+      runTest(dispatcher) {
+        listOf(false, true).forEach { resolving ->
+          val handle = SavedStateHandle()
+          val pending = CompletableDeferred<List<PlaceCandidate>>()
+          val oldRepo = repository()
+          if (!resolving) oldRepo.search = { _, _ -> pending.await() }
+          else oldRepo.resolve = { awaitCancellation() }
+          val old = picker(oldRepo, handle, original)
+          old.updateQuery("café")
+          advanceTimeBy(300)
+          runCurrent()
+          if (resolving) {
+            old.selectCandidate(candidate)
+            runCurrent()
+          }
+          stores.last().clear()
+          val repo = repository()
+          val restored = picker(repo, handle)
+          assertNull(restored.uiState.value.resolvingCandidateId)
+          runCurrent()
+          assertEquals(listOf(candidate), restored.uiState.value.candidates)
+          assertEquals(original, restored.uiState.value.selectedLocation)
+          assertEquals(1, repo.searchRequests.size)
+          assertTrue(repo.resolveRequests.isEmpty())
+        }
+      }
+
+  @Test
+  fun clearingOwnerInvalidatesNonCooperativeSearchAndStopsItPublishing() =
+      runTest(dispatcher) {
+        val answer = CompletableDeferred<List<PlaceCandidate>>()
+        val repo =
+            FakePlaceRepository(search = { _, _ -> withContext(NonCancellable) { answer.await() } })
+        val vm = picker(repo)
+        vm.updateQuery("café")
+        advanceTimeBy(300)
+        runCurrent()
+        stores.last().clear()
+        answer.complete(listOf(candidate))
+        runCurrent()
+        assertTrue(vm.uiState.value.candidates.isEmpty())
+        assertEquals(PlaceSearchStatus.INITIAL, vm.uiState.value.searchStatus)
+      }
+
+  @Test
+  fun finishedRestoredPickerNeverRestartsEvenIfSearchFlagWasSaved() =
+      runTest(dispatcher) {
+        val repo = repository()
+        val vm =
+            picker(
+                repo,
+                SavedStateHandle(
+                    mapOf("searchActive" to true, "finished" to true, "query" to "café")
+                ),
+            )
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.finished)
+        assertTrue(repo.searchRequests.isEmpty())
+      }
+
+  @Test
   fun invalidRestoredOrInjectedLocationsAndProximityAreRejected() =
       runTest(dispatcher) {
         val invalidStates =
