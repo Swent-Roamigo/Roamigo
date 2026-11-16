@@ -9,6 +9,7 @@ import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.friends.FriendRepository
 import com.swent.roamigo.model.friends.FriendRepositoryException
+import com.swent.roamigo.model.friends.FriendRequest
 import com.swent.roamigo.model.friends.Friendship
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
@@ -19,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -58,8 +60,11 @@ class FriendsViewModelTest {
     Dispatchers.resetMain()
   }
 
-  private fun viewModel(authRepository: AuthRepository = auth): FriendsViewModel =
-      FriendsViewModel(repository, users, authRepository, "alice").also {
+  private fun viewModel(
+      authRepository: AuthRepository = auth,
+      friendRepository: FriendRepository = repository,
+  ): FriendsViewModel =
+      FriendsViewModel(friendRepository, users, authRepository, "alice").also {
         viewModelStore.put("friends", it)
       }
 
@@ -110,6 +115,144 @@ class FriendsViewModelTest {
 
         assertEquals(FriendsState(isLoading = false), model.uiState.value)
         assertEquals(0, users.lookupCount)
+      }
+
+  @Test
+  fun friendshipArrivingBeforeIncomingRemovalHidesOnlyTheAcceptedRequest() =
+      runTest(dispatcher) {
+        val accepted = bob.sendFriendRequest("alice")
+        val incoming = carol.sendFriendRequest("alice")
+        val outgoing = alice.sendFriendRequest("dana")
+        val snapshots = IndependentFriendRepository(alice)
+        snapshots.incoming.value = listOf(accepted, incoming)
+        snapshots.outgoing.value = listOf(outgoing)
+        val model = viewModel(friendRepository = snapshots)
+        runCurrent()
+        assertEquals(listOf(accepted, incoming), model.uiState.value.incomingRequests)
+
+        val friendship = alice.acceptFriendRequest("bob", accepted.uid)
+        snapshots.friends.value = listOf(friendship)
+        runCurrent()
+
+        assertEquals(listOf(friendship), model.uiState.value.friends)
+        assertEquals(listOf(incoming), model.uiState.value.incomingRequests)
+        assertEquals(listOf(outgoing), model.uiState.value.outgoingRequests)
+        assertEquals(setOf("bob", "carol", "dana"), model.uiState.value.profiles.keys)
+
+        snapshots.incoming.value = listOf(incoming)
+        runCurrent()
+        assertEquals(listOf(friendship), model.uiState.value.friends)
+        assertEquals(listOf(incoming), model.uiState.value.incomingRequests)
+        assertEquals(listOf(outgoing), model.uiState.value.outgoingRequests)
+      }
+
+  @Test
+  fun friendshipArrivingBeforeOutgoingRemovalHidesOnlyTheAcceptedRequest() =
+      runTest(dispatcher) {
+        val accepted = alice.sendFriendRequest("bob")
+        val incoming = carol.sendFriendRequest("alice")
+        val outgoing = alice.sendFriendRequest("dana")
+        val snapshots = IndependentFriendRepository(alice)
+        snapshots.incoming.value = listOf(incoming)
+        snapshots.outgoing.value = listOf(accepted, outgoing)
+        val model = viewModel(friendRepository = snapshots)
+        runCurrent()
+        assertEquals(listOf(accepted, outgoing), model.uiState.value.outgoingRequests)
+
+        val friendship = bob.acceptFriendRequest("alice", accepted.uid)
+        snapshots.friends.value = listOf(friendship)
+        runCurrent()
+
+        assertEquals(listOf(friendship), model.uiState.value.friends)
+        assertEquals(listOf(incoming), model.uiState.value.incomingRequests)
+        assertEquals(listOf(outgoing), model.uiState.value.outgoingRequests)
+        assertEquals(setOf("bob", "carol", "dana"), model.uiState.value.profiles.keys)
+
+        snapshots.outgoing.value = listOf(outgoing)
+        runCurrent()
+        assertEquals(listOf(friendship), model.uiState.value.friends)
+        assertEquals(listOf(incoming), model.uiState.value.incomingRequests)
+        assertEquals(listOf(outgoing), model.uiState.value.outgoingRequests)
+      }
+
+  @Test
+  fun pendingRemovalBeforeFriendshipArrivalDoesNotInventFriendships() =
+      runTest(dispatcher) {
+        val incoming = bob.sendFriendRequest("alice")
+        val outgoing = alice.sendFriendRequest("carol")
+        val snapshots = IndependentFriendRepository(alice)
+        snapshots.incoming.value = listOf(incoming)
+        snapshots.outgoing.value = listOf(outgoing)
+        val model = viewModel(friendRepository = snapshots)
+        runCurrent()
+        assertEquals(listOf(incoming), model.uiState.value.incomingRequests)
+        assertEquals(listOf(outgoing), model.uiState.value.outgoingRequests)
+
+        val friendships =
+            listOf(
+                alice.acceptFriendRequest("bob", incoming.uid),
+                carol.acceptFriendRequest("alice", outgoing.uid),
+            )
+        snapshots.incoming.value = emptyList()
+        runCurrent()
+        assertTrue(model.uiState.value.incomingRequests.isEmpty())
+        assertTrue(model.uiState.value.friends.isEmpty())
+        assertEquals(listOf(outgoing), model.uiState.value.outgoingRequests)
+        assertEquals(setOf("carol"), model.uiState.value.profiles.keys)
+
+        snapshots.outgoing.value = emptyList()
+        runCurrent()
+        assertEquals(FriendsState(isLoading = false), model.uiState.value)
+
+        snapshots.friends.value = friendships
+        runCurrent()
+        assertEquals(friendships, model.uiState.value.friends)
+        assertTrue(model.uiState.value.incomingRequests.isEmpty())
+        assertTrue(model.uiState.value.outgoingRequests.isEmpty())
+        assertEquals(setOf("bob", "carol"), model.uiState.value.profiles.keys)
+      }
+
+  @Test
+  fun newRequestGenerationsRemainVisibleWhileOldFriendshipSnapshotsLag() =
+      runTest(dispatcher) {
+        val incoming = bob.sendFriendRequest("alice")
+        val outgoing = alice.sendFriendRequest("carol")
+        val friendships =
+            listOf(
+                alice.acceptFriendRequest("bob", incoming.uid),
+                carol.acceptFriendRequest("alice", outgoing.uid),
+            )
+        val snapshots = IndependentFriendRepository(alice)
+        snapshots.friends.value = friendships
+        snapshots.incoming.value = listOf(incoming)
+        snapshots.outgoing.value = listOf(outgoing)
+        val model = viewModel(friendRepository = snapshots)
+        runCurrent()
+        assertEquals(friendships, model.uiState.value.friends)
+        assertTrue(model.uiState.value.incomingRequests.isEmpty())
+        assertTrue(model.uiState.value.outgoingRequests.isEmpty())
+
+        alice.removeFriend("bob", incoming.uid)
+        alice.removeFriend("carol", outgoing.uid)
+        val newIncoming = bob.sendFriendRequest("alice")
+        val newOutgoing = alice.sendFriendRequest("carol")
+        snapshots.incoming.value = listOf(newIncoming)
+        runCurrent()
+        assertEquals(listOf(newIncoming), model.uiState.value.incomingRequests)
+        assertTrue(model.uiState.value.outgoingRequests.isEmpty())
+
+        snapshots.outgoing.value = listOf(newOutgoing)
+        runCurrent()
+        assertEquals(friendships, model.uiState.value.friends)
+        assertEquals(listOf(newIncoming), model.uiState.value.incomingRequests)
+        assertEquals(listOf(newOutgoing), model.uiState.value.outgoingRequests)
+
+        snapshots.friends.value = emptyList()
+        runCurrent()
+        assertTrue(model.uiState.value.friends.isEmpty())
+        assertEquals(listOf(newIncoming), model.uiState.value.incomingRequests)
+        assertEquals(listOf(newOutgoing), model.uiState.value.outgoingRequests)
+        assertEquals(setOf("bob", "carol"), model.uiState.value.profiles.keys)
       }
 
   @Test
@@ -656,6 +799,19 @@ class FriendsViewModelTest {
         assertTrue(bob.getFriends().isEmpty())
         assertNull(model.uiState.value.actionFailure)
       }
+
+  private class IndependentFriendRepository(delegate: FriendRepository) :
+      FriendRepository by delegate {
+    val friends = MutableStateFlow<List<Friendship>>(emptyList())
+    val incoming = MutableStateFlow<List<FriendRequest>>(emptyList())
+    val outgoing = MutableStateFlow<List<FriendRequest>>(emptyList())
+
+    override fun observeFriends(): Flow<List<Friendship>> = friends
+
+    override fun observeIncomingRequests(): Flow<List<FriendRequest>> = incoming
+
+    override fun observeOutgoingRequests(): Flow<List<FriendRequest>> = outgoing
+  }
 
   private class ControlledAuthRepository(delegate: AuthRepository) : AuthRepository by delegate {
     val updates =
