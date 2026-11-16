@@ -123,8 +123,9 @@ class FriendsScreenTest {
     composeRule.onNodeWithText(resources.string(R.string.friends_accept)).assertDoesNotExist()
     composeRule.onNodeWithText(resources.string(R.string.friends_decline)).assertDoesNotExist()
 
+    // Clickable friend rows merge their avatar nodes into the navigation semantics.
     composeRule
-        .onNodeWithTag(C.Tag.friends_avatar_prefix + "sam")
+        .onNodeWithTag(C.Tag.friends_avatar_prefix + "sam", useUnmergedTree = true)
         .assert(hasAnyDescendant(hasText("S")))
   }
 
@@ -133,7 +134,7 @@ class FriendsScreenTest {
     show()
 
     composeRule
-        .onNodeWithTag(C.Tag.friends_avatar_prefix + "mia")
+        .onNodeWithTag(C.Tag.friends_avatar_prefix + "mia", useUnmergedTree = true)
         .assert(hasAnyDescendant(hasText("M")))
 
     composeRule
