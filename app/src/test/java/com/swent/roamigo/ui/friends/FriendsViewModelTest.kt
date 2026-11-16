@@ -3,6 +3,7 @@ package com.swent.roamigo.ui.friends
 
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
+import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.friends.FakeFriendRepository
@@ -16,7 +17,13 @@ import com.swent.roamigo.model.users.UserRepositoryException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
@@ -51,8 +58,10 @@ class FriendsViewModelTest {
     Dispatchers.resetMain()
   }
 
-  private fun viewModel(): FriendsViewModel =
-      FriendsViewModel(repository, users, auth, "alice").also { viewModelStore.put("friends", it) }
+  private fun viewModel(authRepository: AuthRepository = auth): FriendsViewModel =
+      FriendsViewModel(repository, users, authRepository, "alice").also {
+        viewModelStore.put("friends", it)
+      }
 
   @Test
   fun factoryCreatesAnObservingViewModelAndHealthyRetryKeepsItsListeners() =
@@ -444,11 +453,195 @@ class FriendsViewModelTest {
       }
 
   @Test
+  fun signOutAfterObservationFailureClearsAllRetainedPrivateState() =
+      runTest(dispatcher) {
+        val friendship = bob.sendFriendRequest("alice")
+        alice.acceptFriendRequest("bob", friendship.uid)
+        val incoming = carol.sendFriendRequest("alice")
+        val outgoing = alice.sendFriendRequest("dana")
+        val model = viewModel()
+        advanceUntilIdle()
+        repository.actionFailure = FriendRepositoryException.Network()
+        model.declineRequest(incoming.uid)
+        advanceUntilIdle()
+
+        alice.failure = FriendRepositoryException.Network()
+        advanceUntilIdle()
+        assertEquals(FriendsLoadError.RELATIONSHIPS, model.uiState.value.loadError)
+        assertEquals(listOf(friendship.uid), model.uiState.value.friends.map { it.uid })
+        assertEquals(listOf(incoming), model.uiState.value.incomingRequests)
+        assertEquals(listOf(outgoing), model.uiState.value.outgoingRequests)
+        assertEquals(setOf("bob", "carol", "dana"), model.uiState.value.profiles.keys)
+        assertEquals(
+            FriendsActionFailure(incoming.uid, FriendsAction.DECLINE),
+            model.uiState.value.actionFailure,
+        )
+        assertEquals(0, alice.activeObservers)
+
+        auth.signOut()
+        advanceUntilIdle()
+
+        assertEquals(
+            FriendsState(isLoading = false, loadError = FriendsLoadError.SESSION),
+            model.uiState.value,
+        )
+        alice.failure = null
+        model.retry()
+        model.acceptRequest(incoming.uid)
+        advanceUntilIdle()
+        assertEquals(FriendsLoadError.SESSION, model.uiState.value.loadError)
+        assertEquals(0, alice.activeObservers)
+        assertEquals(1, repository.actionCount)
+      }
+
+  @Test
+  fun accountChangeAfterObservationFailureClearsPreviousAccountData() =
+      runTest(dispatcher) {
+        val incoming = bob.sendFriendRequest("alice")
+        val model = viewModel()
+        advanceUntilIdle()
+        alice.failure = FriendRepositoryException.Network()
+        advanceUntilIdle()
+        assertEquals(listOf(incoming), model.uiState.value.incomingRequests)
+        assertEquals(FriendsLoadError.RELATIONSHIPS, model.uiState.value.loadError)
+        assertEquals(0, alice.activeObservers)
+
+        auth.setCurrentAccount(AuthenticatedUser("other", "Other", null, null))
+        advanceUntilIdle()
+
+        assertEquals(
+            FriendsState(isLoading = false, loadError = FriendsLoadError.SESSION),
+            model.uiState.value,
+        )
+        assertEquals(0, alice.activeObservers)
+      }
+
+  @Test
+  fun signOutAfterObservationFailureCancelsPendingWrites() =
+      runTest(dispatcher) {
+        val incoming = bob.sendFriendRequest("alice")
+        val model = viewModel()
+        advanceUntilIdle()
+        val gate = CompletableDeferred<Unit>()
+        repository.gate = gate
+        model.acceptRequest(incoming.uid)
+        runCurrent()
+        assertEquals(setOf(incoming.uid), model.uiState.value.processingIds)
+
+        alice.failure = FriendRepositoryException.Network()
+        advanceUntilIdle()
+        assertEquals(FriendsLoadError.RELATIONSHIPS, model.uiState.value.loadError)
+        assertEquals(0, alice.activeObservers)
+        auth.signOut()
+        advanceUntilIdle()
+
+        assertEquals(
+            FriendsState(isLoading = false, loadError = FriendsLoadError.SESSION),
+            model.uiState.value,
+        )
+        alice.failure = null
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertTrue(bob.getFriends().isEmpty())
+        assertEquals(listOf(incoming), bob.getOutgoingRequests())
+        assertEquals(FriendsLoadError.SESSION, model.uiState.value.loadError)
+      }
+
+  @Test
+  fun signOutAfterProfileFailureStillClearsRetainedRelationships() =
+      runTest(dispatcher) {
+        val incoming = bob.sendFriendRequest("alice")
+        users.lookupFailure = UserRepositoryException.Network()
+        val model = viewModel()
+        advanceUntilIdle()
+        assertEquals(FriendsLoadError.PROFILES, model.uiState.value.loadError)
+        assertEquals(listOf(incoming), model.uiState.value.incomingRequests)
+
+        auth.signOut()
+        advanceUntilIdle()
+
+        assertEquals(
+            FriendsState(isLoading = false, loadError = FriendsLoadError.SESSION),
+            model.uiState.value,
+        )
+        assertEquals(0, alice.activeObservers)
+      }
+
+  @Test
+  fun signOutCancelsPendingProfileLookupWithoutRestoringPrivateState() =
+      runTest(dispatcher) {
+        val incoming = bob.sendFriendRequest("alice")
+        val gate = CompletableDeferred<Unit>()
+        users.lookupGate = gate
+        val model = viewModel()
+        runCurrent()
+        assertEquals(listOf(incoming), model.uiState.value.incomingRequests)
+        assertEquals(1, users.lookupCount)
+
+        auth.signOut()
+        advanceUntilIdle()
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(
+            FriendsState(isLoading = false, loadError = FriendsLoadError.SESSION),
+            model.uiState.value,
+        )
+        assertEquals(0, alice.activeObservers)
+      }
+
+  @Test
+  fun invalidInitialAuthCannotStartOrReopenRelationshipObservation() =
+      runTest(dispatcher) {
+        Dispatchers.setMain(UnconfinedTestDispatcher(dispatcher.scheduler))
+        val expected = FriendsState(isLoading = false, loadError = FriendsLoadError.SESSION)
+        for (account in listOf(null, AuthenticatedUser("other", "Other", null, null))) {
+          auth.setCurrentAccount(account)
+          val model = viewModel()
+          assertEquals(expected, model.uiState.value)
+          assertEquals(0, alice.activeObservers)
+
+          auth.setCurrentAccount(AuthenticatedUser("alice", "Alice", null, null))
+          model.retry()
+          advanceUntilIdle()
+          assertEquals(expected, model.uiState.value)
+          assertEquals(0, alice.activeObservers)
+          viewModelStore.clear()
+        }
+      }
+
+  @Test
+  fun lostAuthObservationClearsStateOnCompletionOrFailure() =
+      runTest(dispatcher) {
+        val incoming = bob.sendFriendRequest("alice")
+        for (failure in listOf(null, IllegalStateException("auth observer failed"))) {
+          val controlledAuth = ControlledAuthRepository(auth)
+          val model = viewModel(controlledAuth)
+          advanceUntilIdle()
+          assertEquals(listOf(incoming), model.uiState.value.incomingRequests)
+          assertEquals(1, controlledAuth.activeObservers)
+
+          controlledAuth.updates.close(failure)
+          advanceUntilIdle()
+
+          assertEquals(
+              FriendsState(isLoading = false, loadError = FriendsLoadError.SESSION),
+              model.uiState.value,
+          )
+          assertEquals(0, controlledAuth.activeObservers)
+          assertEquals(0, alice.activeObservers)
+          viewModelStore.clear()
+        }
+      }
+
+  @Test
   fun clearingTheViewModelReleasesListenersAndCancelsWrites() =
       runTest(dispatcher) {
         val request = bob.sendFriendRequest("alice")
-        val model = viewModel()
+        val controlledAuth = ControlledAuthRepository(auth)
+        val model = viewModel(controlledAuth)
         advanceUntilIdle()
+        assertEquals(1, controlledAuth.activeObservers)
         val gate = CompletableDeferred<Unit>()
         repository.gate = gate
         model.acceptRequest(request.uid)
@@ -459,9 +652,28 @@ class FriendsViewModelTest {
         advanceUntilIdle()
 
         assertEquals(0, alice.activeObservers)
+        assertEquals(0, controlledAuth.activeObservers)
         assertTrue(bob.getFriends().isEmpty())
         assertNull(model.uiState.value.actionFailure)
       }
+
+  private class ControlledAuthRepository(delegate: AuthRepository) : AuthRepository by delegate {
+    val updates =
+        Channel<AuthenticatedUser?>(Channel.UNLIMITED).also {
+          it.trySend(delegate.getCurrentUser())
+        }
+    var activeObservers = 0
+      private set
+
+    override fun observeCurrentUser(): Flow<AuthenticatedUser?> = flow {
+      activeObservers++
+      try {
+        emitAll(updates.receiveAsFlow())
+      } finally {
+        activeObservers--
+      }
+    }
+  }
 
   private class ControlledFriendRepository(private val delegate: FriendRepository) :
       FriendRepository by delegate {
