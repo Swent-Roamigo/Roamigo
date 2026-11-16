@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.onCompletion
@@ -71,9 +72,11 @@ class FriendsViewModel(
   private val _uiState = MutableStateFlow(FriendsState())
   val uiState: StateFlow<FriendsState> = _uiState.asStateFlow()
   private var observationJob: Job? = null
+  private var sessionJob: Job? = null
   private val actionJobs = mutableMapOf<String, Job>()
 
   init {
+    observeSession()
     observe()
   }
 
@@ -121,7 +124,26 @@ class FriendsViewModel(
     _uiState.update { it.copy(actionFailure = null) }
   }
 
+  private fun observeSession() {
+    val job =
+        viewModelScope.launch(start = CoroutineStart.LAZY) {
+          try {
+            authRepository.observeCurrentUser().requireSession().collect { user ->
+              if (user?.uid != currentUserId) endSession()
+            }
+          } catch (cancelled: CancellationException) {
+            throw cancelled
+          } catch (_: Exception) {
+            endSession()
+          }
+        }
+    // Register before collection can immediately report a signed-out account.
+    sessionJob = job
+    job.start()
+  }
+
   private fun observe() {
+    if (_uiState.value.loadError == FriendsLoadError.SESSION) return
     val previous = observationJob
     previous?.cancel()
     _uiState.update { it.copy(isLoading = true, loadError = null) }
@@ -207,7 +229,7 @@ class FriendsViewModel(
     }
   }
 
-  // These long-lived flows finish normally only when their authenticated session ends.
+  // A completed long-lived observer can no longer protect this account's state.
   private fun <T> Flow<T>.requireSession(): Flow<T> = onCompletion {
     if (it == null) throw FriendRepositoryException.NotAuthenticated()
   }
@@ -217,6 +239,7 @@ class FriendsViewModel(
           this is UserRepositoryException.NotAuthenticated
 
   private fun endSession() {
+    sessionJob?.cancel()
     observationJob?.cancel()
     actionJobs.values.toList().forEach { it.cancel() }
     _uiState.value = FriendsState(isLoading = false, loadError = FriendsLoadError.SESSION)
