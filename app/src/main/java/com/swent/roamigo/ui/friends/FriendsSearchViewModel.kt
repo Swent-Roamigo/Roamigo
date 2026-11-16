@@ -1,4 +1,3 @@
-// AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.friends
 
 import androidx.lifecycle.ViewModel
@@ -114,22 +113,9 @@ class FriendsSearchViewModel(
     _uiState.update { it.copy(sendFailure = null) }
   }
 
-  /** Does nothing unless this is a currently displayed, eligible user. */
+  /** Only a displayed user with no known relationship can receive a new request. */
   fun sendRequest(userId: String) {
-    val state = _uiState.value
-
-    if (
-        state.sessionEnded ||
-            state.relationshipsLoading ||
-            state.relationshipsFailed ||
-            userId == currentUserId ||
-            userId in state.sendingIds ||
-            state.results.none {
-              it.user.uid == userId && it.relationship == SearchRelationship.AVAILABLE
-            }
-    ) {
-      return
-    }
+    if (!canSendRequest(userId, _uiState.value)) return
 
     _uiState.update {
       it.copy(
@@ -138,87 +124,98 @@ class FriendsSearchViewModel(
       )
     }
 
-    // LAZY prevents a synchronously finishing repository from racing registration.
-    val job =
-        viewModelScope.launch(start = CoroutineStart.LAZY) {
-          try {
-            ensureAccount()
-
-            val request = friends.sendFriendRequest(userId)
-
-            ensureAccount()
-
-            // Only mark a relationship after backend confirmation.
-            // The observers remain authoritative.
-            val confirmed =
-                when (request.status) {
-                  FriendRequestStatus.ACCEPTED -> SearchRelationship.FRIEND
-
-                  FriendRequestStatus.PENDING ->
-                      if (request.senderUserId == currentUserId) {
-                        SearchRelationship.OUTGOING_PENDING
-                      } else {
-                        SearchRelationship.INCOMING_PENDING
-                      }
-
-                  FriendRequestStatus.DECLINED -> SearchRelationship.UNKNOWN
-                }
-
-            _uiState.update { state ->
-              if (state.sessionEnded) {
-                state
-              } else {
-                state.copy(
-                    results =
-                        state.results.map { match ->
-                          if (
-                              match.user.uid == userId &&
-                                  match.relationship == SearchRelationship.AVAILABLE
-                          ) {
-                            match.copy(relationship = confirmed)
-                          } else {
-                            match
-                          }
-                        }
-                )
-              }
-            }
-          } catch (cancelled: CancellationException) {
-            throw cancelled
-          } catch (error: Exception) {
-            if (error.isSessionError()) {
-              endSession()
-            } else {
-              _uiState.update { state ->
-                val currentStatus =
-                    state.results.firstOrNull { it.user.uid == userId }?.relationship
-
-                // A write can commit even when its acknowledgement is lost.
-                // Do not report a failure if observation confirmed the relationship.
-                if (
-                    state.sessionEnded ||
-                        currentStatus == null ||
-                        currentStatus == SearchRelationship.FRIEND ||
-                        currentStatus == SearchRelationship.INCOMING_PENDING ||
-                        currentStatus == SearchRelationship.OUTGOING_PENDING
-                ) {
-                  state
-                } else {
-                  state.copy(sendFailure = SendRequestFailure(userId, error.toSendFailure()))
-                }
-              }
-            }
-          } finally {
-            sendJobs.remove(userId)
-            _uiState.update { it.copy(sendingIds = it.sendingIds - userId) }
-          }
-        }
+    // Register before starting so fast requests cannot race job bookkeeping.
+    val job = viewModelScope.launch(start = CoroutineStart.LAZY) { performSend(userId) }
 
     sendJobs[userId] = job
     job.start()
   }
 
-  private fun search(query: String, clearResults: Boolean) {
+  private fun canSendRequest(
+      userId: String,
+      state: FriendsSearchState,
+  ): Boolean {
+    if (state.sessionEnded || state.relationshipsLoading || state.relationshipsFailed) {
+      return false
+    }
+
+    if (userId == currentUserId || userId in state.sendingIds) {
+      return false
+    }
+
+    return state.results.any {
+      it.user.uid == userId && it.relationship == SearchRelationship.AVAILABLE
+    }
+  }
+
+  private suspend fun performSend(userId: String) {
+    try {
+      ensureAccount()
+
+      val request = friends.sendFriendRequest(userId)
+
+      ensureAccount()
+      applyConfirmedRequest(userId, request)
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (error: Exception) {
+      handleSendFailure(userId, error)
+    } finally {
+      sendJobs.remove(userId)
+
+      _uiState.update { it.copy(sendingIds = it.sendingIds - userId) }
+    }
+  }
+
+  private fun applyConfirmedRequest(
+      userId: String,
+      request: FriendRequest,
+  ) {
+    val confirmed = request.relationshipFor(currentUserId)
+
+    _uiState.update { state ->
+      if (state.sessionEnded) return@update state
+
+      state.copy(
+          results =
+              state.results.map { match ->
+                if (
+                    match.user.uid == userId && match.relationship == SearchRelationship.AVAILABLE
+                ) {
+                  match.copy(relationship = confirmed)
+                } else {
+                  match
+                }
+              }
+      )
+    }
+  }
+
+  private fun handleSendFailure(
+      userId: String,
+      error: Exception,
+  ) {
+    if (error.isSessionError()) {
+      endSession()
+      return
+    }
+
+    _uiState.update { state ->
+      val status = state.results.firstOrNull { it.user.uid == userId }?.relationship
+
+      // Firestore may have committed the request even if its acknowledgement was lost.
+      if (state.sessionEnded || status == null || status.isConfirmed()) {
+        state
+      } else {
+        state.copy(sendFailure = SendRequestFailure(userId, error.toSendFailure()))
+      }
+    }
+  }
+
+  private fun search(
+      query: String,
+      clearResults: Boolean,
+  ) {
     searchJob?.cancel()
 
     val version = ++searchVersion
@@ -238,64 +235,86 @@ class FriendsSearchViewModel(
 
     if (invalid || normalized.isEmpty()) return
 
-    searchJob = viewModelScope.launch {
-      try {
-        if (clearResults) {
-          delay(300) // Avoid a server query on every keystroke.
-        }
+    searchJob = viewModelScope.launch { performSearch(normalized, version, clearResults) }
+  }
 
-        ensureAccount()
-
-        val found =
-            users
-                .searchUsers(normalized)
-                .asSequence()
-                .filter {
-                  it.uid != currentUserId &&
-                      it.uid.isNotBlank() &&
-                      '/' !in it.uid &&
-                      it.uid != "." &&
-                      it.uid != ".."
-                }
-                .distinctBy { it.uid }
-                .take(20)
-                .toList()
-
-        ensureAccount()
-
-        if (version == searchVersion) {
-          _uiState.update { state ->
-            if (state.sessionEnded) {
-              state
-            } else {
-              state.copy(
-                  results =
-                      found.map {
-                        UserSearchMatch(
-                            it,
-                            relationships?.statusOf(it.uid) ?: SearchRelationship.UNKNOWN,
-                        )
-                      },
-                  isSearching = false,
-                  searchFailure = null,
-              )
-            }
-          }
-        }
-      } catch (cancelled: CancellationException) {
-        throw cancelled
-      } catch (error: Exception) {
-        if (error.isSessionError()) {
-          endSession()
-        } else if (version == searchVersion) {
-          _uiState.update {
-            it.copy(
-                isSearching = false,
-                searchFailure = SearchFailure.DIRECTORY,
-            )
-          }
-        }
+  private suspend fun performSearch(
+      query: String,
+      version: Long,
+      debounce: Boolean,
+  ) {
+    try {
+      if (debounce) {
+        delay(SEARCH_DEBOUNCE_MS)
       }
+
+      ensureAccount()
+
+      val matches =
+          users
+              .searchUsers(query)
+              .asSequence()
+              .filter(::isValidResult)
+              .distinctBy(User::uid)
+              .take(MAX_SEARCH_RESULTS)
+              .toList()
+
+      ensureAccount()
+      publishResults(version, matches)
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (error: Exception) {
+      handleSearchFailure(version, error)
+    }
+  }
+
+  private fun isValidResult(user: User): Boolean {
+    if (user.uid == currentUserId || user.uid.isBlank()) {
+      return false
+    }
+
+    return '/' !in user.uid && user.uid != "." && user.uid != ".."
+  }
+
+  private fun publishResults(
+      version: Long,
+      usersFound: List<User>,
+  ) {
+    if (version != searchVersion) return
+
+    _uiState.update { state ->
+      if (state.sessionEnded) return@update state
+
+      state.copy(
+          results =
+              usersFound.map { user ->
+                UserSearchMatch(
+                    user,
+                    relationships?.statusOf(user.uid) ?: SearchRelationship.UNKNOWN,
+                )
+              },
+          isSearching = false,
+          searchFailure = null,
+      )
+    }
+  }
+
+  private fun handleSearchFailure(
+      version: Long,
+      error: Exception,
+  ) {
+    if (error.isSessionError()) {
+      endSession()
+      return
+    }
+
+    if (version != searchVersion) return
+
+    _uiState.update {
+      it.copy(
+          isSearching = false,
+          searchFailure = SearchFailure.DIRECTORY,
+      )
     }
   }
 
@@ -413,6 +432,9 @@ class FriendsSearchViewModel(
   }
 
   companion object {
+    private const val SEARCH_DEBOUNCE_MS = 300L
+    private const val MAX_SEARCH_RESULTS = 20
+
     fun factory(
         users: UserRepository,
         friends: FriendRepository,
@@ -461,3 +483,24 @@ private data class Relationships(
         )
   }
 }
+
+private fun FriendRequest.relationshipFor(
+    currentUserId: String,
+): SearchRelationship =
+    when (status) {
+      FriendRequestStatus.ACCEPTED -> SearchRelationship.FRIEND
+
+      FriendRequestStatus.PENDING ->
+          if (senderUserId == currentUserId) {
+            SearchRelationship.OUTGOING_PENDING
+          } else {
+            SearchRelationship.INCOMING_PENDING
+          }
+
+      FriendRequestStatus.DECLINED -> SearchRelationship.UNKNOWN
+    }
+
+private fun SearchRelationship.isConfirmed(): Boolean =
+    this == SearchRelationship.FRIEND ||
+        this == SearchRelationship.INCOMING_PENDING ||
+        this == SearchRelationship.OUTGOING_PENDING

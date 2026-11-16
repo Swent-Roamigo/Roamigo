@@ -6,6 +6,7 @@ import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.friends.FriendRepository
 import com.swent.roamigo.model.friends.FriendRepositoryException
 import com.swent.roamigo.model.friends.FriendRequest
+import com.swent.roamigo.model.friends.Friendship
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
@@ -13,6 +14,8 @@ import com.swent.roamigo.model.users.UserRepositoryException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -202,7 +205,6 @@ class FriendsSearchViewModelTest {
         listOf("alice", "missing", "bob", "carol", "dave").forEach(model::sendRequest)
 
         advanceUntilIdle()
-
         assertEquals(0, friends.sendCount)
       }
 
@@ -293,7 +295,7 @@ class FriendsSearchViewModelTest {
         model.updateQuery("Bob")
         advanceUntilIdle()
 
-        // Simulate a write that commits, followed by a lost response.
+        // Simulate a committed write followed by a lost acknowledgement.
         friends.afterSendFailure = FriendRepositoryException.Network()
         model.sendRequest("bob")
         advanceUntilIdle()
@@ -533,6 +535,7 @@ class FriendsSearchViewModelTest {
   fun factoryCreatesViewModelWithExpectedAccount() =
       runTest(dispatcher) {
         val factory = FriendsSearchViewModel.factory(users, friends, "alice")
+
         val model = ViewModelProvider(store, factory)[FriendsSearchViewModel::class.java]
 
         model.updateQuery("Bob")
@@ -544,6 +547,227 @@ class FriendsSearchViewModelTest {
         )
       }
 
+  // Additional tests for validation and coverage.
+
+  @Test
+  fun debounceWaits300MillisAfterTheLatestInputAndSkipsRepeatedQuery() =
+      runTest(dispatcher) {
+        val model = model()
+
+        model.updateQuery("B")
+        runCurrent()
+        advanceTimeBy(299)
+        runCurrent()
+        assertEquals(0, users.searchCount)
+
+        model.updateQuery("Bo")
+        runCurrent()
+        advanceTimeBy(299)
+        runCurrent()
+        assertEquals(0, users.searchCount)
+
+        advanceTimeBy(1)
+        runCurrent()
+
+        assertEquals(listOf("Bo"), users.queries)
+
+        model.updateQuery("Bo")
+        advanceUntilIdle()
+        assertEquals(1, users.searchCount)
+      }
+
+  @Test
+  fun clearingQueryRemovesResultsAndAnInvalidQueryCannotBeRetried() =
+      runTest(dispatcher) {
+        val model = model()
+        model.updateQuery("Bob")
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("bob"),
+            model.uiState.value.results.map { it.user.uid },
+        )
+
+        model.updateQuery("   ")
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.results.isEmpty())
+        assertFalse(model.uiState.value.isSearching)
+        assertNull(model.uiState.value.searchFailure)
+
+        model.updateQuery("x".repeat(255) + "@")
+        advanceUntilIdle()
+
+        assertEquals(
+            SearchFailure.INVALID_QUERY,
+            model.uiState.value.searchFailure,
+        )
+
+        model.retrySearch()
+        advanceUntilIdle()
+
+        assertEquals(1, users.searchCount)
+      }
+
+  @Test
+  fun emailLengthBoundaryIsAcceptedButLongerEmailIsRejected() =
+      runTest(dispatcher) {
+        val model = model()
+
+        model.updateQuery("a".repeat(253) + "@")
+        advanceUntilIdle()
+
+        assertNull(model.uiState.value.searchFailure)
+        assertEquals(1, users.searchCount)
+
+        model.updateQuery("a".repeat(254) + "@")
+        advanceUntilIdle()
+
+        assertEquals(
+            SearchFailure.INVALID_QUERY,
+            model.uiState.value.searchFailure,
+        )
+        assertEquals(1, users.searchCount)
+      }
+
+  @Test
+  fun malformedDuplicateAndSelfResultsAreExcludedAndResultsCappedAt20() =
+      runTest(dispatcher) {
+        val model = model()
+
+        users.searchResultsOverride =
+            listOf(
+                alice,
+                User("", "Blank", null),
+                User(" ", "Whitespace", null),
+                User("/bad", "Slash", null),
+                User(".", "Dot", null),
+                User("..", "Dots", null),
+                bob,
+                bob,
+            ) + (1..25).map { User("extra-$it", "Person $it", null) }
+
+        model.updateQuery("Bob")
+        advanceUntilIdle()
+
+        val ids = model.uiState.value.results.map { it.user.uid }
+
+        assertEquals(20, ids.size)
+        assertEquals(20, ids.distinct().size)
+        assertEquals("bob", ids.first())
+        assertFalse(ids.contains("alice"))
+        assertFalse(ids.contains("/bad"))
+      }
+
+  @Test
+  fun loadingRelationsKeepResultsUnknownAndBlockRequestCreation() =
+      runTest(dispatcher) {
+        val gate = CompletableDeferred<Unit>()
+        friends.relationshipGate = gate
+
+        val model = model()
+        model.updateQuery("Bob")
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.relationshipsLoading)
+        assertEquals(SearchRelationship.UNKNOWN, model.status("bob"))
+
+        model.sendRequest("bob")
+        advanceUntilIdle()
+
+        assertEquals(0, friends.sendCount)
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertFalse(model.uiState.value.relationshipsLoading)
+        assertEquals(SearchRelationship.AVAILABLE, model.status("bob"))
+      }
+
+  @Test
+  fun laterObservedRequestClearsEarlierNetworkFailure() =
+      runTest(dispatcher) {
+        val model = model()
+        model.updateQuery("Bob")
+        advanceUntilIdle()
+
+        friends.sendFailure = FriendRepositoryException.Network()
+        model.sendRequest("bob")
+        advanceUntilIdle()
+
+        assertEquals(
+            SendFailure.NETWORK,
+            model.uiState.value.sendFailure?.reason,
+        )
+
+        aliceFriends.sendFriendRequest("bob")
+        advanceUntilIdle()
+
+        assertEquals(
+            SearchRelationship.OUTGOING_PENDING,
+            model.status("bob"),
+        )
+        assertNull(model.uiState.value.sendFailure)
+
+        model.sendRequest("bob")
+        advanceUntilIdle()
+
+        assertEquals(1, friends.sendCount)
+      }
+
+  @Test
+  fun lateSendFailureDoesNotAppearForAUserNoLongerInSearchResults() =
+      runTest(dispatcher) {
+        val model = model()
+        model.updateQuery("Bob")
+        advanceUntilIdle()
+
+        val gate = CompletableDeferred<Unit>()
+        friends.sendGate = gate
+        friends.sendFailure = FriendRepositoryException.Network()
+
+        model.sendRequest("bob")
+        runCurrent()
+
+        model.updateQuery("Bon")
+        advanceUntilIdle()
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("carol"),
+            model.uiState.value.results.map { it.user.uid },
+        )
+        assertNull(model.uiState.value.sendFailure)
+        assertTrue(model.uiState.value.sendingIds.isEmpty())
+      }
+
+  @Test
+  fun signingOutDuringSearchCannotPublishPrivateResults() =
+      runTest(dispatcher) {
+        val model = model()
+
+        val gate = CompletableDeferred<Unit>()
+        users.searchGate = gate
+
+        model.updateQuery("Bob")
+        advanceTimeBy(300)
+        runCurrent()
+
+        assertEquals(1, users.searchCount)
+
+        aliceFriends.currentUserId = null
+        advanceUntilIdle()
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.sessionEnded)
+        assertTrue(model.uiState.value.results.isEmpty())
+        assertFalse(model.uiState.value.isSearching)
+      }
+
   private class ControlledFriends(
       private val delegate: FriendRepository,
   ) : FriendRepository by delegate {
@@ -551,6 +775,10 @@ class FriendsSearchViewModelTest {
     var sendGate: CompletableDeferred<Unit>? = null
     var sendFailure: Exception? = null
     var afterSendFailure: Exception? = null
+    var relationshipGate: CompletableDeferred<Unit>? = null
+
+    override fun observeFriends(): Flow<List<Friendship>> =
+        delegate.observeFriends().onStart { relationshipGate?.await() }
 
     override suspend fun sendFriendRequest(otherUserId: String): FriendRequest {
       sendCount++
@@ -570,6 +798,7 @@ class FriendsSearchViewModelTest {
     var activeUserId = "alice"
     var searchFailure: Exception? = null
     var searchGate: CompletableDeferred<Unit>? = null
+    var searchResultsOverride: List<User>? = null
     var searchCount = 0
     val queries = mutableListOf<String>()
 
@@ -583,9 +812,11 @@ class FriendsSearchViewModelTest {
     override suspend fun searchUsers(query: String): List<User> {
       searchCount++
       queries += query
+
       searchGate?.await()
       searchFailure?.let { throw it }
-      return delegate.searchUsers(query)
+
+      return searchResultsOverride ?: delegate.searchUsers(query)
     }
   }
 }
