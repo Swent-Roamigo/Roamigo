@@ -118,6 +118,13 @@ class DefaultPhotoLocatorTest {
   }
 
   @Test
+  fun reportsUnavailableWhenTheRepositoryThrows() = runTest {
+    val broken = locatorWith { throw IllegalStateException("provider failed") }
+
+    assertEquals(PhotoLocationResult.Unavailable, broken.locate())
+  }
+
+  @Test
   fun rejectsInvalidCoordinates() = runTest {
     val invalid =
         listOf(

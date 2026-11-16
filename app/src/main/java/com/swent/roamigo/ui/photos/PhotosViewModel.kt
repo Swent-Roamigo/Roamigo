@@ -281,8 +281,8 @@ class PhotosViewModel(
           } catch (e: CancellationException) {
             throw e
           } catch (_: Exception) {
-            // Safety net: the locator promises not to throw, but a photo is worth more than its
-            // position.
+            // Only a safety net for a locator that breaks its contract: a photo is worth more than
+            // its position.
             PhotoLocationStatus.Unavailable
           }
       // A cancelled fetch may still return a result, e.g. one it had already read.

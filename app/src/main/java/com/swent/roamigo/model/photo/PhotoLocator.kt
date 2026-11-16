@@ -85,6 +85,11 @@ class DefaultPhotoLocator(private val locationRepository: LocationRepository) : 
         } catch (e: SecurityException) {
           // The permission was revoked between the check and the read.
           return PhotoLocationResult.PermissionOff
+        } catch (e: CancellationException) {
+          throw e
+        } catch (_: Exception) {
+          // The platform read can fail in ways the repository does not report as no position.
+          return PhotoLocationResult.Unavailable
         }
     if (read == null) return PhotoLocationResult.TimedOut
     val coordinates = read.location?.toValidCoordinates()
