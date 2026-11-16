@@ -84,9 +84,10 @@ retry the setting. A request without a sign-in must answer `401 UNAUTHENTICATED`
 - Unit and Compose tests (Robolectric): `./gradlew testDebugUnitTest`. They cover link parsing, the
   service, both ViewModels, the invite sheet, the join screen and dialog, and the navigation, with
   `FakeTripInvitationService`.
-- Functions on the emulators: `npm --prefix functions run test:emulator`. It runs real calls with
-  Auth emulator tokens: permissions, expiry, revoking, joining twice, the member limit and the
-  profile creation.
+- Functions on the emulators: `npm --prefix functions run test:emulator`. It runs
+  `tests/firestore/trip-invitations-backend.test.mjs`, which CI runs with the other backend tests.
+  It makes real calls with Auth emulator tokens: permissions, expiry, revoking, joining twice, the
+  member limit and a leftover member document.
 - Rules: `TripRepositoryFirestoreEmulatorTest` checks that a non-member cannot join by editing
   `memberIds` or adding a member, and that clients cannot read or write `tripInvitations`.
 

@@ -86,4 +86,4 @@ probed. The token is the invitation ID: 16 random bytes, URL-safe base64.
 The whole feature (flow, data, deploy steps, testing with two emulators) is described in
 [`docs/trip-invitations.md`](../docs/trip-invitations.md).
 
-The Android side is `TripInvitationService` (calls these functions) with the invite sheet and the join screen. Run `npm --prefix functions run test:emulator` to exercise the functions on the Auth, Firestore and Functions emulators. Push notifications are not covered.
+The Android side is `TripInvitationService` (calls these functions) with the invite sheet and the join screen. Run `npm --prefix functions run test:emulator` to exercise the functions on the Auth, Firestore and Functions emulators (`tests/firestore/trip-invitations-backend.test.mjs`, which CI also runs). Push notifications are not covered.
