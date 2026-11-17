@@ -11,7 +11,9 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
@@ -85,6 +87,8 @@ class FriendsScreenTest {
     composeRule.onNodeWithText("Jonas").assertIsDisplayed()
     composeRule.onNodeWithText("3 countries · request sent").assertIsDisplayed()
     composeRule.onNodeWithText("Pending").assertIsDisplayed()
+    composeRule.onNodeWithText("Accept").assertDoesNotExist()
+    composeRule.onNodeWithText("Decline").assertDoesNotExist()
 
     composeRule
         .onNodeWithTag(C.Tag.friends_avatar_prefix + "sam")
@@ -212,6 +216,29 @@ class FriendsScreenTest {
     composeRule.onNodeWithText("Sam").assertIsDisplayed()
     composeRule.onNodeWithText("Mia").assertDoesNotExist()
     composeRule.onNodeWithText("Jonas").assertDoesNotExist()
+  }
+
+  @Test
+  fun searchIncludesIncomingRequestsAndReportsNoMatches() {
+    show(
+        FriendsUiState(
+            incomingRequests = listOf(IncomingFriendRequestUiModel("req-bob", "bob", "Bob"))
+        )
+    )
+    composeRule.onNodeWithTag(C.Tag.friends_search).performTextInput(" bO ")
+    composeRule
+        .onNodeWithTag(C.Tag.friends_accept_prefix + "req-bob")
+        .performScrollTo()
+        .assertIsDisplayed()
+    composeRule
+        .onNodeWithTag(C.Tag.friends_search)
+        .performScrollTo()
+        .performTextReplacement("nobody")
+    composeRule.onNodeWithTag(C.Tag.friends_accept_prefix + "req-bob").assertDoesNotExist()
+    composeRule
+        .onNodeWithText("No matching friends or requests.")
+        .performScrollTo()
+        .assertIsDisplayed()
   }
 
   @Test
