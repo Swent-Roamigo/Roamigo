@@ -2,7 +2,6 @@
 package com.swent.roamigo.ui.trip.activity
 
 import androidx.lifecycle.SavedStateHandle
-import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
@@ -13,6 +12,11 @@ import com.swent.roamigo.model.trip.activity.ActivityRepository
 import com.swent.roamigo.model.trip.activity.FakeActivityRepository
 import com.swent.roamigo.model.trip.activity.MAX_ACTIVITY_DESCRIPTION_LENGTH
 import com.swent.roamigo.model.trip.activity.MAX_ACTIVITY_NAME_LENGTH
+import com.swent.roamigo.ui.trip.activity.ActivityFormFixtures.TRIP_ID
+import com.swent.roamigo.ui.trip.activity.ActivityFormFixtures.day
+import com.swent.roamigo.ui.trip.activity.ActivityFormFixtures.place
+import com.swent.roamigo.ui.trip.activity.ActivityFormFixtures.storedActivity
+import com.swent.roamigo.ui.trip.activity.ActivityFormFixtures.trip
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -40,10 +44,6 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class ActivityFormViewModelTest {
   private val dispatcher = StandardTestDispatcher()
-  private val trip =
-      ActivityFormTrip("Lisbon → Porto", LocalDate.of(2026, 10, 10), LocalDate.of(2026, 10, 15))
-  private val place = TripLocation(38.7071, -9.1456, "Time Out Market")
-  private val day = LocalDate.of(2026, 10, 13)
   private val zone: ZoneId = ZoneOffset.UTC
 
   @Before
@@ -64,7 +64,7 @@ class ActivityFormViewModelTest {
   ) =
       ActivityFormViewModel(
           repository,
-          ActivityFormMode.Create("trip", defaultDate),
+          ActivityFormMode.Create(TRIP_ID, defaultDate),
           trip,
           savedState,
           zone,
@@ -73,7 +73,7 @@ class ActivityFormViewModelTest {
   private fun editForm(activity: Activity = storedActivity()) =
       ActivityFormViewModel(
           FakeActivityRepository(listOf(activity)),
-          ActivityFormMode.Edit("trip", activity),
+          ActivityFormMode.Edit(TRIP_ID, activity),
           trip,
           zone = zone,
       )
@@ -83,7 +83,7 @@ class ActivityFormViewModelTest {
     updatePlace(place)
   }
 
-  private suspend fun FakeActivityRepository.stored() = observeActivities("trip").first()
+  private suspend fun FakeActivityRepository.stored() = observeActivities(TRIP_ID).first()
 
   // Creation
 
@@ -515,7 +515,7 @@ class ActivityFormViewModelTest {
     val form =
         ActivityFormViewModel(
             repository,
-            ActivityFormMode.Edit("trip", activity),
+            ActivityFormMode.Edit(TRIP_ID, activity),
             trip,
             zone = zone,
         )
@@ -575,22 +575,6 @@ class ActivityFormViewModelTest {
   fun formWithoutPlaceHasNoDraft() {
     assertNull(ActivityFormFields(name = "x", date = day).toDraft(zone, null))
   }
-
-  private fun storedActivity(end: Instant? = null) =
-      Activity(
-          uid = "activity-1",
-          tripId = "trip",
-          activityType = ActivityType.ACCEPTED,
-          name = "Dinner at Time Out Market",
-          description = "Bring cash",
-          location = place,
-          startTime = Instant.parse("2026-10-13T19:30:00Z").toTimestamp(),
-          endTime = end?.toTimestamp(),
-          createdByUserId = "fake-user",
-          creationTime = Timestamp(0, 0),
-      )
-
-  private fun Instant.toTimestamp() = Timestamp(epochSecond, nano)
 
   /** Copies the saved values into a new handle, as Android does when it recreates the process. */
   private fun SavedStateHandle.afterProcessDeath() =
