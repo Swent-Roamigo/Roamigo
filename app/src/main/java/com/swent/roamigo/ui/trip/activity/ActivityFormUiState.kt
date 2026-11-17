@@ -60,6 +60,18 @@ enum class ActivityFormFailure(@StringRes val message: Int) {
   UNKNOWN(R.string.activity_form_failure_unknown),
 }
 
+/** Where the form stands in saving, as one value so that saving and saved cannot both hold. */
+enum class ActivityFormSaveStatus {
+  /** Nothing is being saved; the user can edit and save. */
+  IDLE,
+
+  /** A save is in progress; edits and other saves are ignored. */
+  SAVING,
+
+  /** The activity was stored; the form no longer changes. */
+  SAVED,
+}
+
 /** A one-time outcome of a save, handled once by the Route. */
 sealed interface ActivityFormResult {
   /** The activity [activityId] was stored. */
@@ -74,8 +86,7 @@ data class ActivityFormUiState(
     val trip: ActivityFormTrip,
     val fields: ActivityFormFields,
     val isDirty: Boolean = false,
-    val isSaving: Boolean = false,
-    val isSaved: Boolean = false,
+    val saveStatus: ActivityFormSaveStatus = ActivityFormSaveStatus.IDLE,
     val errors: List<ActivityFormError> = emptyList(),
     val failure: ActivityFormFailure? = null,
     val pendingResult: ActivityFormResult? = null,
@@ -84,8 +95,14 @@ data class ActivityFormUiState(
   val isOutsideTrip: Boolean
     get() = fields.date !in trip.startDate..trip.endDate
 
+  val isSaving: Boolean
+    get() = saveStatus == ActivityFormSaveStatus.SAVING
+
+  val isSaved: Boolean
+    get() = saveStatus == ActivityFormSaveStatus.SAVED
+
   val canSave: Boolean
-    get() = !isSaving && !isSaved
+    get() = saveStatus == ActivityFormSaveStatus.IDLE
 
   fun errorFor(field: ActivityFormField): ActivityFormError? = errors.firstOrNull {
     it.field == field

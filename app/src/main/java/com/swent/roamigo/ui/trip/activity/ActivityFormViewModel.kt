@@ -111,26 +111,32 @@ class ActivityFormViewModel(
       return
     }
     // Set before launching so that a second tap cannot start a concurrent write.
-    _uiState.update { it.copy(isSaving = true, errors = emptyList(), failure = null) }
+    _uiState.update {
+      it.copy(saveStatus = ActivityFormSaveStatus.SAVING, errors = emptyList(), failure = null)
+    }
     viewModelScope.launch {
       try {
         val created = repository.createActivity(mode.tripId, activityId, draft)
         _uiState.update {
           it.copy(
-              isSaving = false,
-              isSaved = true,
+              saveStatus = ActivityFormSaveStatus.SAVED,
               pendingResult = ActivityFormResult.Saved(created.uid),
           )
         }
       } catch (cancelled: CancellationException) {
-        _uiState.update { it.copy(isSaving = false) }
+        _uiState.update { it.copy(saveStatus = ActivityFormSaveStatus.IDLE) }
         throw cancelled
       } catch (invalid: ActivityCreationException.Validation) {
         _uiState.update {
-          it.copy(isSaving = false, errors = invalid.errors.toFormErrors(placeChosen = true))
+          it.copy(
+              saveStatus = ActivityFormSaveStatus.IDLE,
+              errors = invalid.errors.toFormErrors(placeChosen = true),
+          )
         }
       } catch (failure: Exception) {
-        _uiState.update { it.copy(isSaving = false, failure = failure.toFormFailure()) }
+        _uiState.update {
+          it.copy(saveStatus = ActivityFormSaveStatus.IDLE, failure = failure.toFormFailure())
+        }
       }
     }
   }
