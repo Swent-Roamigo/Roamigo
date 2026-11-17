@@ -11,10 +11,13 @@ import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.model.users.UserRepositoryException
+import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -23,6 +26,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -766,6 +770,445 @@ class FriendsSearchViewModelTest {
         assertTrue(model.uiState.value.sessionEnded)
         assertTrue(model.uiState.value.results.isEmpty())
         assertFalse(model.uiState.value.isSearching)
+      }
+
+  @Test
+  fun authenticationFailureDuringSearchClearsPrivateState() =
+      runTest(dispatcher) {
+        val model = model()
+        advanceUntilIdle()
+
+        users.searchFailure = UserRepositoryException.NotAuthenticated()
+        model.updateQuery("Bob")
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.sessionEnded)
+        assertTrue(model.uiState.value.results.isEmpty())
+        assertEquals("", model.uiState.value.query)
+        assertFalse(model.uiState.value.isSearching)
+        assertEquals(0, aliceFriends.activeObservers)
+      }
+
+  @Test
+  fun authenticationFailureDuringSendEndsSessionWithoutWriting() =
+      runTest(dispatcher) {
+        val model = model()
+        model.updateQuery("Bob")
+        advanceUntilIdle()
+
+        friends.sendFailure = FriendRepositoryException.NotAuthenticated()
+        model.sendRequest("bob")
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.sessionEnded)
+        assertTrue(model.uiState.value.results.isEmpty())
+        assertTrue(model.uiState.value.sendingIds.isEmpty())
+        assertTrue(bobFriends.getIncomingRequests().isEmpty())
+        assertEquals(0, aliceFriends.activeObservers)
+      }
+
+  @Test
+  fun accountChangeAfterDirectoryResponseInvalidatesSearch() =
+      runTest(dispatcher) {
+        val model = model()
+        advanceUntilIdle()
+
+        val gate = CompletableDeferred<Unit>()
+        users.searchGate = gate
+
+        model.updateQuery("Bob")
+        advanceTimeBy(300)
+        runCurrent()
+
+        assertEquals(1, users.searchCount)
+
+        users.activeUserId = "another-account"
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.sessionEnded)
+        assertTrue(model.uiState.value.results.isEmpty())
+        assertEquals(0, aliceFriends.activeObservers)
+      }
+
+  @Test
+  fun independentRequestsToTwoUsersCanRunConcurrently() =
+      runTest(dispatcher) {
+        val model = model()
+        model.updateQuery("Bo")
+        advanceUntilIdle()
+
+        val gate = CompletableDeferred<Unit>()
+        friends.sendGate = gate
+
+        model.sendRequest("bob")
+        model.sendRequest("carol")
+        runCurrent()
+
+        assertEquals(2, friends.sendCount)
+        assertEquals(
+            setOf("bob", "carol"),
+            model.uiState.value.sendingIds,
+        )
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(
+            SearchRelationship.OUTGOING_PENDING,
+            model.status("bob"),
+        )
+        assertEquals(
+            SearchRelationship.OUTGOING_PENDING,
+            model.status("carol"),
+        )
+        assertTrue(model.uiState.value.sendingIds.isEmpty())
+        assertEquals(1, bobFriends.getIncomingRequests().size)
+        assertEquals(1, carolFriends.getIncomingRequests().size)
+      }
+
+  @Test
+  fun lateSuccessfulSendDoesNotReplaceCurrentSearchResults() =
+      runTest(dispatcher) {
+        val model = model()
+        model.updateQuery("Bob")
+        advanceUntilIdle()
+
+        val gate = CompletableDeferred<Unit>()
+        friends.sendGate = gate
+
+        model.sendRequest("bob")
+        runCurrent()
+
+        model.updateQuery("Bon")
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("carol"),
+            model.uiState.value.results.map { it.user.uid },
+        )
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("carol"),
+            model.uiState.value.results.map { it.user.uid },
+        )
+        assertEquals(1, bobFriends.getIncomingRequests().size)
+        assertTrue(model.uiState.value.sendingIds.isEmpty())
+        assertNull(model.uiState.value.sendFailure)
+      }
+
+  @Test
+  fun retryWithoutErrorsDoesNotStartAdditionalWork() =
+      runTest(dispatcher) {
+        val model = model()
+        model.updateQuery("Bob")
+        advanceUntilIdle()
+
+        assertEquals(1, users.searchCount)
+        assertEquals(3, aliceFriends.activeObservers)
+
+        model.retrySearch()
+        model.retryRelationships()
+        advanceUntilIdle()
+
+        assertEquals(1, users.searchCount)
+        assertEquals(3, aliceFriends.activeObservers)
+      }
+
+  @Test
+  fun maximumNameQueryLengthIsAccepted() =
+      runTest(dispatcher) {
+        val model = model()
+        advanceUntilIdle()
+
+        val maximum = "a".repeat(120)
+        model.updateQuery(maximum)
+        advanceUntilIdle()
+
+        assertEquals(1, users.searchCount)
+        assertEquals(maximum, users.queries.single())
+        assertNull(model.uiState.value.searchFailure)
+
+        model.updateQuery(maximum + "b")
+        advanceUntilIdle()
+
+        assertEquals(
+            SearchFailure.INVALID_QUERY,
+            model.uiState.value.searchFailure,
+        )
+        assertEquals(1, users.searchCount)
+      }
+
+  @Test
+  fun retrySearchRunsImmediatelyWithoutDebounce() =
+      runTest(dispatcher) {
+        val model = model()
+        advanceUntilIdle()
+
+        users.searchFailure = UserRepositoryException.Network()
+        model.updateQuery("Bob")
+        advanceUntilIdle()
+
+        assertEquals(
+            SearchFailure.DIRECTORY,
+            model.uiState.value.searchFailure,
+        )
+        assertEquals(1, users.searchCount)
+
+        users.searchFailure = null
+        model.retrySearch()
+        runCurrent()
+
+        assertEquals(2, users.searchCount)
+        assertEquals(
+            listOf("bob"),
+            model.uiState.value.results.map { it.user.uid },
+        )
+        assertNull(model.uiState.value.searchFailure)
+      }
+
+  @Test
+  fun searchWhileRelationshipsAreUnavailableKeepsUnknownStatus() =
+      runTest(dispatcher) {
+        aliceFriends.failure = FriendRepositoryException.Network()
+
+        val model = model()
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.relationshipsFailed)
+
+        model.updateQuery("Bob")
+        advanceUntilIdle()
+
+        assertEquals(SearchRelationship.UNKNOWN, model.status("bob"))
+
+        model.sendRequest("bob")
+        advanceUntilIdle()
+
+        assertEquals(0, friends.sendCount)
+
+        aliceFriends.failure = null
+        model.retryRelationships()
+        advanceUntilIdle()
+
+        assertEquals(
+            SearchRelationship.AVAILABLE,
+            model.status("bob"),
+        )
+        assertFalse(model.uiState.value.relationshipsFailed)
+      }
+
+  @Test
+  fun changingQueryClearsPreviousSendError() =
+      runTest(dispatcher) {
+        val model = model()
+        model.updateQuery("Bob")
+        advanceUntilIdle()
+
+        friends.sendFailure = FriendRepositoryException.Network()
+        model.sendRequest("bob")
+        advanceUntilIdle()
+
+        assertEquals(
+            SendFailure.NETWORK,
+            model.uiState.value.sendFailure?.reason,
+        )
+
+        model.updateQuery("Bon")
+
+        assertNull(model.uiState.value.sendFailure)
+        assertTrue(model.uiState.value.isSearching)
+
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("carol"),
+            model.uiState.value.results.map { it.user.uid },
+        )
+      }
+
+  @Test
+  fun sendFailureAfterRelationshipObservationFailsIsReported() =
+      runTest(dispatcher) {
+        val model = model()
+        model.updateQuery("Bob")
+        advanceUntilIdle()
+
+        val gate = CompletableDeferred<Unit>()
+        friends.sendGate = gate
+        friends.sendFailure = FriendRepositoryException.Network()
+
+        model.sendRequest("bob")
+        runCurrent()
+
+        aliceFriends.failure = FriendRepositoryException.Network()
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.relationshipsFailed)
+        assertEquals(SearchRelationship.UNKNOWN, model.status("bob"))
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(
+            SendFailure.NETWORK,
+            model.uiState.value.sendFailure?.reason,
+        )
+        assertTrue(model.uiState.value.sendingIds.isEmpty())
+      }
+
+  @Test
+  fun staleSearchSuccessCannotReplaceResultsOfNewerQuery() =
+      runTest(dispatcher) {
+        val gate = CompletableDeferred<Unit>()
+
+        val directory =
+            object : UserRepository by users {
+              override suspend fun searchUsers(query: String): List<User> =
+                  if (query == "Bob") {
+                    withContext(NonCancellable) {
+                      gate.await()
+                      listOf(bob)
+                    }
+                  } else {
+                    listOf(carol)
+                  }
+            }
+
+        val model =
+            FriendsSearchViewModel(directory, friends, "alice").also { store.put("search", it) }
+
+        model.updateQuery("Bob")
+        advanceTimeBy(300)
+        runCurrent()
+
+        // The previous repository call ignores cancellation.
+        model.updateQuery("Bon")
+        advanceUntilIdle()
+
+        assertEquals(listOf("carol"), model.uiState.value.results.map { it.user.uid })
+
+        // The old request finishes after the newer one.
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(listOf("carol"), model.uiState.value.results.map { it.user.uid })
+        assertNull(model.uiState.value.searchFailure)
+      }
+
+  @Test
+  fun staleSearchFailureCannotReplaceSuccessfulNewerSearch() =
+      runTest(dispatcher) {
+        val gate = CompletableDeferred<Unit>()
+
+        val directory =
+            object : UserRepository by users {
+              override suspend fun searchUsers(query: String): List<User> =
+                  if (query == "Bob") {
+                    withContext(NonCancellable) {
+                      gate.await()
+                      throw UserRepositoryException.Network()
+                    }
+                  } else {
+                    listOf(carol)
+                  }
+            }
+
+        val model =
+            FriendsSearchViewModel(directory, friends, "alice").also { store.put("search", it) }
+
+        model.updateQuery("Bob")
+        advanceTimeBy(300)
+        runCurrent()
+
+        model.updateQuery("Bon")
+        advanceUntilIdle()
+
+        assertEquals(listOf("carol"), model.uiState.value.results.map { it.user.uid })
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(listOf("carol"), model.uiState.value.results.map { it.user.uid })
+        assertNull(model.uiState.value.searchFailure)
+        assertFalse(model.uiState.value.isSearching)
+      }
+
+  @Test
+  fun relationshipMappingHandlesBothUserPositionsAndIgnoresUnrelatedFriendships() =
+      runTest(dispatcher) {
+        val observedFriendships =
+            MutableStateFlow(
+                listOf(
+                    Friendship("f1", "alice", "bob", Instant.EPOCH),
+                    Friendship("f2", "dave", "alice", Instant.EPOCH),
+                    Friendship("f3", "carol", "someone-else", Instant.EPOCH),
+                )
+            )
+
+        val repository =
+            object : FriendRepository by friends {
+              override fun observeFriends(): Flow<List<Friendship>> = observedFriendships
+            }
+
+        val model =
+            FriendsSearchViewModel(users, repository, "alice").also { store.put("search", it) }
+
+        model.updateQuery("Bo")
+        advanceUntilIdle()
+
+        assertEquals(SearchRelationship.FRIEND, model.status("bob"))
+        assertEquals(SearchRelationship.FRIEND, model.status("dave"))
+        assertEquals(SearchRelationship.AVAILABLE, model.status("carol"))
+
+        observedFriendships.value = emptyList()
+        advanceUntilIdle()
+
+        assertEquals(SearchRelationship.AVAILABLE, model.status("bob"))
+        assertEquals(SearchRelationship.AVAILABLE, model.status("dave"))
+      }
+
+  @Test
+  fun concurrentRelationshipChangesSuppressMisleadingSendFailures() =
+      runTest(dispatcher) {
+        val model = model()
+        model.updateQuery("Bo")
+        advanceUntilIdle()
+
+        val gate = CompletableDeferred<Unit>()
+        friends.sendGate = gate
+        friends.sendFailure = FriendRepositoryException.Network()
+
+        model.sendRequest("bob")
+        model.sendRequest("carol")
+        runCurrent()
+
+        assertEquals(2, friends.sendCount)
+
+        // Bob sends an incoming request while Alice's send is pending.
+        bobFriends.sendFriendRequest("alice")
+
+        // Carol becomes a confirmed friend during the same interval.
+        val carolRequest = carolFriends.sendFriendRequest("alice")
+        aliceFriends.acceptFriendRequest("carol", carolRequest.uid)
+
+        advanceUntilIdle()
+
+        assertEquals(SearchRelationship.INCOMING_PENDING, model.status("bob"))
+        assertEquals(SearchRelationship.FRIEND, model.status("carol"))
+
+        // Both outgoing calls now fail, but the observed relationships
+        // have already established the real current state.
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertNull(model.uiState.value.sendFailure)
+        assertTrue(model.uiState.value.sendingIds.isEmpty())
+        assertEquals(SearchRelationship.INCOMING_PENDING, model.status("bob"))
+        assertEquals(SearchRelationship.FRIEND, model.status("carol"))
       }
 
   private class ControlledFriends(
