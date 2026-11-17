@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -17,6 +18,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.R
 import com.swent.roamigo.model.authentication.AuthenticatedUser
@@ -246,6 +249,89 @@ class FriendsRouteTest {
 
     composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertIsDisplayed()
     composeRule.runOnIdle { runBlocking { assertTrue(bob.getOutgoingRequests().isEmpty()) } }
+  }
+
+  @Test
+  fun decliningTheLastRequestKeepsSearchEditableAndAllowsFindingANewRequest() {
+    val request = runBlocking { bob.sendFriendRequest("alice") }
+    show()
+    composeRule.onNodeWithTag(C.Tag.friends_search).performTextInput("bo")
+    composeRule
+        .onNodeWithTag(C.Tag.friends_decline_prefix + request.uid)
+        .performScrollTo()
+        .performClick()
+
+    composeRule.onNodeWithTag(C.Tag.friends_empty_state).performScrollTo().assertIsDisplayed()
+    composeRule
+        .onNodeWithTag(C.Tag.friends_search)
+        .performScrollTo()
+        .assertIsDisplayed()
+        .assertTextContains("bo")
+    val noMatches = composeRule.activity.getString(R.string.friends_no_matches)
+    composeRule.onNodeWithText(noMatches).assertDoesNotExist()
+
+    val replacement = composeRule.runOnIdle {
+      runBlocking { FakeFriendRepository("carol", store).sendFriendRequest("alice") }
+    }
+    composeRule.onNodeWithText(noMatches).performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertDoesNotExist()
+    composeRule
+        .onNodeWithTag(C.Tag.friends_incoming_request_prefix + replacement.uid)
+        .assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.friends_search).performScrollTo().performTextReplacement("")
+    composeRule
+        .onNodeWithTag(C.Tag.friends_accept_prefix + replacement.uid)
+        .performScrollTo()
+        .assertIsDisplayed()
+    composeRule.onNodeWithText(noMatches).assertDoesNotExist()
+  }
+
+  @Test
+  fun remoteRemovalOfTheLastFriendKeepsSearchVisibleUntilTheQueryIsCleared() {
+    val friendship = runBlocking {
+      val request = bob.sendFriendRequest("alice")
+      alice.acceptFriendRequest("bob", request.uid)
+    }
+    show()
+    composeRule.onNodeWithTag(C.Tag.friends_search).performTextInput("bo")
+    composeRule.runOnIdle { runBlocking { bob.removeFriend("alice", friendship.uid) } }
+
+    composeRule.onNodeWithTag(C.Tag.friends_empty_state).performScrollTo().assertIsDisplayed()
+    composeRule
+        .onNodeWithTag(C.Tag.friends_search)
+        .performScrollTo()
+        .assertIsDisplayed()
+        .assertTextContains("bo")
+    composeRule
+        .onNodeWithText(composeRule.activity.getString(R.string.friends_no_matches))
+        .assertDoesNotExist()
+
+    composeRule.onNodeWithTag(C.Tag.friends_search).performTextReplacement("")
+    composeRule.onNodeWithTag(C.Tag.friends_search).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertIsDisplayed()
+  }
+
+  @Test
+  fun whitespaceQueryRemainsEditableAfterTheLastRequestDisappears() {
+    val request = runBlocking { bob.sendFriendRequest("alice") }
+    show()
+    composeRule.onNodeWithTag(C.Tag.friends_search).performTextInput(" ")
+    composeRule
+        .onNodeWithTag(C.Tag.friends_decline_prefix + request.uid)
+        .performScrollTo()
+        .performClick()
+
+    composeRule
+        .onNodeWithTag(C.Tag.friends_search)
+        .performScrollTo()
+        .assertIsDisplayed()
+        .assertTextContains(" ")
+    composeRule
+        .onNodeWithText(composeRule.activity.getString(R.string.friends_no_matches))
+        .assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.friends_search).performTextReplacement("")
+    composeRule.onNodeWithTag(C.Tag.friends_search).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertIsDisplayed()
   }
 
   @Test
