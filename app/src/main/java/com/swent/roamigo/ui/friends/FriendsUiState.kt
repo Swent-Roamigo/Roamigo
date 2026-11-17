@@ -1,6 +1,8 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.friends
 
+import com.swent.roamigo.model.users.User
+
 /**
  * Represents an established friend displayed on the Friends screen.
  *
@@ -82,7 +84,7 @@ internal fun FriendsState.toUiState(
               val profile = profiles[otherUserId]
               FriendUiModel(
                   userId = otherUserId,
-                  displayName = profile?.displayName?.takeIf { it.isNotBlank() } ?: unknownTraveler,
+                  displayName = profile.displayNameOr(unknownTraveler),
                   profilePictureUrl = profile?.profilePictureUrl,
                   friendshipId = friendship.uid,
                   isProcessing = friendship.uid in processingIds,
@@ -93,7 +95,7 @@ internal fun FriendsState.toUiState(
               val profile = profiles[request.recipientUserId]
               OutgoingFriendRequestUiModel(
                   userId = request.recipientUserId,
-                  displayName = profile?.displayName?.takeIf { it.isNotBlank() } ?: unknownTraveler,
+                  displayName = profile.displayNameOr(unknownTraveler),
                   profilePictureUrl = profile?.profilePictureUrl,
               )
             },
@@ -105,10 +107,13 @@ internal fun FriendsState.toUiState(
               IncomingFriendRequestUiModel(
                   requestId = request.uid,
                   userId = request.senderUserId,
-                  displayName = profile?.displayName?.takeIf { it.isNotBlank() } ?: unknownTraveler,
+                  displayName = profile.displayNameOr(unknownTraveler),
                   profilePictureUrl = profile?.profilePictureUrl,
                   isProcessing = request.uid in processingIds,
               )
             },
         actionFailure = actionFailure,
     )
+
+private fun User?.displayNameOr(fallback: String): String =
+    this?.displayName?.takeIf { it.isNotBlank() } ?: fallback
