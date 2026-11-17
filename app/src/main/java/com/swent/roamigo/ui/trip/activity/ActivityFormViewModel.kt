@@ -77,22 +77,32 @@ class ActivityFormViewModel(
             )
           }
       )
+  /** The state the form screen renders. */
   val uiState: StateFlow<ActivityFormUiState> = _uiState.asStateFlow()
 
+  /** Changes the activity name. */
   fun updateName(name: String) = edit { it.copy(name = name) }
 
+  /** Changes the day of the activity. */
   fun updateDate(date: LocalDate) = edit { it.copy(date = date) }
 
+  /** Changes the start time, or removes it with `null`. */
   fun updateTime(time: LocalTime?) = edit { it.copy(time = time) }
 
+  /** Sets the place picked in the place picker. */
   fun updatePlace(place: TripLocation) = edit { it.copy(place = place) }
 
+  /** Changes the optional description. */
   fun updateDescription(description: String) = edit { it.copy(description = description) }
 
   /** Claims the outcome of the last save once, so it is not handled again on recomposition. */
   fun consumeResult(): ActivityFormResult? =
       _uiState.getAndUpdate { it.copy(pendingResult = null) }.pendingResult
 
+  /**
+   * Validates the fields and saves them. Invalid values only show their errors. In Edit mode a
+   * valid save reports [ActivityFormResult.EditUnavailable] and stores nothing.
+   */
   fun save() {
     val state = _uiState.value
     if (!state.canSave) return
