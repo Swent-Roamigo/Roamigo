@@ -2,18 +2,12 @@
 package com.swent.roamigo.ui.trip.creation
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -23,6 +17,7 @@ import com.swent.roamigo.model.destination.DestinationPhoto
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.components.DiscardChangesDialog
 
 /**
  * Owns the draft shared by the destination and date/traveler steps.
@@ -62,29 +57,15 @@ fun CreateTripRoute(
   }
   BackHandler(onBack = back)
   if (confirmingDiscard) {
-    AlertDialog(
-        onDismissRequest = { confirmingDiscard = false },
-        title = { Text(stringResource(R.string.create_trip_discard_title)) },
-        text = { Text(stringResource(R.string.create_trip_discard_message)) },
-        confirmButton = {
-          TextButton(
-              onClick = {
-                confirmingDiscard = false
-                onClose()
-              },
-              modifier = Modifier.testTag(C.Tag.create_trip_discard_confirm),
-          ) {
-            Text(
-                stringResource(R.string.create_trip_discard),
-                color = MaterialTheme.colorScheme.error,
-            )
-          }
+    DiscardChangesDialog(
+        title = stringResource(R.string.create_trip_discard_title),
+        message = stringResource(R.string.create_trip_discard_message),
+        onDiscard = {
+          confirmingDiscard = false
+          onClose()
         },
-        dismissButton = {
-          TextButton(onClick = { confirmingDiscard = false }) {
-            Text(stringResource(R.string.create_trip_keep_editing))
-          }
-        },
+        onKeepEditing = { confirmingDiscard = false },
+        discardTestTag = C.Tag.create_trip_discard_confirm,
     )
   }
   LaunchedEffect(state.createdTripId) {
