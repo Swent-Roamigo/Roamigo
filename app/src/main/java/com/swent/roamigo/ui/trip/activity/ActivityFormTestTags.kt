@@ -17,4 +17,5 @@ internal object ActivityFormTestTags {
   const val FAILURE = "activity_form_failure"
   const val SUBMIT = "activity_form_submit"
   const val DELETE = "activity_form_delete"
+  const val DISCARD_CONFIRM = "activity_form_discard_confirm"
 }
