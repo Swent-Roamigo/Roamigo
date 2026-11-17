@@ -4,9 +4,15 @@ import com.swent.roamigo.model.TripLocation
 
 /**
  * A possible match for a search query that is not yet resolved: the provider only gives its
- * coordinates when the candidate is resolved into a [Place].
+ * coordinates when the candidate is resolved into a [Place]. [attribution] is the provider notice
+ * to display alongside its results.
  */
-data class PlaceCandidate(val id: String, val name: String, val address: String?)
+data class PlaceCandidate(
+    val id: String,
+    val name: String,
+    val address: String?,
+    val attribution: String? = null,
+)
 
 /** A place with validated coordinates, as returned by a [PlaceRepository]. */
 data class Place(
@@ -15,6 +21,7 @@ data class Place(
     val latitude: Double,
     val longitude: Double,
     val countryCode: String? = null,
+    val attribution: String? = null,
 ) {
   fun toTripLocation(): TripLocation =
       TripLocation(

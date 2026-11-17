@@ -18,7 +18,7 @@ enum class PhotoUploadStatus {
  *
  * @param id identifies the photo, and names its file on the device and on the server.
  * @param fileName the photo's file inside the device's photo folder.
- * @param takenAtMillis when the photo was saved, in epoch milliseconds.
+ * @param takenAtMillis when the camera returned the photo, in epoch milliseconds.
  * @param latitude where the photo was taken, or null if the position was not available.
  * @param longitude see [latitude].
  */

@@ -377,7 +377,8 @@ class TripMapScreenTest {
         RecordingLocationRepository(),
         activityRepository = activityRepository,
     )
-    composeRule.onNodeWithTag(C.Tag.trip_map_loading).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_loading).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_banner).assertIsDisplayed()
 
     composeRule.runOnIdle { pendingActivities.complete(activities) }
 

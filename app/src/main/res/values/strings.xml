@@ -152,6 +152,7 @@
     <!-- Trip map -->
     <string name="trip_map_trip_loading">Loading trip…</string>
     <string name="trip_map_retry_activities">Retry loading activities</string>
+    <string name="trip_map_show_all_locations">Show all locations</string>
     <string name="trip_map_trip_load_error">Unable to load this trip. Please try again.</string>
     <string name="trip_map_sharing_off_title">Location off</string>
     <string name="trip_map_sharing_on_title">Sharing location</string>
@@ -553,4 +554,27 @@
     <string name="vote_resolution_not_member">Trip membership is required to resolve votes.</string>
     <string name="vote_resolution_ended">This trip has ended. Vote decisions are unavailable.</string>
     <string name="vote_resolution_waiting_results">Waiting for current results before confirming.</string>
+
+    <!-- Place picker -->
+    <string name="place_picker_title">Choose a place</string>
+    <string name="place_picker_cancel">Cancel place selection</string>
+    <string name="place_picker_search">Search places or addresses</string>
+    <string name="place_picker_initial">Search for a place and select a result.</string>
+    <plurals name="place_picker_short_query">
+        <item quantity="one">Enter at least %1$d character to search.</item>
+        <item quantity="other">Enter at least %1$d characters to search.</item>
+    </plurals>
+    <string name="place_picker_selected">Selected place: %1$s</string>
+    <string name="place_picker_searching">Searching places…</string>
+    <string name="place_picker_resolving">Checking the selected place…</string>
+    <string name="place_picker_empty">No places found. Try a different name or address.</string>
+    <string name="place_picker_configuration">Place search is not configured in this build.</string>
+    <string name="place_picker_invalid_token">Place search is unavailable because its access token was refused.</string>
+    <string name="place_picker_quota">The place search limit has been reached. Try again later.</string>
+    <string name="place_picker_invalid_place">This place has no usable location. Search again and choose another result.</string>
+    <string name="place_picker_unavailable">Could not reach place search. Check your connection and try again.</string>
+    <string name="place_picker_retry">Search again</string>
+    <string name="place_picker_confirm">Confirm location</string>
+    <string name="place_picker_confirm_named">Confirm %1$s</string>
+    <string name="place_picker_attribution">© Mapbox and its suppliers · Terms and attribution</string>
 </resources>

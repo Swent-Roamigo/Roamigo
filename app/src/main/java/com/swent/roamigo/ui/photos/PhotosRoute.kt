@@ -28,6 +28,8 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
 import com.swent.roamigo.model.connectivity.ConnectivityRepository
+import com.swent.roamigo.model.location.LocationRepository
+import com.swent.roamigo.model.photo.DefaultPhotoLocator
 import com.swent.roamigo.model.photo.PhotoRepository
 import java.io.File
 
@@ -35,6 +37,7 @@ import java.io.File
  * Obtains [PhotosViewModel] for [tripId] and connects it to the permission dialog, camera and
  * system settings.
  *
+ * @param locationRepository only read to tag photos; this screen never asks for the permission.
  * @param tripId identifier of the trip whose photos are shown.
  * @param currentUserId identifier of the signed-in user, or null when signed out.
  * @param photoUri provides the content URI handed to the external camera for a capture file.
@@ -43,6 +46,7 @@ import java.io.File
 fun PhotosRoute(
     photoRepository: PhotoRepository,
     connectivityRepository: ConnectivityRepository,
+    locationRepository: LocationRepository,
     tripId: String,
     tripName: String,
     currentUserId: String?,
@@ -56,6 +60,7 @@ fun PhotosRoute(
         repository = photoRepository,
         connectivity = connectivityRepository,
         tripId = tripId,
+        locator = DefaultPhotoLocator(locationRepository),
         currentUserId = currentUserId,
         savedStateHandle = createSavedStateHandle(),
     )

@@ -1,10 +1,11 @@
-// Implemented with assistance from Claude (Anthropic).
+// Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui.map
 
 import android.content.Context
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.test.assertIsDisplayed
@@ -15,7 +16,12 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
+import com.google.firebase.Timestamp
 import com.swent.roamigo.R
+import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.trip.TravelMode
+import com.swent.roamigo.model.trip.Trip
+import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import org.junit.Assert.assertEquals
@@ -43,6 +49,36 @@ class TripMapScreenOverlayTest {
   private val uiState = mutableStateOf<TripMapUiState>(TripMapUiState.Loading)
   private val isSharing = mutableStateOf(false)
   private val locationErrorMessage = mutableStateOf<Int?>(null)
+  private lateinit var cameraState: TripMapCameraState
+  private val loadedState =
+      TripMapUiState.Loaded(
+          trip =
+              Trip(
+                  uid = "trip",
+                  name = "Lisbon",
+                  description = null,
+                  destinations = listOf(TripLocation(38.7223, -9.1393, "Lisbon")),
+                  startDate = Timestamp(0, 0),
+                  endDate = Timestamp(0, 0),
+                  flexibleDates = false,
+                  travelMode = TravelMode.GROUP,
+                  travelerCount = 1,
+                  ownerId = "member",
+                  memberIds = listOf("member"),
+                  status = TripStatus.PLANNED,
+                  createdAt = Timestamp(0, 0),
+              ),
+          viewport = TripMapViewport.Centered(38.7223, -9.1393),
+          members = emptyMap(),
+          activitiesLoadState = ActivitiesLoadState.LOADED,
+      )
+  private val updatedState =
+      loadedState.copy(
+          viewport =
+              tripMapViewportOf(
+                  listOf(MapCoordinate(38.7223, -9.1393), MapCoordinate(51.5074, -0.1278))
+              )
+      )
 
   @Test
   fun readOnlyMapShowsTheLoadingOverlayAndOfflineBannerWithoutSharingControls() {
@@ -66,6 +102,81 @@ class TripMapScreenOverlayTest {
     composeRule.onNodeWithTag(C.Tag.trip_map_retry).performClick()
 
     composeRule.runOnIdle { assertEquals(1, retryRequests) }
+  }
+
+  @Test
+  fun showAllLocationsRequiresAGestureAndSubsequentViewportUpdate() {
+    setContent(loadedState)
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).assertDoesNotExist()
+
+    composeRule.runOnIdle { uiState.value = updatedState }
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).assertDoesNotExist()
+    composeRule.runOnIdle { cameraState.onCameraGesture(updatedState.viewport) }
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).assertDoesNotExist()
+
+    composeRule.runOnIdle { uiState.value = loadedState }
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).assertIsDisplayed()
+    composeRule
+        .onNodeWithText(context.getString(R.string.trip_map_show_all_locations))
+        .performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).assertDoesNotExist()
+    composeRule.runOnIdle { uiState.value = updatedState }
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).assertDoesNotExist()
+  }
+
+  @Test
+  fun pendingViewportSurvivesFurtherGesturesFailuresAndRetries() {
+    setContent(loadedState, readOnly = true)
+    composeRule.runOnIdle {
+      cameraState.onCameraGesture(loadedState.viewport)
+      uiState.value = updatedState
+    }
+    composeRule.runOnIdle {
+      cameraState.onCameraGesture(updatedState.viewport)
+      uiState.value = updatedState.copy(activitiesLoadState = ActivitiesLoadState.ERROR)
+    }
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_retry_activities).assertIsDisplayed()
+    composeRule.runOnIdle {
+      uiState.value = updatedState.copy(activitiesLoadState = ActivitiesLoadState.LOADING)
+    }
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).assertIsDisplayed()
+    composeRule.runOnIdle { uiState.value = TripMapUiState.Loading }
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).assertDoesNotExist()
+    composeRule.runOnIdle { uiState.value = updatedState }
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).assertIsDisplayed()
+  }
+
+  @Test
+  fun showAllLocationsRequiresCoordinatesAndHidesWhenTheViewportReturnsToItsOriginalBounds() {
+    val emptyState = loadedState.copy(viewport = TripMapViewport.None)
+    setContent(emptyState)
+    composeRule.runOnIdle { cameraState.onCameraGesture(TripMapViewport.None) }
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).assertDoesNotExist()
+
+    composeRule.runOnIdle { uiState.value = loadedState }
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).assertIsDisplayed()
+    composeRule.runOnIdle { uiState.value = emptyState }
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).assertDoesNotExist()
+  }
+
+  @Test
+  fun pendingViewportRemainsAvailableAfterSavedStateRestoration() {
+    val restorationTester = StateRestorationTester(composeRule)
+    uiState.value = loadedState
+    restorationTester.setContent { Screen() }
+    composeRule.runOnIdle {
+      cameraState.onCameraGesture(loadedState.viewport)
+      uiState.value = updatedState
+    }
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).assertIsDisplayed()
+
+    restorationTester.emulateSavedInstanceStateRestore()
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_map_show_all_locations).assertDoesNotExist()
   }
 
   @Test
@@ -141,6 +252,8 @@ class TripMapScreenOverlayTest {
       isOffline: Boolean = false,
       onRetry: () -> Unit = {},
   ) {
+    val rememberedCameraState = rememberTripMapCameraState()
+    SideEffect { cameraState = rememberedCameraState }
     RoamigoTheme {
       CompositionLocalProvider(LocalInspectionMode provides true) {
         TripMapScreen(
@@ -153,6 +266,7 @@ class TripMapScreenOverlayTest {
             readOnly = readOnly,
             locationErrorMessage = locationErrorMessage.value,
             isOffline = isOffline,
+            cameraState = rememberedCameraState,
         )
       }
     }
