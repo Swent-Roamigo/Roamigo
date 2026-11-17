@@ -42,6 +42,8 @@ import java.io.File
  * @param isOnline whether the device can reach the internet.
  * @param saving whether the photo is being saved; the buttons wait for it.
  * @param saveFailed whether the last attempt to save failed.
+ * @param location the photo's location status, or null to show none.
+ * @param onOpenMap opens the trip's Map tab, where location can be turned on.
  */
 @Composable
 fun PhotoPreview(
@@ -49,9 +51,11 @@ fun PhotoPreview(
     isOnline: Boolean,
     saving: Boolean,
     saveFailed: Boolean,
+    location: PhotoLocationStatus?,
     onSave: () -> Unit,
     onRetake: () -> Unit,
     onClose: () -> Unit,
+    onOpenMap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
   Box(modifier.fillMaxSize().background(Color.Black).testTag(C.Tag.photo_preview)) {
@@ -99,6 +103,7 @@ fun PhotoPreview(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Spacing.medium),
     ) {
+      location?.let { PhotoLocationPill(it, onOpenMap) }
       Pill(
           stringResource(
               if (isOnline) R.string.photo_preview_note_online

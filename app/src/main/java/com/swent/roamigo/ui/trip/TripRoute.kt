@@ -142,6 +142,10 @@ internal fun TripRoute(
         onVote = onCreateVote,
     )
   }
+  val showMapTab = {
+    if (authRepository.getCurrentUser() == null) onAuthenticationRequired()
+    else tab = TripSection.Map
+  }
   TripScreen(
       trip =
           loaded?.trip?.let { trip ->
@@ -176,10 +180,7 @@ internal fun TripRoute(
                 onBack = onBack,
                 onRetryTrip = tripModel::retryTrip,
                 onVotesClick = { tab = TripSection.Votes },
-                onTripMapClick = {
-                  if (authRepository.getCurrentUser() == null) onAuthenticationRequired()
-                  else tab = TripSection.Map
-                },
+                onTripMapClick = showMapTab,
                 onPhotosClick = { tab = TripSection.Photos },
                 onMembersClick = onMembersClick,
             )
@@ -213,6 +214,7 @@ internal fun TripRoute(
               locationRepository = location,
               tripId = tripId,
               currentUserId = userId,
+              onOpenMap = showMapTab,
               tripName = loaded?.trip?.name.orEmpty(),
               summary =
                   photosCount?.let { count ->
