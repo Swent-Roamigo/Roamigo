@@ -32,6 +32,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -353,6 +354,26 @@ class ActivityFormViewModelTest {
       assertEquals(expected, form.uiState.value.failure)
       assertFalse(form.uiState.value.isSaved)
       assertNull(form.consumeResult())
+    }
+  }
+
+  @Test
+  fun invalidIdsFromTheCallerAreNotHiddenAsASaveFailure() {
+    val repository =
+        object : ActivityRepository by FakeActivityRepository() {
+          override suspend fun createActivity(
+              tripId: String,
+              activityId: String,
+              draft: ActivityDraft,
+          ): Activity = throw IllegalArgumentException("Invalid trip ID")
+        }
+    assertThrows(IllegalArgumentException::class.java) {
+      runTest {
+        val form = createForm(repository)
+        form.fillValid()
+        form.save()
+        advanceUntilIdle()
+      }
     }
   }
 
