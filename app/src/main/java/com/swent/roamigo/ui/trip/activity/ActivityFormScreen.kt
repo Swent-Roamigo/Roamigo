@@ -38,7 +38,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -55,9 +59,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.ui.components.markNotImplemented
-import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.theme.Warning
+import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -87,15 +91,12 @@ private const val DESCRIPTION_MIN_LINES = 3
 /** Date skeleton for a day, such as "Tue, Oct 13", ordered for the user's locale. */
 private const val DAY_SKELETON = "EEEdMMM"
 
-/**
- * Renders the activity form from [state] and forwards every change and action.
- *
- * The date and time fields give the unfinished-action feedback until their pickers are added.
- */
+/** Renders the activity form from [state] and forwards every change and action. */
 @Composable
 fun ActivityFormScreen(
     state: ActivityFormUiState,
     onNameChange: (String) -> Unit,
+    onDateChange: (LocalDate) -> Unit,
     onTimeChange: (LocalTime?) -> Unit,
     onPlaceClick: () -> Unit,
     onDescriptionChange: (String) -> Unit,
@@ -110,7 +111,8 @@ fun ActivityFormScreen(
   val dayFormat = remember(locale) { formatter(locale, DAY_SKELETON) }
   val timeFormat =
       remember(locale) { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale) }
-  val openPicker = rememberNotImplementedAction()
+  var pickingDate by rememberSaveable { mutableStateOf(false) }
+  var pickingTime by rememberSaveable { mutableStateOf(false) }
   val colors = MaterialTheme.colorScheme
   val failureRequester = remember { BringIntoViewRequester() }
   // The failure sits below the fields, so show it when a save fails while the user is further up.
@@ -144,7 +146,7 @@ fun ActivityFormScreen(
           label = stringResource(R.string.activity_form_date),
           value = fields.date.format(dayFormat),
           icon = Icons.Outlined.CalendarToday,
-          onClick = openPicker,
+          onClick = { pickingDate = true },
           enabled = enabled,
           tag = ActivityFormTestTags.DATE,
       )
@@ -164,7 +166,7 @@ fun ActivityFormScreen(
                   ?: stringResource(R.string.activity_form_time_placeholder),
           isPlaceholder = fields.time == null,
           icon = Icons.Outlined.Schedule,
-          onClick = openPicker,
+          onClick = { pickingTime = true },
           enabled = enabled,
           tag = ActivityFormTestTags.TIME,
           error = state.errorFor(ActivityFormField.TIME),
@@ -249,6 +251,12 @@ fun ActivityFormScreen(
       )
     }
   }
+  if (pickingDate) {
+    ActivityDateDialog(fields.date, onDateChange, onDismiss = { pickingDate = false })
+  }
+  if (pickingTime) {
+    ActivityTimeDialog(fields.time, onTimeChange, onDismiss = { pickingTime = false })
+  }
 }
 
 @Composable
@@ -329,15 +337,11 @@ private fun PickerField(
         border =
             BorderStroke(FIELD_BORDER_WIDTH, if (error != null) colors.error else colors.outline),
         modifier =
-            Modifier.fillMaxWidth()
-                .heightIn(min = FIELD_MIN_HEIGHT)
-                .testTag(tag)
-                .markNotImplemented(onClick)
-                .semantics {
-                  contentDescription = label
-                  // Read after the label, as the card's description replaces the text it shows.
-                  stateDescription = value
-                },
+            Modifier.fillMaxWidth().heightIn(min = FIELD_MIN_HEIGHT).testTag(tag).semantics {
+              contentDescription = label
+              // Read after the label, as the card's description replaces the text it shows.
+              stateDescription = value
+            },
     ) {
       Row(
           Modifier.heightIn(min = FIELD_MIN_HEIGHT)

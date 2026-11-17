@@ -610,6 +610,9 @@
     <string name="activity_form_time">Time</string>
     <string name="activity_form_time_placeholder">Add a time (optional)</string>
     <string name="activity_form_time_clear">Remove time</string>
+    <string name="activity_form_time_dialog_title">Choose a time</string>
+    <string name="activity_form_dialog_confirm">OK</string>
+    <string name="activity_form_dialog_cancel">Cancel</string>
     <string name="activity_form_place">Place</string>
     <string name="activity_form_place_placeholder">Choose a place</string>
     <string name="activity_form_description">Description</string>
