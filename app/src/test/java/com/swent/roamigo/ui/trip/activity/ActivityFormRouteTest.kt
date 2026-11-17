@@ -2,25 +2,42 @@
 package com.swent.roamigo.ui.trip.activity
 
 import androidx.activity.ComponentActivity
+import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.swent.roamigo.model.place.FakePlaceRepository
 import com.swent.roamigo.model.place.PlaceCandidate
+import com.swent.roamigo.model.trip.Activity
+import com.swent.roamigo.model.trip.activity.ActivityDraft
+import com.swent.roamigo.model.trip.activity.ActivityRepository
 import com.swent.roamigo.model.trip.activity.FakeActivityRepository
 import com.swent.roamigo.ui.components.NotImplemented
 import com.swent.roamigo.ui.placepicker.PlacePickerTestTags
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.activity.ActivityFormFixtures.TRIP_ID
 import com.swent.roamigo.ui.trip.activity.ActivityFormFixtures.day
+import com.swent.roamigo.ui.trip.activity.ActivityFormFixtures.place
 import com.swent.roamigo.ui.trip.activity.ActivityFormFixtures.storedActivity
 import com.swent.roamigo.ui.trip.activity.ActivityFormFixtures.trip
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -43,7 +60,11 @@ class ActivityFormRouteTest {
   private var closed = 0
   private val saved = mutableListOf<String>()
 
-  private fun show(mode: ActivityFormMode = ActivityFormMode.Create(TRIP_ID, day)) {
+  private fun show(
+      mode: ActivityFormMode = ActivityFormMode.Create(TRIP_ID, day),
+      modifier: Modifier = Modifier,
+      viewModelFactory: ViewModelProvider.Factory? = null,
+  ) {
     compose.setContent {
       RoamigoTheme {
         ActivityFormRoute(
@@ -53,6 +74,8 @@ class ActivityFormRouteTest {
             trip = trip,
             onClose = { closed++ },
             onActivitySaved = { saved += it },
+            modifier = modifier,
+            viewModelFactory = viewModelFactory,
         )
       }
     }
@@ -177,5 +200,84 @@ class ActivityFormRouteTest {
       assertTrue(saved.isEmpty())
       assertTrue(runBlocking { activities.observeActivities(TRIP_ID).first() }.isEmpty())
     }
+  }
+
+  @Test
+  fun leavingIsIgnoredWhileSavingAndAllowedWithoutAskingOnceSaved() {
+    val gate = CompletableDeferred<Unit>()
+    val gated =
+        object : ActivityRepository by activities {
+          override suspend fun createActivity(
+              tripId: String,
+              activityId: String,
+              draft: ActivityDraft,
+          ): Activity {
+            gate.await()
+            return activities.createActivity(tripId, activityId, draft)
+          }
+        }
+    // A form filled through the injected factory, so the test starts from a valid draft.
+    val form =
+        ActivityFormViewModel(
+            gated,
+            ActivityFormMode.Create(TRIP_ID, day),
+            trip,
+            SavedStateHandle(),
+        )
+    form.updateName("Dinner")
+    form.updatePlace(place)
+    show(viewModelFactory = viewModelFactory { initializer { form } })
+
+    compose.onNodeWithTag(ActivityFormTestTags.SUBMIT).performClick()
+    compose.waitUntil(5_000) { form.uiState.value.isSaving }
+    pressBack()
+    compose.onNodeWithText("Discard your changes?").assertDoesNotExist()
+    compose.runOnIdle { assertEquals(0, closed) }
+
+    gate.complete(Unit)
+    compose.waitUntil(5_000) { saved.isNotEmpty() }
+    assertTrue(form.uiState.value.isDirty)
+    pressBack()
+    compose.onNodeWithText("Discard your changes?").assertDoesNotExist()
+    compose.runOnIdle { assertEquals(1, closed) }
+  }
+
+  @Test
+  fun callerModifierReachesTheFormAndThePlacePicker() {
+    show(modifier = Modifier.semantics { contentDescription = HOST })
+    compose.onNodeWithContentDescription(HOST).assertExists()
+    compose.onNodeWithTag(ActivityFormTestTags.PLACE).performClick()
+    compose.onNodeWithTag(PlacePickerTestTags.QUERY).assertIsDisplayed()
+    compose.onNodeWithContentDescription(HOST).assertExists()
+  }
+
+  @Test
+  fun draftSurvivesWhenTheParentRecomposesWithTheSameArguments() {
+    var parentTick by mutableIntStateOf(0)
+    compose.setContent {
+      RoamigoTheme {
+        // Reading the tick makes the parent recompose and call the route again.
+        Text("tick $parentTick")
+        ActivityFormRoute(
+            activityRepository = activities,
+            placeRepository = places,
+            // New but equal objects, as a parent rebuilding its arguments would pass.
+            mode = ActivityFormMode.Create(TRIP_ID, day),
+            trip = trip.copy(),
+            onClose = { closed++ },
+            onActivitySaved = { saved += it },
+        )
+      }
+    }
+    compose.onNodeWithTag(ActivityFormTestTags.NAME).performTextInput("Dinner")
+    repeat(2) {
+      compose.runOnIdle { parentTick++ }
+      compose.onNodeWithText("tick ${it + 1}").assertExists()
+    }
+    compose.onNodeWithText("Dinner").assertExists()
+  }
+
+  private companion object {
+    const val HOST = "activity form host"
   }
 }
