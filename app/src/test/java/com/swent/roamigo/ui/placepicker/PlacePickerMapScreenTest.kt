@@ -39,6 +39,31 @@ class PlacePickerMapScreenTest {
   private val original = TripLocation(46.0, 6.0, "Original", "CH")
 
   @Test
+  fun systemBackAfterConfirmationDoesNotCancelOrRedeliverTheResult() {
+    val results = mutableListOf<TripLocation>()
+    var cancels = 0
+    val repo = FakePlaceRepository()
+    compose.setContent {
+      PlacePickerRoute(
+          repo,
+          { results += it },
+          { cancels++ },
+          initialLocation = original,
+      )
+    }
+    compose.onNodeWithTag(PlacePickerTestTags.CONFIRM).performClick()
+    compose.waitUntil { results.size == 1 }
+    // The parent may still compose the finished picker while it processes the result.
+    repeat(2) { compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() } }
+    compose.runOnIdle {
+      assertEquals(listOf(original), results)
+      assertEquals(0, cancels)
+    }
+    compose.onNodeWithTag(PlacePickerTestTags.CONFIRM).assertIsNotEnabled()
+    compose.onNodeWithTag(PlacePickerTestTags.VIEW_ON_MAP).assertIsNotEnabled()
+  }
+
+  @Test
   fun singleMapActionAdaptsToSelectionThroughInitialEmptyAndEveryErrorState() {
     val state = mutableStateOf(PlacePickerUiState())
     var maps = 0
