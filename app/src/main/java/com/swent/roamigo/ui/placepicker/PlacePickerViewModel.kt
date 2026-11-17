@@ -20,6 +20,7 @@ import com.swent.roamigo.model.place.PlaceProximity
 import com.swent.roamigo.model.place.PlaceRepository
 import com.swent.roamigo.model.place.PlaceSearchException
 import com.swent.roamigo.model.validCountryCodeOrNull
+import com.swent.roamigo.ui.map.MapCoordinate
 import java.util.WeakHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -43,6 +44,8 @@ class PlacePickerViewModel(
 ) : ViewModel() {
   private val session = synchronized(sessions) { sessions.getOrPut(repository) { PickerSession() } }
   private val proximity = proximity?.takeIf { validCoordinates(it.latitude, it.longitude) }
+  private val mapProximity = this.proximity?.let { MapCoordinate(it.latitude, it.longitude) }
+  private val restoredDraft = restoreManualDraft()
   private val restored = savedStateHandle.get<Boolean>("initialized") == true
   private val selection = if (restored) restoreSelection() else initialLocation?.validated()
   private val _uiState =
@@ -52,6 +55,12 @@ class PlacePickerViewModel(
               selectedLocation = selection,
               attribution = savedStateHandle["attribution"],
               finished = savedStateHandle["finished"] ?: false,
+              isMapMode = savedStateHandle["mapMode"] ?: false,
+              manualDraft = restoredDraft,
+              mapInitialCenter =
+                  restoredDraft.point
+                      ?: selection?.let { MapCoordinate(it.latitude, it.longitude) }
+                      ?: mapProximity,
           )
       )
   val uiState = _uiState.asStateFlow()
@@ -64,14 +73,18 @@ class PlacePickerViewModel(
   init {
     saveSelection(selection)
     // Only primitives survive process death; get fresh candidates in the new provider session.
-    if (savedStateHandle.get<Boolean>("searchActive") == true && !uiState.value.finished) {
+    if (
+        savedStateHandle.get<Boolean>("searchActive") == true &&
+            !uiState.value.finished &&
+            !uiState.value.isMapMode
+    ) {
       search(debounce = false)
     }
   }
 
   fun updateQuery(input: String) {
     val query = input.take(MAX_PLACE_QUERY_LENGTH)
-    if (uiState.value.finished) return
+    if (uiState.value.finished || uiState.value.isMapMode) return
     val normalized = query.trim()
     val previous = uiState.value.query.trim()
     savedStateHandle["query"] = query
@@ -82,7 +95,11 @@ class PlacePickerViewModel(
 
   /** A resolution retry searches again: even an invalid retrieve may have ended the session. */
   fun retry() {
-    if (!uiState.value.finished && uiState.value.resolvingCandidateId == null)
+    if (
+        !uiState.value.finished &&
+            !uiState.value.isMapMode &&
+            uiState.value.resolvingCandidateId == null
+    )
         search(debounce = false)
   }
 
@@ -144,7 +161,12 @@ class PlacePickerViewModel(
 
   fun selectCandidate(candidate: PlaceCandidate) {
     val state = uiState.value
-    if (state.finished || state.resolvingCandidateId != null || candidate !in state.candidates)
+    if (
+        state.finished ||
+            state.isMapMode ||
+            state.resolvingCandidateId != null ||
+            candidate !in state.candidates
+    )
         return
     if (candidateRevision != session.revision) {
       search(debounce = false)
@@ -202,10 +224,96 @@ class PlacePickerViewModel(
     }
   }
 
+  fun enterMap() {
+    val state = uiState.value
+    if (state.finished || state.isMapMode) return
+    stop()
+    val draft =
+        state.selectedLocation?.let {
+          PlacePickerManualDraft(MapCoordinate(it.latitude, it.longitude), it.name, it.countryCode)
+        } ?: PlacePickerManualDraft()
+    savedStateHandle["mapMode"] = true
+    saveManualDraft(draft)
+    _uiState.update {
+      it.copy(
+          isMapMode = true,
+          manualDraft = draft,
+          mapError = false,
+          mapLoadAttempt = 0,
+          mapInitialCenter = draft.point ?: mapProximity,
+      )
+    }
+  }
+
+  fun backToSearch() {
+    if (uiState.value.finished) return
+    savedStateHandle["mapMode"] = false
+    _uiState.update { it.copy(isMapMode = false) }
+  }
+
+  fun selectMapPoint(latitude: Double, longitude: Double) {
+    val state = uiState.value
+    if (!state.isMapMode || state.finished || !validCoordinates(latitude, longitude)) return
+    val point = MapCoordinate(latitude, longitude)
+    if (point == state.manualDraft.point) return
+    // A new point needs its own name; provider metadata only describes the original coordinates.
+    val draft = PlacePickerManualDraft(point)
+    saveManualDraft(draft)
+    _uiState.update { it.copy(manualDraft = draft) }
+  }
+
+  fun updateMapName(name: String) {
+    val state = uiState.value
+    if (!state.isMapMode || state.finished || state.manualDraft.point == null) return
+    val draft = state.manualDraft.copy(name = name)
+    saveManualDraft(draft)
+    _uiState.update { it.copy(manualDraft = draft) }
+  }
+
+  fun mapLoadingFailed() {
+    if (!uiState.value.isMapMode || uiState.value.finished) return
+    _uiState.update { it.copy(mapError = true) }
+  }
+
+  fun mapLoaded() {
+    if (!uiState.value.isMapMode || uiState.value.finished) return
+    _uiState.update { it.copy(mapError = false) }
+  }
+
+  fun retryMap() {
+    if (!uiState.value.isMapMode || uiState.value.finished) return
+    _uiState.update { it.copy(mapError = false, mapLoadAttempt = it.mapLoadAttempt + 1) }
+  }
+
+  private fun saveManualDraft(draft: PlacePickerManualDraft) {
+    savedStateHandle["mapLatitude"] = draft.point?.latitude
+    savedStateHandle["mapLongitude"] = draft.point?.longitude
+    savedStateHandle["mapName"] = draft.name
+    savedStateHandle["mapCountry"] = draft.countryCode
+  }
+
+  private fun restoreManualDraft(): PlacePickerManualDraft {
+    val latitude = savedStateHandle.get<Double>("mapLatitude")
+    val longitude = savedStateHandle.get<Double>("mapLongitude")
+    val point =
+        if (latitude != null && longitude != null && validCoordinates(latitude, longitude))
+            MapCoordinate(latitude, longitude)
+        else null
+    return PlacePickerManualDraft(
+        point,
+        savedStateHandle["mapName"] ?: "",
+        savedStateHandle.get<String>("mapCountry").validCountryCodeOrNull(),
+    )
+  }
+
   fun confirm() {
     val state = uiState.value
     if (!state.canConfirm) return
-    val location = state.selectedLocation?.validated() ?: return
+    val location =
+        (if (state.isMapMode) state.manualDraft.location else state.selectedLocation)?.validated()
+            ?: return
+    saveSelection(location)
+    _uiState.update { it.copy(selectedLocation = location) }
     pendingResult = location
     savedStateHandle["resultPending"] = true
     finish()
@@ -297,7 +405,7 @@ private class PickerSession {
   var revision = 0L
 }
 
-private fun validCoordinates(latitude: Double, longitude: Double) =
+internal fun validCoordinates(latitude: Double, longitude: Double) =
     latitude.isFinite() &&
         longitude.isFinite() &&
         latitude in MIN_LATITUDE..MAX_LATITUDE &&
