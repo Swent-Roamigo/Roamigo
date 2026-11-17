@@ -8,24 +8,19 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.friends.FriendRepository
-import com.swent.roamigo.model.friends.FriendRepositoryException
 import com.swent.roamigo.model.friends.FriendRequest
 import com.swent.roamigo.model.friends.Friendship
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
-import com.swent.roamigo.model.users.UserRepositoryException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -151,24 +146,18 @@ class FriendsViewModel(
     observationJob = viewModelScope.launch {
       previous?.join()
       try {
-        ensureCurrentUser()
-        combine(
-                friendRepository.observeFriends().requireSession(),
-                friendRepository.observeIncomingRequests().requireSession(),
-                friendRepository.observeOutgoingRequests().requireSession(),
-            ) { friends, incoming, outgoing ->
-              // Independent queries can still report an accepted generation as pending.
-              val establishedIds = friends.mapTo(hashSetOf()) { it.uid }
-              Triple(
-                  friends,
-                  incoming.filterNot { it.uid in establishedIds },
-                  outgoing.filterNot { it.uid in establishedIds },
+
+        userRepository.ensureCurrentUser(currentUserId)
+
+        friendRepository.observeRelationshipSnapshots().collectLatest { snapshot ->
+          val ids =
+              publishRelationships(
+                  snapshot.friends,
+                  snapshot.incoming,
+                  snapshot.outgoing,
               )
-            }
-            .collectLatest { (friends, incoming, outgoing) ->
-              val ids = publishRelationships(friends, incoming, outgoing)
-              loadProfiles(ids)
-            }
+          loadProfiles(ids)
+        }
       } catch (cancelled: CancellationException) {
         throw cancelled
       } catch (error: Exception) {
@@ -226,7 +215,7 @@ class FriendsViewModel(
     val job =
         viewModelScope.launch(start = CoroutineStart.LAZY) {
           try {
-            ensureCurrentUser()
+            userRepository.ensureCurrentUser(currentUserId)
             operation()
             awaitActionConfirmation(id, action)
           } catch (cancelled: CancellationException) {
@@ -253,21 +242,6 @@ class FriendsViewModel(
       }
     }
   }
-
-  private suspend fun ensureCurrentUser() {
-    if (userRepository.getCurrentUser().uid != currentUserId) {
-      throw FriendRepositoryException.NotAuthenticated()
-    }
-  }
-
-  // A completed long-lived observer can no longer protect this account's state.
-  private fun <T> Flow<T>.requireSession(): Flow<T> = onCompletion {
-    if (it == null) throw FriendRepositoryException.NotAuthenticated()
-  }
-
-  private fun Exception.isSessionFailure() =
-      this is FriendRepositoryException.NotAuthenticated ||
-          this is UserRepositoryException.NotAuthenticated
 
   private fun endSession() {
     sessionJob?.cancel()
