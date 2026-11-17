@@ -3,7 +3,10 @@ package com.swent.roamigo.ui.friends
 
 import androidx.activity.compose.LocalActivity
 import androidx.annotation.StringRes
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -13,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -20,12 +24,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.PersonRemove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -44,8 +54,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -60,6 +72,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
@@ -67,13 +80,13 @@ import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.FriendAvatarBlue
-import com.swent.roamigo.ui.theme.FriendAvatarGreen
 import com.swent.roamigo.ui.theme.FriendAvatarRose
 import com.swent.roamigo.ui.theme.Paper
 import com.swent.roamigo.ui.theme.Spacing
+import com.swent.roamigo.ui.theme.Success
 
 /** Colors used for friend avatars to provide visual variety. */
-private val friendAvatarColors = listOf(FriendAvatarBlue, FriendAvatarRose, FriendAvatarGreen)
+private val friendAvatarColors = listOf(FriendAvatarBlue, FriendAvatarRose, Success)
 
 /**
  * Renders the Friends list from presentation-ready state and forwards user actions to the caller.
@@ -266,13 +279,16 @@ fun FriendsScreen(
         }
       }
 
-      OutlinedButton(
+      Button(
           onClick = onAddFriendClick,
           modifier =
               Modifier.fillMaxWidth()
                   .padding(bottom = Spacing.large)
+                  .heightIn(min = 50.dp)
                   .testTag(C.Tag.friends_add_friend)
                   .markNotImplemented(onAddFriendClick),
+          shape = MaterialTheme.shapes.small,
+          contentPadding = PaddingValues(horizontal = Spacing.screenPadding, vertical = 15.dp),
       ) {
         Text(stringResource(R.string.friends_add_friend))
       }
@@ -295,27 +311,21 @@ private fun FriendsUiState.matching(query: String): FriendsUiState {
 @Composable
 private fun FriendsHeader(friendCount: Int) {
   Column(
-      modifier = Modifier.padding(top = Spacing.extraLarge),
       verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall),
   ) {
     Text(
         text = stringResource(R.string.friends_title),
-        style = MaterialTheme.typography.headlineMedium,
+        style = MaterialTheme.typography.headlineLarge,
         fontWeight = FontWeight.Bold,
     )
 
     if (friendCount > 0) {
       Text(
           text = pluralStringResource(R.plurals.friends_count, friendCount, friendCount),
-          style = MaterialTheme.typography.titleSmall,
+          style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp, lineHeight = 18.sp),
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
     }
-
-    Text(
-        text = stringResource(R.string.friends_privacy_subtitle),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
   }
 }
 
@@ -338,10 +348,10 @@ private fun FriendsList(
       modifier = modifier.testTag(C.Tag.friends_list),
       contentPadding =
           PaddingValues(
-              top = Spacing.extraLarge,
+              top = Spacing.medium,
               bottom = Spacing.large,
           ),
-      verticalArrangement = Arrangement.spacedBy(Spacing.medium),
+      verticalArrangement = Arrangement.spacedBy(Spacing.large),
   ) {
     item(key = "header") { FriendsHeader(friendCount = uiState.friends.size) }
     statusItems(uiState, onRetry, showEmptyInline)
@@ -349,7 +359,12 @@ private fun FriendsList(
       searchItem(query, onQueryChange)
     }
     incomingSection(filtered.incomingRequests, onAcceptRequest, onDeclineRequest)
-    friendsSection(filtered.friends, onViewMapClick, onRemoveFriend)
+    friendsSection(
+        filtered.friends,
+        onViewMapClick,
+        onRemoveFriend,
+        showTitle = uiState.incomingRequests.isNotEmpty() || uiState.outgoingRequests.isNotEmpty(),
+    )
     outgoingSection(filtered.outgoingRequests, onCancelRequest)
     if (uiState.hasRelationships && query.isNotBlank() && !filtered.hasRelationships) {
       item(key = "no_matches") { Text(stringResource(R.string.friends_no_matches)) }
@@ -403,15 +418,7 @@ private fun LazyListScope.statusItems(
 }
 
 private fun LazyListScope.searchItem(query: String, onQueryChange: (String) -> Unit) {
-  item(key = "search") {
-    OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        modifier = Modifier.fillMaxWidth().testTag(C.Tag.friends_search),
-        placeholder = { Text(stringResource(R.string.friends_search)) },
-        singleLine = true,
-    )
-  }
+  item(key = "search") { FriendsSearch(query, onQueryChange) }
 }
 
 private fun LazyListScope.incomingSection(
@@ -437,8 +444,9 @@ private fun LazyListScope.friendsSection(
     friends: List<FriendUiModel>,
     onViewMapClick: ((String) -> Unit)?,
     onRemoveFriend: ((String) -> Unit)?,
+    showTitle: Boolean,
 ) {
-  if (friends.isNotEmpty()) {
+  if (friends.isNotEmpty() && showTitle) {
     item(key = "friends_title") { RelationshipSectionTitle(R.string.friends_established_title) }
   }
   items(items = friends, key = { friend -> "friend:${friend.userId}" }) { friend ->
@@ -480,6 +488,48 @@ private fun LazyListScope.outgoingSection(
 }
 
 @Composable
+private fun FriendsSearch(query: String, onQueryChange: (String) -> Unit) {
+  val label = stringResource(R.string.friends_search)
+  BasicTextField(
+      value = query,
+      onValueChange = onQueryChange,
+      singleLine = true,
+      textStyle =
+          MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+      modifier =
+          Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag(C.Tag.friends_search).semantics {
+            contentDescription = label
+          },
+      decorationBox = { input ->
+        Row(
+            Modifier.fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
+                .padding(Spacing.cardPadding),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Icon(
+              painter = painterResource(R.drawable.ic_friends_search),
+              contentDescription = null,
+              tint = Color.Unspecified,
+              modifier = Modifier.size(18.dp),
+          )
+          Spacer(Modifier.width(10.dp))
+          Box(Modifier.weight(1f)) {
+            if (query.isEmpty()) {
+              Text(
+                  label,
+                  style = MaterialTheme.typography.bodyLarge,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+            }
+            input()
+          }
+        }
+      },
+  )
+}
+
+@Composable
 private fun RelationshipSectionTitle(@StringRes title: Int) {
   Text(
       stringResource(title),
@@ -499,7 +549,8 @@ private fun IncomingRequestRow(
           Modifier.fillMaxWidth()
               .testTag(C.Tag.friends_incoming_request_prefix + request.requestId),
       shape = MaterialTheme.shapes.medium,
-      color = MaterialTheme.colorScheme.surfaceVariant,
+      color = MaterialTheme.colorScheme.surface,
+      border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
   ) {
     Column(Modifier.padding(Spacing.cardPadding)) {
       Row(verticalAlignment = Alignment.CenterVertically) {
@@ -508,7 +559,7 @@ private fun IncomingRequestRow(
         Text(
             request.displayName,
             modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleSmall,
         )
       }
       if (request.isProcessing) {
@@ -530,6 +581,7 @@ private fun IncomingRequestRow(
                     .testTag(C.Tag.friends_accept_prefix + request.requestId)
                     .markNotImplemented(onAccept)
                     .semantics { contentDescription = acceptDescription },
+            shape = MaterialTheme.shapes.small,
         ) {
           Text(stringResource(R.string.friends_accept))
         }
@@ -541,6 +593,7 @@ private fun IncomingRequestRow(
                     .testTag(C.Tag.friends_decline_prefix + request.requestId)
                     .markNotImplemented(onDecline)
                     .semantics { contentDescription = declineDescription },
+            shape = MaterialTheme.shapes.small,
         ) {
           Text(stringResource(R.string.friends_decline))
         }
@@ -555,83 +608,65 @@ private fun FriendRow(
     onViewMapClick: () -> Unit,
     onRemove: () -> Unit,
 ) {
+  val viewMapDescription =
+      stringResource(R.string.friends_view_map_accessibility, friend.displayName)
   Surface(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.friends_friend_row),
       shape = MaterialTheme.shapes.medium,
-      color = MaterialTheme.colorScheme.surfaceVariant,
+      color = MaterialTheme.colorScheme.surface,
+      border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
   ) {
-    Column(Modifier.padding(Spacing.cardPadding)) {
-      Row(
-          verticalAlignment = Alignment.CenterVertically,
-      ) {
-        InitialAvatar(
-            displayName = friend.displayName,
-            userId = friend.userId,
-            profilePictureUrl = friend.profilePictureUrl,
-        )
-
-        Spacer(modifier = Modifier.width(Spacing.medium))
-
-        Column(modifier = Modifier.weight(1f)) {
+    Row(
+        modifier =
+            Modifier.fillMaxWidth()
+                .heightIn(min = 66.dp)
+                .testTag(C.Tag.friends_view_map_prefix + friend.userId)
+                .clickable(onClick = onViewMapClick)
+                .markNotImplemented(onViewMapClick)
+                .semantics { contentDescription = viewMapDescription }
+                .padding(horizontal = Spacing.cardPadding, vertical = Spacing.small),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+      InitialAvatar(friend.displayName, friend.userId, friend.profilePictureUrl)
+      Spacer(Modifier.width(Spacing.medium))
+      Column(Modifier.weight(1f)) {
+        Text(friend.displayName, style = MaterialTheme.typography.titleSmall)
+        friendMetadata(friend.countriesVisited, friend.tripsTogether)?.let { metadata ->
           Text(
-              text = friend.displayName,
-              style = MaterialTheme.typography.titleMedium,
-          )
-
-          friendMetadata(friend.countriesVisited, friend.tripsTogether)?.let { metadata ->
-            Text(
-                text = metadata,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-          }
-        }
-
-        val viewMapDescription =
-            stringResource(
-                R.string.friends_view_map_accessibility,
-                friend.displayName,
-            )
-
-        Surface(
-            onClick = onViewMapClick,
-            modifier =
-                Modifier.testTag(C.Tag.friends_view_map_prefix + friend.userId)
-                    .markNotImplemented(onViewMapClick)
-                    .semantics { contentDescription = viewMapDescription },
-            shape = MaterialTheme.shapes.small,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        ) {
-          Text(
-              text = stringResource(R.string.friends_view_map),
-              modifier =
-                  Modifier.padding(
-                      horizontal = Spacing.medium,
-                      vertical = Spacing.small,
-                  ),
+              metadata,
               style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
         }
       }
       if (friend.friendshipId != null) {
         val removeDescription =
             stringResource(R.string.friends_remove_accessibility, friend.displayName)
-        TextButton(
+        IconButton(
             onClick = onRemove,
             enabled = !friend.isProcessing,
             modifier =
-                Modifier.align(Alignment.End)
-                    .testTag(C.Tag.friends_remove_prefix + friend.friendshipId)
+                Modifier.testTag(C.Tag.friends_remove_prefix + friend.friendshipId)
                     .markNotImplemented(onRemove)
                     .semantics { contentDescription = removeDescription },
         ) {
-          Text(
-              stringResource(
-                  if (friend.isProcessing) R.string.friends_updating else R.string.friends_remove
-              )
-          )
+          if (friend.isProcessing) {
+            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+          } else {
+            Icon(
+                Icons.Outlined.PersonRemove,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+            )
+          }
         }
       }
+      Icon(
+          painter = painterResource(R.drawable.ic_friends_chevron),
+          contentDescription = null,
+          tint = Color.Unspecified,
+          modifier = Modifier.size(18.dp),
+      )
     }
   }
 }
@@ -644,7 +679,8 @@ private fun OutgoingRequestRow(
   Surface(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.friends_pending_request_row),
       shape = MaterialTheme.shapes.medium,
-      color = MaterialTheme.colorScheme.surfaceVariant,
+      color = MaterialTheme.colorScheme.surface,
+      border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
   ) {
     Column(modifier = Modifier.padding(Spacing.cardPadding)) {
       Row(
@@ -661,7 +697,7 @@ private fun OutgoingRequestRow(
         Column(modifier = Modifier.weight(1f)) {
           Text(
               text = request.displayName,
-              style = MaterialTheme.typography.titleMedium,
+              style = MaterialTheme.typography.titleSmall,
           )
 
           Text(
@@ -740,17 +776,22 @@ internal fun InitialAvatar(
 
   Box(
       modifier =
-          Modifier.size(48.dp)
+          Modifier.size(40.dp)
               .background(
                   color = avatarColor,
                   shape = CircleShape,
               )
+              .border(2.dp, Paper, CircleShape)
               .testTag(C.Tag.friends_avatar_prefix + userId),
       contentAlignment = Alignment.Center,
   ) {
     Text(
         text = initial,
-        style = MaterialTheme.typography.titleMedium,
+        style =
+            MaterialTheme.typography.titleMedium.copy(
+                fontSize = 16.8.sp,
+                fontWeight = FontWeight.Bold,
+            ),
         color = Paper,
     )
     if (profilePictureUrl != null) {
