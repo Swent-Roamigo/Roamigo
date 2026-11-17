@@ -220,6 +220,10 @@ private fun FriendsList(
 ) {
   val loadingDescription = stringResource(R.string.friends_loading)
   val filtered = uiState.matching(query)
+  val hasRelationships =
+      uiState.friends.isNotEmpty() ||
+          uiState.incomingRequests.isNotEmpty() ||
+          uiState.outgoingRequests.isNotEmpty()
   LazyColumn(
       modifier = modifier.testTag(C.Tag.friends_list),
       contentPadding =
@@ -259,15 +263,10 @@ private fun FriendsList(
         }
       }
     }
-    if (
-        uiState.friends.isEmpty() &&
-            uiState.outgoingRequests.isEmpty() &&
-            uiState.incomingRequests.isEmpty()
-    ) {
-      if (!uiState.isLoading && uiState.loadError == null) {
-        item(key = "empty") { EmptyFriendsState() }
-      }
-    } else {
+    if (!hasRelationships && !uiState.isLoading && uiState.loadError == null) {
+      item(key = "empty") { EmptyFriendsState() }
+    }
+    if (hasRelationships || query.isNotEmpty()) {
       item(key = "search") {
         OutlinedTextField(
             value = query,
@@ -318,7 +317,8 @@ private fun FriendsList(
       OutgoingRequestRow(request)
     }
     if (
-        query.isNotBlank() &&
+        hasRelationships &&
+            query.isNotBlank() &&
             filtered.friends.isEmpty() &&
             filtered.incomingRequests.isEmpty() &&
             filtered.outgoingRequests.isEmpty()
