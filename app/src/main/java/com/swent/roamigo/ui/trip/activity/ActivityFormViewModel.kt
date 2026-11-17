@@ -133,6 +133,9 @@ class ActivityFormViewModel(
               errors = invalid.errors.toFormErrors(placeChosen = true),
           )
         }
+      } catch (callerBug: IllegalArgumentException) {
+        // An invalid trip or activity ID is a programming error, not something the user can retry.
+        throw callerBug
       } catch (failure: Exception) {
         _uiState.update {
           it.copy(saveStatus = ActivityFormSaveStatus.IDLE, failure = failure.toFormFailure())
