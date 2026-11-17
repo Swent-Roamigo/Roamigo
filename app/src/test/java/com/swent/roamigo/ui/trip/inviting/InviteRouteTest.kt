@@ -78,4 +78,28 @@ class InviteRouteTest {
         ShadowToast.getTextOfLatestToast(),
     )
   }
+
+  @Test
+  fun theSheetKeepsItsLinkWhenOnlyTheServiceInstanceChanges() {
+    var shown by mutableStateOf<FakeTripInvitationService>(service)
+    composeRule.setContent { MaterialTheme { InviteRoute("trip", shown, onDismiss = {}) } }
+    waitForTag(C.Tag.invite_code)
+
+    shown = FakeTripInvitationService()
+
+    composeRule.waitForIdle()
+    composeRule.onNodeWithTag(C.Tag.invite_code).assertIsDisplayed()
+    assertEquals(listOf("trip"), service.createdFor)
+  }
+
+  @Test
+  fun theSheetCreatesTheLinkOfTheTripItIsShownFor() {
+    var tripId by mutableStateOf("trip-a")
+    composeRule.setContent { MaterialTheme { InviteRoute(tripId, service, onDismiss = {}) } }
+    waitForTag(C.Tag.invite_code)
+
+    tripId = "trip-b"
+
+    composeRule.waitUntil(5_000) { service.createdFor == listOf("trip-a", "trip-b") }
+  }
 }

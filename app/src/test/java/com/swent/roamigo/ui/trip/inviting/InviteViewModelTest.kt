@@ -105,6 +105,22 @@ class InviteViewModelTest {
       }
 
   @Test
+  fun aStopThatFailsWhenNoLinkIsShownIsAnErrorToRetry() =
+      runTest(dispatcher) {
+        val model = InviteViewModel("trip", service)
+        advanceUntilIdle()
+        model.stopSharing()
+        advanceUntilIdle()
+        assertEquals(InviteUiState.Stopped, model.uiState.value)
+        service.failure = IOException("offline")
+
+        model.stopSharing()
+        advanceUntilIdle()
+
+        assertEquals(InviteUiState.Failed(notAllowed = false), model.uiState.value)
+      }
+
+  @Test
   fun stoppingCanBeTriedAgainAfterItFailed() =
       runTest(dispatcher) {
         val model = InviteViewModel("trip", service)

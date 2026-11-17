@@ -22,6 +22,7 @@ import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.unit.dp
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
 import com.swent.roamigo.R
@@ -47,6 +48,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowToast
 
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w800dp-h1600dp")
@@ -245,6 +247,47 @@ class TripsScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.trips_join_button).performClick()
 
     assertEquals(1, joinClicks)
+  }
+
+  @Test
+  fun inviteWithoutAHandlerGivesTheNotImplementedFeedback() {
+    val now = Instant.parse("2026-10-08T12:00:00Z")
+    val mainTrip =
+        trip(
+            uid = "main",
+            name = "Lisbon & Porto",
+            start = now.minusSeconds(24 * 60 * 60),
+            end = now.plusSeconds(3 * 24 * 60 * 60),
+            status = TripStatus.ACTIVE,
+            ownerId = "alex",
+        )
+    composeTestRule.setContent {
+      MaterialTheme {
+        TripsRoute(
+            tripRepository =
+                FakeTripRepository(
+                    trips = listOf(mainTrip),
+                    membersByTripId = mapOf(mainTrip.uid to listOf(member("alex", now))),
+                ),
+            userRepository = FakeUserRepository(currentUser = User("alex", "Alex", null)),
+            clock = Clock.fixed(now, ZoneOffset.UTC),
+        )
+      }
+    }
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule
+          .onAllNodesWithTag(C.Tag.trips_invite_button)
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.trips_invite_button).performClick()
+
+    assertEquals(
+        ApplicationProvider.getApplicationContext<android.content.Context>()
+            .getString(R.string.feature_not_implemented),
+        ShadowToast.getTextOfLatestToast(),
+    )
   }
 
   @Test

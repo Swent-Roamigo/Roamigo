@@ -38,6 +38,15 @@ class TripInvitationServiceTest {
   }
 
   @Test
+  fun aBlankOrNonTextTokenIsUnavailable() = runTest {
+    answer = mapOf("token" to "   ")
+    assertTrue(failureOf { service.createLink("trip-1") } is InvitationException.Unavailable)
+
+    answer = mapOf("token" to 42)
+    assertTrue(failureOf { service.createLink("trip-1") } is InvitationException.Unavailable)
+  }
+
+  @Test
   fun aLinkWithoutATokenIsUnavailable() = runTest {
     answer = mapOf("expirationTime" to 1L)
 

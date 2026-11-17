@@ -3,6 +3,9 @@ package com.swent.roamigo.ui.trip.inviting
 
 import android.content.Context
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
@@ -48,6 +51,72 @@ class InviteSheetContentTest {
   }
 
   private fun text(id: Int) = ApplicationProvider.getApplicationContext<Context>().getString(id)
+
+  @Test
+  fun theSheetFollowsTheStateAsItChanges() {
+    var state by mutableStateOf<InviteUiState>(InviteUiState.Loading)
+    composeRule.setContent {
+      MaterialTheme {
+        InviteSheetContent(
+            state = state,
+            onShare = {},
+            onCopyCode = {},
+            onStopSharing = {},
+            onCreateLink = {},
+        )
+      }
+    }
+    composeRule.onAllNodesWithTag(C.Tag.invite_code).assertCountEquals(0)
+
+    state = ready
+    composeRule.onNodeWithTag(C.Tag.invite_code).assertIsDisplayed()
+    composeRule.onAllNodesWithTag(C.Tag.invite_stop_failed).assertCountEquals(0)
+
+    state = ready.copy(stopFailed = true)
+    composeRule.onNodeWithTag(C.Tag.invite_stop_failed).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.invite_code).assertIsDisplayed()
+
+    state = InviteUiState.Stopped
+    composeRule.onNodeWithTag(C.Tag.invite_new_link).assertIsDisplayed()
+    composeRule.onAllNodesWithTag(C.Tag.invite_code).assertCountEquals(0)
+
+    state = InviteUiState.Failed(notAllowed = false)
+    composeRule.onNodeWithTag(C.Tag.invite_retry).assertIsDisplayed()
+
+    state = InviteUiState.Failed(notAllowed = true)
+    composeRule.onAllNodesWithTag(C.Tag.invite_retry).assertCountEquals(0)
+
+    state = ready
+    composeRule.onNodeWithTag(C.Tag.invite_code).assertIsDisplayed()
+  }
+
+  @Test
+  fun theSheetCallsTheLatestHandlersWhenTheyChange() {
+    val calls = mutableListOf<String>()
+    var handlers by mutableStateOf(1)
+    composeRule.setContent {
+      MaterialTheme {
+        val round = handlers
+        InviteSheetContent(
+            state = ready,
+            onShare = { calls += "share$round" },
+            onCopyCode = { calls += "copy$round" },
+            onStopSharing = { calls += "stop$round" },
+            onCreateLink = { calls += "new$round" },
+        )
+      }
+    }
+    composeRule.onNodeWithTag(C.Tag.invite_share).performClick()
+    composeRule.onNodeWithTag(C.Tag.invite_copy).performClick()
+
+    handlers = 2
+    composeRule.onNodeWithTag(C.Tag.invite_share).performClick()
+    composeRule.onNodeWithTag(C.Tag.invite_copy).performClick()
+    composeRule.onNodeWithTag(C.Tag.invite_stop).performClick()
+    composeRule.onNodeWithTag(C.Tag.invite_stop_confirm).performClick()
+
+    assertEquals(listOf("share1", "copy1", "share2", "copy2", "stop2"), calls)
+  }
 
   @Test
   fun aReadyLinkShowsTheCodeAndCanBeSharedOrCopied() {
