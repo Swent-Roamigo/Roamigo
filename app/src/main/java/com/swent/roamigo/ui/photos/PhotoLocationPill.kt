@@ -67,12 +67,18 @@ fun PhotoLocationPill(
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.spacedBy(Spacing.small),
   ) {
-    when (status) {
-      PhotoLocationStatus.Locating ->
-          CircularProgressIndicator(Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
-      is PhotoLocationStatus.Attached -> PillIcon(Icons.Filled.LocationOn)
-      PhotoLocationStatus.Unavailable,
-      PhotoLocationStatus.Off -> PillIcon(Icons.Filled.LocationOff)
+    // Locating has no icon: a progress indicator shows the position is still being read.
+    val icon =
+        when (status) {
+          PhotoLocationStatus.Locating -> null
+          is PhotoLocationStatus.Attached -> Icons.Filled.LocationOn
+          PhotoLocationStatus.Unavailable,
+          PhotoLocationStatus.Off -> Icons.Filled.LocationOff
+        }
+    if (icon == null) {
+      CircularProgressIndicator(Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+    } else {
+      PillIcon(icon)
     }
     Text(
         text =
