@@ -16,6 +16,7 @@ import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -25,6 +26,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.R
 import com.swent.roamigo.model.connectivity.FakeConnectivityRepository
+import com.swent.roamigo.model.location.DeviceLocation
 import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.photo.PhotoModule
@@ -97,7 +99,12 @@ class PhotosRouteTest {
         .grantPermissions(Manifest.permission.CAMERA)
   }
 
-  private fun show(activity: Activity? = null) {
+  private var openMapCalls = 0
+
+  private fun show(
+      activity: Activity? = null,
+      locationRepository: FakeLocationRepository = FakeLocationRepository(),
+  ) {
     val owner =
         object : ActivityResultRegistryOwner {
           override val activityResultRegistry = registry
@@ -111,10 +118,11 @@ class PhotosRouteTest {
           PhotosRoute(
               photoRepository = repository,
               connectivityRepository = connectivity,
-              locationRepository = FakeLocationRepository(),
+              locationRepository = locationRepository,
               tripId = "trip",
               tripName = "Lisbon",
               currentUserId = null,
+              onOpenMap = { openMapCalls++ },
               // Keep camera-flow tests independent of the host filesystem's path separators.
               photoUri = { file ->
                 Uri.parse("content://com.swent.roamigo.fileprovider/${file.name}")
@@ -337,5 +345,52 @@ class PhotosRouteTest {
     composeRule.waitForIdle()
 
     composeRule.onNodeWithTag(C.Tag.photos_screen).assertIsDisplayed()
+  }
+
+  @Test
+  fun offLocationPillOpensTheMapWithoutAskingForTheLocation() {
+    val location = FakeLocationRepository()
+    allowCamera()
+    show(locationRepository = location)
+    tap(C.Tag.photos_take_photo)
+    writePicture()
+    waitForPill("Location off · Turn on in Map")
+
+    tap(C.Tag.photo_preview_location)
+
+    assertEquals(1, openMapCalls)
+    assertTrue(launched(ActivityResultContracts.RequestMultiplePermissions::class.java).isEmpty())
+    assertTrue(
+        launched(ActivityResultContracts.RequestPermission::class.java).all {
+          it.second == Manifest.permission.CAMERA
+        }
+    )
+    assertEquals(0, location.getCurrentLocationCalls)
+  }
+
+  @Test
+  fun attachedLocationPillDoesNothingWhenTapped() {
+    allowCamera()
+    show(
+        locationRepository =
+            FakeLocationRepository(
+                hasPermission = true,
+                currentLocation = DeviceLocation(46.52, 6.63),
+            )
+    )
+    tap(C.Tag.photos_take_photo)
+    writePicture()
+    waitForPill("Location attached")
+
+    tap(C.Tag.photo_preview_location)
+
+    assertEquals(0, openMapCalls)
+  }
+
+  private fun waitForPill(text: String) {
+    composeRule.waitUntil(5_000) {
+      runCatching { composeRule.onNodeWithTag(C.Tag.photo_preview_location).assertTextEquals(text) }
+          .isSuccess
+    }
   }
 }
