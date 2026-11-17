@@ -1,6 +1,7 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.ui.trip.activity
 
+import androidx.lifecycle.SavedStateHandle
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.trip.Activity
@@ -58,14 +59,22 @@ class ActivityFormViewModelTest {
       repository: ActivityRepository = FakeActivityRepository(),
       defaultDate: LocalDate? = day,
       zone: ZoneId = this.zone,
-  ) = ActivityFormViewModel(repository, ActivityFormMode.Create("trip", defaultDate), trip, zone)
+      savedState: SavedStateHandle = SavedStateHandle(),
+  ) =
+      ActivityFormViewModel(
+          repository,
+          ActivityFormMode.Create("trip", defaultDate),
+          trip,
+          savedState,
+          zone,
+      )
 
   private fun editForm(activity: Activity = storedActivity()) =
       ActivityFormViewModel(
           FakeActivityRepository(listOf(activity)),
           ActivityFormMode.Edit("trip", activity),
           trip,
-          zone,
+          zone = zone,
       )
 
   private fun ActivityFormViewModel.fillValid() {
@@ -366,6 +375,63 @@ class ActivityFormViewModelTest {
     assertNull(form.uiState.value.failure)
   }
 
+  // Process death
+
+  @Test
+  fun draftAndErrorsSurviveProcessDeath() {
+    val savedState = SavedStateHandle()
+    val first = createForm(savedState = savedState)
+    first.updateName("Dinner")
+    first.updateTime(LocalTime.of(19, 30))
+    first.updateDescription("Bring cash")
+    first.updatePlace(TripLocation(38.7, -9.1, "Time Out Market", "PT"))
+    first.updateName(" ")
+    first.save()
+
+    val restored = createForm(savedState = savedState.afterProcessDeath()).uiState.value
+    assertEquals(first.uiState.value.fields, restored.fields)
+    assertTrue(restored.isDirty)
+    assertEquals(listOf(ActivityFormError.BLANK_NAME), restored.errors)
+  }
+
+  @Test
+  fun formWithoutChangesStartsFreshAfterProcessDeath() {
+    val savedState = SavedStateHandle()
+    createForm(savedState = savedState)
+    val restored = createForm(savedState = savedState.afterProcessDeath()).uiState.value
+    assertEquals(ActivityFormFields(date = day), restored.fields)
+    assertFalse(restored.isDirty)
+    assertTrue(restored.errors.isEmpty())
+  }
+
+  @Test
+  fun retryAfterProcessDeathReusesTheSameActivityId() = runTest {
+    val repository = FlakyActivityRepository(failures = 1, commitBeforeFailing = true)
+    val savedState = SavedStateHandle()
+    val first = createForm(repository, savedState = savedState)
+    first.fillValid()
+    first.save()
+    advanceUntilIdle()
+
+    val restored = createForm(repository, savedState = savedState.afterProcessDeath())
+    restored.save()
+    advanceUntilIdle()
+    assertEquals(1, repository.requestedIds.distinct().size)
+    assertEquals(1, repository.delegate.stored().size)
+    assertTrue(restored.uiState.value.isSaved)
+  }
+
+  @Test
+  fun twoFormsGetDifferentActivityIds() = runTest {
+    val repository = FlakyActivityRepository(failures = 0)
+    listOf(createForm(repository), createForm(repository)).forEach {
+      it.fillValid()
+      it.save()
+    }
+    advanceUntilIdle()
+    assertEquals(2, repository.requestedIds.distinct().size)
+  }
+
   // Dirty tracking
 
   @Test
@@ -426,7 +492,12 @@ class ActivityFormViewModelTest {
     val activity = storedActivity()
     val repository = FakeActivityRepository(listOf(activity))
     val form =
-        ActivityFormViewModel(repository, ActivityFormMode.Edit("trip", activity), trip, zone)
+        ActivityFormViewModel(
+            repository,
+            ActivityFormMode.Edit("trip", activity),
+            trip,
+            zone = zone,
+        )
     form.updateName("Lunch")
     form.save()
     advanceUntilIdle()
@@ -499,6 +570,10 @@ class ActivityFormViewModelTest {
       )
 
   private fun Instant.toTimestamp() = Timestamp(epochSecond, nano)
+
+  /** Copies the saved values into a new handle, as Android does when it recreates the process. */
+  private fun SavedStateHandle.afterProcessDeath() =
+      SavedStateHandle(keys().associateWith { get<Any?>(it) })
 }
 
 /**
