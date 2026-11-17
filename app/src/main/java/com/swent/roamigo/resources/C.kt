@@ -169,5 +169,6 @@ object C {
     const val photo_preview_save = "photo_preview_save"
     const val photo_preview_retake = "photo_preview_retake"
     const val photo_preview_error = "photo_preview_error"
+    const val photo_preview_location = "photo_preview_location"
   }
 }

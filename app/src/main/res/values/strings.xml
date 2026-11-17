@@ -488,6 +488,11 @@
     <string name="photo_preview_save_offline">Save on this phone</string>
     <string name="photo_preview_retake">Retake</string>
     <string name="photo_preview_save_failed">Could not save the photo. Try again.</string>
+    <string name="photo_preview_location_locating">Getting location…</string>
+    <string name="photo_preview_location_attached">Location attached</string>
+    <string name="photo_preview_location_unavailable">Location unavailable</string>
+    <string name="photo_preview_location_off">Location off · Turn on in Map</string>
+    <string name="photo_preview_location_open_map">Open the trip map</string>
     <string name="vote_close">Close vote</string>
     <string name="vote_closing">Closing vote…</string>
     <string name="vote_close_title">Close this vote?</string>
