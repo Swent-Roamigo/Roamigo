@@ -17,9 +17,10 @@ import com.swent.roamigo.model.place.PlaceProximity
 import com.swent.roamigo.model.place.PlaceRepository
 
 /**
- * Full-screen search picker. Supply RoamigoApplication.placeRepository through the owning Route;
- * keep the caller's draft in its own ViewModel and update only its location in [onPlacePicked].
- * Cancel leaves that draft untouched. No navigation controller or persistence is required.
+ * Full-screen search and manual map picker. Supply RoamigoApplication.placeRepository through the
+ * owning Route; keep the caller's draft in its own ViewModel and update only its location in
+ * [onPlacePicked]. Cancel leaves that draft untouched. No navigation controller or persistence is
+ * required.
  *
  * A composition-scoped owner isolates each opening and clears its ViewModels on removal. AndroidX
  * retains the owner across configuration changes and restores its saved state.
@@ -44,15 +45,34 @@ fun PlacePickerRoute(
   val state by picker.uiState.collectAsStateWithLifecycle()
   val currentOnPlacePicked by rememberUpdatedState(onPlacePicked)
   LaunchedEffect(state.finished) { picker.consumeResult()?.let { currentOnPlacePicked(it) } }
-  val cancel = { if (picker.cancel()) onCancel() }
+  val cancel = { if (state.isMapMode) picker.backToSearch() else if (picker.cancel()) onCancel() }
   BackHandler(onBack = cancel)
-  PlacePickerScreen(
-      state,
-      picker::updateQuery,
-      picker::selectCandidate,
-      picker::retry,
-      picker::confirm,
-      cancel,
-      modifier,
-  )
+  if (state.isMapMode) {
+    PlacePickerMapScreen(
+        state,
+        picker::updateMapName,
+        cancel,
+        picker::confirm,
+        picker::retryMap,
+        modifier,
+    ) { mapModifier ->
+      PlacePickerMap(
+          state,
+          picker::selectMapPoint,
+          picker::mapLoadingFailed,
+          picker::mapLoaded,
+          mapModifier,
+      )
+    }
+  } else
+      PlacePickerScreen(
+          state,
+          picker::updateQuery,
+          picker::selectCandidate,
+          picker::retry,
+          picker::confirm,
+          cancel,
+          modifier,
+          onChooseOnMap = picker::enterMap,
+      )
 }

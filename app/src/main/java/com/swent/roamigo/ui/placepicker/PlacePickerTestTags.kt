@@ -2,8 +2,12 @@ package com.swent.roamigo.ui.placepicker
 
 /** Stable semantics for picker interactions, shared by local and device tests. */
 object PlacePickerTestTags {
+  const val CHOOSE_ON_MAP = "place_picker_choose_on_map"
+  const val VIEW_ON_MAP = "place_picker_view_on_map"
+  const val MAP = "place_picker_map"
   const val MAP_BACK = "place_picker_map_back"
   const val MAP_NAME = "place_picker_map_name"
+  const val MAP_MARKER = "place_picker_map_marker"
   const val MAP_ERROR = "place_picker_map_error"
   const val MAP_RETRY = "place_picker_map_retry"
   const val QUERY = "place_picker_query"
