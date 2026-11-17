@@ -1,17 +1,25 @@
 // Implemented with assistance from OpenAI Codex.
 package com.swent.roamigo.ui.trip
 
+import android.Manifest
 import android.content.Context
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.activity.result.ActivityResultRegistry
+import androidx.activity.result.ActivityResultRegistryOwner
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.core.app.ActivityOptionsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
 import com.swent.roamigo.R
@@ -21,6 +29,7 @@ import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.connectivity.FakeConnectivityRepository
 import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.photo.FakePhotoRepository
+import com.swent.roamigo.model.photo.PhotoModule
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
@@ -35,6 +44,7 @@ import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.voting.interactionVote
+import java.io.File
 import java.io.IOException
 import java.time.Instant
 import java.time.LocalDate
@@ -48,6 +58,26 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
+
+/** Takes every picture successfully and answers permission requests with a grant. */
+private class RecordingRegistry : ActivityResultRegistry() {
+  val launched = mutableListOf<Pair<ActivityResultContract<*, *>, Any?>>()
+
+  @Suppress("UNCHECKED_CAST")
+  override fun <I, O> onLaunch(
+      requestCode: Int,
+      contract: ActivityResultContract<I, O>,
+      input: I,
+      options: ActivityOptionsCompat?,
+  ) {
+    launched += contract to input
+    when (contract) {
+      is ActivityResultContracts.RequestPermission -> dispatchResult(requestCode, true as O)
+      is ActivityResultContracts.TakePicture -> dispatchResult(requestCode, true as O)
+    }
+  }
+}
 
 @RunWith(AndroidJUnit4::class)
 class TripRouteTest {
@@ -143,6 +173,79 @@ class TripRouteTest {
         .onNodeWithText(composeRule.activity.getString(R.string.trip_details_tab))
         .performClick()
     composeRule.onNodeWithTag(C.Tag.trip_add_button).assertIsDisplayed()
+  }
+
+  @Test
+  fun offLocationPillInThePhotoPreviewOpensTheMapTabOfTheSameTrip() {
+    val trip = trip()
+    val registry = RecordingRegistry()
+    val owner =
+        object : ActivityResultRegistryOwner {
+          override val activityResultRegistry = registry
+        }
+    val locations = FakeLocationRepository()
+    shadowOf(composeRule.activity.application).grantPermissions(Manifest.permission.CAMERA)
+    composeRule.setContent {
+      RoamigoTheme {
+        CompositionLocalProvider(
+            LocalInspectionMode provides true,
+            LocalActivityResultRegistryOwner provides owner,
+        ) {
+          TripRoute(
+              tripId = trip.uid,
+              fromHistory = false,
+              openMap = false,
+              authRepository = signedInAuth(),
+              tripRepository = FakeTripRepository(trips = listOf(trip)),
+              activityRepository = FakeActivityRepository(),
+              userRepository = FakeUserRepository(User("member", "Member", null)),
+              voteRepository = InMemoryVoteRepository(),
+              photoRepository =
+                  FakePhotoRepository(
+                      File(composeRule.activity.filesDir, PhotoModule.PHOTO_DIRECTORY)
+                  ),
+              connectivityRepository = FakeConnectivityRepository(),
+              locationRepository = locations,
+              onBack = {},
+              onAuthenticationRequired = {},
+              onOpenVote = { _, _ -> },
+              onCreateVote = {},
+              onMembersClick = {},
+              onTripsClick = {},
+              onMapClick = {},
+              onFriendsClick = {},
+          )
+        }
+      }
+    }
+
+    composeRule
+        .onNodeWithText(composeRule.activity.getString(R.string.trips_nav_photos))
+        .performClick()
+    composeRule.onNodeWithTag(C.Tag.photos_take_photo).performClick()
+    composeRule.onNodeWithTag(C.Tag.photo_preview).assertIsDisplayed()
+    composeRule.waitUntil(5_000) {
+      runCatching {
+        composeRule
+            .onNodeWithTag(C.Tag.photo_preview_location)
+            .assertTextEquals("Location off · Turn on in Map")
+      }
+          .isSuccess
+    }
+
+    composeRule.onNodeWithTag(C.Tag.photo_preview_location).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.photo_preview).assertDoesNotExist()
+    assertTrue(
+        registry.launched.none { it.first is ActivityResultContracts.RequestMultiplePermissions }
+    )
+    assertTrue(
+        registry.launched
+            .filter { it.first is ActivityResultContracts.RequestPermission }
+            .all { it.second == Manifest.permission.CAMERA }
+    )
+    assertTrue(locations.startSharingCalls.isEmpty())
   }
 
   @Test
