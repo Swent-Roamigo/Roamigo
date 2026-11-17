@@ -20,6 +20,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.core.app.ActivityOptionsCompat
+import androidx.core.content.FileProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
 import com.swent.roamigo.R
@@ -55,6 +56,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -82,6 +84,14 @@ private class RecordingRegistry : ActivityResultRegistry() {
 @RunWith(AndroidJUnit4::class)
 class TripRouteTest {
   @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
+
+  /** FileProvider keeps the first test's data directory otherwise, and rejects the next one's. */
+  @Before
+  fun forgetCachedFileProviderRoots() {
+    val cache = FileProvider::class.java.getDeclaredField("sCache")
+    cache.isAccessible = true
+    (cache.get(null) as MutableMap<*, *>).clear()
+  }
 
   @Test
   fun staysReadOnlyAcrossTabsUntilTripLoadSucceeds() {
@@ -177,13 +187,52 @@ class TripRouteTest {
 
   @Test
   fun offLocationPillInThePhotoPreviewOpensTheMapTabOfTheSameTrip() {
-    val trip = trip()
     val registry = RecordingRegistry()
+    val locations = FakeLocationRepository()
+    showOffLocationPhotoPreview(signedInAuth(), registry, locations) {}
+
+    composeRule.onNodeWithTag(C.Tag.photo_preview_location).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.photo_preview).assertDoesNotExist()
+    assertTrue(
+        registry.launched.none { it.first is ActivityResultContracts.RequestMultiplePermissions }
+    )
+    assertTrue(
+        registry.launched
+            .filter { it.first is ActivityResultContracts.RequestPermission }
+            .all { it.second == Manifest.permission.CAMERA }
+    )
+    assertTrue(locations.startSharingCalls.isEmpty())
+  }
+
+  @Test
+  fun offLocationPillAsksASignedOutUserToSignInInsteadOfOpeningTheMap() {
+    val auth = signedInAuth()
+    var authenticationRequests = 0
+    showOffLocationPhotoPreview(auth, RecordingRegistry(), FakeLocationRepository()) {
+      authenticationRequests++
+    }
+
+    auth.signOut()
+    composeRule.onNodeWithTag(C.Tag.photo_preview_location).performClick()
+
+    assertEquals(1, authenticationRequests)
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.photo_preview).assertIsDisplayed()
+  }
+
+  private fun showOffLocationPhotoPreview(
+      auth: FakeAuthRepository,
+      registry: RecordingRegistry,
+      locations: FakeLocationRepository,
+      onAuthenticationRequired: () -> Unit,
+  ) {
+    val trip = trip()
     val owner =
         object : ActivityResultRegistryOwner {
           override val activityResultRegistry = registry
         }
-    val locations = FakeLocationRepository()
     shadowOf(composeRule.activity.application).grantPermissions(Manifest.permission.CAMERA)
     composeRule.setContent {
       RoamigoTheme {
@@ -195,7 +244,7 @@ class TripRouteTest {
               tripId = trip.uid,
               fromHistory = false,
               openMap = false,
-              authRepository = signedInAuth(),
+              authRepository = auth,
               tripRepository = FakeTripRepository(trips = listOf(trip)),
               activityRepository = FakeActivityRepository(),
               userRepository = FakeUserRepository(User("member", "Member", null)),
@@ -207,7 +256,7 @@ class TripRouteTest {
               connectivityRepository = FakeConnectivityRepository(),
               locationRepository = locations,
               onBack = {},
-              onAuthenticationRequired = {},
+              onAuthenticationRequired = onAuthenticationRequired,
               onOpenVote = { _, _ -> },
               onCreateVote = {},
               onMembersClick = {},
@@ -232,20 +281,6 @@ class TripRouteTest {
       }
           .isSuccess
     }
-
-    composeRule.onNodeWithTag(C.Tag.photo_preview_location).performClick()
-
-    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertIsDisplayed()
-    composeRule.onNodeWithTag(C.Tag.photo_preview).assertDoesNotExist()
-    assertTrue(
-        registry.launched.none { it.first is ActivityResultContracts.RequestMultiplePermissions }
-    )
-    assertTrue(
-        registry.launched
-            .filter { it.first is ActivityResultContracts.RequestPermission }
-            .all { it.second == Manifest.permission.CAMERA }
-    )
-    assertTrue(locations.startSharingCalls.isEmpty())
   }
 
   @Test

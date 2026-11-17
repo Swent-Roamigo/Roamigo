@@ -1,7 +1,9 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui.photos
 
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -11,6 +13,7 @@ import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -97,5 +100,20 @@ class PhotoLocationPillTest {
         }
 
     assertEquals(0, openMapCalls)
+  }
+
+  @Test
+  fun appliesTheModifierGivenByTheCaller() {
+    composeRule.setContent {
+      RoamigoTheme {
+        PhotoLocationPill(
+            PhotoLocationStatus.Unavailable,
+            onOpenMap = {},
+            modifier = Modifier.width(300.dp),
+        )
+      }
+    }
+
+    pill().assertWidthIsEqualTo(300.dp)
   }
 }
