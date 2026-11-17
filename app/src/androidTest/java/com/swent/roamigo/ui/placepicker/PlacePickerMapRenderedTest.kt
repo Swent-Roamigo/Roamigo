@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.*
@@ -22,16 +25,20 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.mapbox.android.gestures.MoveGestureDetector
 import com.mapbox.geojson.Point
+import com.mapbox.maps.CameraOptions
+import com.mapbox.maps.MapLoadingErrorType
 import com.mapbox.maps.ScreenCoordinate
 import com.mapbox.maps.plugin.gestures.OnMapClickListener
 import com.mapbox.maps.plugin.gestures.OnMoveListener
 import com.mapbox.maps.plugin.gestures.gestures
+import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.place.FakePlaceRepository
 import com.swent.roamigo.model.place.PlaceProximity
 import com.swent.roamigo.ui.map.MAP_TEST_TIMEOUT_MILLIS
 import com.swent.roamigo.ui.map.findMapView
 import com.swent.roamigo.ui.map.loadLocalMapStyle
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -139,6 +146,198 @@ class PlacePickerMapRenderedTest {
         .performTextReplacement("Meeting point")
     compose.onNodeWithTag(PlacePickerTestTags.CONFIRM).assertIsEnabled().performClick()
     compose.runOnIdle { assertEquals("Meeting point", vm.consumeResult()!!.name) }
+  }
+
+  @Test
+  fun worldCameraAndNativeZoomArePreservedWhenNamingANewPoint() {
+    val vm = PlacePickerViewModel(FakePlaceRepository(), SavedStateHandle())
+    vm.enterMap()
+    compose.setContent {
+      val state by vm.uiState.collectAsState()
+      PlacePickerMapScreen(
+          state,
+          vm::updateMapName,
+          vm::backToSearch,
+          vm::confirm,
+          vm::retryMap,
+      ) { modifier ->
+        PlacePickerMap(
+            state,
+            vm::selectMapPoint,
+            vm::mapLoadingFailed,
+            vm::mapLoaded,
+            modifier,
+            style = """{"version":8,"sources":{},"layers":[]}""",
+        )
+      }
+    }
+    compose.loadLocalMapStyle()
+    compose.runOnIdle {
+      val camera = compose.findMapView().mapboxMap.cameraState
+      assertEquals(0.0, camera.center.longitude(), 0.00001)
+      assertEquals(20.0, camera.center.latitude(), 0.00001)
+      assertEquals(1.0, camera.zoom, 0.00001)
+      assertNull(vm.uiState.value.manualDraft.point)
+    }
+    // Exercise Mapbox's actual double-tap recognizer through Android's input dispatcher.
+    nativeGesture(Offset(0.5f, 0.5f))
+    nativeGesture(Offset(0.5f, 0.5f))
+    compose.waitUntil(MAP_TEST_TIMEOUT_MILLIS) {
+      compose.runOnIdle { abs(compose.findMapView().mapboxMap.cameraState.zoom - 2.0) < 0.00001 }
+    }
+    val camera = compose.runOnIdle { compose.findMapView().mapboxMap.cameraState }
+    compose.runOnIdle {
+      vm.selectMapPoint(camera.center.latitude(), camera.center.longitude())
+      vm.updateMapName("Zoomed meeting point")
+    }
+    assertMarkerAt(camera.center)
+    compose.runOnIdle {
+      val after = compose.findMapView().mapboxMap.cameraState
+      assertEquals(camera.center.latitude(), after.center.latitude(), 0.00001)
+      assertEquals(camera.center.longitude(), after.center.longitude(), 0.00001)
+      assertEquals(camera.zoom, after.zoom, 0.00001)
+    }
+    compose
+        .onNodeWithTag(PlacePickerTestTags.CONFIRM)
+        .assertTextEquals("Confirm Zoomed meeting point")
+  }
+
+  @Test
+  fun nativeStyleFailureAndRetryUseLatestCallbacksWithoutDiscardingCameraOrDraft() {
+    val original = TripLocation(46.52, 6.63, "Meeting point")
+    val vm = PlacePickerViewModel(FakePlaceRepository(), SavedStateHandle(), original)
+    vm.enterMap()
+    var callbackVersion by mutableIntStateOf(0)
+    var showing by mutableStateOf(true)
+    val failures = IntArray(2)
+    val loads = IntArray(2)
+    compose.setContent {
+      if (showing) {
+        val state by vm.uiState.collectAsState()
+        val version = callbackVersion
+        PlacePickerMapScreen(
+            state,
+            vm::updateMapName,
+            vm::backToSearch,
+            vm::confirm,
+            vm::retryMap,
+        ) { modifier ->
+          PlacePickerMap(
+              state,
+              vm::selectMapPoint,
+              {
+                failures[version]++
+                vm.mapLoadingFailed()
+              },
+              {
+                loads[version]++
+                vm.mapLoaded()
+              },
+              modifier,
+              style = """{"version":8,"sources":{},"layers":[]}""",
+          )
+        }
+      }
+    }
+    compose.loadLocalMapStyle()
+    compose.waitUntil(MAP_TEST_TIMEOUT_MILLIS) { compose.runOnIdle { loads[0] > 0 } }
+    val map = compose.runOnIdle { compose.findMapView() }
+    compose.runOnIdle {
+      map.mapboxMap.setCamera(
+          CameraOptions.Builder().center(Point.fromLngLat(6.64, 46.53)).zoom(10.0).build()
+      )
+      vm.updateMapName("Edited meeting point")
+      callbackVersion = 1
+    }
+    compose.waitForIdle()
+    val oldLoads = compose.runOnIdle { loads[0] }
+    // A malformed local style produces a real STYLE event without remote services or billing.
+    compose.runOnIdle { map.mapboxMap.loadStyle("""{"version":8,"sources":{},"layers":[}""") }
+    compose.waitUntil(MAP_TEST_TIMEOUT_MILLIS) {
+      compose.runOnIdle { failures[1] > 0 && vm.uiState.value.mapError }
+    }
+    compose.onNodeWithTag(PlacePickerTestTags.MAP_ERROR).performScrollTo().assertIsDisplayed()
+    compose.onNodeWithTag(PlacePickerTestTags.MAP_RETRY).performScrollTo().performClick()
+    compose.waitUntil(MAP_TEST_TIMEOUT_MILLIS) {
+      compose.runOnIdle { loads[1] > 0 && !vm.uiState.value.mapError }
+    }
+    compose.onNodeWithTag(PlacePickerTestTags.MAP_ERROR).assertDoesNotExist()
+    compose.runOnIdle {
+      assertEquals(0, failures[0])
+      assertEquals(oldLoads, loads[0])
+      assertEquals(1, vm.uiState.value.mapLoadAttempt)
+      assertEquals(
+          original.copy(name = "Edited meeting point"),
+          vm.uiState.value.manualDraft.location,
+      )
+      assertSame(map, compose.findMapView())
+      val camera = map.mapboxMap.cameraState
+      assertEquals(46.53, camera.center.latitude(), 0.00001)
+      assertEquals(6.64, camera.center.longitude(), 0.00001)
+      assertEquals(10.0, camera.zoom, 0.00001)
+      showing = false
+    }
+    // Navigation disposes the adapter, its event collectors, and the native touch listener.
+    compose.onNodeWithTag(PlacePickerTestTags.MAP).assertDoesNotExist()
+    compose.runOnIdle {
+      assertEquals(
+          original.copy(name = "Edited meeting point"),
+          vm.uiState.value.manualDraft.location,
+      )
+    }
+  }
+
+  @Test
+  fun missingLocalSpriteDoesNotBlockManualSelection() {
+    val original = TripLocation(46.52, 6.63, "Meeting point")
+    val vm = PlacePickerViewModel(FakePlaceRepository(), SavedStateHandle(), original)
+    vm.enterMap()
+    var failures = 0
+    compose.setContent {
+      val state by vm.uiState.collectAsState()
+      Box(Modifier.requiredSize(360.dp, 420.dp)) {
+        // The adapter also supports standalone composition with its default modifier.
+        PlacePickerMap(
+            state,
+            vm::selectMapPoint,
+            {
+              failures++
+              vm.mapLoadingFailed()
+            },
+            vm::mapLoaded,
+            style = """{"version":8,"sources":{},"layers":[]}""",
+        )
+      }
+    }
+    compose.loadLocalMapStyle()
+    val spriteFailed = AtomicBoolean(false)
+    val subscription = compose.runOnIdle {
+      compose.findMapView().mapboxMap.subscribeMapLoadingError {
+        if (it.type == MapLoadingErrorType.SPRITE) spriteFailed.set(true)
+      }
+    }
+    try {
+      compose.runOnIdle {
+        // A missing file exercises a real resource error without any remote network requests.
+        compose
+            .findMapView()
+            .mapboxMap
+            .loadStyle(
+                """{"version":8,"sprite":"file:///missing-place-picker-sprite","sources":{},"layers":[]}"""
+            )
+      }
+      compose.waitUntil(MAP_TEST_TIMEOUT_MILLIS) { spriteFailed.get() }
+      compose.waitForIdle()
+      compose.onNodeWithTag(PlacePickerTestTags.MAP).assertIsDisplayed()
+      compose.runOnIdle {
+        assertEquals(0, failures)
+        assertFalse(vm.uiState.value.mapError)
+        assertTrue(vm.uiState.value.canConfirm)
+        assertEquals(original, vm.uiState.value.manualDraft.location)
+      }
+    } finally {
+      compose.runOnUiThread { subscription.cancel() }
+    }
   }
 
   private fun panMap(vertical: Boolean) {

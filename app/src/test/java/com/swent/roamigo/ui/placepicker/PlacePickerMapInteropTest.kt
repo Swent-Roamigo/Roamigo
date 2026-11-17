@@ -31,6 +31,22 @@ class PlacePickerMapInteropTest {
   }
 
   @Test
+  fun detachedMapAcceptsGestureStartAndReleaseWithoutConsumingNativeEvents() {
+    // Android can deliver input while navigation is detaching the native view from its parent.
+    val map = View(ApplicationProvider.getApplicationContext<Context>())
+    assertNull(map.parent)
+    listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP).forEach { action
+      ->
+      val event = MotionEvent.obtain(0, 0, action, 0f, 0f, 0)
+      try {
+        assertFalse(placePickerMapTouchListener.onTouch(map, event))
+      } finally {
+        event.recycle()
+      }
+    }
+  }
+
+  @Test
   fun nativeTouchOwnsGestureUntilReleaseOrCancellationWithoutConsumingMapboxEvents() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val requests = mutableListOf<Boolean>()
