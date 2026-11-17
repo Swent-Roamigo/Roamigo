@@ -1,6 +1,8 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.friends
 
+import android.content.Context
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -14,10 +16,13 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -246,5 +251,107 @@ class FriendsScreenTest {
     show(FriendsUiState())
 
     composeRule.onNodeWithTag(C.Tag.friends_search).assertDoesNotExist()
+  }
+
+  @Test
+  fun leavingTheScreenAcknowledgesTheFailureAndReturningDoesNotReplayIt() {
+    val failure =
+        mutableStateOf<FriendsActionFailure?>(
+            FriendsActionFailure("friendship-sam", FriendsAction.REMOVE)
+        )
+    val visible = mutableStateOf(true)
+    var dismissals = 0
+    composeRule.setContent {
+      RoamigoTheme {
+        if (visible.value) {
+          FriendsScreen(
+              uiState = populatedState.copy(actionFailure = failure.value),
+              onDismissActionFailure = {
+                dismissals++
+                failure.value = null
+              },
+          )
+        }
+      }
+    }
+    val message =
+        ApplicationProvider.getApplicationContext<Context>()
+            .getString(R.string.friends_remove_failed)
+    composeRule.onNodeWithText(message).assertIsDisplayed()
+
+    composeRule.runOnIdle { visible.value = false }
+    composeRule.runOnIdle {
+      assertNull(failure.value)
+      assertEquals(1, dismissals)
+      visible.value = true
+    }
+    composeRule.onNodeWithTag(C.Tag.friends_screen).assertIsDisplayed()
+    composeRule.onNodeWithText(message).assertDoesNotExist()
+    composeRule.runOnIdle { assertEquals(1, dismissals) }
+  }
+
+  @Test
+  fun replacingOrClearingAFailureDoesNotAcknowledgeAnotherFailure() {
+    val oldFailure = FriendsActionFailure("friendship-sam", FriendsAction.REMOVE)
+    val newFailure = FriendsActionFailure("request-mia", FriendsAction.DECLINE)
+    val failure = mutableStateOf<FriendsActionFailure?>(oldFailure)
+    var dismissals = 0
+    composeRule.setContent {
+      RoamigoTheme {
+        FriendsScreen(
+            uiState = populatedState.copy(actionFailure = failure.value),
+            onDismissActionFailure = {
+              dismissals++
+              failure.value = null
+            },
+        )
+      }
+    }
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val oldMessage = context.getString(R.string.friends_remove_failed)
+    val newMessage = context.getString(R.string.friends_decline_failed)
+    composeRule.onNodeWithText(oldMessage).assertIsDisplayed()
+
+    composeRule.runOnIdle { failure.value = newFailure }
+    composeRule.onNodeWithText(newMessage).assertIsDisplayed()
+    composeRule.onNodeWithText(oldMessage).assertDoesNotExist()
+    composeRule.runOnIdle {
+      assertEquals(newFailure, failure.value)
+      assertEquals(0, dismissals)
+      failure.value = null
+    }
+    composeRule.onNodeWithText(newMessage).assertDoesNotExist()
+    composeRule.runOnIdle { assertEquals(0, dismissals) }
+  }
+
+  @Test
+  fun leavingTheScreenUsesTheLatestDismissCallback() {
+    val failure = FriendsActionFailure("friendship-sam", FriendsAction.REMOVE)
+    val visible = mutableStateOf(true)
+    var originalDismissals = 0
+    var replacementDismissals = 0
+    val dismiss = mutableStateOf<() -> Unit>({ originalDismissals++ })
+    composeRule.setContent {
+      RoamigoTheme {
+        if (visible.value) {
+          FriendsScreen(
+              uiState = populatedState.copy(actionFailure = failure),
+              onDismissActionFailure = dismiss.value,
+          )
+        }
+      }
+    }
+    val message =
+        ApplicationProvider.getApplicationContext<Context>()
+            .getString(R.string.friends_remove_failed)
+    composeRule.onNodeWithText(message).assertIsDisplayed()
+    composeRule.runOnIdle { dismiss.value = { replacementDismissals++ } }
+    composeRule.waitForIdle()
+
+    composeRule.runOnIdle { visible.value = false }
+    composeRule.runOnIdle {
+      assertEquals(0, originalDismissals)
+      assertEquals(1, replacementDismissals)
+    }
   }
 }

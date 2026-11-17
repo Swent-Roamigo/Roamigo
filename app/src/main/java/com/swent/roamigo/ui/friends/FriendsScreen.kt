@@ -34,6 +34,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -80,7 +81,8 @@ private val friendAvatarColors = listOf(FriendAvatarBlue, FriendAvatarRose, Frie
  * @param onAcceptRequest invoked with the incoming request ID to accept.
  * @param onDeclineRequest invoked with the incoming request ID to decline.
  * @param onRemoveFriend invoked with the friendship ID to remove.
- * @param onDismissActionFailure acknowledges the latest action failure.
+ * @param onDismissActionFailure acknowledges the displayed failure when dismissed or the screen
+ *   leaves.
  */
 @Composable
 fun FriendsScreen(
@@ -98,26 +100,32 @@ fun FriendsScreen(
 ) {
   var query by rememberSaveable { mutableStateOf("") }
   val snackbarHostState = remember { SnackbarHostState() }
-  val actionMessage =
-      uiState.actionFailure?.let { failure ->
-        stringResource(
-            when (failure.action) {
-              FriendsAction.ACCEPT -> R.string.friends_accept_failed
-              FriendsAction.DECLINE -> R.string.friends_decline_failed
-              FriendsAction.REMOVE -> R.string.friends_remove_failed
-            }
-        )
-      }
-  LaunchedEffect(uiState.actionFailure) {
+  val actionFailure = uiState.actionFailure
+  val currentActionFailure by rememberUpdatedState(actionFailure)
+  val currentOnDismissActionFailure by rememberUpdatedState(onDismissActionFailure)
+  val actionMessage = actionFailure?.let { failure ->
+    stringResource(
+        when (failure.action) {
+          FriendsAction.ACCEPT -> R.string.friends_accept_failed
+          FriendsAction.DECLINE -> R.string.friends_decline_failed
+          FriendsAction.REMOVE -> R.string.friends_remove_failed
+        }
+    )
+  }
+  LaunchedEffect(actionFailure) {
     if (actionMessage == null) {
       snackbarHostState.currentSnackbarData?.dismiss()
     } else {
-      snackbarHostState.showSnackbar(
-          message = actionMessage,
-          withDismissAction = true,
-          duration = SnackbarDuration.Indefinite,
-      )
-      onDismissActionFailure()
+      try {
+        snackbarHostState.showSnackbar(
+            message = actionMessage,
+            withDismissAction = true,
+            duration = SnackbarDuration.Indefinite,
+        )
+      } finally {
+        // Replacing a failure also cancels this effect; leave the newer feedback intact.
+        if (currentActionFailure == actionFailure) currentOnDismissActionFailure()
+      }
     }
   }
 
