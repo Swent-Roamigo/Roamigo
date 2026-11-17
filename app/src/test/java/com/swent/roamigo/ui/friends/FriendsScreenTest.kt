@@ -201,6 +201,31 @@ class FriendsScreenTest {
   }
 
   @Test
+  fun removingAFriendDoesNotTriggerTheRowNavigation() {
+    var viewedUserId: String? = null
+    var removedFriendshipId: String? = null
+    composeRule.setContent {
+      RoamigoTheme {
+        FriendsScreen(
+            uiState =
+                FriendsUiState(
+                    friends = listOf(FriendUiModel("sam", "Sam", friendshipId = "friendship-sam"))
+                ),
+            onViewMapClick = { viewedUserId = it },
+            onRemoveFriend = { removedFriendshipId = it },
+        )
+      }
+    }
+
+    composeRule.onNodeWithTag(C.Tag.friends_remove_prefix + "friendship-sam").performClick()
+    assertEquals("friendship-sam", removedFriendshipId)
+    assertEquals(null, viewedUserId)
+
+    composeRule.onNodeWithTag(C.Tag.friends_view_map_prefix + "sam").performClick()
+    assertEquals("sam", viewedUserId)
+  }
+
+  @Test
   fun headerShowsFriendCount() {
     show()
 

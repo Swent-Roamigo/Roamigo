@@ -254,7 +254,6 @@
     <string name="friends_outgoing_title">Outgoing requests</string>
     <string name="friends_accept">Accept</string>
     <string name="friends_decline">Decline</string>
-    <string name="friends_remove">Remove friend</string>
     <string name="friends_updating">Updating…</string>
     <string name="friends_accept_accessibility">Accept friend request from %1$s</string>
     <string name="friends_decline_accessibility">Decline friend request from %1$s</string>
