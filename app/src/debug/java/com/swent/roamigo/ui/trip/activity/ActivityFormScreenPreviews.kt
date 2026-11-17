@@ -17,6 +17,7 @@ private fun ActivityFormPreview(state: ActivityFormUiState) {
     ActivityFormScreen(
         state = state,
         onNameChange = {},
+        onDateChange = {},
         onTimeChange = {},
         onPlaceClick = {},
         onDescriptionChange = {},
