@@ -1,3 +1,4 @@
+// AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.friends
 
 import androidx.lifecycle.ViewModel
@@ -10,20 +11,18 @@ import com.swent.roamigo.model.friends.FriendRepositoryException
 import com.swent.roamigo.model.friends.FriendRequest
 import com.swent.roamigo.model.friends.FriendRequestStatus
 import com.swent.roamigo.model.friends.Friendship
+import com.swent.roamigo.model.users.MAX_USER_EMAIL_LENGTH
+import com.swent.roamigo.model.users.MAX_USER_NAME_LENGTH
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
-import com.swent.roamigo.model.users.UserRepositoryException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -92,7 +91,14 @@ class FriendsSearchViewModel(
   }
 
   fun updateQuery(query: String) {
-    if (_uiState.value.sessionEnded || query == _uiState.value.query) return
+    val state = _uiState.value
+    if (state.sessionEnded || query == state.query) return
+
+    if (query.trim() == state.query.trim()) {
+      _uiState.update { it.copy(query = query) }
+      return
+    }
+
     search(query, clearResults = true)
   }
 
@@ -150,11 +156,11 @@ class FriendsSearchViewModel(
 
   private suspend fun performSend(userId: String) {
     try {
-      ensureAccount()
+      users.ensureCurrentUser(currentUserId)
 
       val request = friends.sendFriendRequest(userId)
 
-      ensureAccount()
+      users.ensureCurrentUser(currentUserId)
       applyConfirmedRequest(userId, request)
     } catch (cancelled: CancellationException) {
       throw cancelled
@@ -195,7 +201,7 @@ class FriendsSearchViewModel(
       userId: String,
       error: Exception,
   ) {
-    if (error.isSessionError()) {
+    if (error.isSessionFailure()) {
       endSession()
       return
     }
@@ -220,7 +226,7 @@ class FriendsSearchViewModel(
 
     val version = ++searchVersion
     val normalized = query.trim()
-    val maxLength = if ('@' in normalized) 254 else 120
+    val maxLength = if ('@' in normalized) MAX_USER_EMAIL_LENGTH else MAX_USER_NAME_LENGTH
     val invalid = normalized.length > maxLength
 
     _uiState.update {
@@ -248,7 +254,7 @@ class FriendsSearchViewModel(
         delay(SEARCH_DEBOUNCE_MS)
       }
 
-      ensureAccount()
+      users.ensureCurrentUser(currentUserId)
 
       val matches =
           users
@@ -259,7 +265,7 @@ class FriendsSearchViewModel(
               .take(MAX_SEARCH_RESULTS)
               .toList()
 
-      ensureAccount()
+      users.ensureCurrentUser(currentUserId)
       publishResults(version, matches)
     } catch (cancelled: CancellationException) {
       throw cancelled
@@ -303,7 +309,7 @@ class FriendsSearchViewModel(
       version: Long,
       error: Exception,
   ) {
-    if (error.isSessionError()) {
+    if (error.isSessionFailure()) {
       endSession()
       return
     }
@@ -336,44 +342,42 @@ class FriendsSearchViewModel(
       previous?.join()
 
       try {
-        ensureAccount()
+        users.ensureCurrentUser(currentUserId)
 
-        combine(
-                friends.observeFriends().requireSession(),
-                friends.observeIncomingRequests().requireSession(),
-                friends.observeOutgoingRequests().requireSession(),
-            ) { established, incoming, outgoing ->
+        friends.observeRelationshipSnapshots().collect { snapshot ->
+          val latest =
               Relationships.from(
                   currentUserId,
-                  established,
-                  incoming,
-                  outgoing,
+                  snapshot.friends,
+                  snapshot.incoming,
+                  snapshot.outgoing,
               )
-            }
-            .collect { latest ->
-              relationships = latest
 
-              _uiState.update { state ->
-                state.copy(
-                    relationshipsLoading = false,
-                    relationshipsFailed = false,
-                    results =
-                        state.results.map { it.copy(relationship = latest.statusOf(it.user.uid)) },
-                    // Clear an old error if Firestore has now confirmed the request.
-                    sendFailure =
-                        state.sendFailure?.takeIf {
-                          latest.statusOf(it.userId) == SearchRelationship.AVAILABLE
-                        },
-                )
-              }
-            }
+          relationships = latest
+
+          _uiState.update { state ->
+            state.copy(
+                relationshipsLoading = false,
+                relationshipsFailed = false,
+                results =
+                    state.results.map { match ->
+                      match.copy(relationship = latest.statusOf(match.user.uid))
+                    },
+                // Clear an old error if the relationship was confirmed.
+                sendFailure =
+                    state.sendFailure?.takeIf { failure ->
+                      latest.statusOf(failure.userId) == SearchRelationship.AVAILABLE
+                    },
+            )
+          }
+        }
 
         // Normal completion means the observed account has ended.
         endSession()
       } catch (cancelled: CancellationException) {
         throw cancelled
       } catch (error: Exception) {
-        if (error.isSessionError()) {
+        if (error.isSessionFailure()) {
           endSession()
         } else {
           relationships = null
@@ -389,22 +393,6 @@ class FriendsSearchViewModel(
       }
     }
   }
-
-  private suspend fun ensureAccount() {
-    if (users.getCurrentUser().uid != currentUserId) {
-      throw UserRepositoryException.NotAuthenticated()
-    }
-  }
-
-  private fun <T> Flow<T>.requireSession(): Flow<T> = onCompletion {
-    if (it == null) {
-      throw FriendRepositoryException.NotAuthenticated()
-    }
-  }
-
-  private fun Exception.isSessionError(): Boolean =
-      this is UserRepositoryException.NotAuthenticated ||
-          this is FriendRepositoryException.NotAuthenticated
 
   private fun Exception.toSendFailure(): SendFailure =
       when (this) {

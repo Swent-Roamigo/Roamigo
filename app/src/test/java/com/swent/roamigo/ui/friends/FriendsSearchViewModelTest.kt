@@ -1,3 +1,4 @@
+// AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.friends
 
 import androidx.lifecycle.ViewModelProvider
@@ -12,6 +13,7 @@ import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.model.users.UserRepositoryException
 import java.time.Instant
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -404,7 +406,7 @@ class FriendsSearchViewModelTest {
         users.searchGate = gate
 
         model.updateQuery("Bob")
-        advanceTimeBy(300)
+        advanceTimeBy(300.milliseconds)
         runCurrent()
 
         assertEquals(1, users.searchCount)
@@ -501,6 +503,13 @@ class FriendsSearchViewModelTest {
         model.updateQuery("Bon")
 
         assertEquals(0, friends.sendCount)
+
+        model.retrySearch()
+        model.retryRelationships()
+        advanceUntilIdle()
+
+        assertEquals(0, aliceFriends.activeObservers)
+        assertEquals(1, users.searchCount)
       }
 
   @Test
@@ -554,29 +563,46 @@ class FriendsSearchViewModelTest {
   // Additional tests for validation and coverage.
 
   @Test
-  fun debounceWaits300MillisAfterTheLatestInputAndSkipsRepeatedQuery() =
+  fun debounceWaits300MillisAndIgnoresWhitespaceOnlyEdits() =
       runTest(dispatcher) {
         val model = model()
 
         model.updateQuery("B")
         runCurrent()
-        advanceTimeBy(299)
+        advanceTimeBy(299.milliseconds)
         runCurrent()
         assertEquals(0, users.searchCount)
 
         model.updateQuery("Bo")
         runCurrent()
-        advanceTimeBy(299)
+
+        // Whitespace-only edits must not restart the debounce.
+        advanceTimeBy(150.milliseconds)
+        model.updateQuery(" Bo ")
+        runCurrent()
+        assertEquals(" Bo ", model.uiState.value.query)
+
+        advanceTimeBy(149.milliseconds)
         runCurrent()
         assertEquals(0, users.searchCount)
 
-        advanceTimeBy(1)
+        advanceTimeBy(1.milliseconds)
         runCurrent()
-
         assertEquals(listOf("Bo"), users.queries)
 
-        model.updateQuery("Bo")
+        // They must not clear loaded results or requery either.
+        val results = model.uiState.value.results
+        assertTrue(results.isNotEmpty())
+
+        model.updateQuery("Bo  ")
         advanceUntilIdle()
+
+        // Repeating exactly the same input must also be a no-op.
+        model.updateQuery("Bo  ")
+        advanceUntilIdle()
+
+        assertEquals("Bo  ", model.uiState.value.query)
+        assertEquals(results, model.uiState.value.results)
         assertEquals(1, users.searchCount)
       }
 
@@ -756,7 +782,7 @@ class FriendsSearchViewModelTest {
         users.searchGate = gate
 
         model.updateQuery("Bob")
-        advanceTimeBy(300)
+        advanceTimeBy(300.milliseconds)
         runCurrent()
 
         assertEquals(1, users.searchCount)
@@ -817,7 +843,7 @@ class FriendsSearchViewModelTest {
         users.searchGate = gate
 
         model.updateQuery("Bob")
-        advanceTimeBy(300)
+        advanceTimeBy(300.milliseconds)
         runCurrent()
 
         assertEquals(1, users.searchCount)
@@ -1082,7 +1108,7 @@ class FriendsSearchViewModelTest {
             FriendsSearchViewModel(directory, friends, "alice").also { store.put("search", it) }
 
         model.updateQuery("Bob")
-        advanceTimeBy(300)
+        advanceTimeBy(300.milliseconds)
         runCurrent()
 
         // The previous repository call ignores cancellation.
@@ -1121,7 +1147,7 @@ class FriendsSearchViewModelTest {
             FriendsSearchViewModel(directory, friends, "alice").also { store.put("search", it) }
 
         model.updateQuery("Bob")
-        advanceTimeBy(300)
+        advanceTimeBy(300.milliseconds)
         runCurrent()
 
         model.updateQuery("Bon")

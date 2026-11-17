@@ -21,3 +21,6 @@ interface UserRepository {
   /** Publishes the authenticated user's profile and verified email lookup. */
   suspend fun publishCurrentUser()
 }
+
+internal const val MAX_USER_NAME_LENGTH = 120
+internal const val MAX_USER_EMAIL_LENGTH = 254
