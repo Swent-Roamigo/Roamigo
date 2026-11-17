@@ -621,6 +621,8 @@
     <string name="activity_form_adding">Adding activity…</string>
     <string name="activity_form_save_changes">Save changes</string>
     <string name="activity_form_delete">Delete activity</string>
+    <string name="activity_form_discard_title">Discard your changes?</string>
+    <string name="activity_form_discard_message">What you entered for this activity will not be saved.</string>
     <string name="activity_form_error_name_blank">Enter a name for the activity.</string>
     <string name="activity_form_error_name_too_long">This name is too long. Shorten it.</string>
     <string name="activity_form_error_description_too_long">This description is too long. Shorten it.</string>
