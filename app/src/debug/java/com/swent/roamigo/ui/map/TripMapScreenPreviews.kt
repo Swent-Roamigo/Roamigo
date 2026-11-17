@@ -121,6 +121,28 @@ class TripMapScreenPreviews {
     )
   }
 
+  /** Updated activity bounds are pending after the user moved the map; clicking frames them. */
+  @Preview(name = "Show all locations", showBackground = true, widthDp = 390, heightDp = 844)
+  @Composable
+  private fun TripMapShowAllLocationsPreview() {
+    val cameraState = remember {
+      TripMapCameraState().apply { onCameraGesture(previewTripMapLoadedState.viewport) }
+    }
+    val locations =
+        previewTripWithActivities.destinations + previewTripActivities.map { it.location }
+    TripMapPreview(
+        uiState =
+            previewTripMapLoadedState.copy(
+                trip = previewTripWithActivities,
+                viewport =
+                    tripMapViewportOf(locations.map { MapCoordinate(it.latitude, it.longitude) }),
+                activityMarkers = previewTripActivities.toTripMarkerUiStates(),
+            ),
+        isSharing = false,
+        cameraState = cameraState,
+    )
+  }
+
   @Preview(showBackground = true, widthDp = 390, heightDp = 844)
   @Composable
   private fun TripMapFakeRepositoryPreview() {
@@ -171,6 +193,7 @@ class TripMapScreenPreviews {
       onRetryActivities: () -> Unit = {},
       isOffline: Boolean = false,
       isStartingSharing: Boolean = false,
+      cameraState: TripMapCameraState = rememberTripMapCameraState(),
   ) {
     RoamigoTheme {
       TripMapScreen(
@@ -178,6 +201,7 @@ class TripMapScreenPreviews {
           isSharing = isSharing,
           isStartingSharing = isStartingSharing,
           isOffline = isOffline,
+          cameraState = cameraState,
           onRetry = onRetry,
           onRetryActivities = onRetryActivities,
           onTurnOnSharing = {},

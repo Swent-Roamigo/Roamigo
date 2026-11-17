@@ -14,16 +14,24 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.*
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@OptIn(ExperimentalCoroutinesApi::class)
 class AuthRepositoryFirebaseTest {
   // Structurally valid JWT for the SDK parser; no real account or signing key is used.
   private val idToken =
@@ -136,6 +144,55 @@ class AuthRepositoryFirebaseTest {
     } catch (_: CancellationException) {
       // Cancellation must not be turned into an authentication failure.
     }
+  }
+
+  @Test
+  fun authObservationEmitsCurrentAccountSignOutAndAccountChanges() = runTest {
+    var currentAccount: FirebaseUser? = firebaseUser()
+    lateinit var listener: FirebaseAuth.AuthStateListener
+    `when`(auth.currentUser).thenAnswer { currentAccount }
+    doAnswer {
+          listener = it.getArgument(0)
+          listener.onAuthStateChanged(auth)
+          null
+        }
+        .`when`(auth)
+        .addAuthStateListener(any(FirebaseAuth.AuthStateListener::class.java))
+    val observed = mutableListOf<AuthenticatedUser?>()
+    val job = backgroundScope.launch { repository.observeCurrentUser().toList(observed) }
+    runCurrent()
+    assertEquals(listOf(expectedUser), observed)
+
+    currentAccount = null
+    listener.onAuthStateChanged(auth)
+    runCurrent()
+    assertEquals(listOf(expectedUser, null), observed)
+
+    val other = mock(FirebaseUser::class.java)
+    `when`(other.uid).thenReturn("other")
+    currentAccount = other
+    listener.onAuthStateChanged(auth)
+    runCurrent()
+    assertEquals(listOf(expectedUser, null, AuthenticatedUser("other", null, null, null)), observed)
+
+    job.cancelAndJoin()
+    verify(auth).removeAuthStateListener(listener)
+  }
+
+  @Test
+  fun signedOutAuthObservationEmitsNullAndReleasesListenerWhenCollectionEnds() = runTest {
+    lateinit var listener: FirebaseAuth.AuthStateListener
+    doAnswer {
+          listener = it.getArgument(0)
+          listener.onAuthStateChanged(auth)
+          null
+        }
+        .`when`(auth)
+        .addAuthStateListener(any(FirebaseAuth.AuthStateListener::class.java))
+
+    assertNull(repository.observeCurrentUser().first())
+
+    verify(auth).removeAuthStateListener(listener)
   }
 
   @Test

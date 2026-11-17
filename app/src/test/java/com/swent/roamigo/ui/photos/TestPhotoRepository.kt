@@ -2,6 +2,7 @@
 package com.swent.roamigo.ui.photos
 
 import com.swent.roamigo.model.photo.PendingPhoto
+import com.swent.roamigo.model.photo.PhotoCoordinates
 import com.swent.roamigo.model.photo.PhotoFileStore
 import com.swent.roamigo.model.photo.PhotoRepository
 import com.swent.roamigo.model.photo.TripPhoto
@@ -13,12 +14,20 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 
+/** What [TestPhotoRepository.savePhoto] was given, besides the trip. */
+data class SavedPhoto(
+    val file: File,
+    val takenAtMillis: Long,
+    val coordinates: PhotoCoordinates?,
+)
+
 /** [PhotoRepository] for view model tests: it records every call and can fail or wait. */
 class TestPhotoRepository(directory: File) : PhotoRepository {
   private val files = PhotoFileStore(directory)
   val photos = MutableStateFlow<List<PendingPhoto>>(emptyList())
 
   val saved = mutableListOf<Pair<String, File>>()
+  val savedPhotos = mutableListOf<SavedPhoto>()
   val discarded = mutableListOf<File>()
   val retried = mutableListOf<String>()
   val created = mutableListOf<File>()
@@ -58,10 +67,16 @@ class TestPhotoRepository(directory: File) : PhotoRepository {
 
   override fun fileOf(photo: PendingPhoto): File = files.fileOf(photo)
 
-  override suspend fun savePhoto(tripId: String, file: File) {
+  override suspend fun savePhoto(
+      tripId: String,
+      file: File,
+      takenAtMillis: Long,
+      coordinates: PhotoCoordinates?,
+  ) {
     saveGate?.await()
     saveError?.let { throw it }
     saved += tripId to file
+    savedPhotos += SavedPhoto(file, takenAtMillis, coordinates)
   }
 
   override fun discard(file: File) {

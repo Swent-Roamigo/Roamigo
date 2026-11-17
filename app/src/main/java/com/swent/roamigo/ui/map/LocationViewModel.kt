@@ -1,4 +1,4 @@
-// Implemented with assistance from Claude (Anthropic).
+// Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui.map
 
 import android.util.Log
@@ -216,10 +216,13 @@ class LocationViewModel(
   }
 
   /**
-   * Closes the open permission sheet without requesting anything, e.g. on "Not now", "Got it" or a
-   * swipe away.
+   * Cancels the permission flow and closes its sheet, e.g. on dismissal or when sharing becomes
+   * unavailable. A later system answer only updates the permission state.
    */
-  fun onPermissionSheetDismissed() = showPermissionSheet(LocationPermissionSheet.None)
+  fun onPermissionSheetDismissed() {
+    permissionRequestPending = false
+    showPermissionSheet(LocationPermissionSheet.None)
+  }
 
   /** Closes the open permission sheet and asks the screen to open the app's settings. */
   fun onOpenSettings() {

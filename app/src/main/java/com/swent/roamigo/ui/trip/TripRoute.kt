@@ -37,7 +37,6 @@ import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.map.LocationViewModel
 import com.swent.roamigo.ui.map.TripMapRoute
-import com.swent.roamigo.ui.map.TripMapScreen
 import com.swent.roamigo.ui.map.TripMapUiState
 import com.swent.roamigo.ui.map.TripMapViewModel
 import com.swent.roamigo.ui.photos.PhotosRoute
@@ -105,9 +104,7 @@ internal fun TripRoute(
   if (tab == TripSection.Map && !readOnly) SideEffect { hasOpenedMap = true }
   val locationFactory =
       if ((tab == TripSection.Map || hasOpenedMap) && (!readOnly || hasOpenedMap)) {
-        val location =
-            locationRepository
-                ?: (context.applicationContext as RoamigoApplication).locationRepository
+        val location = resolveLocationRepository(locationRepository, context)
         val connectivity =
             connectivityRepository ?: remember(context) { DefaultConnectivityRepository(context) }
         remember(tripId, userId, location, connectivity) {
@@ -122,9 +119,7 @@ internal fun TripRoute(
       if (locationModel != null) {
         locationModel.onLeaveTrip()
       } else {
-        val location =
-            locationRepository
-                ?: (context.applicationContext as RoamigoApplication).locationRepository
+        val location = resolveLocationRepository(locationRepository, context)
         runCatching { location.stopSharing(tripId) }
             .onFailure { Log.w("TripRoute", "Could not stop sharing for completed trip", it) }
       }
@@ -190,25 +185,14 @@ internal fun TripRoute(
                 onMembersClick = onMembersClick,
                 onInviteClick = onInviteClick ?: notImplemented,
             )
-        TripSection.Map -> {
-          if (readOnly) {
-            TripMapScreen(
-                uiState = tripState,
-                isSharing = false,
-                onRetry = tripModel::retryTrip,
-                onRetryActivities = tripModel::retryActivities,
-                onTurnOnSharing = {},
-                onPauseSharing = {},
-                readOnly = true,
-            )
-          } else {
+        // Keep the map and its camera state when trip loading changes action availability.
+        TripSection.Map ->
             TripMapRoute(
                 tripId = tripId,
                 tripMapViewModelFactory = tripMapFactory,
-                locationViewModelFactory = requireNotNull(locationFactory),
+                locationViewModelFactory = locationFactory,
+                readOnly = readOnly,
             )
-          }
-        }
         TripSection.Votes ->
             TripVotes(
                 tripId,
@@ -224,9 +208,11 @@ internal fun TripRoute(
         TripSection.Photos -> {
           val connectivity =
               connectivityRepository ?: remember(context) { DefaultConnectivityRepository(context) }
+          val location = resolveLocationRepository(locationRepository, context)
           PhotosRoute(
               photoRepository = photoRepository,
               connectivityRepository = connectivity,
+              locationRepository = location,
               tripId = tripId,
               currentUserId = userId,
               tripName = loaded?.trip?.name.orEmpty(),
@@ -246,6 +232,13 @@ internal fun TripRoute(
     }
   }
 }
+
+/** Returns the injected repository, or the application's one when none was injected. */
+private fun resolveLocationRepository(
+    injected: LocationRepository?,
+    context: Context,
+): LocationRepository =
+    injected ?: (context.applicationContext as RoamigoApplication).locationRepository
 
 @Composable
 internal fun rememberLocalDate(zone: ZoneId) =

@@ -13,6 +13,9 @@ import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.auth
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -65,6 +68,12 @@ class AuthRepositoryFirebase(
   }
 
   override fun getCurrentUser(): AuthenticatedUser? = auth.currentUser?.toAuthenticatedUser()
+
+  override fun observeCurrentUser(): Flow<AuthenticatedUser?> = callbackFlow {
+    val listener = FirebaseAuth.AuthStateListener { trySend(it.currentUser?.toAuthenticatedUser()) }
+    auth.addAuthStateListener(listener)
+    awaitClose { auth.removeAuthStateListener(listener) }
+  }
 
   private fun FirebaseUser.toAuthenticatedUser() =
       AuthenticatedUser(
