@@ -96,7 +96,10 @@ class FriendsRouteTest {
     show()
 
     composeRule.onNodeWithText("Bob").assertIsDisplayed()
-    composeRule.onNodeWithTag(C.Tag.friends_photo_prefix + "bob").assertExists()
+    // The avatar is a child of the clickable friend row's merged navigation node.
+    composeRule
+        .onNodeWithTag(C.Tag.friends_photo_prefix + "bob", useUnmergedTree = true)
+        .assertExists()
     composeRule.onNodeWithText("Carol").performScrollTo().assertIsDisplayed()
     composeRule.onNodeWithText("Pending").assertIsDisplayed()
     composeRule.onNodeWithText("0 countries", substring = true).assertDoesNotExist()

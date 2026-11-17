@@ -90,8 +90,9 @@ class FriendsScreenTest {
     composeRule.onNodeWithText("Accept").assertDoesNotExist()
     composeRule.onNodeWithText("Decline").assertDoesNotExist()
 
+    // Clickable friend rows merge their avatar nodes into the navigation semantics.
     composeRule
-        .onNodeWithTag(C.Tag.friends_avatar_prefix + "sam")
+        .onNodeWithTag(C.Tag.friends_avatar_prefix + "sam", useUnmergedTree = true)
         .assert(hasAnyDescendant(hasText("S")))
   }
 
@@ -100,7 +101,7 @@ class FriendsScreenTest {
     show()
 
     composeRule
-        .onNodeWithTag(C.Tag.friends_avatar_prefix + "mia")
+        .onNodeWithTag(C.Tag.friends_avatar_prefix + "mia", useUnmergedTree = true)
         .assert(hasAnyDescendant(hasText("M")))
 
     composeRule
@@ -198,6 +199,31 @@ class FriendsScreenTest {
 
     composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.friends_view_map_prefix + "jonas").assertDoesNotExist()
+  }
+
+  @Test
+  fun removingAFriendDoesNotTriggerTheRowNavigation() {
+    var viewedUserId: String? = null
+    var removedFriendshipId: String? = null
+    composeRule.setContent {
+      RoamigoTheme {
+        FriendsScreen(
+            uiState =
+                FriendsUiState(
+                    friends = listOf(FriendUiModel("sam", "Sam", friendshipId = "friendship-sam"))
+                ),
+            onViewMapClick = { viewedUserId = it },
+            onRemoveFriend = { removedFriendshipId = it },
+        )
+      }
+    }
+
+    composeRule.onNodeWithTag(C.Tag.friends_remove_prefix + "friendship-sam").performClick()
+    assertEquals("friendship-sam", removedFriendshipId)
+    assertEquals(null, viewedUserId)
+
+    composeRule.onNodeWithTag(C.Tag.friends_view_map_prefix + "sam").performClick()
+    assertEquals("sam", viewedUserId)
   }
 
   @Test
