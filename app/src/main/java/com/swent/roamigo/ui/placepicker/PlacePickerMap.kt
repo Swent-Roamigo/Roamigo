@@ -1,6 +1,7 @@
 // Implemented with assistance from OpenAI Codex.
 package com.swent.roamigo.ui.placepicker
 
+import android.annotation.SuppressLint
 import android.view.MotionEvent
 import android.view.View
 import androidx.compose.runtime.*
@@ -12,6 +13,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.mapbox.geojson.Point
 import com.mapbox.maps.MapLoadingErrorType
+import com.mapbox.maps.MapView
 import com.mapbox.maps.Style
 import com.mapbox.maps.ViewAnnotationAnchor
 import com.mapbox.maps.extension.compose.DisposableMapEffect
@@ -21,6 +23,12 @@ import com.mapbox.maps.extension.compose.annotation.ViewAnnotation
 import com.mapbox.maps.extension.compose.rememberMapState
 import com.mapbox.maps.extension.compose.style.MapStyle
 import com.mapbox.maps.extension.compose.style.MapboxStyleComposable
+import com.mapbox.maps.extension.compose.style.projection.generated.Projection
+import com.mapbox.maps.extension.compose.style.rememberStyleState
+import com.mapbox.maps.extension.style.layers.properties.generated.ProjectionName
+import com.mapbox.maps.extension.style.projection.generated.getProjection
+import com.mapbox.maps.plugin.gestures.OnMapLongClickListener
+import com.mapbox.maps.plugin.gestures.gestures
 import com.mapbox.maps.viewannotation.annotationAnchor
 import com.mapbox.maps.viewannotation.geometry
 import com.mapbox.maps.viewannotation.viewAnnotationOptions
@@ -48,6 +56,7 @@ internal fun PlacePickerMap(
     }
   }
   val mapState = rememberMapState()
+  val currentOnPointSelected by rememberUpdatedState(onPointSelected)
   val currentOnFailed by rememberUpdatedState(onLoadingFailed)
   val currentOnLoaded by rememberUpdatedState(onLoaded)
   LaunchedEffect(mapState) {
@@ -66,19 +75,32 @@ internal fun PlacePickerMap(
       attribution = { Attribution() },
       mapViewportState = viewport,
       mapState = mapState,
-      onMapLongClickListener = { point ->
-        onPointSelected(point.latitude(), point.longitude())
-        true
-      },
       // Retry only the style: rebuilding the whole map would discard the user's camera position.
       style =
           @Composable @MapboxStyleComposable {
-            key(state.mapLoadAttempt) { MapStyle(style = style) }
+            key(state.mapLoadAttempt) {
+              // Mapbox 11.32.1 long presses use coordinateForPixel, which does not support Globe.
+              val styleState = rememberStyleState { projection = Projection.MERCATOR }
+              MapStyle(style = style, styleState = styleState)
+            }
           },
       content = {
         DisposableMapEffect(Unit) { mapView ->
-          mapView.setOnTouchListener(placePickerMapTouchListener)
-          onDispose { mapView.setOnTouchListener(null) }
+          val listener = OnMapLongClickListener { point ->
+            // Compose applies its projection after style data loads. Check at gesture time.
+            if (mapView.mapboxMap.style?.getProjection()?.name != ProjectionName.MERCATOR) {
+              false
+            } else {
+              currentOnPointSelected(point.latitude(), point.longitude())
+              true
+            }
+          }
+          mapView.gestures.addOnMapLongClickListener(listener)
+          mapView.setPlacePickerTouchInterception(enabled = true)
+          onDispose {
+            mapView.gestures.removeOnMapLongClickListener(listener)
+            mapView.setPlacePickerTouchInterception(enabled = false)
+          }
         }
         state.manualDraft.point?.let { point ->
           ViewAnnotation(
@@ -100,8 +122,15 @@ internal fun PlacePickerMap(
 internal fun MapLoadingErrorType.blocksPlacePickerMap() =
     this == MapLoadingErrorType.STYLE || this == MapLoadingErrorType.SOURCE
 
+// Installing or removing this passive listener leaves click handling to Mapbox.
+@SuppressLint("ClickableViewAccessibility")
+private fun MapView.setPlacePickerTouchInterception(enabled: Boolean) {
+  setOnTouchListener(if (enabled) placePickerMapTouchListener else null)
+}
+
 // Let the native map own a gesture started inside it, instead of the surrounding vertical scroller.
 // Returning false leaves pan, zoom and long-press detection to Mapbox.
+@SuppressLint("ClickableViewAccessibility")
 internal val placePickerMapTouchListener = View.OnTouchListener { view, event ->
   when (event.actionMasked) {
     MotionEvent.ACTION_DOWN -> view.parent?.requestDisallowInterceptTouchEvent(true)
