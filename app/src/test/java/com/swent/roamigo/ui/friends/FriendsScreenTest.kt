@@ -309,9 +309,9 @@ class FriendsScreenTest {
         if (visible.value) {
           FriendsScreen(
               uiState = populatedState.copy(actionFailure = failure.value),
-              onDismissActionFailure = {
+              onDismissActionFailure = { acknowledgedFailure ->
                 dismissals++
-                failure.value = null
+                if (failure.value == acknowledgedFailure) failure.value = null
               },
           )
         }
@@ -332,18 +332,18 @@ class FriendsScreenTest {
   }
 
   @Test
-  fun replacingOrClearingAFailureDoesNotAcknowledgeAnotherFailure() {
+  fun replacingOrClearingAFailureReportsTheSpecificMessageBeingCancelled() {
     val oldFailure = FriendsActionFailure("friendship-sam", FriendsAction.REMOVE)
     val newFailure = FriendsActionFailure("request-mia", FriendsAction.DECLINE)
     val failure = mutableStateOf<FriendsActionFailure?>(oldFailure)
-    var dismissals = 0
+    val acknowledgements = mutableListOf<FriendsActionFailure>()
     composeRule.setContent {
       RoamigoTheme {
         FriendsScreen(
             uiState = populatedState.copy(actionFailure = failure.value),
-            onDismissActionFailure = {
-              dismissals++
-              failure.value = null
+            onDismissActionFailure = { acknowledgedFailure ->
+              acknowledgements += acknowledgedFailure
+              if (failure.value == acknowledgedFailure) failure.value = null
             },
         )
       }
@@ -357,11 +357,11 @@ class FriendsScreenTest {
     composeRule.onNodeWithText(oldMessage).assertDoesNotExist()
     composeRule.runOnIdle {
       assertEquals(newFailure, failure.value)
-      assertEquals(0, dismissals)
+      assertEquals(listOf(oldFailure), acknowledgements)
       failure.value = null
     }
     composeRule.onNodeWithText(newMessage).assertDoesNotExist()
-    composeRule.runOnIdle { assertEquals(0, dismissals) }
+    composeRule.runOnIdle { assertEquals(listOf(oldFailure, newFailure), acknowledgements) }
   }
 
   @Test
@@ -370,7 +370,7 @@ class FriendsScreenTest {
     val visible = mutableStateOf(true)
     var originalDismissals = 0
     var replacementDismissals = 0
-    val dismiss = mutableStateOf<() -> Unit>({ originalDismissals++ })
+    val dismiss = mutableStateOf<(FriendsActionFailure) -> Unit>({ originalDismissals++ })
     composeRule.setContent {
       RoamigoTheme {
         if (visible.value) {
@@ -383,7 +383,12 @@ class FriendsScreenTest {
     }
     val message = string(R.string.friends_remove_failed)
     composeRule.onNodeWithText(message).assertIsDisplayed()
-    composeRule.runOnIdle { dismiss.value = { replacementDismissals++ } }
+    composeRule.runOnIdle {
+      dismiss.value = { acknowledgedFailure ->
+        assertEquals(failure, acknowledgedFailure)
+        replacementDismissals++
+      }
+    }
     composeRule.waitForIdle()
 
     composeRule.runOnIdle { visible.value = false }

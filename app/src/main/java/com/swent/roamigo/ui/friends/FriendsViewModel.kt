@@ -116,8 +116,9 @@ class FriendsViewModel(
     }
   }
 
-  fun dismissActionFailure() {
-    _uiState.update { it.copy(actionFailure = null) }
+  /** Acknowledges [failure] only while it is still the current action failure. */
+  fun dismissActionFailure(failure: FriendsActionFailure) {
+    _uiState.update { if (it.actionFailure == failure) it.copy(actionFailure = null) else it }
   }
 
   private fun observeSession() {
