@@ -1,4 +1,4 @@
-// Implemented with assistance from Claude (Anthropic).
+// Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui.map
 
 import com.swent.roamigo.model.trip.Trip
@@ -26,6 +26,7 @@ sealed interface TripMapUiState {
    * @property activityMarkers markers for activities and suggestions belonging to the trip.
    * @property activitiesLoadState loading status of the activities and suggestions. Existing
    *   markers remain available while refreshing or after a failed refresh.
+   * @property photoMarkers grouped gallery photos with usable coordinates.
    */
   data class Loaded(
       val trip: Trip,
@@ -33,6 +34,7 @@ sealed interface TripMapUiState {
       val members: Map<String, MemberDisplayInfo>,
       val activityMarkers: List<TripMarkerUiState> = emptyList(),
       val activitiesLoadState: ActivitiesLoadState = ActivitiesLoadState.LOADING,
+      val photoMarkers: List<PhotoMarkerUiState> = emptyList(),
   ) : TripMapUiState
 }
 
