@@ -76,7 +76,8 @@ import kotlinx.coroutines.launch
  * Repository defaults provide placeholders for previews and tests; MainActivity supplies real
  * trips, activities, and votes.
  *
- * @param activityRepository Provides live activity and suggestion updates for the trip map.
+ * @param activityRepository Provides live activity and suggestion updates for the trip map, and
+ *   stores the activities created with the activity form.
  * @param voteRepository Shared backend for trip vote discovery, creation, and individual ballots.
  * @param photoRepository Takes trip photos and keeps them until they are uploaded.
  * @param connectivityRepository Tells whether the device is online; the device's own by default.
