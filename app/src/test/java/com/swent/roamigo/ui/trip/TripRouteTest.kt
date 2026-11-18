@@ -14,10 +14,12 @@ import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.core.app.ActivityOptionsCompat
 import androidx.core.content.FileProvider
@@ -30,7 +32,9 @@ import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.connectivity.FakeConnectivityRepository
 import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.photo.FakePhotoRepository
+import com.swent.roamigo.model.photo.PhotoCoordinates
 import com.swent.roamigo.model.photo.PhotoModule
+import com.swent.roamigo.model.photo.PhotoRepository
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
@@ -61,6 +65,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
 
 /** Takes every picture successfully and answers permission requests with a grant. */
 private class RecordingRegistry : ActivityResultRegistry() {
@@ -222,10 +227,72 @@ class TripRouteTest {
     composeRule.onNodeWithTag(C.Tag.photo_preview).assertIsDisplayed()
   }
 
+  @Test
+  @Config(qualifiers = "w640dp-h360dp-land")
+  fun photoPreviewFitsInsideTheTripScreenInALandscapePhoneWithEveryMessage() {
+    val failingSaves =
+        object :
+            PhotoRepository by FakePhotoRepository(
+                File(composeRule.activity.filesDir, PhotoModule.PHOTO_DIRECTORY)
+            ) {
+          override suspend fun savePhoto(
+              tripId: String,
+              file: File,
+              takenAtMillis: Long,
+              coordinates: PhotoCoordinates?,
+          ) = throw IOException("disk full")
+        }
+    showOffLocationPhotoPreview(
+        signedInAuth(),
+        RecordingRegistry(),
+        FakeLocationRepository(),
+        connectivity = FakeConnectivityRepository(isOnlineInitially = false),
+        photos = failingSaves,
+        onAuthenticationRequired = {},
+    )
+    composeRule.onNodeWithTag(C.Tag.photo_preview_save).performClick()
+    composeRule.waitUntil(5_000) {
+      composeRule.onAllNodesWithTag(C.Tag.photo_preview_error).fetchSemanticsNodes().isNotEmpty()
+    }
+
+    val tags =
+        listOf(
+            C.Tag.photo_preview_location,
+            C.Tag.photo_preview_offline,
+            C.Tag.photo_preview_error,
+            C.Tag.photo_preview_close,
+            C.Tag.photo_preview_save,
+            C.Tag.photo_preview_retake,
+        )
+    tags.forEach { composeRule.onNodeWithTag(it).assertIsDisplayed() }
+    val root = composeRule.onRoot().getUnclippedBoundsInRoot()
+    val bounds = tags.associateWith { composeRule.onNodeWithTag(it).getUnclippedBoundsInRoot() }
+    bounds.forEach { (tag, box) ->
+      assertTrue(
+          "$tag $box is not inside the root $root",
+          box.left >= root.left &&
+              box.top >= root.top &&
+              box.right <= root.right &&
+              box.bottom <= root.bottom,
+      )
+    }
+    tags.forEachIndexed { i, first ->
+      tags.drop(i + 1).forEach { second ->
+        val a = bounds.getValue(first)
+        val b = bounds.getValue(second)
+        val overlaps = a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
+        assertTrue("$first $a overlaps $second $b", !overlaps)
+      }
+    }
+  }
+
   private fun showOffLocationPhotoPreview(
       auth: FakeAuthRepository,
       registry: RecordingRegistry,
       locations: FakeLocationRepository,
+      connectivity: FakeConnectivityRepository = FakeConnectivityRepository(),
+      photos: PhotoRepository =
+          FakePhotoRepository(File(composeRule.activity.filesDir, PhotoModule.PHOTO_DIRECTORY)),
       onAuthenticationRequired: () -> Unit,
   ) {
     val trip = trip()
@@ -249,11 +316,8 @@ class TripRouteTest {
               activityRepository = FakeActivityRepository(),
               userRepository = FakeUserRepository(User("member", "Member", null)),
               voteRepository = InMemoryVoteRepository(),
-              photoRepository =
-                  FakePhotoRepository(
-                      File(composeRule.activity.filesDir, PhotoModule.PHOTO_DIRECTORY)
-                  ),
-              connectivityRepository = FakeConnectivityRepository(),
+              photoRepository = photos,
+              connectivityRepository = connectivity,
               locationRepository = locations,
               onBack = {},
               onAuthenticationRequired = onAuthenticationRequired,
