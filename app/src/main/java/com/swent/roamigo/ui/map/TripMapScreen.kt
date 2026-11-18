@@ -291,6 +291,7 @@ fun TripMapScreen(
                 alignment = Alignment.TopEnd,
             )
           },
+          attribution = {},
       ) {
         if (uiState is TripMapUiState.Loaded) {
           uiState.activityMarkers.forEach { marker ->
