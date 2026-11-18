@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
@@ -225,12 +226,7 @@ private fun FriendsList(
     onRemoveFriend: ((String) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-  val loadingDescription = stringResource(R.string.friends_loading)
   val filtered = uiState.matching(query)
-  val hasRelationships =
-      uiState.friends.isNotEmpty() ||
-          uiState.incomingRequests.isNotEmpty() ||
-          uiState.outgoingRequests.isNotEmpty()
   LazyColumn(
       modifier = modifier.testTag(C.Tag.friends_list),
       contentPadding =
@@ -241,97 +237,113 @@ private fun FriendsList(
       verticalArrangement = Arrangement.spacedBy(Spacing.medium),
   ) {
     item(key = "header") { FriendsHeader(friendCount = uiState.friends.size) }
-    if (uiState.isLoading) {
-      item(key = "loading") {
-        LinearProgressIndicator(
-            modifier =
-                Modifier.fillMaxWidth().testTag(C.Tag.friends_loading).semantics {
-                  contentDescription = loadingDescription
-                },
-        )
-      }
+    statusItems(uiState, onRetry)
+    if (uiState.hasRelationships || query.isNotEmpty()) {
+      searchItem(query, onQueryChange)
     }
-    uiState.loadError?.let { error ->
-      item(key = "error") {
-        Text(
-            stringResource(
-                when (error) {
-                  FriendsLoadError.RELATIONSHIPS -> R.string.friends_load_failed
-                  FriendsLoadError.PROFILES -> R.string.friends_profiles_failed
-                  FriendsLoadError.SESSION -> R.string.friends_session_ended
-                }
-            ),
-            modifier = Modifier.testTag(C.Tag.friends_load_error),
-        )
-        if (error != FriendsLoadError.SESSION) {
-          TextButton(onClick = onRetry, modifier = Modifier.testTag(C.Tag.friends_retry)) {
-            Text(stringResource(R.string.friends_retry))
-          }
+    incomingSection(filtered.incomingRequests, onAcceptRequest, onDeclineRequest)
+    friendsSection(filtered.friends, onViewMapClick, onRemoveFriend)
+    outgoingSection(filtered.outgoingRequests)
+    if (uiState.hasRelationships && query.isNotBlank() && !filtered.hasRelationships) {
+      item(key = "no_matches") { Text(stringResource(R.string.friends_no_matches)) }
+    }
+  }
+}
+
+private fun LazyListScope.statusItems(uiState: FriendsUiState, onRetry: () -> Unit) {
+  if (uiState.isLoading) {
+    item(key = "loading") {
+      val loadingDescription = stringResource(R.string.friends_loading)
+      LinearProgressIndicator(
+          modifier =
+              Modifier.fillMaxWidth().testTag(C.Tag.friends_loading).semantics {
+                contentDescription = loadingDescription
+              },
+      )
+    }
+  }
+  uiState.loadError?.let { error ->
+    item(key = "error") {
+      Text(
+          stringResource(
+              when (error) {
+                FriendsLoadError.RELATIONSHIPS -> R.string.friends_load_failed
+                FriendsLoadError.PROFILES -> R.string.friends_profiles_failed
+                FriendsLoadError.SESSION -> R.string.friends_session_ended
+              }
+          ),
+          modifier = Modifier.testTag(C.Tag.friends_load_error),
+      )
+      if (error != FriendsLoadError.SESSION) {
+        TextButton(onClick = onRetry, modifier = Modifier.testTag(C.Tag.friends_retry)) {
+          Text(stringResource(R.string.friends_retry))
         }
       }
     }
-    if (!hasRelationships && !uiState.isLoading && uiState.loadError == null) {
-      item(key = "empty") { EmptyFriendsState() }
-    }
-    if (hasRelationships || query.isNotEmpty()) {
-      item(key = "search") {
-        OutlinedTextField(
-            value = query,
-            onValueChange = onQueryChange,
-            modifier = Modifier.fillMaxWidth().testTag(C.Tag.friends_search),
-            placeholder = { Text(stringResource(R.string.friends_search)) },
-            singleLine = true,
-        )
-      }
-    }
-    if (filtered.incomingRequests.isNotEmpty()) {
-      item(key = "incoming_title") { RelationshipSectionTitle(R.string.friends_incoming_title) }
-    }
-    items(items = filtered.incomingRequests, key = { "incoming:${it.requestId}" }) { request ->
-      IncomingRequestRow(
-          request,
-          onAccept =
-              onAcceptRequest?.let { { it(request.requestId) } } ?: rememberNotImplementedAction(),
-          onDecline =
-              onDeclineRequest?.let { { it(request.requestId) } } ?: rememberNotImplementedAction(),
-      )
-    }
-    if (filtered.friends.isNotEmpty()) {
-      item(key = "friends_title") { RelationshipSectionTitle(R.string.friends_established_title) }
-    }
-    items(
-        items = filtered.friends,
-        key = { friend -> "friend:${friend.userId}" },
-    ) { friend ->
-      FriendRow(
-          friend = friend,
-          onViewMapClick =
-              onViewMapClick?.let { callback -> { callback(friend.userId) } }
-                  ?: rememberNotImplementedAction(),
-          onRemove =
-              onRemoveFriend?.let { callback -> { friend.friendshipId?.let(callback) } }
-                  ?: rememberNotImplementedAction(),
-      )
-    }
+  }
+  if (!uiState.hasRelationships && !uiState.isLoading && uiState.loadError == null) {
+    item(key = "empty") { EmptyFriendsState() }
+  }
+}
 
-    if (filtered.outgoingRequests.isNotEmpty()) {
-      item(key = "outgoing_title") { RelationshipSectionTitle(R.string.friends_outgoing_title) }
-    }
-    items(
-        items = filtered.outgoingRequests,
-        key = { request -> "request:${request.userId}" },
-    ) { request ->
-      OutgoingRequestRow(request)
-    }
-    if (
-        hasRelationships &&
-            query.isNotBlank() &&
-            filtered.friends.isEmpty() &&
-            filtered.incomingRequests.isEmpty() &&
-            filtered.outgoingRequests.isEmpty()
-    ) {
-      item(key = "no_matches") { Text(stringResource(R.string.friends_no_matches)) }
-    }
+private fun LazyListScope.searchItem(query: String, onQueryChange: (String) -> Unit) {
+  item(key = "search") {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier.fillMaxWidth().testTag(C.Tag.friends_search),
+        placeholder = { Text(stringResource(R.string.friends_search)) },
+        singleLine = true,
+    )
+  }
+}
+
+private fun LazyListScope.incomingSection(
+    requests: List<IncomingFriendRequestUiModel>,
+    onAcceptRequest: ((String) -> Unit)?,
+    onDeclineRequest: ((String) -> Unit)?,
+) {
+  if (requests.isNotEmpty()) {
+    item(key = "incoming_title") { RelationshipSectionTitle(R.string.friends_incoming_title) }
+  }
+  items(items = requests, key = { "incoming:${it.requestId}" }) { request ->
+    IncomingRequestRow(
+        request,
+        onAccept =
+            onAcceptRequest?.let { { it(request.requestId) } } ?: rememberNotImplementedAction(),
+        onDecline =
+            onDeclineRequest?.let { { it(request.requestId) } } ?: rememberNotImplementedAction(),
+    )
+  }
+}
+
+private fun LazyListScope.friendsSection(
+    friends: List<FriendUiModel>,
+    onViewMapClick: ((String) -> Unit)?,
+    onRemoveFriend: ((String) -> Unit)?,
+) {
+  if (friends.isNotEmpty()) {
+    item(key = "friends_title") { RelationshipSectionTitle(R.string.friends_established_title) }
+  }
+  items(items = friends, key = { friend -> "friend:${friend.userId}" }) { friend ->
+    FriendRow(
+        friend = friend,
+        onViewMapClick =
+            onViewMapClick?.let { callback -> { callback(friend.userId) } }
+                ?: rememberNotImplementedAction(),
+        onRemove =
+            onRemoveFriend?.let { callback -> { friend.friendshipId?.let(callback) } }
+                ?: rememberNotImplementedAction(),
+    )
+  }
+}
+
+private fun LazyListScope.outgoingSection(requests: List<OutgoingFriendRequestUiModel>) {
+  if (requests.isNotEmpty()) {
+    item(key = "outgoing_title") { RelationshipSectionTitle(R.string.friends_outgoing_title) }
+  }
+  items(items = requests, key = { request -> "request:${request.userId}" }) { request ->
+    OutgoingRequestRow(request)
   }
 }
 
