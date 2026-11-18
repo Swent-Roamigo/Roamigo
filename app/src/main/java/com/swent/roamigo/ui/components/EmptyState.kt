@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -35,7 +36,8 @@ fun EmptyState(
       horizontalAlignment = Alignment.CenterHorizontally,
       verticalArrangement = Arrangement.spacedBy(Spacing.small),
   ) {
-    if (icon != null) {
+    // On a short screen (a phone in landscape) the icon would push the text out of view.
+    if (icon != null && LocalConfiguration.current.screenHeightDp >= MIN_HEIGHT_FOR_ICON_DP) {
       Box(
           Modifier.size(72.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
           contentAlignment = Alignment.Center,
@@ -57,3 +59,5 @@ fun EmptyState(
     )
   }
 }
+
+private const val MIN_HEIGHT_FOR_ICON_DP = 480
