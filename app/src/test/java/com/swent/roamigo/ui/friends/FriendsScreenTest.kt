@@ -406,4 +406,18 @@ class FriendsScreenTest {
     assertTrue(list.width <= ContentMaxWidth)
     composeRule.onNodeWithText("Sam").assertIsDisplayed()
   }
+
+  @Test
+  @Config(qualifiers = "w800dp-h360dp")
+  fun inLandscapeTheEmptyStateKeepsItsTextInView() {
+    show(uiState = FriendsUiState())
+
+    // The text must sit above the Add button, not under it.
+    val text =
+        composeRule
+            .onNodeWithText(resources.string(R.string.friends_empty_description))
+            .getUnclippedBoundsInRoot()
+    val button = composeRule.onNodeWithTag(C.Tag.friends_add_friend).getUnclippedBoundsInRoot()
+    assertTrue(text.bottom <= button.top)
+  }
 }
