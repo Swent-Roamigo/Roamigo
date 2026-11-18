@@ -2,16 +2,11 @@
 package com.swent.roamigo.ui.placepicker
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
-import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.place.PlaceCandidate
 import com.swent.roamigo.ui.map.MapCoordinate
@@ -78,20 +73,8 @@ private fun ManualPickerPreview(draft: PlacePickerManualDraft) {
         {},
         {},
     ) { modifier ->
-      Surface(
-          modifier,
-          color = MaterialTheme.colorScheme.surfaceVariant,
-      ) {
-        // Keep the stand-in self-contained: do not load the Mapbox adapter even for its marker.
-        Box(contentAlignment = Alignment.Center) {
-          if (draft.point != null) {
-            Icon(
-                painter = painterResource(R.drawable.ic_map_marker),
-                contentDescription = stringResource(R.string.place_picker_map_marker),
-                tint = Color.Unspecified,
-            )
-          }
-        }
+      Surface(modifier, color = MaterialTheme.colorScheme.surfaceVariant) {
+        Box(contentAlignment = Alignment.Center) { if (draft.point != null) PlacePickerMapMarker() }
       }
     }
   }

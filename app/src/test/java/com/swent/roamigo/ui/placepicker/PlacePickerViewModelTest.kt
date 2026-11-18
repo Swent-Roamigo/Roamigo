@@ -637,6 +637,8 @@ class PlacePickerViewModelTest {
         assertEquals("café", vm.uiState.value.query)
         assertEquals(selected, vm.uiState.value.selectedLocation)
         assertNull(vm.consumeResult())
+        runCurrent()
+        assertEquals(1, repo.searchRequests.size)
         vm.enterMap()
         assertEquals(selected, vm.uiState.value.manualDraft.location)
         vm.confirm()
@@ -698,6 +700,141 @@ class PlacePickerViewModelTest {
           assertNull(vm.uiState.value.resolutionError)
           assertNull(vm.uiState.value.resolvingCandidateId)
         }
+      }
+
+  @Test
+  fun returningFromMapRefreshesCandidatesOnceEvenWithAnOlderSelection() =
+      runTest(dispatcher) {
+        val repo = repository()
+        val vm = picker(repo, initial = original)
+        vm.updateQuery("café")
+        advanceUntilIdle()
+        vm.enterMap()
+        val fresh = candidate.copy(id = "fresh", attribution = null)
+        repo.search = { _, _ -> listOf(fresh) }
+        vm.backToSearch()
+        vm.backToSearch()
+        assertEquals(PlaceSearchStatus.LOADING, vm.uiState.value.searchStatus)
+        runCurrent()
+        assertEquals(listOf(fresh), vm.uiState.value.candidates)
+        assertEquals("café", vm.uiState.value.query)
+        assertEquals(candidate.attribution, vm.uiState.value.attribution)
+        assertEquals(original, vm.uiState.value.selectedLocation)
+        assertEquals(2, repo.searchRequests.size)
+      }
+
+  @Test
+  fun returningDuringInterruptedRetrieveWaitsForSessionAndDoesNotRetrieveAgain() =
+      runTest(dispatcher) {
+        val pending = CompletableDeferred<Place>()
+        val repo =
+            repository().apply { resolve = { withContext(NonCancellable) { pending.await() } } }
+        val vm = picker(repo, initial = original)
+        vm.updateQuery("café")
+        advanceUntilIdle()
+        vm.selectCandidate(candidate)
+        runCurrent()
+        vm.enterMap()
+        vm.backToSearch()
+        runCurrent()
+        assertEquals(1, repo.searchRequests.size)
+        pending.complete(Place("Late", null, 1.0, 1.0))
+        runCurrent()
+        assertEquals(2, repo.searchRequests.size)
+        assertEquals(1, repo.resolveRequests.size)
+        assertEquals(original, vm.uiState.value.selectedLocation)
+        assertEquals(listOf(candidate), vm.uiState.value.candidates)
+      }
+
+  @Test
+  fun mapBackAfterRestorationResumesInterruptedSearchOnlyWhenSearchIsVisible() =
+      runTest(dispatcher) {
+        val handle = SavedStateHandle()
+        val repo = repository().apply { search = { _, _ -> awaitCancellation() } }
+        val vm = picker(repo, handle, original)
+        vm.updateQuery("café")
+        advanceUntilIdle()
+        vm.enterMap()
+        stores.last().clear()
+        val restoredRepo = repository()
+        val restored = picker(restoredRepo, handle)
+        runCurrent()
+        assertTrue(restoredRepo.searchRequests.isEmpty())
+        restored.backToSearch()
+        runCurrent()
+        assertEquals(listOf(candidate), restored.uiState.value.candidates)
+        assertEquals(original, restored.uiState.value.selectedLocation)
+        assertEquals(1, restoredRepo.searchRequests.size)
+      }
+
+  @Test
+  fun mapBackKeepsShortEmptyAndFailedSearchesIdle() =
+      runTest(dispatcher) {
+        val repo = repository()
+        val vm = picker(repo)
+        vm.updateQuery("a")
+        vm.enterMap()
+        vm.backToSearch()
+        advanceUntilIdle()
+        assertTrue(repo.searchRequests.isEmpty())
+        assertEquals("a", vm.uiState.value.query)
+
+        repo.search = { _, _ -> emptyList() }
+        vm.updateQuery("empty")
+        advanceUntilIdle()
+        vm.enterMap()
+        vm.backToSearch()
+        advanceUntilIdle()
+        assertEquals(PlaceSearchStatus.EMPTY, vm.uiState.value.searchStatus)
+        assertEquals(1, repo.searchRequests.size)
+
+        repo.search = { _, _ -> throw PlaceSearchException.InvalidToken() }
+        vm.updateQuery("error")
+        advanceUntilIdle()
+        vm.enterMap()
+        vm.backToSearch()
+        advanceUntilIdle()
+        assertEquals(PlacePickerError.INVALID_TOKEN, vm.uiState.value.searchError)
+        assertEquals(2, repo.searchRequests.size)
+
+        repo.search = { _, _ -> listOf(candidate) }
+        repo.resolve = { throw PlaceSearchException.QuotaExceeded() }
+        vm.retry()
+        runCurrent()
+        vm.selectCandidate(candidate)
+        runCurrent()
+        vm.enterMap()
+        vm.backToSearch()
+        runCurrent()
+        assertEquals(PlacePickerError.QUOTA, vm.uiState.value.resolutionError)
+        assertEquals(3, repo.searchRequests.size)
+      }
+
+  @Test
+  fun manualNameLimitAppliesToEditsRestoredDraftsAndConfirmation() =
+      runTest(dispatcher) {
+        val limit = "a".repeat(256)
+        val longName = limit + " extra"
+        val handle = SavedStateHandle()
+        val selection = original.copy(name = longName)
+        val vm = picker(handle = handle, initial = selection)
+        assertEquals(selection, vm.uiState.value.selectedLocation)
+        vm.enterMap()
+        assertEquals(limit, vm.uiState.value.manualDraft.name)
+        vm.updateMapName(limit)
+        assertEquals(limit, vm.uiState.value.manualDraft.name)
+        vm.updateMapName(longName)
+        assertEquals(limit, vm.uiState.value.manualDraft.name)
+        assertEquals(limit, handle.get<String>("mapName"))
+
+        handle["mapName"] = longName
+        val restored = picker(handle = handle)
+        assertEquals(limit, restored.uiState.value.manualDraft.name)
+        assertEquals(limit, handle.get<String>("mapName"))
+        restored.confirm()
+        restored.backToSearch()
+        assertEquals(original.copy(name = limit), restored.consumeResult())
+        assertTrue(restored.uiState.value.isMapMode)
       }
 
   @Test

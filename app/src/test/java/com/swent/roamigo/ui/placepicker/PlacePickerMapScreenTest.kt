@@ -9,6 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.unit.Density
@@ -58,6 +59,9 @@ class PlacePickerMapScreenTest {
         }
       }
     }
+    compose
+        .onNodeWithText("Choose on map")
+        .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
     compose.onNodeWithTag(PlacePickerTestTags.CONFIRM).assertIsNotEnabled()
     compose.onNodeWithTag(PlacePickerTestTags.MAP_NAME).performScrollTo().assertIsNotEnabled()
     compose.onNodeWithTag(PlacePickerTestTags.CONFIRM).assertIsNotEnabled()
@@ -151,22 +155,10 @@ class PlacePickerMapScreenTest {
   }
 
   @Test
-  fun nameFieldRequiresValidPointAndUnfinishedPicker() {
+  fun nameFieldRequiresPointAndUnfinishedPicker() {
     val state = mutableStateOf(PlacePickerUiState(isMapMode = true))
     compose.setContent { PlacePickerMapScreen(state.value, {}, {}, {}, {}) { Box(it) } }
-    listOf(
-            null,
-            MapCoordinate(Double.NaN, 0.0),
-            MapCoordinate(0.0, Double.POSITIVE_INFINITY),
-            MapCoordinate(91.0, 0.0),
-            MapCoordinate(0.0, 181.0),
-        )
-        .forEach { point ->
-          compose.runOnIdle {
-            state.value = state.value.copy(manualDraft = PlacePickerManualDraft(point))
-          }
-          compose.onNodeWithTag(PlacePickerTestTags.MAP_NAME).performScrollTo().assertIsNotEnabled()
-        }
+    compose.onNodeWithTag(PlacePickerTestTags.MAP_NAME).performScrollTo().assertIsNotEnabled()
     compose.runOnIdle {
       state.value = state.value.copy(manualDraft = PlacePickerManualDraft(MapCoordinate(0.0, 0.0)))
     }

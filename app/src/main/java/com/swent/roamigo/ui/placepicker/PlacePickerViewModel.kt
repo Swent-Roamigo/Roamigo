@@ -33,6 +33,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+private const val MAX_MANUAL_PLACE_NAME_LENGTH = 256
+
 /**
  * Owns one picker draft. No candidate or in-flight operation is restored across provider sessions.
  */
@@ -72,14 +74,17 @@ class PlacePickerViewModel(
 
   init {
     saveSelection(selection)
-    // Only primitives survive process death; get fresh candidates in the new provider session.
+    if (uiState.value.isMapMode) saveManualDraft(restoredDraft)
+    resumeActiveSearch()
+  }
+
+  private fun resumeActiveSearch() {
+    // Candidate IDs belong to the provider session and must be fetched again.
+    val state = uiState.value
     if (
-        savedStateHandle.get<Boolean>("searchActive") == true &&
-            !uiState.value.finished &&
-            !uiState.value.isMapMode
-    ) {
-      search(debounce = false)
-    }
+        !state.finished && !state.isMapMode && savedStateHandle.get<Boolean>("searchActive") == true
+    )
+        search(debounce = false)
   }
 
   fun updateQuery(input: String) {
@@ -137,6 +142,7 @@ class PlacePickerViewModel(
       throw cancelled
     } catch (error: Exception) {
       if (request == generation) {
+        savedStateHandle["searchActive"] = false
         _uiState.update {
           it.copy(searchStatus = PlaceSearchStatus.ERROR, searchError = error.toPickerError())
         }
@@ -148,13 +154,15 @@ class PlacePickerViewModel(
     candidateRevision = session.revision
     val candidates =
         results.filter { it.id.isNotBlank() && it.name.isNotBlank() }.distinctBy { it.id }
+    val attribution = results.firstNotNullOfOrNull { it.attribution } ?: uiState.value.attribution
+    savedStateHandle["attribution"] = attribution
+    savedStateHandle["searchActive"] = candidates.isNotEmpty()
     _uiState.update {
       it.copy(
           candidates = candidates,
           searchStatus =
               if (candidates.isEmpty()) PlaceSearchStatus.EMPTY else PlaceSearchStatus.RESULTS,
-          attribution =
-              results.firstNotNullOfOrNull { candidate -> candidate.attribution } ?: it.attribution,
+          attribution = attribution,
       )
     }
   }
@@ -204,6 +212,7 @@ class PlacePickerViewModel(
       throw cancelled
     } catch (error: Exception) {
       if (request == generation) {
+        savedStateHandle["searchActive"] = false
         _uiState.update {
           it.copy(resolvingCandidateId = null, resolutionError = error.toPickerError())
         }
@@ -214,12 +223,13 @@ class PlacePickerViewModel(
   private fun showResolvedPlace(place: Place, candidate: PlaceCandidate, location: TripLocation) {
     saveSelection(location)
     savedStateHandle["searchActive"] = false
-    savedStateHandle["attribution"] = place.attribution ?: candidate.attribution
+    val attribution = place.attribution ?: candidate.attribution ?: uiState.value.attribution
+    savedStateHandle["attribution"] = attribution
     _uiState.update {
       it.copy(
           selectedLocation = location,
           resolvingCandidateId = null,
-          attribution = place.attribution ?: candidate.attribution ?: it.attribution,
+          attribution = attribution,
       )
     }
   }
@@ -228,9 +238,14 @@ class PlacePickerViewModel(
     val state = uiState.value
     if (state.finished || state.isMapMode) return
     stop()
+    // Unconfirmed map edits are discarded when starting a new draft from the search selection.
     val draft =
         state.selectedLocation?.let {
-          PlacePickerManualDraft(MapCoordinate(it.latitude, it.longitude), it.name, it.countryCode)
+          PlacePickerManualDraft(
+              MapCoordinate(it.latitude, it.longitude),
+              it.name.take(MAX_MANUAL_PLACE_NAME_LENGTH),
+              it.countryCode,
+          )
         } ?: PlacePickerManualDraft()
     savedStateHandle["mapMode"] = true
     saveManualDraft(draft)
@@ -246,9 +261,11 @@ class PlacePickerViewModel(
   }
 
   fun backToSearch() {
-    if (uiState.value.finished) return
+    val state = uiState.value
+    if (state.finished || !state.isMapMode) return
     savedStateHandle["mapMode"] = false
     _uiState.update { it.copy(isMapMode = false) }
+    resumeActiveSearch()
   }
 
   fun selectMapPoint(latitude: Double, longitude: Double) {
@@ -265,7 +282,7 @@ class PlacePickerViewModel(
   fun updateMapName(name: String) {
     val state = uiState.value
     if (!state.isMapMode || state.finished || state.manualDraft.point == null) return
-    val draft = state.manualDraft.copy(name = name)
+    val draft = state.manualDraft.copy(name = name.take(MAX_MANUAL_PLACE_NAME_LENGTH))
     saveManualDraft(draft)
     _uiState.update { it.copy(manualDraft = draft) }
   }
@@ -301,7 +318,7 @@ class PlacePickerViewModel(
         else null
     return PlacePickerManualDraft(
         point,
-        savedStateHandle["mapName"] ?: "",
+        savedStateHandle.get<String>("mapName").orEmpty().take(MAX_MANUAL_PLACE_NAME_LENGTH),
         savedStateHandle.get<String>("mapCountry").validCountryCodeOrNull(),
     )
   }
