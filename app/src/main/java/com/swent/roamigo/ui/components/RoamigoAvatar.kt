@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
@@ -42,7 +43,18 @@ private val AvatarPalette = listOf(Ochre, FriendAvatarBlue, FriendAvatarRose, Fr
 /** A stable colour for the person at [index] in a list; the same person keeps the same colour. */
 fun avatarColor(index: Int): Color = AvatarPalette[Math.floorMod(index, AvatarPalette.size)]
 
-/** A person's circle: a [photoUrl] when there is one, else the [initial], else a user icon. */
+/** The ink or the white, whichever reads better on [background]. */
+internal fun readableContentColor(background: Color): Color {
+  fun contrast(a: Color, b: Color) =
+      (maxOf(a.luminance(), b.luminance()) + 0.05f) / (minOf(a.luminance(), b.luminance()) + 0.05f)
+  return if (contrast(background, Ink) >= contrast(background, Color.White)) Ink else Color.White
+}
+
+/**
+ * A person's circle: a [photoUrl] when there is one, else the [initial], else a user icon.
+ * [contentColor] is the ink or the white that reads better on [color], and [ringColor] is the
+ * outline of an [outlined] avatar, which should match what the avatar sits on.
+ */
 @Composable
 fun RoamigoAvatar(
     initial: String,
@@ -51,17 +63,17 @@ fun RoamigoAvatar(
     size: AvatarSize = AvatarSize.Medium,
     overflowLabel: String? = null,
     outlined: Boolean = false,
+    contentColor: Color = readableContentColor(color),
+    ringColor: Color = MaterialTheme.colorScheme.surface,
     photoUrl: String? = null,
     photoModifier: Modifier = Modifier,
 ) {
-  // Ochre is light, so it takes the dark ink; the other colours take white.
-  val contentColor = if (color == Ochre) Ink else Color.White
   Surface(
       modifier = modifier.size(size.diameter),
       shape = CircleShape,
       color = color,
       contentColor = contentColor,
-      border = if (outlined) BorderStroke(2.dp, MaterialTheme.colorScheme.surface) else null,
+      border = if (outlined) BorderStroke(2.dp, ringColor) else null,
   ) {
     Box(contentAlignment = Alignment.Center) {
       when {
@@ -104,6 +116,7 @@ fun AvatarStack(
     modifier: Modifier = Modifier,
     size: AvatarSize = AvatarSize.Medium,
     overlap: Dp = size.diameter / 4,
+    ringColor: Color = MaterialTheme.colorScheme.surface,
 ) {
   Row(modifier, horizontalArrangement = Arrangement.spacedBy(-overlap)) {
     items.forEach {
@@ -113,6 +126,7 @@ fun AvatarStack(
           size = size,
           overflowLabel = it.overflowLabel,
           outlined = true,
+          ringColor = ringColor,
       )
     }
   }
