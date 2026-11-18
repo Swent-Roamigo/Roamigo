@@ -60,8 +60,6 @@ import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.Spacing
 
-/** Colors used for friend avatars to provide visual variety. */
-
 /**
  * Renders the Friends list from presentation-ready state and forwards user actions to the caller.
  *
@@ -160,6 +158,7 @@ fun FriendsScreen(
 
       RoamigoButton(
           onClick = onAddFriendClick,
+          variant = ButtonVariant.Secondary,
           modifier =
               Modifier.fillMaxWidth()
                   .padding(bottom = Spacing.large)

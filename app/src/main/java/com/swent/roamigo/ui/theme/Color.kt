@@ -43,7 +43,7 @@ val VoteTieBorder = Color(0xFFF0DCB0)
 val VoteTieContent = Color(0xFF6B4A0F)
 
 // Visit-density shades of the History world map, from least to most visited.
-val HeatmapUnvisited = Color(0xFFD7DFDC)
-val HeatmapLight = Color(0xFFB7E9DF)
-val HeatmapMedium = Color(0xFF66C9B8)
-val HeatmapDark = Color(0xFF078C79)
+internal val HeatmapUnvisited = Color(0xFFD7DFDC)
+internal val HeatmapLight = Color(0xFFB7E9DF)
+internal val HeatmapMedium = Color(0xFF66C9B8)
+internal val HeatmapDark = Color(0xFF078C79)

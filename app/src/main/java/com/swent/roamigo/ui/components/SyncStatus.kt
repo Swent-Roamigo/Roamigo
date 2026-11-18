@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.CloudOff
-import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -15,6 +14,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.ui.theme.Spacing
@@ -24,7 +26,6 @@ import com.swent.roamigo.ui.theme.Warning
 /** Whether what the user did on this phone has reached the group. */
 enum class SyncState {
   Synced,
-  Syncing,
   Offline,
 }
 
@@ -39,12 +40,13 @@ fun SyncStatus(state: SyncState, modifier: Modifier = Modifier, compact: Boolean
       stringResource(
           when (state) {
             SyncState.Synced -> R.string.sync_synced
-            SyncState.Syncing -> R.string.sync_syncing
             SyncState.Offline -> R.string.sync_offline
           }
       )
+  // The indicator appears when the connection is lost, so a screen reader announces it then.
+  val announced = modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
   if (compact) {
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+    Row(announced, verticalAlignment = Alignment.CenterVertically) {
       SyncIcon(state)
       Text(
           label,
@@ -59,7 +61,7 @@ fun SyncStatus(state: SyncState, modifier: Modifier = Modifier, compact: Boolean
   }
   RoamigoChip(
       text = label,
-      modifier = modifier,
+      modifier = announced,
       tone = if (state == SyncState.Offline) ChipTone.Warning else ChipTone.Neutral,
       textStyle = MaterialTheme.typography.labelMedium,
       leading = { SyncIcon(state) },
@@ -72,7 +74,6 @@ private fun SyncIcon(state: SyncState) {
       imageVector =
           when (state) {
             SyncState.Synced -> Icons.Outlined.Check
-            SyncState.Syncing -> Icons.Outlined.Sync
             SyncState.Offline -> Icons.Outlined.CloudOff
           },
       contentDescription = null,

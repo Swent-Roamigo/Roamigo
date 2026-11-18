@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
@@ -16,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,7 +43,7 @@ fun ListRow(
 ) {
   Surface(
       onClick = onClick,
-      modifier = modifier.fillMaxWidth(),
+      modifier = modifier.fillMaxWidth().heightIn(min = 48.dp),
       shape = MaterialTheme.shapes.medium,
       color = MaterialTheme.colorScheme.surface,
       border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
@@ -62,21 +64,8 @@ fun ListRow(
         )
         afterTitle?.invoke()
         // The subtitle stays on one line; the details may wrap so dates and counts are never cut.
-        listOf(
-                subtitle to MaterialTheme.typography.bodyMedium,
-                details to MaterialTheme.typography.bodySmall,
-            )
-            .forEach { (text, style) ->
-              if (text != null) {
-                Text(
-                    text,
-                    style = style,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-              }
-            }
+        if (subtitle != null) RowText(subtitle, MaterialTheme.typography.bodyMedium, maxLines = 1)
+        if (details != null) RowText(details, MaterialTheme.typography.bodySmall, maxLines = 2)
       }
       trailing?.invoke()
       if (showChevron) {
@@ -89,4 +78,15 @@ fun ListRow(
       }
     }
   }
+}
+
+@Composable
+private fun RowText(text: String, style: TextStyle, maxLines: Int) {
+  Text(
+      text,
+      style = style,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      maxLines = maxLines,
+      overflow = TextOverflow.Ellipsis,
+  )
 }

@@ -102,11 +102,11 @@ internal fun TripRoute(
   val readOnly = fromHistory || loaded?.trip?.isCompletedOn(today, zone) != false
   var hasOpenedMap by rememberSaveable { mutableStateOf(false) }
   if (tab == TripSection.Map && !readOnly) SideEffect { hasOpenedMap = true }
+  val connectivity =
+      connectivityRepository ?: remember(context) { DefaultConnectivityRepository(context) }
   val locationFactory =
       if ((tab == TripSection.Map || hasOpenedMap) && (!readOnly || hasOpenedMap)) {
         val location = resolveLocationRepository(locationRepository, context)
-        val connectivity =
-            connectivityRepository ?: remember(context) { DefaultConnectivityRepository(context) }
         remember(tripId, userId, location, connectivity) {
           LocationViewModel.factory(tripId, userId, location, connectivity)
         }
@@ -147,9 +147,7 @@ internal fun TripRoute(
     if (authRepository.getCurrentUser() == null) onAuthenticationRequired()
     else tab = TripSection.Map
   }
-  val syncConnectivity =
-      connectivityRepository ?: remember(context) { DefaultConnectivityRepository(context) }
-  val isOnline by syncConnectivity.isOnline.collectAsStateWithLifecycle(initialValue = true)
+  val isOnline by connectivity.isOnline.collectAsStateWithLifecycle(initialValue = true)
   TripScreen(
       syncState = if (isOnline) SyncState.Synced else SyncState.Offline,
       trip =
@@ -210,8 +208,6 @@ internal fun TripRoute(
                 onCreateVote,
             )
         TripSection.Photos -> {
-          val connectivity =
-              connectivityRepository ?: remember(context) { DefaultConnectivityRepository(context) }
           val location = resolveLocationRepository(locationRepository, context)
           PhotosRoute(
               photoRepository = photoRepository,
