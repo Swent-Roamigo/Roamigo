@@ -81,8 +81,7 @@ private val friendAvatarColors = listOf(FriendAvatarBlue, FriendAvatarRose, Frie
  * @param onAcceptRequest invoked with the incoming request ID to accept.
  * @param onDeclineRequest invoked with the incoming request ID to decline.
  * @param onRemoveFriend invoked with the friendship ID to remove.
- * @param onDismissActionFailure acknowledges the displayed failure when dismissed or the screen
- *   leaves.
+ * @param onDismissActionFailure reports the displayed failure when dismissed or the screen leaves.
  */
 @Composable
 fun FriendsScreen(
@@ -96,26 +95,22 @@ fun FriendsScreen(
     onAcceptRequest: ((String) -> Unit)? = null,
     onDeclineRequest: ((String) -> Unit)? = null,
     onRemoveFriend: ((String) -> Unit)? = null,
-    onDismissActionFailure: () -> Unit = {},
+    onDismissActionFailure: (FriendsActionFailure) -> Unit = {},
 ) {
   var query by rememberSaveable { mutableStateOf("") }
   val snackbarHostState = remember { SnackbarHostState() }
   val actionFailure = uiState.actionFailure
-  val currentActionFailure by rememberUpdatedState(actionFailure)
   val currentOnDismissActionFailure by rememberUpdatedState(onDismissActionFailure)
-  val actionMessage = actionFailure?.let { failure ->
-    stringResource(
-        when (failure.action) {
-          FriendsAction.ACCEPT -> R.string.friends_accept_failed
-          FriendsAction.DECLINE -> R.string.friends_decline_failed
-          FriendsAction.REMOVE -> R.string.friends_remove_failed
-        }
-    )
-  }
-  LaunchedEffect(actionFailure) {
-    if (actionMessage == null) {
-      snackbarHostState.currentSnackbarData?.dismiss()
-    } else {
+  if (actionFailure != null) {
+    val actionMessage =
+        stringResource(
+            when (actionFailure.action) {
+              FriendsAction.ACCEPT -> R.string.friends_accept_failed
+              FriendsAction.DECLINE -> R.string.friends_decline_failed
+              FriendsAction.REMOVE -> R.string.friends_remove_failed
+            }
+        )
+    LaunchedEffect(actionFailure) {
       try {
         snackbarHostState.showSnackbar(
             message = actionMessage,
@@ -123,8 +118,7 @@ fun FriendsScreen(
             duration = SnackbarDuration.Indefinite,
         )
       } finally {
-        // Replacing a failure also cancels this effect; leave the newer feedback intact.
-        if (currentActionFailure == actionFailure) currentOnDismissActionFailure()
+        currentOnDismissActionFailure(actionFailure)
       }
     }
   }

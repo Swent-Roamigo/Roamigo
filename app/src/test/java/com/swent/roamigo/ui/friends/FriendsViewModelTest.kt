@@ -322,7 +322,7 @@ class FriendsViewModelTest {
             model.uiState.value.actionFailure,
         )
 
-        model.dismissActionFailure()
+        model.dismissActionFailure(FriendsActionFailure(request.uid, FriendsAction.REMOVE))
         assertNull(model.uiState.value.actionFailure)
         assertEquals(listOf(request.uid), model.uiState.value.friends.map { it.uid })
 
@@ -334,6 +334,59 @@ class FriendsViewModelTest {
         assertTrue(model.uiState.value.profiles.isEmpty())
         assertTrue(bob.getFriends().isEmpty())
         assertEquals(2, repository.actionCount)
+      }
+
+  @Test
+  fun acknowledgingAnOlderRelationshipFailurePreservesTheNewerFailure() =
+      runTest(dispatcher) {
+        val firstRequest = bob.sendFriendRequest("alice")
+        val secondRequest = carol.sendFriendRequest("alice")
+        val model = viewModel()
+        advanceUntilIdle()
+        repository.actionFailure = FriendRepositoryException.Network()
+
+        model.acceptRequest(firstRequest.uid)
+        advanceUntilIdle()
+        val firstFailure = FriendsActionFailure(firstRequest.uid, FriendsAction.ACCEPT)
+        assertEquals(firstFailure, model.uiState.value.actionFailure)
+
+        model.acceptRequest(secondRequest.uid)
+        advanceUntilIdle()
+        val secondFailure = FriendsActionFailure(secondRequest.uid, FriendsAction.ACCEPT)
+        val newerState = model.uiState.value
+        assertEquals(secondFailure, newerState.actionFailure)
+
+        model.dismissActionFailure(firstFailure)
+        assertEquals(newerState, model.uiState.value)
+        model.dismissActionFailure(secondFailure)
+        assertEquals(newerState.copy(actionFailure = null), model.uiState.value)
+        model.dismissActionFailure(firstFailure)
+        assertEquals(newerState.copy(actionFailure = null), model.uiState.value)
+      }
+
+  @Test
+  fun acknowledgingAnOlderActionOnTheSameRelationshipPreservesTheNewerFailure() =
+      runTest(dispatcher) {
+        val request = bob.sendFriendRequest("alice")
+        val model = viewModel()
+        advanceUntilIdle()
+        repository.actionFailure = FriendRepositoryException.Network()
+
+        model.acceptRequest(request.uid)
+        advanceUntilIdle()
+        val acceptFailure = FriendsActionFailure(request.uid, FriendsAction.ACCEPT)
+        assertEquals(acceptFailure, model.uiState.value.actionFailure)
+
+        model.declineRequest(request.uid)
+        advanceUntilIdle()
+        val declineFailure = FriendsActionFailure(request.uid, FriendsAction.DECLINE)
+        val newerState = model.uiState.value
+        assertEquals(declineFailure, newerState.actionFailure)
+
+        model.dismissActionFailure(acceptFailure)
+        assertEquals(newerState, model.uiState.value)
+        model.dismissActionFailure(declineFailure)
+        assertEquals(newerState.copy(actionFailure = null), model.uiState.value)
       }
 
   @Test
