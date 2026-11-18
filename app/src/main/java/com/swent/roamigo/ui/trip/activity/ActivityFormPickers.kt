@@ -2,19 +2,26 @@
 package com.swent.roamigo.ui.trip.activity
 
 import android.text.format.DateFormat
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Keyboard
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimeInput
 import androidx.compose.material3.TimePicker
+import androidx.compose.material3.TimePickerDialog
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -65,7 +72,10 @@ internal fun ActivityDateDialog(
   }
 }
 
-/** Lets the user choose the start time, starting on [time] or at noon when there is none. */
+/**
+ * Lets the user choose the start time, starting on [time] or at noon when there is none. The user
+ * can switch between the clock and typing the time.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ActivityTimeDialog(
@@ -80,12 +90,21 @@ internal fun ActivityTimeDialog(
           initialMinute = time?.minute ?: 0,
           is24Hour = DateFormat.is24HourFormat(LocalContext.current),
       )
-  AlertDialog(
+  var typing by rememberSaveable { mutableStateOf(false) }
+  TimePickerDialog(
       onDismissRequest = onDismiss,
       title = { Text(stringResource(R.string.activity_form_time_dialog_title)) },
-      text = {
-        // Lets the clock scroll when the dialog is taller than a landscape screen.
-        Column(Modifier.verticalScroll(rememberScrollState())) { TimePicker(pickerState) }
+      modeToggleButton = {
+        IconButton(
+            onClick = { typing = !typing },
+            modifier = Modifier.testTag(ActivityFormTestTags.TIME_MODE),
+        ) {
+          if (typing) {
+            Icon(Icons.Outlined.Schedule, stringResource(R.string.activity_form_time_use_clock))
+          } else {
+            Icon(Icons.Outlined.Keyboard, stringResource(R.string.activity_form_time_use_keyboard))
+          }
+        }
       },
       confirmButton = {
         TextButton(
@@ -103,5 +122,7 @@ internal fun ActivityTimeDialog(
         }
       },
       modifier = modifier.testTag(ActivityFormTestTags.TIME_DIALOG),
-  )
+  ) {
+    if (typing) TimeInput(pickerState) else TimePicker(pickerState)
+  }
 }

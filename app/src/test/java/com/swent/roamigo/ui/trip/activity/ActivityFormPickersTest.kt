@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
+import androidx.compose.ui.test.performTextReplacement
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.activity.ActivityFormFixtures.day
 import java.time.LocalDate
@@ -84,6 +85,17 @@ class ActivityFormPickersTest {
     showTimeDialog()
     compose.onNodeWithText("OK").assertIsDisplayed().performClick()
     compose.runOnIdle { assertEquals(listOf<Any>(LocalTime.of(19, 30)), picked) }
+  }
+
+  @Test
+  fun timeCanBeTypedAfterSwitchingToTheKeyboard() {
+    showTimeDialog()
+    compose.onNodeWithContentDescription("Type the time").performClick()
+    compose.onNodeWithContentDescription("Use the clock").assertIsDisplayed()
+    compose.onAllNodes(hasSetTextAction())[0].performTextReplacement("8")
+    compose.onNodeWithText("OK").performClick()
+    // The dialog opened at 7:30 PM in 12-hour mode, so the typed hour stays in the evening.
+    compose.runOnIdle { assertEquals(listOf<Any>(LocalTime.of(20, 30)), picked) }
   }
 
   private companion object {
