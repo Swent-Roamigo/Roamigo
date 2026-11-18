@@ -184,6 +184,7 @@ private fun OverviewMapCard(
         scaleBar = {
           ScaleBar(contentPadding = PaddingValues(Spacing.small), alignment = Alignment.TopEnd)
         },
+        attribution = {},
     ) {
       uiState.markers.forEach { marker ->
         ViewAnnotation(
