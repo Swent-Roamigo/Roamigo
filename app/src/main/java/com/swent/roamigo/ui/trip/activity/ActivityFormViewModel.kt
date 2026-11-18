@@ -101,7 +101,9 @@ class ActivityFormViewModel(
 
   /**
    * Validates the fields and saves them. Invalid values only show their errors. In Edit mode a
-   * valid save reports [ActivityFormResult.EditUnavailable] and stores nothing.
+   * valid save reports [ActivityFormResult.EditUnavailable] and stores nothing. When a retry finds
+   * the activity already stored with other values, the form shows them with
+   * [ActivityFormFailure.ALREADY_SAVED] instead of reporting a save.
    */
   fun save() {
     val state = _uiState.value
@@ -126,12 +128,16 @@ class ActivityFormViewModel(
     }
     viewModelScope.launch {
       try {
-        val created = repository.createActivity(mode.tripId, activityId, draft)
-        _uiState.update {
-          it.copy(
-              saveStatus = ActivityFormSaveStatus.SAVED,
-              pendingResult = ActivityFormResult.Saved(created.uid),
-          )
+        val stored = repository.createActivity(mode.tripId, activityId, draft)
+        if (stored.matches(draft)) {
+          _uiState.update {
+            it.copy(
+                saveStatus = ActivityFormSaveStatus.SAVED,
+                pendingResult = ActivityFormResult.Saved(stored.uid),
+            )
+          }
+        } else {
+          showAlreadySaved(stored)
         }
       } catch (cancelled: CancellationException) {
         _uiState.update { it.copy(saveStatus = ActivityFormSaveStatus.IDLE) }
@@ -151,6 +157,21 @@ class ActivityFormViewModel(
           it.copy(saveStatus = ActivityFormSaveStatus.IDLE, failure = failure.toFormFailure())
         }
       }
+    }
+  }
+
+  // A retry after a write that reached the server returns the first version, which createActivity
+  // cannot change. Showing it keeps the form from reporting changes that were never stored.
+  private fun showAlreadySaved(stored: Activity) {
+    val fields = stored.toFields(zone)
+    savedState.storeFields(fields)
+    _uiState.update {
+      it.copy(
+          fields = fields,
+          isDirty = fields != initialFields,
+          saveStatus = ActivityFormSaveStatus.IDLE,
+          failure = ActivityFormFailure.ALREADY_SAVED,
+      )
     }
   }
 
@@ -258,6 +279,13 @@ private fun ActivityFormFields.draftAt(
       endTime = length?.let { start + it },
   )
 }
+
+private fun Activity.matches(draft: ActivityDraft): Boolean =
+    name == draft.name &&
+        description == draft.description &&
+        location == draft.location &&
+        startTime.toDomainInstant() == draft.startTime &&
+        endTime?.toDomainInstant() == draft.endTime
 
 private fun Activity.toFields(zone: ZoneId): ActivityFormFields {
   val start = startTime.toDomainInstant().atZone(zone)

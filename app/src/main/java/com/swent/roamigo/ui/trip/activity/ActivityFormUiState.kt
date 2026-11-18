@@ -107,6 +107,12 @@ enum class ActivityFormFailure(@StringRes val message: Int) {
 
   /** Any other failure. */
   UNKNOWN(R.string.activity_form_failure_unknown),
+
+  /**
+   * An earlier attempt that seemed to fail had stored the activity, so later changes were not
+   * applied. The form shows the stored values, and saving them closes it.
+   */
+  ALREADY_SAVED(R.string.activity_form_failure_already_saved),
 }
 
 /** Where the form stands in saving, as one value so that saving and saved cannot both hold. */
