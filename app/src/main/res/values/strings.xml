@@ -546,7 +546,6 @@
 
     <!-- Sync status -->
     <string name="sync_synced">Synced</string>
-    <string name="sync_syncing">Syncing…</string>
     <string name="sync_offline">Offline</string>
 
     <!-- Place picker -->
