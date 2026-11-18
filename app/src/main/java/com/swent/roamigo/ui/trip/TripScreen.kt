@@ -4,6 +4,8 @@ package com.swent.roamigo.ui.trip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -52,6 +54,7 @@ internal enum class TripSection(val label: Int) {
 }
 
 /** Renders the shared trip header and navigation around the selected tab's [content]. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun TripScreen(
     trip: TripHeaderUiState?,
@@ -84,7 +87,10 @@ internal fun TripScreen(
           val locale = LocalConfiguration.current.locales[0]
           val formatter = DateTimeFormatter.ofPattern("EEE d MMM", locale)
           // The header is identical on every tab so switching tabs never changes it.
-          Row(horizontalArrangement = Arrangement.spacedBy(Spacing.small)) {
+          FlowRow(
+              horizontalArrangement = Arrangement.spacedBy(Spacing.small),
+              verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall),
+          ) {
             Text(
                 "${formatter.format(trip.startDate)} – ${formatter.format(trip.endDate)}",
                 style = MaterialTheme.typography.bodyMedium,
