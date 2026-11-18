@@ -70,6 +70,10 @@ data class FriendsUiState(
     val actionFailure: FriendsActionFailure? = null,
 )
 
+/** Whether any established friendship or pending request is present in this state. */
+internal val FriendsUiState.hasRelationships: Boolean
+  get() = friends.isNotEmpty() || incomingRequests.isNotEmpty() || outgoingRequests.isNotEmpty()
+
 /** Missing profiles retain their rows; unavailable travel statistics are left absent. */
 internal fun FriendsState.toUiState(
     currentUserId: String,
