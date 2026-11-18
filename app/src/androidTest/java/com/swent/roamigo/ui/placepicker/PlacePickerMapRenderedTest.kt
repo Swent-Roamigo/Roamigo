@@ -1,6 +1,7 @@
 // Implemented with assistance from OpenAI Codex.
 package com.swent.roamigo.ui.placepicker
 
+import android.graphics.Color
 import android.graphics.Rect
 import android.os.SystemClock
 import android.util.Log
@@ -9,7 +10,11 @@ import android.view.MotionEvent
 import android.view.ViewConfiguration
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -17,6 +22,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.unit.dp
@@ -28,6 +34,12 @@ import com.mapbox.geojson.Point
 import com.mapbox.maps.CameraOptions
 import com.mapbox.maps.MapLoadingErrorType
 import com.mapbox.maps.ScreenCoordinate
+import com.mapbox.maps.extension.compose.MapboxMap
+import com.mapbox.maps.extension.compose.animation.viewport.rememberMapViewportState
+import com.mapbox.maps.extension.compose.style.MapStyle
+import com.mapbox.maps.extension.compose.style.MapboxStyleComposable
+import com.mapbox.maps.extension.style.layers.properties.generated.ProjectionName
+import com.mapbox.maps.extension.style.projection.generated.getProjection
 import com.mapbox.maps.plugin.gestures.OnMapClickListener
 import com.mapbox.maps.plugin.gestures.OnMoveListener
 import com.mapbox.maps.plugin.gestures.gestures
@@ -203,6 +215,205 @@ class PlacePickerMapRenderedTest {
   }
 
   @Test
+  fun globeAtWorldZoomCharacterizesTheNativeLongPressConversion() {
+    val presses = mutableListOf<Point>()
+    compose.setContent {
+      Column(Modifier.verticalScroll(rememberScrollState())) {
+        MapboxMap(
+            modifier = Modifier.requiredSize(320.dp, 200.dp).testTag(PlacePickerTestTags.MAP),
+            compass = { Compass() },
+            scaleBar = { ScaleBar() },
+            logo = { Logo() },
+            attribution = { Attribution() },
+            mapViewportState =
+                rememberMapViewportState {
+                  setCameraOptions {
+                    center(Point.fromLngLat(0.0, 20.0))
+                    zoom(1.0)
+                  }
+                },
+            onMapLongClickListener = {
+              presses += it
+              true
+            },
+            style = @Composable @MapboxStyleComposable { MapStyle(style = geographicTestStyle) },
+        )
+      }
+    }
+    awaitProjection(ProjectionName.GLOBE)
+    val center = assertWorldCamera()
+    knownFeatures.forEachIndexed { index, feature ->
+      longPressRenderedFeature(feature)
+      compose.waitUntil(MAP_TEST_TIMEOUT_MILLIS) { compose.runOnIdle { presses.size > index } }
+    }
+    val actual = compose.runOnIdle { presses.toList() }
+    assertEquals(knownFeatures.size, actual.size)
+    val accurate =
+        knownFeatures.zip(actual).all { (feature, point) ->
+          coordinatesMatch(feature.point, point, WORLD_TOLERANCE)
+        }
+    val returnedCenter = actual.all { coordinatesMatch(center, it, WORLD_TOLERANCE) }
+    val details =
+        "Globe world zoom expected=${knownFeatures.map { it.point }}, actual=$actual, center=$center"
+    Log.i("PlacePickerMapTest", "$details, accurate=$accurate, returnedCenter=$returnedCenter")
+    // Keep this diagnostic runnable whether the SDK exhibits its documented limitation or improves.
+    assertTrue(details, accurate || returnedCenter)
+  }
+
+  @Test
+  fun pickerSelectsRenderedCoordinatesAtWorldAndCloserZoom() {
+    val vm = PlacePickerViewModel(FakePlaceRepository(), SavedStateHandle())
+    vm.enterMap()
+    compose.setContent {
+      val state by vm.uiState.collectAsState()
+      PlacePickerMapScreen(
+          state,
+          vm::updateMapName,
+          vm::backToSearch,
+          vm::confirm,
+          vm::retryMap,
+      ) { modifier ->
+        // Explicit Globe in the fixture ensures the picker must override the style's projection.
+        PlacePickerMap(
+            state,
+            vm::selectMapPoint,
+            vm::mapLoadingFailed,
+            vm::mapLoaded,
+            modifier,
+            style = geographicTestStyle,
+        )
+      }
+    }
+    awaitProjection(ProjectionName.MERCATOR)
+    val worldCenter = assertWorldCamera()
+    val selections = knownFeatures.map { feature ->
+      val selected = selectRenderedFeature(vm, feature, WORLD_TOLERANCE)
+      assertFalse(coordinatesMatch(worldCenter, selected, WORLD_TOLERANCE))
+      compose.runOnIdle { vm.updateMapName("World point") }
+      selected
+    }
+    assertFalse(coordinatesMatch(selections[0], selections[1], WORLD_TOLERANCE))
+
+    val target = knownFeatures.first()
+    val closeCenter = Point.fromLngLat(target.point.longitude() + 0.025, target.point.latitude())
+    val rendered = AtomicBoolean(false)
+    val idleSubscription = compose.runOnIdle {
+      val map = compose.findMapView().mapboxMap
+      val subscription = map.subscribeMapIdle {
+        rendered.set(abs(map.cameraState.zoom - 10.0) < 0.00001)
+      }
+      map.setCamera(CameraOptions.Builder().center(closeCenter).zoom(10.0).build())
+      subscription
+    }
+    try {
+      compose.waitUntil(MAP_TEST_TIMEOUT_MILLIS) { rendered.get() }
+    } finally {
+      compose.runOnUiThread { idleSubscription.cancel() }
+    }
+    val selected = selectRenderedFeature(vm, target, CLOSE_TOLERANCE)
+    assertFalse(coordinatesMatch(closeCenter, selected, CLOSE_TOLERANCE))
+    compose
+        .onNodeWithTag(PlacePickerTestTags.MAP_NAME)
+        .performScrollTo()
+        .performTextReplacement("Close meeting point")
+    compose.onNodeWithTag(PlacePickerTestTags.CONFIRM).assertIsEnabled().performClick()
+    compose.runOnIdle {
+      val result = checkNotNull(vm.consumeResult())
+      assertEquals("Close meeting point", result.name)
+      assertEquals(target.point.latitude(), result.latitude, CLOSE_TOLERANCE)
+      assertEquals(target.point.longitude(), result.longitude, CLOSE_TOLERANCE)
+      assertNull(vm.consumeResult())
+    }
+  }
+
+  private fun awaitProjection(expected: ProjectionName) {
+    compose.waitUntil(MAP_TEST_TIMEOUT_MILLIS) {
+      compose.runOnIdle { compose.findMapView().mapboxMap.style?.getProjection()?.name == expected }
+    }
+  }
+
+  private fun assertWorldCamera(): Point = compose.runOnIdle {
+    val camera = compose.findMapView().mapboxMap.cameraState
+    assertEquals(1.0, camera.zoom, 0.00001)
+    assertEquals(20.0, camera.center.latitude(), 0.00001)
+    assertEquals(0.0, camera.center.longitude(), 0.00001)
+    camera.center
+  }
+
+  private fun selectRenderedFeature(
+      vm: PlacePickerViewModel,
+      feature: GeographicFeature,
+      tolerance: Double,
+  ): Point {
+    val previous = vm.uiState.value.manualDraft.point
+    longPressRenderedFeature(feature)
+    compose.waitUntil(MAP_TEST_TIMEOUT_MILLIS) {
+      val point = vm.uiState.value.manualDraft.point
+      point != null && point != previous
+    }
+    val draft = vm.uiState.value.manualDraft
+    val point = checkNotNull(draft.point)
+    assertEquals(feature.point.latitude(), point.latitude, tolerance)
+    assertEquals(feature.point.longitude(), point.longitude, tolerance)
+    assertEquals("", draft.name)
+    return Point.fromLngLat(point.longitude, point.latitude).also(::assertMarkerAt)
+  }
+
+  private fun longPressRenderedFeature(feature: GeographicFeature) {
+    compose.onNodeWithTag(PlacePickerTestTags.MAP).performScrollTo()
+    val (bounds, visible) =
+        compose.runOnIdle {
+          val map = compose.findMapView()
+          val origin = IntArray(2).also(map::getLocationOnScreen)
+          val local = Rect()
+          assertTrue("Map must be visible", map.getLocalVisibleRect(local))
+          local.offset(origin[0], origin[1])
+          Rect(origin[0], origin[1], origin[0] + map.width, origin[1] + map.height) to local
+        }
+    var target: Offset? = null
+    compose.waitUntil(MAP_TEST_TIMEOUT_MILLIS) {
+      target = renderedColorCenter(visible, bounds, feature.color)
+      target != null
+    }
+    nativeGesture(checkNotNull(target), duration = ViewConfiguration.getLongPressTimeout() + 100L)
+  }
+
+  // Locate the painted circle in the actual screen buffer, independently of the SDK's projection
+  // conversion APIs. The inner pixels match the fixture color without relying on antialiased edges.
+  private fun renderedColorCenter(visible: Rect, bounds: Rect, color: Int): Offset? {
+    val screenshot =
+        InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot() ?: return null
+    try {
+      val region = Rect(visible)
+      if (!region.intersect(0, 0, screenshot.width, screenshot.height)) return null
+      val width = region.width()
+      val pixels = IntArray(width * region.height())
+      screenshot.getPixels(pixels, 0, width, region.left, region.top, width, region.height())
+      var count = 0
+      var sumX = 0L
+      var sumY = 0L
+      pixels.forEachIndexed { index, pixel ->
+        if (
+            abs(Color.red(pixel) - Color.red(color)) <= 12 &&
+                abs(Color.green(pixel) - Color.green(color)) <= 12 &&
+                abs(Color.blue(pixel) - Color.blue(color)) <= 12
+        ) {
+          count++
+          sumX += index % width
+          sumY += index / width
+        }
+      }
+      if (count < 12) return null
+      return Offset(
+          (region.left - bounds.left + sumX.toFloat() / count + 0.5f) / bounds.width(),
+          (region.top - bounds.top + sumY.toFloat() / count + 0.5f) / bounds.height(),
+      )
+    } finally {
+      screenshot.recycle()
+    }
+  }
+
+  @Test
   fun nativeStyleFailureAndRetryUseLatestCallbacksWithoutDiscardingCameraOrDraft() {
     val original = TripLocation(46.52, 6.63, "Meeting point")
     val vm = PlacePickerViewModel(FakePlaceRepository(), SavedStateHandle(), original)
@@ -257,10 +468,18 @@ class PlacePickerMapRenderedTest {
       compose.runOnIdle { failures[1] > 0 && vm.uiState.value.mapError }
     }
     compose.onNodeWithTag(PlacePickerTestTags.MAP_ERROR).performScrollTo().assertIsDisplayed()
+    nativeGesture(Offset(0.35f, 0.4f), duration = ViewConfiguration.getLongPressTimeout() + 100L)
+    compose.runOnIdle {
+      assertEquals(
+          original.copy(name = "Edited meeting point"),
+          vm.uiState.value.manualDraft.location,
+      )
+    }
     compose.onNodeWithTag(PlacePickerTestTags.MAP_RETRY).performScrollTo().performClick()
     compose.waitUntil(MAP_TEST_TIMEOUT_MILLIS) {
       compose.runOnIdle { loads[1] > 0 && !vm.uiState.value.mapError }
     }
+    awaitProjection(ProjectionName.MERCATOR)
     compose.onNodeWithTag(PlacePickerTestTags.MAP_ERROR).assertDoesNotExist()
     compose.runOnIdle {
       assertEquals(0, failures[0])
@@ -544,3 +763,52 @@ class PlacePickerMapRenderedTest {
     compose.onAllNodesWithTag(PlacePickerTestTags.MAP_MARKER).assertCountEquals(1)
   }
 }
+
+private data class GeographicFeature(val point: Point, val color: Int)
+
+private val knownFeatures =
+    listOf(
+        GeographicFeature(Point.fromLngLat(-19.0, 16.0), Color.MAGENTA),
+        GeographicFeature(Point.fromLngLat(22.0, 24.0), Color.CYAN),
+    )
+
+private val geographicTestStyle =
+    """
+  {
+    "version": 8,
+    "projection": {"name": "globe"},
+    "sources": {
+      "targets": {
+        "type": "geojson",
+        "data": {
+          "type": "FeatureCollection",
+          "features": [
+            ${knownFeatures.joinToString(",") { feature ->
+              """{
+                "type":"Feature",
+                "geometry":${feature.point.toJson()},
+                "properties":{"color":"#${(feature.color and 0xffffff).toString(16).padStart(6, '0')}"}
+              }"""
+            }}
+          ]
+        }
+      }
+    },
+    "layers": [
+      {"id":"background","type":"background","paint":{"background-color":"#202020"}},
+      {"id":"points","type":"circle","source":"targets",
+        "paint":{"circle-radius":9,"circle-color":["to-color",["get","color"]],"circle-pitch-alignment":"viewport"}}
+    ]
+  }
+"""
+        .trimIndent()
+
+// Web Mercator spans 1024 logical pixels at zoom 1 (0.352° longitude per pixel).
+// Allow about three logical pixels for raster rounding, input and alignment. At zoom 10, use a
+// similarly small pixel budget (0.000687° longitude per pixel) with room for device scaling.
+private const val WORLD_TOLERANCE = 1.1
+private const val CLOSE_TOLERANCE = 0.003
+
+private fun coordinatesMatch(expected: Point, actual: Point, tolerance: Double): Boolean =
+    abs(expected.latitude() - actual.latitude()) <= tolerance &&
+        abs(expected.longitude() - actual.longitude()) <= tolerance
