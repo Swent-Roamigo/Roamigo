@@ -163,9 +163,6 @@ val Typography.tagline
 val Typography.finePrint
   get() = bodySmall.copy(fontSize = 11.sp, lineHeight = 14.85.sp)
 
-val Typography.detail
-  get() = bodySmall.copy(fontSize = 12.sp, fontWeight = FontWeight.Normal)
-
 val Typography.dateRange
   get() = bodyMedium.copy(fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
 
