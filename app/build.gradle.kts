@@ -307,6 +307,9 @@ val checkDesignTokens =
     tasks.register("checkDesignTokens") {
       val uiDir = layout.projectDirectory.dir("src/main/java/com/swent/roamigo/ui")
       val themeDir = uiDir.dir("theme").asFile
+      // Without declared inputs the task would run again on every check.
+      inputs.dir(uiDir).withPropertyName("uiSources")
+      outputs.upToDateWhen { true }
       val rules =
           mapOf(
               Regex("""Color\(0x""") to "a hardcoded colour; add it to ui/theme/Color.kt",
@@ -316,6 +319,11 @@ val checkDesignTokens =
                   "a corner shape; use MaterialTheme.shapes or RoamigoShapes",
               Regex(
                   """\b(padding|spacedBy|PaddingValues)\([^)]*(?<![\d.])(2|4|6|8|10|12|14|16|20|24)\.dp"""
+              ) to "a spacing value that has a Spacing token",
+              Regex("""\bSpacer\([^)]*\.(height|width)\((2|4|6|8|10|12|14|16|20|24)\.dp\)""") to
+                  "a spacing value that has a Spacing token",
+              Regex(
+                  """^\s*(horizontal|vertical|start|end|top|bottom)\s*=\s*(2|4|6|8|10|12|14|16|20|24)\.dp"""
               ) to "a spacing value that has a Spacing token",
           )
       doLast {
