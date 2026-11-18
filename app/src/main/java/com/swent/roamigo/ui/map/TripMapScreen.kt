@@ -77,6 +77,8 @@ import com.mapbox.maps.viewannotation.viewAnnotationOptions
 import com.swent.roamigo.R
 import com.swent.roamigo.model.location.MemberLocation
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.components.ChipTone
+import com.swent.roamigo.ui.components.RoamigoChip
 import com.swent.roamigo.ui.components.TripActionButton
 import com.swent.roamigo.ui.components.TripActionButtonPadding
 import com.swent.roamigo.ui.components.markNotImplemented
@@ -85,8 +87,6 @@ import com.swent.roamigo.ui.theme.MyLocationBlue
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.theme.Success
 import com.swent.roamigo.ui.theme.Warning
-import com.swent.roamigo.ui.theme.WarningBorder
-import com.swent.roamigo.ui.theme.WarningSurface
 
 /**
  * Connects the trip and location ViewModels to [TripMapScreen] using caller-provided factories.
@@ -531,35 +531,24 @@ private fun SharingChip(
         isStarting -> R.string.trip_map_sharing_starting_title
         else -> R.string.trip_map_sharing_off_title
       }
-  Surface(
+  RoamigoChip(
+      text = stringResource(title),
       modifier = modifier.testTag(C.Tag.trip_map_sharing_banner),
-      shape = CircleShape,
-      color = if (isOff) WarningSurface else MaterialTheme.colorScheme.surface,
-      border = if (isOff) BorderStroke(1.dp, WarningBorder) else null,
-  ) {
-    Row(
-        modifier = Modifier.padding(horizontal = Spacing.cardPadding, vertical = Spacing.small),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.small),
-    ) {
-      Icon(
-          imageVector = if (isOff) Icons.Outlined.LocationOff else Icons.Outlined.LocationOn,
-          contentDescription = null,
-          modifier = Modifier.size(SHARING_ICON_SIZE),
-          tint =
-              when {
-                isSharing -> Success
-                isStarting -> MaterialTheme.colorScheme.onSurfaceVariant
-                else -> Warning
-              },
-      )
-      Text(
-          text = stringResource(title),
-          style = MaterialTheme.typography.labelLarge,
-          color = if (isOff) Warning else MaterialTheme.colorScheme.onSurface,
-      )
-    }
-  }
+      tone = if (isOff) ChipTone.Warning else ChipTone.Neutral,
+      leading = {
+        Icon(
+            imageVector = if (isOff) Icons.Outlined.LocationOff else Icons.Outlined.LocationOn,
+            contentDescription = null,
+            modifier = Modifier.size(SHARING_ICON_SIZE),
+            tint =
+                when {
+                  isSharing -> Success
+                  isStarting -> MaterialTheme.colorScheme.onSurfaceVariant
+                  else -> Warning
+                },
+        )
+      },
+  )
 }
 
 /** Bottom bar holding the button that turns location sharing on or pauses it. */

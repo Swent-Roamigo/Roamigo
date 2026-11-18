@@ -177,3 +177,6 @@ val Typography.checkmark
 
 val Typography.infoGlyph
   get() = bodyLarge.copy(fontSize = 20.sp)
+
+val Typography.badge
+  get() = labelSmall.copy(fontWeight = FontWeight.SemiBold, lineHeight = 15.sp)

@@ -14,7 +14,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,7 +39,9 @@ import com.swent.roamigo.R
 import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
+import com.swent.roamigo.ui.components.ButtonVariant
 import com.swent.roamigo.ui.components.InfoRow
+import com.swent.roamigo.ui.components.RoamigoButton
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.Ochre
@@ -182,8 +183,9 @@ fun ProfileScreen(
       state.errorMessageRes?.let {
         Text(stringResource(it), color = MaterialTheme.colorScheme.error)
       }
-      OutlinedButton(
+      RoamigoButton(
           onClick = { confirmingLogOut = true },
+          variant = ButtonVariant.Secondary,
           enabled = !state.signedOut,
           modifier = Modifier.fillMaxWidth().testTag(C.Tag.profile_log_out),
       ) {

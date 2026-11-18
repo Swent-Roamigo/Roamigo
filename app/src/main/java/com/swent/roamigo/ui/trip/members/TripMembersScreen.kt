@@ -1,9 +1,7 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.ui.trip.members
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,7 +12,6 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -32,14 +29,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.resources.C
-import com.swent.roamigo.ui.theme.Paper
+import com.swent.roamigo.ui.components.RoamigoAvatar
+import com.swent.roamigo.ui.components.avatarColor
 import com.swent.roamigo.ui.theme.Spacing
 
 /** Creates the Members screen state for [tripId] and shows it. */
@@ -121,30 +118,26 @@ fun TripMembersScreen(
           TextButton(onClick = onRetry) { Text(stringResource(R.string.trip_map_retry)) }
         }
         is TripMembersUiState.Loaded ->
-            state.members.forEach { MemberRow(it, isYou = it.userId == currentUserId) }
+            state.members.forEachIndexed { index, member ->
+              MemberRow(member, index, isYou = member.userId == currentUserId)
+            }
       }
     }
   }
 }
 
 @Composable
-private fun MemberRow(member: TripMemberUiModel, isYou: Boolean) {
+private fun MemberRow(member: TripMemberUiModel, index: Int, isYou: Boolean) {
   val name = member.name.ifBlank { stringResource(R.string.trip_members_unknown) }
   Row(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.trip_members_row_prefix + member.userId),
       verticalAlignment = Alignment.CenterVertically,
   ) {
-    Box(
-        modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.primary, CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-      Text(
-          // A code point, not a UTF-16 char: an emoji at the start of a name must not be split.
-          text = name.substring(0, name.offsetByCodePoints(0, 1)).uppercase(),
-          style = MaterialTheme.typography.titleMedium,
-          color = Paper,
-      )
-    }
+    RoamigoAvatar(
+        // A code point, not a UTF-16 char: an emoji at the start of a name must not be split.
+        initial = name.substring(0, name.offsetByCodePoints(0, 1)).uppercase(),
+        color = avatarColor(index),
+    )
     Spacer(Modifier.width(Spacing.medium))
     Column {
       Text(

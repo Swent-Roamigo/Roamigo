@@ -33,7 +33,8 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
-import com.swent.roamigo.ui.theme.RoamigoShapes
+import com.swent.roamigo.ui.components.ChipTone
+import com.swent.roamigo.ui.components.RoamigoChip
 import com.swent.roamigo.ui.theme.Spacing
 import java.io.File
 
@@ -236,13 +237,11 @@ private val COMPACT_HEIGHT = 320.dp
 /** A short caption over the photo, readable on any picture. */
 @Composable
 private fun Pill(text: String, tag: String, color: Color = Color.White) {
-  Text(
+  RoamigoChip(
       text,
-      modifier =
-          Modifier.testTag(tag)
-              .background(Color.Black.copy(alpha = 0.6f), RoamigoShapes.pill)
-              .padding(horizontal = Spacing.large, vertical = Spacing.small),
-      style = MaterialTheme.typography.bodySmall,
-      color = color,
+      modifier = Modifier.testTag(tag),
+      tone = ChipTone.Overlay,
+      contentColor = color,
+      textStyle = MaterialTheme.typography.bodySmall,
   )
 }

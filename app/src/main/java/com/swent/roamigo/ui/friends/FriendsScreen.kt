@@ -5,7 +5,6 @@ import androidx.activity.compose.LocalActivity
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -18,11 +17,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -41,8 +37,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -52,21 +46,19 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
+import com.swent.roamigo.ui.components.AvatarSize
+import com.swent.roamigo.ui.components.ButtonVariant
+import com.swent.roamigo.ui.components.RoamigoAvatar
+import com.swent.roamigo.ui.components.RoamigoButton
+import com.swent.roamigo.ui.components.avatarColor
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
-import com.swent.roamigo.ui.theme.FriendAvatarBlue
-import com.swent.roamigo.ui.theme.FriendAvatarGreen
-import com.swent.roamigo.ui.theme.FriendAvatarRose
-import com.swent.roamigo.ui.theme.Paper
 import com.swent.roamigo.ui.theme.Spacing
 
 /** Colors used for friend avatars to provide visual variety. */
-private val friendAvatarColors = listOf(FriendAvatarBlue, FriendAvatarRose, FriendAvatarGreen)
 
 /**
  * Renders the Friends list from presentation-ready state and forwards user actions to the caller.
@@ -161,7 +153,7 @@ fun FriendsScreen(
           modifier = Modifier.weight(1f),
       )
 
-      OutlinedButton(
+      RoamigoButton(
           onClick = onAddFriendClick,
           modifier =
               Modifier.fillMaxWidth()
@@ -390,7 +382,7 @@ private fun IncomingRequestRow(
       val declineDescription =
           stringResource(R.string.friends_decline_accessibility, request.displayName)
       Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.small)) {
-        Button(
+        RoamigoButton(
             onClick = onAccept,
             enabled = !request.isProcessing,
             modifier =
@@ -401,8 +393,9 @@ private fun IncomingRequestRow(
         ) {
           Text(stringResource(R.string.friends_accept))
         }
-        OutlinedButton(
+        RoamigoButton(
             onClick = onDecline,
+            variant = ButtonVariant.Secondary,
             enabled = !request.isProcessing,
             modifier =
                 Modifier.weight(1f)
@@ -560,37 +553,14 @@ private fun InitialAvatar(
     userId: String,
     profilePictureUrl: String? = null,
 ) {
-  val initial = displayName.trim().firstOrNull()?.uppercase() ?: "?"
-
-  val avatarColor = friendAvatarColors[(userId.hashCode() ushr 2) % friendAvatarColors.size]
-
-  Box(
-      modifier =
-          Modifier.size(48.dp)
-              .background(
-                  color = avatarColor,
-                  shape = CircleShape,
-              )
-              .testTag(C.Tag.friends_avatar_prefix + userId),
-      contentAlignment = Alignment.Center,
-  ) {
-    Text(
-        text = initial,
-        style = MaterialTheme.typography.titleMedium,
-        color = Paper,
-    )
-    if (profilePictureUrl != null) {
-      AsyncImage(
-          model = profilePictureUrl,
-          contentDescription = null,
-          modifier =
-              Modifier.matchParentSize()
-                  .clip(CircleShape)
-                  .testTag(C.Tag.friends_photo_prefix + userId),
-          contentScale = ContentScale.Crop,
-      )
-    }
-  }
+  RoamigoAvatar(
+      initial = displayName.trim().firstOrNull()?.uppercase() ?: "?",
+      color = avatarColor(userId.hashCode() ushr 2),
+      modifier = Modifier.testTag(C.Tag.friends_avatar_prefix + userId),
+      size = AvatarSize.Large,
+      photoUrl = profilePictureUrl,
+      photoModifier = Modifier.testTag(C.Tag.friends_photo_prefix + userId),
+  )
 }
 
 @Composable

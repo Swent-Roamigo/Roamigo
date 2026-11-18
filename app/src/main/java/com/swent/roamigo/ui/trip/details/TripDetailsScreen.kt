@@ -31,17 +31,16 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.TripRepository
+import com.swent.roamigo.ui.components.RoamigoBadge
 import com.swent.roamigo.ui.components.TripActionButton
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
-import com.swent.roamigo.ui.theme.RoamigoShapes
 import com.swent.roamigo.ui.theme.Spacing
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -166,7 +165,7 @@ private fun TripDetailsContent(
                 .clickable(role = Role.Button, onClick = unfinished),
             contentAlignment = Alignment.CenterEnd,
         ) {
-          TripDetailsBadge(stringResource(R.string.trip_details_invite))
+          RoamigoBadge(stringResource(R.string.trip_details_invite))
         }
       }
       TripDetailsSummaryCard(
@@ -178,7 +177,7 @@ private fun TripDetailsContent(
               details.suggestedPlaceCount,
           ),
       ) {
-        TripDetailsBadge(details.suggestedPlaceCount.toString())
+        RoamigoBadge(details.suggestedPlaceCount.toString())
       }
       TripDetailsSummaryCard(
           R.drawable.ic_trip_details_check,
@@ -247,25 +246,6 @@ private fun TripDetailsSummaryCard(
       }
       trailingContent()
     }
-  }
-}
-
-@Composable
-private fun TripDetailsBadge(text: String) {
-  Surface(
-      shape = RoamigoShapes.chip,
-      color = MaterialTheme.colorScheme.primaryContainer,
-      contentColor = MaterialTheme.colorScheme.primary,
-  ) {
-    Text(
-        text,
-        Modifier.padding(horizontal = Spacing.small, vertical = 3.dp),
-        style =
-            MaterialTheme.typography.labelSmall.copy(
-                fontWeight = FontWeight.SemiBold,
-                lineHeight = 15.sp,
-            ),
-    )
   }
 }
 

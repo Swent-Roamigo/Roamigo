@@ -2,7 +2,6 @@ package com.swent.roamigo.ui.trips.components
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -47,8 +45,11 @@ import coil.request.ImageRequest
 import com.swent.roamigo.R
 import com.swent.roamigo.model.destination.DestinationPhoto
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.components.AvatarItem
+import com.swent.roamigo.ui.components.AvatarStack
 import com.swent.roamigo.ui.components.PHOTO_FADE_IN_MILLIS
 import com.swent.roamigo.ui.components.PhotoCreditsDialog
+import com.swent.roamigo.ui.components.avatarColor
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trips.MainTripBadge
@@ -229,43 +230,5 @@ internal fun MainTripCard(
 
 @Composable
 private fun MemberAvatars(initials: List<String>) {
-  if (initials.isEmpty()) {
-    return
-  }
-
-  val avatarSize = 40.dp
-  val avatarSpacing = 30.dp
-
-  Box(
-      modifier = Modifier.width(avatarSize + avatarSpacing * (initials.size - 1)).height(avatarSize)
-  ) {
-    initials.forEachIndexed { index, initial ->
-      val avatarColors =
-          when (index % 3) {
-            0 -> MaterialTheme.colorScheme.secondary to MaterialTheme.colorScheme.onSecondary
-            1 -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
-            else -> MaterialTheme.colorScheme.tertiary to MaterialTheme.colorScheme.onTertiary
-          }
-
-      Box(
-          modifier =
-              Modifier.offset(x = avatarSpacing * index)
-                  .size(avatarSize)
-                  .clip(CircleShape)
-                  .background(avatarColors.first)
-                  .border(
-                      width = 2.dp,
-                      color = MaterialTheme.colorScheme.surface,
-                      shape = CircleShape,
-                  ),
-          contentAlignment = Alignment.Center,
-      ) {
-        Text(
-            text = initial,
-            style = MaterialTheme.typography.bodyMedium,
-            color = avatarColors.second,
-        )
-      }
-    }
-  }
+  AvatarStack(initials.mapIndexed { index, initial -> AvatarItem(initial, avatarColor(index)) })
 }
