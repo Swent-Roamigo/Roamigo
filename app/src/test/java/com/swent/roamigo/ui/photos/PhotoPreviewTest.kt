@@ -2,6 +2,7 @@
 package com.swent.roamigo.ui.photos
 
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -178,6 +179,43 @@ class PhotoPreviewTest {
     composeRule.onNodeWithTag(C.Tag.photo_preview_location).performClick()
 
     assertEquals(listOf("map"), calls)
+  }
+
+  @Test fun locationPillIsDisabledWhileSaving() = assertLocationPillDisabledWhileSaving()
+
+  @Test
+  @Config(qualifiers = "w640dp-h360dp-land")
+  fun locationPillIsDisabledWhileSavingInLandscape() = assertLocationPillDisabledWhileSaving()
+
+  private fun assertLocationPillDisabledWhileSaving() {
+    val status = mutableStateOf<PhotoLocationStatus>(PhotoLocationStatus.Off)
+    composeRule.setContent {
+      RoamigoTheme {
+        PhotoPreview(
+            file = File("/nowhere/photo.jpg"),
+            isOnline = true,
+            saving = true,
+            saveFailed = false,
+            location = status.value,
+            onSave = { calls += "save" },
+            onRetake = { calls += "retake" },
+            onClose = { calls += "close" },
+            onOpenMap = { calls += "map" },
+        )
+      }
+    }
+
+    listOf(PhotoLocationStatus.Off, PhotoLocationStatus.NextPhotoOnly).forEach {
+      status.value = it
+      composeRule.waitForIdle()
+      composeRule
+          .onNodeWithTag(C.Tag.photo_preview_location)
+          .assertIsNotEnabled()
+          .assertHasNoClickAction()
+          .performClick()
+    }
+
+    assertEquals(emptyList<String>(), calls)
   }
 
   @Test
