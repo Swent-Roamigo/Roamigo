@@ -2,6 +2,9 @@
 package com.swent.roamigo.ui.friends
 
 import androidx.activity.ComponentActivity
+import androidx.annotation.PluralsRes
+import androidx.annotation.StringRes
+import androidx.compose.material3.R as Material3R
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -70,6 +73,12 @@ class FriendsRouteTest {
       )
   private var endedSessions = 0
 
+  private fun string(@StringRes resourceId: Int, vararg formatArgs: Any): String =
+      composeRule.activity.getString(resourceId, *formatArgs)
+
+  private fun plural(@PluralsRes resourceId: Int, quantity: Int): String =
+      composeRule.activity.resources.getQuantityString(resourceId, quantity, quantity)
+
   private fun show(
       friendRepository: FriendRepository = alice,
       userRepository: UserRepository = users,
@@ -101,20 +110,24 @@ class FriendsRouteTest {
     composeRule.onNodeWithText("Bob").assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.friends_photo_prefix + "bob").assertExists()
     composeRule.onNodeWithText("Carol").performScrollTo().assertIsDisplayed()
-    composeRule.onNodeWithText("Pending").assertIsDisplayed()
-    composeRule.onNodeWithText("0 countries", substring = true).assertDoesNotExist()
-    composeRule.onNodeWithText("0 trips", substring = true).assertDoesNotExist()
+    composeRule.onNodeWithText(string(R.string.friends_pending)).assertIsDisplayed()
+    composeRule
+        .onNodeWithText(plural(R.plurals.friends_country_count, 0), substring = true)
+        .assertDoesNotExist()
+    composeRule
+        .onNodeWithText(plural(R.plurals.friends_trip_together_count, 0), substring = true)
+        .assertDoesNotExist()
   }
 
   @Test
   fun anotherUsersAcceptanceAndRemovalUpdateTheScreenWithoutRefresh() {
     val request = runBlocking { alice.sendFriendRequest("bob") }
     show()
-    composeRule.onNodeWithText("Pending").assertIsDisplayed()
+    composeRule.onNodeWithText(string(R.string.friends_pending)).assertIsDisplayed()
 
     composeRule.runOnIdle { runBlocking { bob.acceptFriendRequest("alice", request.uid) } }
     composeRule.onNodeWithTag(C.Tag.friends_view_map_prefix + "bob").assertIsDisplayed()
-    composeRule.onNodeWithText("Pending").assertDoesNotExist()
+    composeRule.onNodeWithText(string(R.string.friends_pending)).assertDoesNotExist()
 
     composeRule.runOnIdle { runBlocking { bob.removeFriend("alice", request.uid) } }
     composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertIsDisplayed()
@@ -165,8 +178,11 @@ class FriendsRouteTest {
         }
     show(userRepository = directory)
 
-    composeRule.onNodeWithText("Unknown traveler").performScrollTo().assertIsDisplayed()
-    composeRule.onNodeWithText("Pending").assertIsDisplayed()
+    composeRule
+        .onNodeWithText(string(R.string.friends_unknown_traveler))
+        .performScrollTo()
+        .assertIsDisplayed()
+    composeRule.onNodeWithText(string(R.string.friends_pending)).assertIsDisplayed()
     composeRule.runOnIdle { failLookup = false }
     composeRule.onNodeWithTag(C.Tag.friends_retry).performScrollTo().performClick()
     composeRule.onNodeWithText("Carol").performScrollTo().assertIsDisplayed()
@@ -178,11 +194,12 @@ class FriendsRouteTest {
     runBlocking { alice.sendFriendRequest("unpublished") }
     show()
 
-    composeRule.onNodeWithText("Unknown traveler").assertIsDisplayed()
+    val unknownTraveler = string(R.string.friends_unknown_traveler)
+    composeRule.onNodeWithText(unknownTraveler).assertIsDisplayed()
     composeRule
         .onNodeWithTag(C.Tag.friends_avatar_prefix + "unpublished")
-        .assert(hasAnyDescendant(hasText("U")))
-    composeRule.onNodeWithText("Pending").assertIsDisplayed()
+        .assert(hasAnyDescendant(hasText(unknownTraveler.trim().first().uppercase())))
+    composeRule.onNodeWithText(string(R.string.friends_pending)).assertIsDisplayed()
   }
 
   @Test
@@ -218,13 +235,13 @@ class FriendsRouteTest {
   fun acceptingAnIncomingRequestMovesItToFriendsForBothParticipants() {
     val request = runBlocking { bob.sendFriendRequest("alice") }
     show()
-    composeRule.onNodeWithText("Incoming requests").assertIsDisplayed()
+    composeRule.onNodeWithText(string(R.string.friends_incoming_title)).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.friends_photo_prefix + "bob").assertExists()
     composeRule
         .onNodeWithTag(C.Tag.friends_accept_prefix + request.uid)
         .performScrollTo()
-        .assertContentDescriptionEquals("Accept friend request from Bob")
+        .assertContentDescriptionEquals(string(R.string.friends_accept_accessibility, "Bob"))
         .performClick()
 
     composeRule
@@ -244,7 +261,7 @@ class FriendsRouteTest {
     composeRule
         .onNodeWithTag(C.Tag.friends_decline_prefix + request.uid)
         .performScrollTo()
-        .assertContentDescriptionEquals("Decline friend request from Bob")
+        .assertContentDescriptionEquals(string(R.string.friends_decline_accessibility, "Bob"))
         .performClick()
 
     composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertIsDisplayed()
@@ -267,7 +284,7 @@ class FriendsRouteTest {
         .performScrollTo()
         .assertIsDisplayed()
         .assertTextContains("bo")
-    val noMatches = composeRule.activity.getString(R.string.friends_no_matches)
+    val noMatches = string(R.string.friends_no_matches)
     composeRule.onNodeWithText(noMatches).assertDoesNotExist()
 
     val replacement = composeRule.runOnIdle {
@@ -302,9 +319,7 @@ class FriendsRouteTest {
         .performScrollTo()
         .assertIsDisplayed()
         .assertTextContains("bo")
-    composeRule
-        .onNodeWithText(composeRule.activity.getString(R.string.friends_no_matches))
-        .assertDoesNotExist()
+    composeRule.onNodeWithText(string(R.string.friends_no_matches)).assertDoesNotExist()
 
     composeRule.onNodeWithTag(C.Tag.friends_search).performTextReplacement("")
     composeRule.onNodeWithTag(C.Tag.friends_search).assertDoesNotExist()
@@ -326,9 +341,7 @@ class FriendsRouteTest {
         .performScrollTo()
         .assertIsDisplayed()
         .assertTextContains(" ")
-    composeRule
-        .onNodeWithText(composeRule.activity.getString(R.string.friends_no_matches))
-        .assertDoesNotExist()
+    composeRule.onNodeWithText(string(R.string.friends_no_matches)).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.friends_search).performTextReplacement("")
     composeRule.onNodeWithTag(C.Tag.friends_search).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertIsDisplayed()
@@ -345,7 +358,7 @@ class FriendsRouteTest {
     composeRule
         .onNodeWithTag(C.Tag.friends_remove_prefix + request.uid)
         .performScrollTo()
-        .assertContentDescriptionEquals("Remove Bob from friends")
+        .assertContentDescriptionEquals(string(R.string.friends_remove_accessibility, "Bob"))
         .performClick()
 
     composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertIsDisplayed()
@@ -530,7 +543,7 @@ class FriendsRouteTest {
         .onNodeWithTag(C.Tag.friends_remove_prefix + request.uid)
         .performScrollTo()
         .assertIsDisplayed()
-    composeRule.onNodeWithText("Pending").assertDoesNotExist()
+    composeRule.onNodeWithText(string(R.string.friends_pending)).assertDoesNotExist()
 
     composeRule.runOnIdle { snapshots.outgoing.value = emptyList() }
     composeRule.onNodeWithTag(C.Tag.friends_remove_prefix + request.uid).assertIsDisplayed()
@@ -548,9 +561,7 @@ class FriendsRouteTest {
         .performScrollTo()
         .performClick()
 
-    composeRule
-        .onNodeWithText("Could not accept the request. Please try again.")
-        .assertIsDisplayed()
+    composeRule.onNodeWithText(string(R.string.friends_accept_failed)).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.friends_accept_prefix + request.uid).assertIsEnabled()
     composeRule.onNodeWithTag(C.Tag.friends_decline_prefix + request.uid).assertIsEnabled()
     composeRule.runOnIdle {
@@ -562,9 +573,7 @@ class FriendsRouteTest {
         .onNodeWithTag(C.Tag.friends_remove_prefix + request.uid)
         .performScrollTo()
         .assertIsDisplayed()
-    composeRule
-        .onNodeWithText("Could not accept the request. Please try again.")
-        .assertDoesNotExist()
+    composeRule.onNodeWithText(string(R.string.friends_accept_failed)).assertDoesNotExist()
   }
 
   @Test
@@ -578,15 +587,13 @@ class FriendsRouteTest {
         .performScrollTo()
         .performClick()
 
-    composeRule
-        .onNodeWithText("Could not decline the request. Please try again.")
-        .assertIsDisplayed()
+    composeRule.onNodeWithText(string(R.string.friends_decline_failed)).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.friends_decline_prefix + request.uid).assertIsEnabled()
     composeRule.runOnIdle { controlled.failure = null }
-    composeRule.onNodeWithContentDescription("Dismiss").performClick()
     composeRule
-        .onNodeWithText("Could not decline the request. Please try again.")
-        .assertDoesNotExist()
+        .onNodeWithContentDescription(string(Material3R.string.m3c_snackbar_dismiss))
+        .performClick()
+    composeRule.onNodeWithText(string(R.string.friends_decline_failed)).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.friends_decline_prefix + request.uid).performClick()
     composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertIsDisplayed()
   }
@@ -606,7 +613,7 @@ class FriendsRouteTest {
         .performScrollTo()
         .performClick()
 
-    composeRule.onNodeWithText("Could not remove the friend. Please try again.").assertIsDisplayed()
+    composeRule.onNodeWithText(string(R.string.friends_remove_failed)).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.friends_remove_prefix + request.uid).assertIsEnabled()
     val gate = CompletableDeferred<Unit>()
     composeRule.runOnIdle {
