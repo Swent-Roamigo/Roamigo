@@ -96,7 +96,7 @@ fun PhotoPreview(
           horizontalAlignment = Alignment.CenterHorizontally,
           verticalArrangement = Arrangement.spacedBy(Spacing.medium),
       ) {
-        StatusPills(isOnline, saveFailed, location, onOpenMap)
+        StatusPills(isOnline, saveFailed, location, onOpenMap, onRetake)
         SaveButton(isOnline, saving, onSave, Modifier.fillMaxWidth().height(50.dp))
         RetakeButton(saving, onRetake, Modifier.fillMaxWidth().height(52.dp))
       }
@@ -131,7 +131,7 @@ private fun CompactOverlay(
           verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall),
       ) {
         if (!isOnline) OfflinePill()
-        StatusPills(isOnline, saveFailed, location, onOpenMap)
+        StatusPills(isOnline, saveFailed, location, onOpenMap, onRetake)
       }
       CloseButton(saving, onClose)
     }
@@ -154,8 +154,9 @@ private fun StatusPills(
     saveFailed: Boolean,
     location: PhotoLocationStatus?,
     onOpenMap: () -> Unit,
+    onRetake: () -> Unit,
 ) {
-  location?.let { PhotoLocationPill(it, onOpenMap) }
+  location?.let { PhotoLocationPill(it, onOpenMap, onRetake) }
   Pill(
       stringResource(
           if (isOnline) R.string.photo_preview_note_online else R.string.photo_preview_note_offline

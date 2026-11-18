@@ -18,10 +18,11 @@ private fun PhotoLocationPillStatesPreview() {
         Modifier.padding(Spacing.large),
         verticalArrangement = Arrangement.spacedBy(Spacing.small),
     ) {
-      PhotoLocationPill(PhotoLocationStatus.Locating, onOpenMap = {})
-      PhotoLocationPill(PhotoLocationStatus.Attached(46.52, 6.63), onOpenMap = {})
-      PhotoLocationPill(PhotoLocationStatus.Unavailable, onOpenMap = {})
-      PhotoLocationPill(PhotoLocationStatus.Off, onOpenMap = {})
+      PhotoLocationPill(PhotoLocationStatus.Locating, onOpenMap = {}, onRetake = {})
+      PhotoLocationPill(PhotoLocationStatus.Attached(46.52, 6.63), onOpenMap = {}, onRetake = {})
+      PhotoLocationPill(PhotoLocationStatus.Unavailable, onOpenMap = {}, onRetake = {})
+      PhotoLocationPill(PhotoLocationStatus.Off, onOpenMap = {}, onRetake = {})
+      PhotoLocationPill(PhotoLocationStatus.NextPhotoOnly, onOpenMap = {}, onRetake = {})
     }
   }
 }

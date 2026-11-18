@@ -33,10 +33,17 @@ class PhotoLocationPillTest {
 
   private val status = mutableStateOf<PhotoLocationStatus>(PhotoLocationStatus.Locating)
   private var openMapCalls = 0
+  private var retakeCalls = 0
 
   private fun setPill() {
     composeRule.setContent {
-      RoamigoTheme { PhotoLocationPill(status.value, onOpenMap = { openMapCalls++ }) }
+      RoamigoTheme {
+        PhotoLocationPill(
+            status.value,
+            onOpenMap = { openMapCalls++ },
+            onRetake = { retakeCalls++ },
+        )
+      }
     }
   }
 
@@ -84,7 +91,22 @@ class PhotoLocationPillTest {
   }
 
   @Test
-  fun onlyTheOffPillCanBeTapped() {
+  fun nextPhotoOnlyPillExplainsThePhotoHasNoLocationAndRetakesWhenTapped() {
+    status.value = PhotoLocationStatus.NextPhotoOnly
+    setPill()
+
+    pill().assertTextEquals("Location is on for your next photo · Retake to add it")
+    pill().assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+    pill().assertHasClickAction()
+    pill().assertHeightIsAtLeast(48.dp)
+    pill().performClick()
+
+    assertEquals(1, retakeCalls)
+    assertEquals(0, openMapCalls)
+  }
+
+  @Test
+  fun onlyTheOffAndNextPhotoPillsCanBeTapped() {
     setPill()
 
     listOf(
@@ -109,6 +131,7 @@ class PhotoLocationPillTest {
         PhotoLocationPill(
             PhotoLocationStatus.Unavailable,
             onOpenMap = {},
+            onRetake = {},
             modifier = Modifier.width(300.dp),
         )
       }
