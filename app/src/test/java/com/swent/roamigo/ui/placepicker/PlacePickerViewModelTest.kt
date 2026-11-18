@@ -530,4 +530,430 @@ class PlacePickerViewModelTest {
         advanceUntilIdle()
         assertEquals(PlaceSearchStatus.INITIAL, vm.uiState.value.searchStatus)
       }
+
+  @Test
+  fun mapStartsFromSelectionThenProximityAndNeverUsesZeroAsMissing() =
+      runTest(dispatcher) {
+        val nearby = PlaceProximity(46.0, 6.0)
+        val vm = picker(initial = original.copy(countryCode = "CH"), proximity = nearby)
+        vm.enterMap()
+        assertTrue(vm.uiState.value.isMapMode)
+        assertEquals(original.copy(countryCode = "CH"), vm.uiState.value.manualDraft.location)
+        assertEquals(0.0, vm.uiState.value.mapInitialCenter!!.latitude, 0.0)
+        assertTrue(vm.uiState.value.canConfirm)
+        val empty = picker(proximity = nearby)
+        empty.enterMap()
+        assertNull(empty.uiState.value.manualDraft.point)
+        assertEquals(46.0, empty.uiState.value.mapInitialCenter!!.latitude, 0.0)
+        assertEquals(6.0, empty.uiState.value.mapInitialCenter!!.longitude, 0.0)
+        assertFalse(empty.uiState.value.canConfirm)
+        val overview = picker(proximity = PlaceProximity(Double.NaN, 0.0))
+        overview.enterMap()
+        assertNull(overview.uiState.value.mapInitialCenter)
+      }
+
+  @Test
+  fun manualPointAndNameAreBothRequiredAndReplacingPointRequiresNewName() =
+      runTest(dispatcher) {
+        val vm = picker()
+        vm.selectMapPoint(1.0, 2.0)
+        vm.updateMapName("Ignored outside map")
+        assertNull(vm.uiState.value.manualDraft.point)
+        vm.enterMap()
+        vm.updateMapName("Name without point")
+        assertEquals("", vm.uiState.value.manualDraft.name)
+        assertFalse(vm.uiState.value.canConfirm)
+        vm.confirm()
+        assertNull(vm.consumeResult())
+        vm.selectMapPoint(0.0, 0.0)
+        assertEquals("", vm.uiState.value.manualDraft.name)
+        listOf("", "  ", "\t\n").forEach {
+          vm.updateMapName(it)
+          assertFalse(vm.uiState.value.canConfirm)
+          vm.confirm()
+          assertNull(vm.consumeResult())
+        }
+        vm.updateMapName("  Meeting point  ")
+        assertTrue(vm.uiState.value.canConfirm)
+        vm.selectMapPoint(0.0, 0.0)
+        assertEquals("  Meeting point  ", vm.uiState.value.manualDraft.name)
+        vm.selectMapPoint(1.0, 2.0)
+        assertEquals(1.0, vm.uiState.value.manualDraft.point!!.latitude, 0.0)
+        assertEquals(2.0, vm.uiState.value.manualDraft.point!!.longitude, 0.0)
+        assertEquals("", vm.uiState.value.manualDraft.name)
+        assertFalse(vm.uiState.value.canConfirm)
+        vm.updateMapName("  New point  ")
+        vm.confirm()
+        vm.confirm()
+        assertEquals(TripLocation(1.0, 2.0, "New point"), vm.consumeResult())
+        assertNull(vm.consumeResult())
+        vm.selectMapPoint(3.0, 4.0)
+        vm.updateMapName("Too late")
+        vm.enterMap()
+        vm.backToSearch()
+        assertEquals("  New point  ", vm.uiState.value.manualDraft.name)
+        assertTrue(vm.uiState.value.isMapMode)
+      }
+
+  @Test
+  fun manualCoordinatesRejectNonFiniteAndOutOfRangeValuesButAcceptBoundaries() =
+      runTest(dispatcher) {
+        val vm = picker(initial = original)
+        vm.enterMap()
+        listOf(Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, -91.0, 91.0)
+            .forEach { vm.selectMapPoint(it, 0.0) }
+        listOf(Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, -181.0, 181.0)
+            .forEach { vm.selectMapPoint(0.0, it) }
+        assertEquals(original, vm.uiState.value.manualDraft.location)
+        listOf(-90.0 to -180.0, 90.0 to 180.0, 0.0 to 0.0).forEach { (lat, lon) ->
+          vm.selectMapPoint(lat, lon)
+          vm.updateMapName("Boundary")
+          assertEquals(TripLocation(lat, lon, "Boundary"), vm.uiState.value.manualDraft.location)
+          assertTrue(vm.uiState.value.canConfirm)
+        }
+      }
+
+  @Test
+  fun resolvedPlaceKeepsCountryUntilMarkerMovesAndBackDiscardsManualChanges() =
+      runTest(dispatcher) {
+        val repo = repository().apply { resolve = { Place("Resolved", null, 46.0, 6.0, "CH") } }
+        val vm = picker(repo, initial = original)
+        vm.updateQuery("café")
+        advanceUntilIdle()
+        vm.selectCandidate(candidate)
+        advanceUntilIdle()
+        val selected = TripLocation(46.0, 6.0, "Resolved", "CH")
+        vm.enterMap()
+        vm.enterMap()
+        assertEquals(selected, vm.uiState.value.manualDraft.location)
+        vm.selectMapPoint(46.0, 6.0)
+        assertEquals("CH", vm.uiState.value.manualDraft.countryCode)
+        vm.selectMapPoint(46.0, 6.1)
+        assertNull(vm.uiState.value.manualDraft.countryCode)
+        assertEquals("", vm.uiState.value.manualDraft.name)
+        vm.updateMapName("Elsewhere")
+        vm.backToSearch()
+        assertFalse(vm.uiState.value.isMapMode)
+        assertEquals("café", vm.uiState.value.query)
+        assertEquals(selected, vm.uiState.value.selectedLocation)
+        assertNull(vm.consumeResult())
+        runCurrent()
+        assertEquals(1, repo.searchRequests.size)
+        vm.enterMap()
+        assertEquals(selected, vm.uiState.value.manualDraft.location)
+        vm.confirm()
+        assertEquals(selected, vm.consumeResult())
+      }
+
+  @Test
+  fun enteringMapInvalidatesLateSearchSuccessAndFailureAndRejectsSearchActions() =
+      runTest(dispatcher) {
+        listOf(false, true).forEach { fail ->
+          val answer = CompletableDeferred<List<PlaceCandidate>>()
+          val repo =
+              FakePlaceRepository(
+                  search = { _, _ -> withContext(NonCancellable) { answer.await() } }
+              )
+          val vm = picker(repo, initial = original)
+          vm.updateQuery("café")
+          advanceTimeBy(300)
+          runCurrent()
+          vm.enterMap()
+          vm.selectMapPoint(1.0, 2.0)
+          vm.updateMapName("Manual")
+          vm.updateQuery("Ignored")
+          vm.retry()
+          vm.selectCandidate(candidate)
+          if (fail) answer.completeExceptionally(PlaceSearchException.Unavailable("Late"))
+          else answer.complete(listOf(candidate))
+          advanceUntilIdle()
+          assertTrue(vm.uiState.value.candidates.isEmpty())
+          assertNull(vm.uiState.value.searchError)
+          assertEquals("café", vm.uiState.value.query)
+          assertEquals(TripLocation(1.0, 2.0, "Manual"), vm.uiState.value.manualDraft.location)
+          assertEquals(original, vm.uiState.value.selectedLocation)
+          assertEquals(1, repo.searchRequests.size)
+          assertTrue(repo.resolveRequests.isEmpty())
+        }
+      }
+
+  @Test
+  fun enteringMapInvalidatesLateResolutionSuccessAndFailure() =
+      runTest(dispatcher) {
+        listOf(false, true).forEach { fail ->
+          val answer = CompletableDeferred<Place>()
+          val repo =
+              repository().apply { resolve = { withContext(NonCancellable) { answer.await() } } }
+          val vm = picker(repo, initial = original)
+          vm.updateQuery("café")
+          advanceUntilIdle()
+          vm.selectCandidate(candidate)
+          runCurrent()
+          vm.enterMap()
+          vm.selectMapPoint(1.0, 2.0)
+          vm.updateMapName("Manual")
+          if (fail) answer.completeExceptionally(PlaceSearchException.InvalidPlace())
+          else answer.complete(Place("Late", null, 3.0, 4.0))
+          advanceUntilIdle()
+          assertEquals(original, vm.uiState.value.selectedLocation)
+          assertEquals(TripLocation(1.0, 2.0, "Manual"), vm.uiState.value.manualDraft.location)
+          assertNull(vm.uiState.value.resolutionError)
+          assertNull(vm.uiState.value.resolvingCandidateId)
+        }
+      }
+
+  @Test
+  fun returningFromMapRefreshesCandidatesOnceEvenWithAnOlderSelection() =
+      runTest(dispatcher) {
+        val repo = repository()
+        val vm = picker(repo, initial = original)
+        vm.updateQuery("café")
+        advanceUntilIdle()
+        vm.enterMap()
+        val fresh = candidate.copy(id = "fresh", attribution = null)
+        repo.search = { _, _ -> listOf(fresh) }
+        vm.backToSearch()
+        vm.backToSearch()
+        assertEquals(PlaceSearchStatus.LOADING, vm.uiState.value.searchStatus)
+        runCurrent()
+        assertEquals(listOf(fresh), vm.uiState.value.candidates)
+        assertEquals("café", vm.uiState.value.query)
+        assertEquals(candidate.attribution, vm.uiState.value.attribution)
+        assertEquals(original, vm.uiState.value.selectedLocation)
+        assertEquals(2, repo.searchRequests.size)
+      }
+
+  @Test
+  fun returningDuringInterruptedRetrieveWaitsForSessionAndDoesNotRetrieveAgain() =
+      runTest(dispatcher) {
+        val pending = CompletableDeferred<Place>()
+        val repo =
+            repository().apply { resolve = { withContext(NonCancellable) { pending.await() } } }
+        val vm = picker(repo, initial = original)
+        vm.updateQuery("café")
+        advanceUntilIdle()
+        vm.selectCandidate(candidate)
+        runCurrent()
+        vm.enterMap()
+        vm.backToSearch()
+        runCurrent()
+        assertEquals(1, repo.searchRequests.size)
+        pending.complete(Place("Late", null, 1.0, 1.0))
+        runCurrent()
+        assertEquals(2, repo.searchRequests.size)
+        assertEquals(1, repo.resolveRequests.size)
+        assertEquals(original, vm.uiState.value.selectedLocation)
+        assertEquals(listOf(candidate), vm.uiState.value.candidates)
+      }
+
+  @Test
+  fun mapBackAfterRestorationResumesInterruptedSearchOnlyWhenSearchIsVisible() =
+      runTest(dispatcher) {
+        val handle = SavedStateHandle()
+        val repo = repository().apply { search = { _, _ -> awaitCancellation() } }
+        val vm = picker(repo, handle, original)
+        vm.updateQuery("café")
+        advanceUntilIdle()
+        vm.enterMap()
+        stores.last().clear()
+        val restoredRepo = repository()
+        val restored = picker(restoredRepo, handle)
+        runCurrent()
+        assertTrue(restoredRepo.searchRequests.isEmpty())
+        restored.backToSearch()
+        runCurrent()
+        assertEquals(listOf(candidate), restored.uiState.value.candidates)
+        assertEquals(original, restored.uiState.value.selectedLocation)
+        assertEquals(1, restoredRepo.searchRequests.size)
+      }
+
+  @Test
+  fun mapBackKeepsShortEmptyAndFailedSearchesIdle() =
+      runTest(dispatcher) {
+        val repo = repository()
+        val vm = picker(repo)
+        vm.updateQuery("a")
+        vm.enterMap()
+        vm.backToSearch()
+        advanceUntilIdle()
+        assertTrue(repo.searchRequests.isEmpty())
+        assertEquals("a", vm.uiState.value.query)
+
+        repo.search = { _, _ -> emptyList() }
+        vm.updateQuery("empty")
+        advanceUntilIdle()
+        vm.enterMap()
+        vm.backToSearch()
+        advanceUntilIdle()
+        assertEquals(PlaceSearchStatus.EMPTY, vm.uiState.value.searchStatus)
+        assertEquals(1, repo.searchRequests.size)
+
+        repo.search = { _, _ -> throw PlaceSearchException.InvalidToken() }
+        vm.updateQuery("error")
+        advanceUntilIdle()
+        vm.enterMap()
+        vm.backToSearch()
+        advanceUntilIdle()
+        assertEquals(PlacePickerError.INVALID_TOKEN, vm.uiState.value.searchError)
+        assertEquals(2, repo.searchRequests.size)
+
+        repo.search = { _, _ -> listOf(candidate) }
+        repo.resolve = { throw PlaceSearchException.QuotaExceeded() }
+        vm.retry()
+        runCurrent()
+        vm.selectCandidate(candidate)
+        runCurrent()
+        vm.enterMap()
+        vm.backToSearch()
+        runCurrent()
+        assertEquals(PlacePickerError.QUOTA, vm.uiState.value.resolutionError)
+        assertEquals(3, repo.searchRequests.size)
+      }
+
+  @Test
+  fun manualNameLimitAppliesToEditsRestoredDraftsAndConfirmation() =
+      runTest(dispatcher) {
+        val limit = "a".repeat(256)
+        val longName = limit + " extra"
+        val handle = SavedStateHandle()
+        val selection = original.copy(name = longName)
+        val vm = picker(handle = handle, initial = selection)
+        assertEquals(selection, vm.uiState.value.selectedLocation)
+        vm.enterMap()
+        assertEquals(limit, vm.uiState.value.manualDraft.name)
+        vm.updateMapName(limit)
+        assertEquals(limit, vm.uiState.value.manualDraft.name)
+        vm.updateMapName(longName)
+        assertEquals(limit, vm.uiState.value.manualDraft.name)
+        assertEquals(limit, handle.get<String>("mapName"))
+
+        handle["mapName"] = longName
+        val restored = picker(handle = handle)
+        assertEquals(limit, restored.uiState.value.manualDraft.name)
+        assertEquals(limit, handle.get<String>("mapName"))
+        restored.confirm()
+        restored.backToSearch()
+        assertEquals(original.copy(name = limit), restored.consumeResult())
+        assertTrue(restored.uiState.value.isMapMode)
+      }
+
+  @Test
+  fun manualDraftAndModeRestoreWithoutProviderCallsAndResultRestoresOnce() =
+      runTest(dispatcher) {
+        val repo = repository()
+        val handle = SavedStateHandle()
+        val vm = picker(repo, handle, original)
+        vm.updateQuery("prior query")
+        vm.enterMap()
+        vm.selectMapPoint(0.0, 180.0)
+        vm.updateMapName("  Draft  ")
+        val restoredHandle = SavedStateHandle(handle.keys().associateWith { handle.get<Any?>(it) })
+        val restored = picker(repo, restoredHandle)
+        assertTrue(restored.uiState.value.isMapMode)
+        assertEquals(vm.uiState.value.manualDraft, restored.uiState.value.manualDraft)
+        assertEquals("prior query", restored.uiState.value.query)
+        assertEquals(original, restored.uiState.value.selectedLocation)
+        advanceUntilIdle()
+        assertTrue(repo.searchRequests.isEmpty())
+        restored.confirm()
+        val pending = picker(repo, restoredHandle)
+        assertEquals(TripLocation(0.0, 180.0, "Draft"), pending.consumeResult())
+        assertNull(pending.consumeResult())
+        val reopened = picker(repo)
+        assertFalse(reopened.uiState.value.isMapMode)
+        assertNull(reopened.uiState.value.manualDraft.point)
+      }
+
+  @Test
+  fun invalidSavedManualCoordinatesAreDroppedAndMapFailureNeverDiscardsDraft() =
+      runTest(dispatcher) {
+        listOf(
+                mapOf("mapLatitude" to Double.NaN, "mapLongitude" to 1.0),
+                mapOf("mapLatitude" to 1.0),
+                mapOf("mapLongitude" to 1.0),
+                emptyMap(),
+            )
+            .forEach { fields ->
+              val vm =
+                  picker(
+                      handle =
+                          SavedStateHandle(fields + mapOf("mapMode" to true, "mapName" to "Draft"))
+                  )
+              assertFalse(vm.uiState.value.canConfirm)
+              assertNull(vm.uiState.value.manualDraft.point)
+            }
+        val vm = picker(initial = original)
+        vm.enterMap()
+        vm.mapLoadingFailed()
+        assertTrue(vm.uiState.value.mapError)
+        assertEquals(original, vm.uiState.value.manualDraft.location)
+        vm.retryMap()
+        assertFalse(vm.uiState.value.mapError)
+        assertEquals(1, vm.uiState.value.mapLoadAttempt)
+        vm.mapLoadingFailed()
+        vm.mapLoaded()
+        assertFalse(vm.uiState.value.mapError)
+        vm.backToSearch()
+        assertEquals(original, vm.uiState.value.selectedLocation)
+        assertTrue(vm.cancel())
+        assertNull(vm.consumeResult())
+      }
+
+  @Test
+  fun mapCallbacksAndRetriesIgnoreClosedAndCompletedModes() =
+      runTest(dispatcher) {
+        val vm = picker(initial = original)
+        val searchState = vm.uiState.value
+        vm.mapLoadingFailed()
+        vm.mapLoaded()
+        vm.retryMap()
+        assertEquals(searchState, vm.uiState.value)
+        vm.enterMap()
+        vm.mapLoadingFailed()
+        vm.backToSearch()
+        val returnedState = vm.uiState.value
+        vm.mapLoaded()
+        vm.mapLoadingFailed()
+        vm.retryMap()
+        assertEquals(returnedState, vm.uiState.value)
+        vm.enterMap()
+        vm.mapLoadingFailed()
+        vm.confirm()
+        val finishedState = vm.uiState.value
+        vm.mapLoaded()
+        vm.mapLoadingFailed()
+        vm.retryMap()
+        assertEquals(finishedState, vm.uiState.value)
+        assertEquals(original, vm.consumeResult())
+        assertNull(vm.consumeResult())
+      }
+
+  @Test
+  fun incompleteRestoredMapDraftFramesExistingSelectionBeforeProximity() =
+      runTest(dispatcher) {
+        val handle =
+            SavedStateHandle(
+                mapOf(
+                    "initialized" to true,
+                    "name" to "Original",
+                    "latitude" to 0.0,
+                    "longitude" to 0.0,
+                    "mapMode" to true,
+                    "mapLatitude" to Double.NaN,
+                    "mapLongitude" to 1.0,
+                    "mapName" to "Unconfirmed name",
+                )
+            )
+        val vm = picker(handle = handle, proximity = PlaceProximity(46.0, 6.0))
+        val state = vm.uiState.value
+        assertTrue(state.isMapMode)
+        assertEquals(original, state.selectedLocation)
+        assertNull(state.manualDraft.point)
+        assertEquals("Unconfirmed name", state.manualDraft.name)
+        assertEquals(0.0, state.mapInitialCenter!!.latitude, 0.0)
+        assertEquals(0.0, state.mapInitialCenter.longitude, 0.0)
+        assertFalse(state.canConfirm)
+        vm.backToSearch()
+        assertEquals(original, vm.uiState.value.selectedLocation)
+      }
 }
