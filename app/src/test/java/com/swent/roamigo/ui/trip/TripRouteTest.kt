@@ -48,6 +48,7 @@ import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import com.swent.roamigo.ui.trip.activity.ActivityFormTrip
 import com.swent.roamigo.ui.trip.voting.interactionVote
 import java.io.File
 import java.io.IOException
@@ -123,6 +124,7 @@ class TripRouteTest {
             onAuthenticationRequired = {},
             onOpenVote = { _, _ -> },
             onCreateVote = {},
+            onCreateActivity = {},
             onMembersClick = {},
             onTripsClick = {},
             onMapClick = {},
@@ -169,6 +171,7 @@ class TripRouteTest {
               onAuthenticationRequired = {},
               onOpenVote = { _, _ -> },
               onCreateVote = {},
+              onCreateActivity = {},
               onMembersClick = {},
               onTripsClick = {},
               onMapClick = {},
@@ -353,6 +356,7 @@ class TripRouteTest {
               onAuthenticationRequired = onAuthenticationRequired,
               onOpenVote = { _, _ -> },
               onCreateVote = {},
+              onCreateActivity = {},
               onMembersClick = {},
               onTripsClick = {},
               onMapClick = {},
@@ -407,6 +411,7 @@ class TripRouteTest {
             onAuthenticationRequired = {},
             onOpenVote = { _, _ -> },
             onCreateVote = {},
+            onCreateActivity = {},
             onMembersClick = {},
             onTripsClick = {},
             onMapClick = {},
@@ -449,6 +454,7 @@ class TripRouteTest {
             onAuthenticationRequired = {},
             onOpenVote = { _, _ -> },
             onCreateVote = {},
+            onCreateActivity = {},
             onMembersClick = {},
             onTripsClick = {},
             onMapClick = {},
@@ -487,6 +493,7 @@ class TripRouteTest {
               onAuthenticationRequired = {},
               onOpenVote = { _, _ -> },
               onCreateVote = {},
+              onCreateActivity = {},
               onMembersClick = {},
               onTripsClick = {},
               onMapClick = {},
@@ -510,7 +517,11 @@ class TripRouteTest {
     composeRule.onNodeWithTag(C.Tag.votes_hint).assertDoesNotExist()
   }
 
-  private fun showRoute(fromHistory: Boolean, onCreateVote: () -> Unit = {}) {
+  private fun showRoute(
+      fromHistory: Boolean,
+      onCreateVote: () -> Unit = {},
+      onCreateActivity: (ActivityFormTrip) -> Unit = {},
+  ) {
     val trip =
         trip(
             endDate =
@@ -535,6 +546,7 @@ class TripRouteTest {
             onAuthenticationRequired = {},
             onOpenVote = { _, _ -> },
             onCreateVote = onCreateVote,
+            onCreateActivity = onCreateActivity,
             onMembersClick = {},
             onTripsClick = {},
             onMapClick = {},
@@ -555,6 +567,23 @@ class TripRouteTest {
     composeRule.onNodeWithText("Start a vote").performClick()
 
     composeRule.runOnIdle { assertEquals(1, createVoteClicks) }
+  }
+
+  @Test
+  fun addingAnActivityOpensTheFormForTheLoadedTrip() {
+    val opened = mutableListOf<ActivityFormTrip>()
+    showRoute(fromHistory = false, onCreateActivity = { opened += it })
+
+    composeRule.onNodeWithTag(C.Tag.trip_add_button).performClick()
+    composeRule.onNodeWithText("Add an activity").performClick()
+
+    val today = LocalDate.now(ZoneId.systemDefault())
+    composeRule.runOnIdle {
+      assertEquals(
+          listOf(ActivityFormTrip("Lisbon & Porto", today.minusDays(1), today.plusDays(1))),
+          opened,
+      )
+    }
   }
 
   @Test

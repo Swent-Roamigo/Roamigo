@@ -31,6 +31,7 @@ import com.swent.roamigo.model.friends.FriendRepository
 import com.swent.roamigo.model.location.LocationRepository
 import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.photo.PhotoRepository
+import com.swent.roamigo.model.place.PlaceRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.activity.ActivityRepository
@@ -48,6 +49,7 @@ import com.swent.roamigo.ui.heatmap.ExploredWorldRoute
 import com.swent.roamigo.ui.heatmap.VisitedCountryCounts
 import com.swent.roamigo.ui.map.TripOverviewMapRoute
 import com.swent.roamigo.ui.navigation.Route
+import com.swent.roamigo.ui.navigation.activityFormTrip
 import com.swent.roamigo.ui.navigation.isReadOnly
 import com.swent.roamigo.ui.navigation.opensMap
 import com.swent.roamigo.ui.navigation.tripId
@@ -55,6 +57,8 @@ import com.swent.roamigo.ui.navigation.voteId
 import com.swent.roamigo.ui.permissions.PermissionsScreen
 import com.swent.roamigo.ui.profile.ProfileRoute
 import com.swent.roamigo.ui.trip.TripRoute
+import com.swent.roamigo.ui.trip.activity.ActivityFormMode
+import com.swent.roamigo.ui.trip.activity.ActivityFormRoute
 import com.swent.roamigo.ui.trip.creation.CreateTripRoute
 import com.swent.roamigo.ui.trip.creation.TripReadyRoute
 import com.swent.roamigo.ui.trip.history.TripHistoryRoute
@@ -80,6 +84,8 @@ import kotlinx.coroutines.launch
  *   fails by default, so only production wiring talks to the backend.
  * @param locationRepository Shares the user's location on a trip map; the app-wide instance of
  *   [RoamigoApplication] by default, since sharing must go through a single instance.
+ * @param placeRepository Searches places for the activity form; the app-wide instance of
+ *   [RoamigoApplication] by default, since Search Box keeps one provider session.
  */
 @Composable
 fun RoamigoApp(
@@ -95,6 +101,7 @@ fun RoamigoApp(
     photoRepository: PhotoRepository = remember { FakePhotoRepository() },
     connectivityRepository: ConnectivityRepository? = null,
     locationRepository: LocationRepository? = null,
+    placeRepository: PlaceRepository? = null,
     countryCounts: VisitedCountryCounts = remember { VisitedCountryCounts { emptyMap() } },
     invitationService: TripInvitationService = UnavailableTripInvitationService,
 ) {
@@ -186,6 +193,25 @@ fun RoamigoApp(
             currentUserId = userId,
             onBack = { navController.popBackStack() },
             onVoteCreated = { navController.popBackStack() },
+        )
+      }
+    }
+    composable(Route.NEW_ACTIVITY) { entry ->
+      val tripId = entry.tripId()
+      val trip = remember(entry) { entry.activityFormTrip() }
+      val places =
+          placeRepository
+              ?: remember(context) {
+                (context.applicationContext as RoamigoApplication).placeRepository
+              }
+      SignedIn(authRepository, navController) {
+        ActivityFormRoute(
+            activityRepository = activityRepository,
+            placeRepository = places,
+            mode = ActivityFormMode.Create(tripId, defaultDate = null),
+            trip = trip,
+            onClose = { navController.popBackStack() },
+            onActivitySaved = { navController.popBackStack() },
         )
       }
     }
@@ -292,6 +318,7 @@ fun RoamigoApp(
             navController.navigate(Route.vote(tripId, voteId, readOnly))
           },
           onCreateVote = { navController.navigate(Route.newVote(tripId)) },
+          onCreateActivity = { trip -> navController.navigate(Route.newActivity(tripId, trip)) },
           onMembersClick = { navController.navigate(Route.members(tripId)) },
           onInviteClick = { inviteTripId = tripId },
           onTripsClick = onTripsClick,
