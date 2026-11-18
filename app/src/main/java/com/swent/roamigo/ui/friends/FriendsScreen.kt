@@ -158,7 +158,6 @@ fun FriendsScreen(
 
       RoamigoButton(
           onClick = onAddFriendClick,
-          variant = ButtonVariant.Secondary,
           modifier =
               Modifier.fillMaxWidth()
                   .padding(bottom = Spacing.large)
