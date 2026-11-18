@@ -662,6 +662,46 @@ class PhotosViewModelTest {
   }
 
   @Test
+  fun aPhotoTakenWithLocationOffOnlyGetsTheNextPhotoOnceThePermissionIsGranted() = runTest {
+    locator.answer(PhotoLocationResult.PermissionOff)
+    takePicture()
+    val preview = state.preview
+
+    viewModel.onLocationPermissionChecked(granted = true)
+
+    assertEquals(PhotoLocationStatus.NextPhotoOnly, state.previewLocation)
+    assertEquals(preview, state.preview)
+    viewModel.onSave()
+    assertNull(repository.savedPhotos.single().coordinates)
+  }
+
+  @Test
+  fun theNextPhotoOnlyStatusGoesBackToOffWhenThePermissionIsRevoked() = runTest {
+    locator.answer(PhotoLocationResult.PermissionOff)
+    takePicture()
+    viewModel.onLocationPermissionChecked(granted = true)
+
+    viewModel.onLocationPermissionChecked(granted = false)
+
+    assertEquals(PhotoLocationStatus.Off, state.previewLocation)
+  }
+
+  @Test
+  fun grantingThePermissionDoesNotChangeAPhotoThatHasOrLacksAPositionForOtherReasons() = runTest {
+    locator.answer(PhotoLocationResult.Found(PhotoCoordinates(46.5, 6.6)))
+    takePicture()
+    viewModel.onLocationPermissionChecked(granted = true)
+    assertEquals(PhotoLocationStatus.Attached(46.5, 6.6), state.previewLocation)
+
+    viewModel.onRetake()
+    locator.answer(PhotoLocationResult.Unavailable)
+    takePicture()
+    viewModel.onLocationPermissionChecked(granted = true)
+
+    assertEquals(PhotoLocationStatus.Unavailable, state.previewLocation)
+  }
+
+  @Test
   fun waitsOnlyForWhatIsLeftOfTheTimeoutThenSavesWithoutAPosition() = runTest {
     locator.answerLater()
     advanceTimeBy(10_000)

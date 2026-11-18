@@ -113,7 +113,13 @@ fun PhotosRoute(
     }
   }
 
+  // The map tab, where the permission is asked, leaves this screen composed out, not paused.
+  LaunchedEffect(viewModel, state.preview) {
+    viewModel.onLocationPermissionChecked(locationRepository.hasLocationPermission())
+  }
+
   LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+    viewModel.onLocationPermissionChecked(locationRepository.hasLocationPermission())
     viewModel.onScreenResumed(
         ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED

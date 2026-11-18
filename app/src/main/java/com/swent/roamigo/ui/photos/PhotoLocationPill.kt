@@ -34,28 +34,41 @@ import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.Spacing
 
 /**
- * Tells whether the photo will be geotagged. Only [PhotoLocationStatus.Off] can be tapped, to go
- * and turn the location on in the trip map; the pill itself never asks for a permission.
+ * Tells whether the photo will be geotagged. [PhotoLocationStatus.Off] can be tapped, to go and
+ * turn the location on in the trip map, and [PhotoLocationStatus.NextPhotoOnly], to retake the
+ * photo now that the location is on; the pill itself never asks for a permission.
  *
  * @param status the location state of the photo being previewed.
  * @param onOpenMap called when the user taps the pill while the location is off.
+ * @param onRetake called when the user taps the pill to retake the photo with the location now on.
  */
 @Composable
 fun PhotoLocationPill(
     status: PhotoLocationStatus,
     onOpenMap: () -> Unit,
+    onRetake: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-  val openMapLabel = stringResource(R.string.photo_preview_location_open_map)
-  val isOff = status is PhotoLocationStatus.Off
+  val action: Pair<String, () -> Unit>? =
+      when (status) {
+        PhotoLocationStatus.Off ->
+            stringResource(R.string.photo_preview_location_open_map) to onOpenMap
+        PhotoLocationStatus.NextPhotoOnly ->
+            stringResource(R.string.photo_preview_location_retake) to onRetake
+        else -> null
+      }
   val shape = RoundedCornerShape(50)
   Row(
       modifier
           .testTag(C.Tag.photo_preview_location)
           .then(
-              if (isOff) {
+              if (action != null) {
                 Modifier.clip(shape)
-                    .clickable(role = Role.Button, onClickLabel = openMapLabel, onClick = onOpenMap)
+                    .clickable(
+                        role = Role.Button,
+                        onClickLabel = action.first,
+                        onClick = action.second,
+                    )
                     .minimumInteractiveComponentSize()
               } else {
                 Modifier
@@ -73,7 +86,8 @@ fun PhotoLocationPill(
           PhotoLocationStatus.Locating -> null
           is PhotoLocationStatus.Attached -> Icons.Filled.LocationOn
           PhotoLocationStatus.Unavailable,
-          PhotoLocationStatus.Off -> Icons.Filled.LocationOff
+          PhotoLocationStatus.Off,
+          PhotoLocationStatus.NextPhotoOnly -> Icons.Filled.LocationOff
         }
     if (icon == null) {
       CircularProgressIndicator(Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
@@ -88,6 +102,7 @@ fun PhotoLocationPill(
                   is PhotoLocationStatus.Attached -> R.string.photo_preview_location_attached
                   PhotoLocationStatus.Unavailable -> R.string.photo_preview_location_unavailable
                   PhotoLocationStatus.Off -> R.string.photo_preview_location_off
+                  PhotoLocationStatus.NextPhotoOnly -> R.string.photo_preview_location_next_photo
                 }
             ),
         style = MaterialTheme.typography.bodySmall,
