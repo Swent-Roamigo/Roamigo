@@ -1,4 +1,4 @@
-// Implemented with assistance from Claude (Anthropic).
+// Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.model.photo
 
 import java.io.File
@@ -13,8 +13,13 @@ interface PhotoRepository {
   fun pendingPhotos(tripId: String): Flow<List<PendingPhoto>>
 
   /**
-   * Emits the latest photos of the trip that the server has, newest first. It fails if they cannot
-   * be read, e.g. because the user is not a member of the trip.
+   * Emits the trip's bounded gallery list, newest first, and updates as it changes. Locally written
+   * photos can appear before the server confirms them; pending queue entries are not included
+   * unless they have been written to the gallery. The limit applies before callers filter for
+   * usable coordinates.
+   *
+   * It fails if the photos cannot be read, e.g. because the user is not a member of the trip.
+   * Collect again to retry.
    */
   fun tripPhotos(tripId: String): Flow<List<TripPhoto>>
 

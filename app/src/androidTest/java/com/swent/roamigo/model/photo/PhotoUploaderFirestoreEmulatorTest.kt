@@ -1,4 +1,4 @@
-// Implemented with assistance from Claude (Anthropic).
+// Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.model.photo
 
 import android.content.Context
@@ -15,6 +15,8 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.firestore.MemoryCacheSettings
+import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.Source
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.TripDraft
@@ -28,6 +30,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -53,6 +57,7 @@ class PhotoUploaderFirestoreEmulatorTest {
       val userId: String,
       val db: FirebaseFirestore,
       val trips: TripRepositoryFirestore,
+      val auth: FirebaseAuth,
   )
 
   private lateinit var alice: User
@@ -72,8 +77,8 @@ class PhotoUploaderFirestoreEmulatorTest {
                 startDate = Instant.ofEpochSecond(1_900_000_000),
                 endDate = Instant.ofEpochSecond(1_900_300_000),
                 flexibleDates = false,
-                travelMode = TravelMode.SOLO,
-                travelerCount = 1,
+                travelMode = TravelMode.GROUP,
+                travelerCount = 2,
             ),
         )
         photoFile =
@@ -164,6 +169,18 @@ class PhotoUploaderFirestoreEmulatorTest {
       }
 
   @Test
+  fun anotherTripMemberCanReadTheGallery() =
+      runBlocking<Unit> {
+        addBobToTrip()
+        uploader(alice).upload(photo(alice, latitude = 41.5), photoFile)
+
+        assertTrue(photoDocument(bob).get(Source.SERVER).await().exists())
+        val photos = withTimeout(10_000) { gallery(bob).observe(tripId).first { it.isNotEmpty() } }
+        assertEquals(listOf("photo-1"), photos.map { it.id })
+        assertEquals(41.5, photos.single().latitude)
+      }
+
+  @Test
   fun aNonMemberCannotReadPhotos() =
       runBlocking<Unit> {
         uploader(alice).upload(photo(alice), photoFile)
@@ -171,6 +188,25 @@ class PhotoUploaderFirestoreEmulatorTest {
         assertPermissionDenied { photoDocument(bob).get().await() }
         assertPermissionDenied {
           bob.db.collection("trips").document(tripId).collection("photos").get().await()
+        }
+      }
+
+  @Test
+  fun anUnauthenticatedUserCannotReadPhotos() =
+      runBlocking<Unit> {
+        uploader(alice).upload(photo(alice), photoFile)
+        bob.auth.signOut()
+
+        assertPermissionDenied { photoDocument(bob).get(Source.SERVER).await() }
+        assertPermissionDenied {
+          bob.db
+              .collection("trips")
+              .document(tripId)
+              .collection("photos")
+              .orderBy("takenAt", Query.Direction.DESCENDING)
+              .limit(PhotoGalleryFirestore.LIMIT)
+              .get(Source.SERVER)
+              .await()
         }
       }
 
@@ -280,10 +316,11 @@ class PhotoUploaderFirestoreEmulatorTest {
       }
 
   @Test
-  fun theGalleryReadsOnlyTheLatestPhotos() =
+  fun theGalleryLimitDoesNotReplacePhotosWithoutCoordinates() =
       runBlocking<Unit> {
         listOf("a" to 1L, "b" to 2L, "c" to 3L).forEach { (id, time) ->
-          uploader(alice).upload(photo(alice, id).copy(takenAtMillis = time), photoFile)
+          val latitude = if (id == "a") 41.5 else null
+          uploader(alice).upload(photo(alice, id, latitude).copy(takenAtMillis = time), photoFile)
         }
 
         val photos =
@@ -292,6 +329,26 @@ class PhotoUploaderFirestoreEmulatorTest {
             }
 
         assertEquals(listOf("c", "b"), photos.map { it.id })
+        assertTrue(photos.all { it.latitude == null && it.longitude == null })
+      }
+
+  @Test
+  fun aLocallyWrittenPhotoAppearsBeforeTheServerConfirmsIt() =
+      runBlocking<Unit> {
+        alice.db.disableNetwork().await()
+        val write = photoDocument(alice, "local").set(validData(alice))
+        try {
+          val photos =
+              withTimeout(10_000) {
+                gallery(alice).observe(tripId).first { list -> list.any { it.id == "local" } }
+              }
+
+          assertEquals(listOf("local"), photos.map { it.id })
+          assertFalse(write.isComplete)
+        } finally {
+          alice.db.enableNetwork().await()
+        }
+        withTimeout(10_000) { write.await() }
       }
 
   @Test
@@ -351,7 +408,46 @@ class PhotoUploaderFirestoreEmulatorTest {
                   .build()
         }
     val userId = auth.signInAnonymously().await().user!!.uid
-    return User(userId, db, TripRepositoryFirestore(db) { auth.currentUser?.uid })
+    return User(userId, db, TripRepositoryFirestore(db) { auth.currentUser?.uid }, auth)
+  }
+
+  private fun addBobToTrip() {
+    val members =
+        JSONArray(listOf(alice.userId, bob.userId).map { JSONObject().put("stringValue", it) })
+    val fields =
+        JSONObject()
+            .put("memberIds", JSONObject().put("arrayValue", JSONObject().put("values", members)))
+    // Emulator-only fixture; client rules still forbid membership changes.
+    val write =
+        JSONObject()
+            .put(
+                "update",
+                JSONObject()
+                    .put(
+                        "name",
+                        "projects/$PROJECT_ID/databases/(default)/documents/trips/$tripId",
+                    )
+                    .put("fields", fields),
+            )
+            .put("updateMask", JSONObject().put("fieldPaths", JSONArray(listOf("memberIds"))))
+    val body = JSONObject().put("writes", JSONArray().put(write)).toString()
+    val connection =
+        URL(
+                "http://$EMULATOR_HOST:$FIRESTORE_PORT/v1/projects/$PROJECT_ID/databases/(default)/documents:commit"
+            )
+            .openConnection() as HttpURLConnection
+    try {
+      connection.requestMethod = "POST"
+      connection.setRequestProperty("Authorization", "Bearer owner")
+      connection.setRequestProperty("Content-Type", "application/json")
+      connection.doOutput = true
+      connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+      check(connection.responseCode == HttpURLConnection.HTTP_OK) {
+        "Seeding Firestore failed with HTTP ${connection.responseCode}"
+      }
+    } finally {
+      connection.disconnect()
+    }
   }
 
   private fun clearFirestore() {

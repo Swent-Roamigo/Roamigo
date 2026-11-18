@@ -1,4 +1,4 @@
-// Implemented with assistance from Claude (Anthropic).
+// Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.model.photo
 
 import com.google.firebase.firestore.Blob
@@ -23,12 +23,15 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.mockito.ArgumentMatchers.any
 import org.mockito.ArgumentMatchers.anyLong
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
+import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import org.robolectric.RobolectricTestRunner
@@ -38,6 +41,8 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class PhotoGalleryFirestoreTest {
+  @get:Rule val folder = TemporaryFolder()
+
   private val firestore = mock(FirebaseFirestore::class.java)
   private val registration = mock(ListenerRegistration::class.java)
   private var listener: EventListener<QuerySnapshot>? = null
@@ -221,6 +226,50 @@ class PhotoGalleryFirestoreTest {
 
     assertEquals(denied, failure)
     assertTrue(job.isCompleted)
+  }
+
+  @Test
+  fun repositoryForwardsUpdatesAndCanRetryAfterAListenerFailure() = runTest {
+    val queue = InMemoryPhotoQueue()
+    queue.add(pendingPhoto("queued", tripId = "t1"))
+    val repository =
+        DefaultPhotoRepository(
+            queue = queue,
+            files = PhotoFileStore(folder.newFolder()),
+            scheduler = FakePhotoScheduler(),
+            gallery = gallery(),
+            currentUserId = { "u1" },
+        )
+    val photos = repository.tripPhotos("t1")
+    val received = mutableListOf<List<String>>()
+    var failure: Throwable? = null
+    val first =
+        launch(UnconfinedTestDispatcher(testScheduler)) {
+          photos.catch { failure = it }.collect { received += it.map(TripPhoto::id) }
+        }
+
+    listener!!.onEvent(snapshot(document("old", takenAt = 1)), null)
+    listener!!.onEvent(snapshot(document("new", takenAt = 2), document("old", takenAt = 1)), null)
+    val denied = FirebaseFirestoreException("no", FirebaseFirestoreException.Code.PERMISSION_DENIED)
+    listener!!.onEvent(null, denied)
+    testScheduler.advanceUntilIdle()
+
+    assertEquals(listOf(listOf("old"), listOf("new", "old")), received)
+    assertEquals(denied, failure)
+    assertTrue(first.isCompleted)
+    verify(registration).remove()
+
+    val retry =
+        launch(UnconfinedTestDispatcher(testScheduler)) {
+          photos.collect { received += it.map(TripPhoto::id) }
+        }
+    listener!!.onEvent(snapshot(document("after-retry", takenAt = 3)), null)
+
+    assertEquals(listOf("after-retry"), received.last())
+    assertEquals(2, lookups)
+    retry.cancel()
+    testScheduler.advanceUntilIdle()
+    verify(registration, times(2)).remove()
   }
 
   @Test
