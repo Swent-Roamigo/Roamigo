@@ -22,6 +22,8 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
+import java.util.TimeZone
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -138,6 +140,30 @@ class ActivityFormViewModelTest {
   }
 
   @Test
+  fun withoutAZoneTheFormUsesTheDeviceZone() = runTest {
+    val deviceZone = TimeZone.getDefault()
+    TimeZone.setDefault(TimeZone.getTimeZone("Asia/Tokyo"))
+    try {
+      val repository = FakeActivityRepository()
+      val form =
+          ActivityFormViewModel(
+              repository,
+              ActivityFormMode.Create(TRIP_ID, day),
+              trip,
+              SavedStateHandle(),
+          )
+      form.fillValid()
+      form.save()
+      advanceUntilIdle()
+
+      val start = repository.stored().single().startTime.seconds
+      assertEquals(Instant.parse("2026-10-12T15:00:00Z").epochSecond, start)
+    } finally {
+      TimeZone.setDefault(deviceZone)
+    }
+  }
+
+  @Test
   fun blankDescriptionIsStoredAsNone() = runTest {
     val repository = FakeActivityRepository()
     val form = createForm(repository)
@@ -193,6 +219,10 @@ class ActivityFormViewModelTest {
             ActivityFormError.MISSING_PLACE,
         ),
         form.uiState.value.errors,
+    )
+    assertEquals(
+        ActivityFormError.MISSING_PLACE,
+        form.uiState.value.errorFor(ActivityFormField.PLACE),
     )
   }
 
@@ -376,6 +406,27 @@ class ActivityFormViewModelTest {
         advanceUntilIdle()
       }
     }
+  }
+
+  @Test
+  fun cancelledSaveLeavesTheFormEditableWithoutAFailure() = runTest {
+    val repository =
+        object : ActivityRepository by FakeActivityRepository() {
+          override suspend fun createActivity(
+              tripId: String,
+              activityId: String,
+              draft: ActivityDraft,
+          ): Activity = throw CancellationException("Form closed during the save")
+        }
+    val form = createForm(repository)
+    form.fillValid()
+    form.save()
+    advanceUntilIdle()
+
+    val state = form.uiState.value
+    assertTrue(state.canSave)
+    assertNull(state.failure)
+    assertNull(form.consumeResult())
   }
 
   @Test
