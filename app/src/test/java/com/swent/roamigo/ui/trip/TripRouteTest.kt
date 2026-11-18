@@ -212,6 +212,36 @@ class TripRouteTest {
   }
 
   @Test
+  fun photoPreviewIsKeptAndSaysLocationAppliesToTheNextPhotoAfterGrantingItOnTheMap() {
+    val registry = RecordingRegistry()
+    val locations = FakeLocationRepository()
+    showOffLocationPhotoPreview(signedInAuth(), registry, locations) {}
+    val picturesTaken = {
+      registry.launched.count { it.first is ActivityResultContracts.TakePicture }
+    }
+    assertEquals(1, picturesTaken())
+
+    composeRule.onNodeWithTag(C.Tag.photo_preview_location).performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertIsDisplayed()
+    locations.hasPermission = true
+    composeRule
+        .onNodeWithText(composeRule.activity.getString(R.string.trips_nav_photos))
+        .performClick()
+
+    composeRule.onNodeWithTag(C.Tag.photo_preview).assertIsDisplayed()
+    composeRule.waitUntil(5_000) {
+      runCatching {
+        composeRule
+            .onNodeWithTag(C.Tag.photo_preview_location)
+            .assertTextEquals("Location is on for your next photo · Retake to add it")
+      }
+          .isSuccess
+    }
+    assertEquals(1, picturesTaken())
+    assertTrue(locations.startSharingCalls.isEmpty())
+  }
+
+  @Test
   fun offLocationPillAsksASignedOutUserToSignInInsteadOfOpeningTheMap() {
     val auth = signedInAuth()
     var authenticationRequests = 0
