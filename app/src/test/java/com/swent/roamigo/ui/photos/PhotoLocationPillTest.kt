@@ -12,6 +12,8 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.hasProgressBarRangeInfo
@@ -35,13 +37,14 @@ class PhotoLocationPillTest {
   private var openMapCalls = 0
   private var retakeCalls = 0
 
-  private fun setPill() {
+  private fun setPill(enabled: Boolean = true) {
     composeRule.setContent {
       RoamigoTheme {
         PhotoLocationPill(
             status.value,
             onOpenMap = { openMapCalls++ },
             onRetake = { retakeCalls++ },
+            enabled = enabled,
         )
       }
     }
@@ -103,6 +106,36 @@ class PhotoLocationPillTest {
 
     assertEquals(1, retakeCalls)
     assertEquals(0, openMapCalls)
+  }
+
+  @Test
+  fun disabledClickablePillsStillShowTheirStatusButDoNothing() {
+    setPill(enabled = false)
+
+    listOf(
+            PhotoLocationStatus.Off to "Location off · Turn on in Map",
+            PhotoLocationStatus.NextPhotoOnly to
+                "Location is on for your next photo · Retake to add it",
+        )
+        .forEach { (value, text) ->
+          status.value = value
+          composeRule.waitForIdle()
+          pill().assertTextEquals(text)
+          pill().assertIsNotEnabled()
+          pill().assertHasNoClickAction()
+          pill().performClick()
+        }
+
+    assertEquals(0, openMapCalls)
+    assertEquals(0, retakeCalls)
+  }
+
+  @Test
+  fun enabledPillsAreEnabled() {
+    status.value = PhotoLocationStatus.Off
+    setPill()
+
+    pill().assertIsEnabled()
   }
 
   @Test

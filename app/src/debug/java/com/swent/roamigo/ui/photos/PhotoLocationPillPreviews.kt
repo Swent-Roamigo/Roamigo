@@ -23,6 +23,19 @@ private fun PhotoLocationPillStatesPreview() {
       PhotoLocationPill(PhotoLocationStatus.Unavailable, onOpenMap = {}, onRetake = {})
       PhotoLocationPill(PhotoLocationStatus.Off, onOpenMap = {}, onRetake = {})
       PhotoLocationPill(PhotoLocationStatus.NextPhotoOnly, onOpenMap = {}, onRetake = {})
+      // Disabled, as while a photo is saving.
+      PhotoLocationPill(
+          PhotoLocationStatus.Off,
+          onOpenMap = {},
+          onRetake = {},
+          enabled = false,
+      )
+      PhotoLocationPill(
+          PhotoLocationStatus.NextPhotoOnly,
+          onOpenMap = {},
+          onRetake = {},
+          enabled = false,
+      )
     }
   }
 }

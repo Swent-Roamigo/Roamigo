@@ -26,7 +26,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
@@ -41,6 +43,8 @@ import com.swent.roamigo.ui.theme.Spacing
  * @param status the location state of the photo being previewed.
  * @param onOpenMap called when the user taps the pill while the location is off.
  * @param onRetake called when the user taps the pill to retake the photo with the location now on.
+ * @param enabled whether the pill can be tapped; when false it still shows the status, but runs no
+ *   action, like the buttons it sits above while the photo is saving.
  */
 @Composable
 fun PhotoLocationPill(
@@ -48,6 +52,7 @@ fun PhotoLocationPill(
     onOpenMap: () -> Unit,
     onRetake: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
   val action: Pair<String, () -> Unit>? =
       when (status) {
@@ -58,11 +63,15 @@ fun PhotoLocationPill(
         else -> null
       }
   val shape = RoundedCornerShape(50)
+  // Same dimming as the disabled Cancel button.
+  val contentColor = Color.White.copy(alpha = if (enabled) 1f else 0.5f)
   Row(
       modifier
           .testTag(C.Tag.photo_preview_location)
           .then(
-              if (action != null) {
+              if (action == null) {
+                Modifier
+              } else if (enabled) {
                 Modifier.clip(shape)
                     .clickable(
                         role = Role.Button,
@@ -71,11 +80,15 @@ fun PhotoLocationPill(
                     )
                     .minimumInteractiveComponentSize()
               } else {
-                Modifier
+                // A disabled clickable still exposes its click action, so it is left out.
+                Modifier.minimumInteractiveComponentSize().semantics {
+                  role = Role.Button
+                  disabled()
+                }
               }
           )
           .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
-          .background(Color.Black.copy(alpha = 0.6f), shape)
+          .background(Color.Black.copy(alpha = if (enabled) 0.6f else 0.3f), shape)
           .padding(horizontal = Spacing.large, vertical = Spacing.small),
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.spacedBy(Spacing.small),
@@ -90,9 +103,9 @@ fun PhotoLocationPill(
           PhotoLocationStatus.NextPhotoOnly -> Icons.Filled.LocationOff
         }
     if (icon == null) {
-      CircularProgressIndicator(Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+      CircularProgressIndicator(Modifier.size(16.dp), color = contentColor, strokeWidth = 2.dp)
     } else {
-      PillIcon(icon)
+      PillIcon(icon, contentColor)
     }
     Text(
         text =
@@ -106,13 +119,13 @@ fun PhotoLocationPill(
                 }
             ),
         style = MaterialTheme.typography.bodySmall,
-        color = Color.White,
+        color = contentColor,
     )
   }
 }
 
 /** Decorative: the text next to it is the label. */
 @Composable
-private fun PillIcon(icon: ImageVector) {
-  Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+private fun PillIcon(icon: ImageVector, tint: Color) {
+  Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
 }
