@@ -137,8 +137,8 @@ fun List<Activity>.toTripMarkerUiStates(): List<TripMarkerUiState> = map { activ
 fun TripMarkerIcon(locationName: String, kind: TripMarkerKind) {
   val iconRes =
       when (kind) {
-        TripMarkerKind.DESTINATION,
-        TripMarkerKind.ACTIVITY -> R.drawable.ic_map_marker
+        TripMarkerKind.DESTINATION -> R.drawable.ic_map_marker
+        TripMarkerKind.ACTIVITY -> R.drawable.ic_map_marker_activity
         TripMarkerKind.SUGGESTION -> R.drawable.ic_map_marker_monochrome
       }
   Column(
