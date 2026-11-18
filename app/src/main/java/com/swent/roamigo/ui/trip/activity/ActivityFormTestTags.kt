@@ -11,6 +11,7 @@ internal object ActivityFormTestTags {
   const val OUTSIDE_TRIP = "activity_form_outside_trip"
   const val TIME = "activity_form_time"
   const val TIME_DIALOG = "activity_form_time_dialog"
+  const val TIME_MODE = "activity_form_time_mode"
   const val TIME_CLEAR = "activity_form_time_clear"
   const val PLACE = "activity_form_place"
   const val DESCRIPTION = "activity_form_description"
