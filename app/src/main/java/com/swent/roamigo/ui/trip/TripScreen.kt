@@ -75,79 +75,73 @@ internal fun TripScreen(
     content: @Composable () -> Unit,
 ) {
   Column(modifier.fillMaxSize().safeDrawingPadding()) {
-    // The bottom bar stays full width. The header and the tabs are capped, and so is the tab's
-    // content, except on the map, which is meant to use the whole area.
-    Column(Modifier.weight(1f)) {
-      Column(Modifier.contentWidth()) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-          IconButton(onClick = onBack) {
-            Icon(
-                Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = stringResource(R.string.trip_details_back),
-            )
-          }
-          Column(Modifier.weight(1f)) {
-            if (trip != null) {
-              Text(trip.name, style = MaterialTheme.typography.headlineMedium)
-              val locale = LocalConfiguration.current.locales[0]
-              val formatter = DateTimeFormatter.ofPattern("EEE d MMM", locale)
-              // The header is identical on every tab so switching tabs never changes it.
-              FlowRow(
-                  horizontalArrangement = Arrangement.spacedBy(Spacing.small),
-                  verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall),
-              ) {
-                Text(
-                    "${formatter.format(trip.startDate)} – ${formatter.format(trip.endDate)}",
-                    style = MaterialTheme.typography.bodyMedium,
+    // The bottom bar below stays full width; the header, the tabs and the tab's content are capped.
+    Column(Modifier.weight(1f).contentWidth()) {
+      Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        IconButton(onClick = onBack) {
+          Icon(
+              Icons.AutoMirrored.Filled.ArrowBack,
+              contentDescription = stringResource(R.string.trip_details_back),
+          )
+        }
+        Column(Modifier.weight(1f)) {
+          if (trip != null) {
+            Text(trip.name, style = MaterialTheme.typography.headlineMedium)
+            val locale = LocalConfiguration.current.locales[0]
+            val formatter = DateTimeFormatter.ofPattern("EEE d MMM", locale)
+            // The header is identical on every tab so switching tabs never changes it.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.small),
+                verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall),
+            ) {
+              Text(
+                  "${formatter.format(trip.startDate)} – ${formatter.format(trip.endDate)}",
+                  style = MaterialTheme.typography.bodyMedium,
+              )
+              // Synced is the normal state and says nothing; the indicator appears when it is not.
+              if (syncState != null && syncState != SyncState.Synced) {
+                SyncStatus(
+                    syncState,
+                    Modifier.testTag(C.Tag.trip_sync_status),
+                    compact = true,
                 )
-                // Synced is the normal state and says nothing; the indicator appears when it is
-                // not.
-                if (syncState != null && syncState != SyncState.Synced) {
-                  SyncStatus(
-                      syncState,
-                      Modifier.testTag(C.Tag.trip_sync_status),
-                      compact = true,
-                  )
-                }
               }
             }
           }
-          if (trip != null) {
-            TripMemberAvatars(
-                members = trip.members,
-                memberCount = trip.memberCount,
-                onClick = onMembersClick,
-            )
-          }
-          if (selectedTab == TripSection.Detail && onAddClick != null) {
-            IconButton(onClick = onAddClick, modifier = Modifier.testTag(C.Tag.trip_add_button)) {
-              Icon(Icons.Default.Add, contentDescription = stringResource(R.string.trip_add_menu))
-            }
-          }
-          if (selectedTab != TripSection.Map && isSharing) {
-            TextButton(onClick = onPauseSharing) {
-              Text(stringResource(R.string.trip_map_pause_sharing))
-            }
-          }
         }
-        if (showEndedBanner) {
-          EndedTripBanner(
-              Modifier.padding(horizontal = Spacing.screenPadding, vertical = Spacing.small)
+        if (trip != null) {
+          TripMemberAvatars(
+              members = trip.members,
+              memberCount = trip.memberCount,
+              onClick = onMembersClick,
           )
         }
-        SecondaryTabRow(selectedTabIndex = selectedTab.ordinal) {
-          TripSection.entries.forEach { section ->
-            Tab(
-                selected = section == selectedTab,
-                onClick = { onTabSelected(section) },
-                text = { Text(stringResource(section.label)) },
-            )
+        if (selectedTab == TripSection.Detail && onAddClick != null) {
+          IconButton(onClick = onAddClick, modifier = Modifier.testTag(C.Tag.trip_add_button)) {
+            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.trip_add_menu))
+          }
+        }
+        if (selectedTab != TripSection.Map && isSharing) {
+          TextButton(onClick = onPauseSharing) {
+            Text(stringResource(R.string.trip_map_pause_sharing))
           }
         }
       }
-      val contentModifier =
-          if (selectedTab == TripSection.Map) Modifier else Modifier.contentWidth()
-      Box(Modifier.weight(1f).then(contentModifier)) { content() }
+      if (showEndedBanner) {
+        EndedTripBanner(
+            Modifier.padding(horizontal = Spacing.screenPadding, vertical = Spacing.small)
+        )
+      }
+      SecondaryTabRow(selectedTabIndex = selectedTab.ordinal) {
+        TripSection.entries.forEach { section ->
+          Tab(
+              selected = section == selectedTab,
+              onClick = { onTabSelected(section) },
+              text = { Text(stringResource(section.label)) },
+          )
+        }
+      }
+      Box(Modifier.weight(1f)) { content() }
     }
     // Global destinations leave the current trip. A trip belongs to the Trips destination, so that
     // tab stays highlighted inside it.

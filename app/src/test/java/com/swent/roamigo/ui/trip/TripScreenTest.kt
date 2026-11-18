@@ -13,7 +13,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -207,9 +206,11 @@ class TripScreenTest {
 
   @Test
   @Config(qualifiers = "w1000dp-h800dp")
-  fun onAWideScreenTheMapUsesTheWholeWidth() {
+  fun onAWideScreenTheMapTabIsCappedAndCentredToo() {
     showWide(TripSection.Map)
 
-    composeRule.onNodeWithTag("tab_content").assertWidthIsEqualTo(1000.dp)
+    val bounds = composeRule.onNodeWithTag("tab_content").getUnclippedBoundsInRoot()
+    assertEquals(ContentMaxWidth.value, bounds.width.value, 0.5f)
+    assertEquals(((1000.dp - ContentMaxWidth) / 2).value, bounds.left.value, 0.5f)
   }
 }
