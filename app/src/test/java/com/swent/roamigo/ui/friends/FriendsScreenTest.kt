@@ -2,6 +2,8 @@
 package com.swent.roamigo.ui.friends
 
 import android.content.Context
+import androidx.annotation.PluralsRes
+import androidx.annotation.StringRes
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
@@ -31,6 +33,15 @@ import org.junit.runner.RunWith
 class FriendsScreenTest {
 
   @get:Rule val composeRule = createComposeRule()
+
+  private val context: Context
+    get() = ApplicationProvider.getApplicationContext()
+
+  private fun string(@StringRes resourceId: Int, vararg formatArgs: Any): String =
+      context.getString(resourceId, *formatArgs)
+
+  private fun plural(@PluralsRes resourceId: Int, quantity: Int): String =
+      context.resources.getQuantityString(resourceId, quantity, quantity)
 
   private val populatedState =
       FriendsUiState(
@@ -84,16 +95,40 @@ class FriendsScreenTest {
     show()
 
     composeRule.onNodeWithText("Sam").assertIsDisplayed()
-    composeRule.onNodeWithText("5 countries · 3 trips together").assertIsDisplayed()
+    composeRule
+        .onNodeWithText(
+            string(
+                R.string.friends_metadata,
+                plural(R.plurals.friends_country_count, 5),
+                plural(R.plurals.friends_trip_together_count, 3),
+            )
+        )
+        .assertIsDisplayed()
 
     composeRule.onNodeWithText("Mia").assertIsDisplayed()
-    composeRule.onNodeWithText("9 countries · 2 trips together").assertIsDisplayed()
+    composeRule
+        .onNodeWithText(
+            string(
+                R.string.friends_metadata,
+                plural(R.plurals.friends_country_count, 9),
+                plural(R.plurals.friends_trip_together_count, 2),
+            )
+        )
+        .assertIsDisplayed()
 
     composeRule.onNodeWithText("Jonas").assertIsDisplayed()
-    composeRule.onNodeWithText("3 countries · request sent").assertIsDisplayed()
-    composeRule.onNodeWithText("Pending").assertIsDisplayed()
-    composeRule.onNodeWithText("Accept").assertDoesNotExist()
-    composeRule.onNodeWithText("Decline").assertDoesNotExist()
+    composeRule
+        .onNodeWithText(
+            string(
+                R.string.friends_request_metadata,
+                plural(R.plurals.friends_country_count, 3),
+                string(R.string.friends_request_sent),
+            )
+        )
+        .assertIsDisplayed()
+    composeRule.onNodeWithText(string(R.string.friends_pending)).assertIsDisplayed()
+    composeRule.onNodeWithText(string(R.string.friends_accept)).assertDoesNotExist()
+    composeRule.onNodeWithText(string(R.string.friends_decline)).assertDoesNotExist()
 
     composeRule
         .onNodeWithTag(C.Tag.friends_avatar_prefix + "sam")
@@ -136,11 +171,11 @@ class FriendsScreenTest {
 
     composeRule
         .onNodeWithTag(C.Tag.friends_view_map_prefix + "sam")
-        .assertContentDescriptionEquals("View map for Sam")
+        .assertContentDescriptionEquals(string(R.string.friends_view_map_accessibility, "Sam"))
 
     composeRule
         .onNodeWithTag(C.Tag.friends_view_map_prefix + "mia")
-        .assertContentDescriptionEquals("View map for Mia")
+        .assertContentDescriptionEquals(string(R.string.friends_view_map_accessibility, "Mia"))
   }
 
   @Test
@@ -177,7 +212,7 @@ class FriendsScreenTest {
     show(uiState = FriendsUiState())
 
     composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertIsDisplayed()
-    composeRule.onNodeWithText("No friends yet").assertIsDisplayed()
+    composeRule.onNodeWithText(string(R.string.friends_empty_title)).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.friends_add_friend).assertIsDisplayed()
   }
 
@@ -198,8 +233,16 @@ class FriendsScreenTest {
     show(uiState = state)
 
     composeRule.onNodeWithText("Jonas").assertIsDisplayed()
-    composeRule.onNodeWithText("3 countries · request sent").assertIsDisplayed()
-    composeRule.onNodeWithText("Pending").assertIsDisplayed()
+    composeRule
+        .onNodeWithText(
+            string(
+                R.string.friends_request_metadata,
+                plural(R.plurals.friends_country_count, 3),
+                string(R.string.friends_request_sent),
+            )
+        )
+        .assertIsDisplayed()
+    composeRule.onNodeWithText(string(R.string.friends_pending)).assertIsDisplayed()
 
     composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.friends_view_map_prefix + "jonas").assertDoesNotExist()
@@ -209,7 +252,7 @@ class FriendsScreenTest {
   fun headerShowsFriendCount() {
     show()
 
-    composeRule.onNodeWithText("2 friends").assertIsDisplayed()
+    composeRule.onNodeWithText(plural(R.plurals.friends_count, 2)).assertIsDisplayed()
   }
 
   @Test
@@ -241,7 +284,7 @@ class FriendsScreenTest {
         .performTextReplacement("nobody")
     composeRule.onNodeWithTag(C.Tag.friends_accept_prefix + "req-bob").assertDoesNotExist()
     composeRule
-        .onNodeWithText("No matching friends or requests.")
+        .onNodeWithText(string(R.string.friends_no_matches))
         .performScrollTo()
         .assertIsDisplayed()
   }
@@ -274,9 +317,7 @@ class FriendsScreenTest {
         }
       }
     }
-    val message =
-        ApplicationProvider.getApplicationContext<Context>()
-            .getString(R.string.friends_remove_failed)
+    val message = string(R.string.friends_remove_failed)
     composeRule.onNodeWithText(message).assertIsDisplayed()
 
     composeRule.runOnIdle { visible.value = false }
@@ -307,9 +348,8 @@ class FriendsScreenTest {
         )
       }
     }
-    val context = ApplicationProvider.getApplicationContext<Context>()
-    val oldMessage = context.getString(R.string.friends_remove_failed)
-    val newMessage = context.getString(R.string.friends_decline_failed)
+    val oldMessage = string(R.string.friends_remove_failed)
+    val newMessage = string(R.string.friends_decline_failed)
     composeRule.onNodeWithText(oldMessage).assertIsDisplayed()
 
     composeRule.runOnIdle { failure.value = newFailure }
@@ -341,9 +381,7 @@ class FriendsScreenTest {
         }
       }
     }
-    val message =
-        ApplicationProvider.getApplicationContext<Context>()
-            .getString(R.string.friends_remove_failed)
+    val message = string(R.string.friends_remove_failed)
     composeRule.onNodeWithText(message).assertIsDisplayed()
     composeRule.runOnIdle { dismiss.value = { replacementDismissals++ } }
     composeRule.waitForIdle()
