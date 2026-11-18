@@ -17,8 +17,12 @@ val ContentMaxWidth: Dp = 600.dp
 
 /**
  * Centres the content of a screen and caps it at [ContentMaxWidth]. Apply it to the screen's
- * content, inside the area the app bars leave, so the bars still span the full width. On a screen
- * narrower than [ContentMaxWidth] it fills the width, exactly like not using it.
+ * content, inside the area the app bars leave, so the bars still span the full width. It takes the
+ * whole width first, so it centres whatever constraints its parent passes. On a screen narrower
+ * than [ContentMaxWidth] it fills the width, exactly like not using it.
  */
-fun Modifier.contentWidth(max: Dp = ContentMaxWidth): Modifier =
-    wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = max).fillMaxWidth()
+fun Modifier.contentWidth(): Modifier =
+    fillMaxWidth()
+        .wrapContentWidth(Alignment.CenterHorizontally)
+        .widthIn(max = ContentMaxWidth)
+        .fillMaxWidth()

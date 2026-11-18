@@ -2,20 +2,29 @@
 package com.swent.roamigo.ui.trip
 
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertWidthIsEqualTo
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.width
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.adaptive.ContentMaxWidth
 import com.swent.roamigo.ui.components.SyncState
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import java.time.LocalDate
@@ -162,5 +171,45 @@ class TripScreenTest {
     show(syncState = SyncState.Synced)
 
     composeRule.onNodeWithTag(C.Tag.trip_sync_status).assertDoesNotExist()
+  }
+
+  private fun showWide(tab: TripSection) {
+    val date = LocalDate.of(2026, 11, 5)
+    composeRule.setContent {
+      RoamigoTheme {
+        TripScreen(
+            trip = TripHeaderUiState("Lisbon & Porto", date, date.plusDays(3), 2),
+            selectedTab = tab,
+            isSharing = false,
+            onBack = {},
+            onTabSelected = {},
+            onPauseSharing = {},
+            onMembersClick = {},
+            onTripsClick = {},
+            onMapClick = {},
+            onFriendsClick = {},
+        ) {
+          Box(Modifier.fillMaxSize().testTag("tab_content"))
+        }
+      }
+    }
+  }
+
+  @Test
+  @Config(qualifiers = "w1000dp-h800dp")
+  fun onAWideScreenTheTabContentIsAReadableCentredColumn() {
+    showWide(TripSection.Detail)
+
+    val bounds = composeRule.onNodeWithTag("tab_content").getUnclippedBoundsInRoot()
+    assertEquals(ContentMaxWidth.value, bounds.width.value, 0.5f)
+    assertEquals(((1000.dp - ContentMaxWidth) / 2).value, bounds.left.value, 0.5f)
+  }
+
+  @Test
+  @Config(qualifiers = "w1000dp-h800dp")
+  fun onAWideScreenTheMapUsesTheWholeWidth() {
+    showWide(TripSection.Map)
+
+    composeRule.onNodeWithTag("tab_content").assertWidthIsEqualTo(1000.dp)
   }
 }

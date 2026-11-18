@@ -404,6 +404,8 @@ class FriendsScreenTest {
 
     val list = composeRule.onNodeWithTag(C.Tag.friends_list).getUnclippedBoundsInRoot()
     assertTrue(list.width <= ContentMaxWidth)
+    // Centred: the middle of the list is the middle of the 1000dp window.
+    assertEquals(500f, (list.left.value + list.right.value) / 2, 0.5f)
     composeRule.onNodeWithText("Sam").assertIsDisplayed()
   }
 
