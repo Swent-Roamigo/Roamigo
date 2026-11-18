@@ -2,9 +2,11 @@
 package com.swent.roamigo.ui.friends
 
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
 import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import androidx.compose.material3.R as Material3R
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -45,6 +47,8 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -82,8 +86,8 @@ class FriendsRouteTest {
   private fun show(
       friendRepository: FriendRepository = alice,
       userRepository: UserRepository = users,
-  ) {
-    composeRule.setContent {
+  ): @Composable () -> Unit {
+    val content: @Composable () -> Unit = {
       RoamigoTheme {
         FriendsRoute(
             friendRepository = friendRepository,
@@ -96,6 +100,8 @@ class FriendsRouteTest {
         )
       }
     }
+    composeRule.setContent(content)
+    return content
   }
 
   @Test
@@ -630,6 +636,41 @@ class FriendsRouteTest {
       gate.complete(Unit)
     }
     composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertIsDisplayed()
+  }
+
+  @Test
+  fun removalFailureSurvivesActivityRecreationAndCanStillBeDismissed() {
+    val request = runBlocking {
+      val request = bob.sendFriendRequest("alice")
+      alice.acceptFriendRequest("bob", request.uid)
+      request
+    }
+    val controlled = ActionRepository(alice)
+    controlled.failure = FriendRepositoryException.Network()
+    val content = show(controlled)
+    composeRule
+        .onNodeWithTag(C.Tag.friends_remove_prefix + request.uid)
+        .performScrollTo()
+        .performClick()
+    composeRule.onNodeWithText(string(R.string.friends_remove_failed)).assertIsDisplayed()
+    val originalActivity = composeRule.activity
+    val originalStore = originalActivity.viewModelStore
+
+    composeRule.activityRule.scenario.recreate()
+    composeRule.activityRule.scenario.onActivity { activity ->
+      assertNotSame(originalActivity, activity)
+      assertSame(originalStore, activity.viewModelStore)
+      activity.setContent(content = content)
+    }
+
+    composeRule.onNodeWithText(string(R.string.friends_remove_failed)).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.friends_remove_prefix + request.uid).assertIsEnabled()
+    composeRule.runOnIdle { assertEquals(1, controlled.calls) }
+    composeRule
+        .onNodeWithContentDescription(string(Material3R.string.m3c_snackbar_dismiss))
+        .performClick()
+    composeRule.onNodeWithText(string(R.string.friends_remove_failed)).assertDoesNotExist()
+    composeRule.runOnIdle { assertEquals(1, controlled.calls) }
   }
 
   @Test

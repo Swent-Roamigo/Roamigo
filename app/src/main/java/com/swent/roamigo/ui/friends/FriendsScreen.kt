@@ -1,6 +1,7 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.friends
 
+import androidx.activity.compose.LocalActivity
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -98,6 +99,7 @@ fun FriendsScreen(
     onDismissActionFailure: (FriendsActionFailure) -> Unit = {},
 ) {
   var query by rememberSaveable { mutableStateOf("") }
+  val activity = LocalActivity.current
   val snackbarHostState = remember { SnackbarHostState() }
   val actionFailure = uiState.actionFailure
   val currentOnDismissActionFailure by rememberUpdatedState(onDismissActionFailure)
@@ -118,7 +120,10 @@ fun FriendsScreen(
             duration = SnackbarDuration.Indefinite,
         )
       } finally {
-        currentOnDismissActionFailure(actionFailure)
+        // Recreation retains the ViewModel, so the next screen must still show this failure.
+        if (activity?.isChangingConfigurations != true) {
+          currentOnDismissActionFailure(actionFailure)
+        }
       }
     }
   }
