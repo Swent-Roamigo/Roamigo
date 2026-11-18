@@ -544,6 +544,11 @@
     <string name="vote_resolution_ended">This trip has ended. Vote decisions are unavailable.</string>
     <string name="vote_resolution_waiting_results">Waiting for current results before confirming.</string>
 
+    <!-- Sync status -->
+    <string name="sync_synced">Synced</string>
+    <string name="sync_syncing">Syncing…</string>
+    <string name="sync_offline">Offline</string>
+
     <!-- Place picker -->
     <string name="place_picker_choose_on_map">Choose on map</string>
     <string name="place_picker_view_on_map">View on map</string>

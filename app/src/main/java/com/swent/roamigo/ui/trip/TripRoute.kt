@@ -34,6 +34,7 @@ import com.swent.roamigo.model.trip.activity.ActivityRepository
 import com.swent.roamigo.model.trip.isCompletedOn
 import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.users.UserRepository
+import com.swent.roamigo.ui.components.SyncState
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.map.LocationViewModel
 import com.swent.roamigo.ui.map.TripMapRoute
@@ -146,7 +147,11 @@ internal fun TripRoute(
     if (authRepository.getCurrentUser() == null) onAuthenticationRequired()
     else tab = TripSection.Map
   }
+  val syncConnectivity =
+      connectivityRepository ?: remember(context) { DefaultConnectivityRepository(context) }
+  val isOnline by syncConnectivity.isOnline.collectAsStateWithLifecycle(initialValue = true)
   TripScreen(
+      syncState = if (isOnline) SyncState.Synced else SyncState.Offline,
       trip =
           loaded?.trip?.let { trip ->
             TripHeaderUiState(

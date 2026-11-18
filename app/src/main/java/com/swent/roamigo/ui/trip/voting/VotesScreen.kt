@@ -27,7 +27,6 @@ import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
@@ -39,6 +38,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.voting.VoteRepository
+import com.swent.roamigo.ui.components.EmptyState
 import com.swent.roamigo.ui.components.TripActionButton
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.rememberLocalDate
@@ -206,21 +206,11 @@ fun VotesScreen(
                 Text(stringResource(R.string.votes_loading))
               }
           VotesUiState.Empty ->
-              Column(
-                  horizontalAlignment = Alignment.CenterHorizontally,
-                  verticalArrangement = Arrangement.spacedBy(Spacing.small),
-              ) {
-                Text(
-                    stringResource(R.string.votes_empty_title),
-                    style = MaterialTheme.typography.titleLarge,
-                )
-                Text(
-                    stringResource(R.string.votes_empty_description),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-              }
+              EmptyState(
+                  title = stringResource(R.string.votes_empty_title),
+                  description = stringResource(R.string.votes_empty_description),
+                  icon = R.drawable.ic_trip_details_check,
+              )
           VotesUiState.Error -> VoteErrorContent(R.string.votes_load_error, onRetry)
           is VotesUiState.Ready ->
               VotesList(

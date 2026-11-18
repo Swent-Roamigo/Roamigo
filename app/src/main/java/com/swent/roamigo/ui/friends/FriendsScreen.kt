@@ -45,14 +45,15 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.AvatarSize
 import com.swent.roamigo.ui.components.ButtonVariant
+import com.swent.roamigo.ui.components.EmptyState
 import com.swent.roamigo.ui.components.RoamigoAvatar
 import com.swent.roamigo.ui.components.RoamigoButton
+import com.swent.roamigo.ui.components.ScreenHeader
 import com.swent.roamigo.ui.components.avatarColor
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
@@ -181,29 +182,25 @@ private fun FriendsUiState.matching(query: String): FriendsUiState {
 
 @Composable
 private fun FriendsHeader(friendCount: Int) {
-  Column(
+  val privacy = stringResource(R.string.friends_privacy_subtitle)
+  ScreenHeader(
+      title = stringResource(R.string.friends_title),
       modifier = Modifier.padding(top = Spacing.extraLarge),
-      verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall),
-  ) {
-    Text(
-        text = stringResource(R.string.friends_title),
-        style = MaterialTheme.typography.headlineMedium,
-        fontWeight = FontWeight.Bold,
-    )
-
-    if (friendCount > 0) {
-      Text(
-          text = pluralStringResource(R.plurals.friends_count, friendCount, friendCount),
-          style = MaterialTheme.typography.titleSmall,
-      )
-    }
-
-    Text(
-        text = stringResource(R.string.friends_privacy_subtitle),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-  }
+      subtitle =
+          if (friendCount > 0)
+              pluralStringResource(R.plurals.friends_count, friendCount, friendCount)
+          else privacy,
+      below =
+          if (friendCount > 0) {
+            {
+              Text(
+                  text = privacy,
+                  style = MaterialTheme.typography.bodyMedium,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+            }
+          } else null,
+  )
 }
 
 @Composable
@@ -565,22 +562,12 @@ private fun InitialAvatar(
 
 @Composable
 private fun EmptyFriendsState(modifier: Modifier = Modifier) {
-  Column(
+  EmptyState(
+      title = stringResource(R.string.friends_empty_title),
+      description = stringResource(R.string.friends_empty_description),
       modifier = modifier.fillMaxWidth().testTag(C.Tag.friends_empty_state),
-      horizontalAlignment = Alignment.CenterHorizontally,
-      verticalArrangement = Arrangement.Center,
-  ) {
-    Text(
-        text = stringResource(R.string.friends_empty_title),
-        style = MaterialTheme.typography.titleLarge,
-    )
-
-    Text(
-        text = stringResource(R.string.friends_empty_description),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-  }
+      icon = R.drawable.ic_trip_details_members,
+  )
 }
 
 @Composable

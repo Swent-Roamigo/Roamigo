@@ -27,6 +27,8 @@ import androidx.compose.ui.res.stringResource
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
+import com.swent.roamigo.ui.components.SyncState
+import com.swent.roamigo.ui.components.SyncStatus
 import com.swent.roamigo.ui.map.MemberDisplayInfo
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.components.EndedTripBanner
@@ -65,6 +67,7 @@ internal fun TripScreen(
     modifier: Modifier = Modifier,
     onAddClick: (() -> Unit)? = null,
     showEndedBanner: Boolean = false,
+    syncState: SyncState? = null,
     content: @Composable () -> Unit,
 ) {
   Column(modifier.fillMaxSize().safeDrawingPadding()) {
@@ -81,10 +84,20 @@ internal fun TripScreen(
           val locale = LocalConfiguration.current.locales[0]
           val formatter = DateTimeFormatter.ofPattern("EEE d MMM", locale)
           // The header is identical on every tab so switching tabs never changes it.
-          Text(
-              "${formatter.format(trip.startDate)} – ${formatter.format(trip.endDate)}",
-              style = MaterialTheme.typography.bodyMedium,
-          )
+          Row(horizontalArrangement = Arrangement.spacedBy(Spacing.small)) {
+            Text(
+                "${formatter.format(trip.startDate)} – ${formatter.format(trip.endDate)}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            // Synced is the normal state and says nothing; the indicator appears when it is not.
+            if (syncState != null && syncState != SyncState.Synced) {
+              SyncStatus(
+                  syncState,
+                  Modifier.testTag(C.Tag.trip_sync_status),
+                  compact = true,
+              )
+            }
+          }
         }
       }
       if (trip != null) {

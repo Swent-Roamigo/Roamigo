@@ -16,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.components.SyncState
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
@@ -39,6 +40,7 @@ class TripScreenTest {
       name: String = "Lisbon & Porto",
       memberCount: Int = 2,
       withAddButton: Boolean = false,
+      syncState: SyncState? = null,
   ) {
     val date = LocalDate.of(2026, 11, 5)
     composeRule.setContent {
@@ -55,6 +57,7 @@ class TripScreenTest {
             onMapClick = {},
             onFriendsClick = {},
             onAddClick = if (withAddButton) ({ addClicks++ }) else null,
+            syncState = syncState,
         ) {
           Button(onClick = { primaryClicks++ }) { Text("Primary action") }
         }
@@ -144,5 +147,20 @@ class TripScreenTest {
     show()
 
     composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).assertIsSelected()
+  }
+
+  @Test
+  fun theHeaderSaysOnceWhenTheTripIsOffline() {
+    show(syncState = SyncState.Offline)
+
+    composeRule.onNodeWithTag(C.Tag.trip_sync_status).assertIsDisplayed()
+    composeRule.onNodeWithText("Offline").assertIsDisplayed()
+  }
+
+  @Test
+  fun aSyncedOrUnknownTripShowsNoIndicator() {
+    show(syncState = SyncState.Synced)
+
+    composeRule.onNodeWithTag(C.Tag.trip_sync_status).assertDoesNotExist()
   }
 }
