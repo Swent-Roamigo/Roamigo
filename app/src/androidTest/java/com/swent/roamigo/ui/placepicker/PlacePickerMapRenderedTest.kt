@@ -1,7 +1,6 @@
 // Implemented with assistance from OpenAI Codex.
 package com.swent.roamigo.ui.placepicker
 
-import android.graphics.Color
 import android.graphics.Rect
 import android.os.SystemClock
 import android.util.Log
@@ -33,7 +32,11 @@ import com.mapbox.android.gestures.MoveGestureDetector
 import com.mapbox.geojson.Point
 import com.mapbox.maps.CameraOptions
 import com.mapbox.maps.MapLoadingErrorType
+import com.mapbox.maps.RenderedQueryGeometry
+import com.mapbox.maps.RenderedQueryOptions
+import com.mapbox.maps.ScreenBox
 import com.mapbox.maps.ScreenCoordinate
+import com.mapbox.maps.coroutine.queryRenderedFeatures
 import com.mapbox.maps.extension.compose.MapboxMap
 import com.mapbox.maps.extension.compose.animation.viewport.rememberMapViewportState
 import com.mapbox.maps.extension.compose.style.MapStyle
@@ -52,8 +55,15 @@ import com.swent.roamigo.ui.map.loadLocalMapStyle
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -242,9 +252,19 @@ class PlacePickerMapRenderedTest {
     }
     awaitProjection(ProjectionName.GLOBE)
     val center = assertWorldCamera()
-    knownFeatures.forEachIndexed { index, feature ->
-      longPressRenderedFeature(feature)
-      compose.waitUntil(MAP_TEST_TIMEOUT_MILLIS) { compose.runOnIdle { presses.size > index } }
+    val targets = knownFeatures.map { locateRenderedFeature(it, ProjectionName.GLOBE) }
+    assertTrue(
+        "Globe features overlap: $targets",
+        (targets[0].point - targets[1].point).getDistance() > 0.02f,
+    )
+    targets.forEachIndexed { index, target ->
+      pressRenderedFeature(target)
+      try {
+        compose.waitUntil(MAP_TEST_TIMEOUT_MILLIS) { compose.runOnIdle { presses.size > index } }
+      } catch (failure: Throwable) {
+        val actual = compose.runOnIdle { presses.toList() }
+        throw AssertionError("Missing Globe long press for $target, actual=$actual", failure)
+      }
     }
     val actual = compose.runOnIdle { presses.toList() }
     assertEquals(knownFeatures.size, actual.size)
@@ -254,7 +274,7 @@ class PlacePickerMapRenderedTest {
         }
     val returnedCenter = actual.all { coordinatesMatch(center, it, WORLD_TOLERANCE) }
     val details =
-        "Globe world zoom expected=${knownFeatures.map { it.point }}, actual=$actual, center=$center"
+        "Globe world zoom expected=${knownFeatures.map { it.point }}, actual=$actual, center=$center, targets=$targets"
     Log.i("PlacePickerMapTest", "$details, accurate=$accurate, returnedCenter=$returnedCenter")
     // Keep this diagnostic runnable whether the SDK exhibits its documented limitation or improves.
     assertTrue(details, accurate || returnedCenter)
@@ -346,71 +366,113 @@ class PlacePickerMapRenderedTest {
       tolerance: Double,
   ): Point {
     val previous = vm.uiState.value.manualDraft.point
-    longPressRenderedFeature(feature)
-    compose.waitUntil(MAP_TEST_TIMEOUT_MILLIS) {
-      val point = vm.uiState.value.manualDraft.point
-      point != null && point != previous
-    }
-    val draft = vm.uiState.value.manualDraft
-    val point = checkNotNull(draft.point)
-    assertEquals(feature.point.latitude(), point.latitude, tolerance)
-    assertEquals(feature.point.longitude(), point.longitude, tolerance)
-    assertEquals("", draft.name)
-    return Point.fromLngLat(point.longitude, point.latitude).also(::assertMarkerAt)
-  }
-
-  private fun longPressRenderedFeature(feature: GeographicFeature) {
-    compose.onNodeWithTag(PlacePickerTestTags.MAP).performScrollTo()
-    val (bounds, visible) =
-        compose.runOnIdle {
-          val map = compose.findMapView()
-          val origin = IntArray(2).also(map::getLocationOnScreen)
-          val local = Rect()
-          assertTrue("Map must be visible", map.getLocalVisibleRect(local))
-          local.offset(origin[0], origin[1])
-          Rect(origin[0], origin[1], origin[0] + map.width, origin[1] + map.height) to local
-        }
-    var target: Offset? = null
-    compose.waitUntil(MAP_TEST_TIMEOUT_MILLIS) {
-      target = renderedColorCenter(visible, bounds, feature.color)
-      target != null
-    }
-    nativeGesture(checkNotNull(target), duration = ViewConfiguration.getLongPressTimeout() + 100L)
-  }
-
-  // Locate the painted circle in the actual screen buffer, independently of the SDK's projection
-  // conversion APIs. The inner pixels match the fixture color without relying on antialiased edges.
-  private fun renderedColorCenter(visible: Rect, bounds: Rect, color: Int): Offset? {
-    val screenshot =
-        InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot() ?: return null
+    val target = locateRenderedFeature(feature, ProjectionName.MERCATOR)
+    pressRenderedFeature(target)
     try {
-      val region = Rect(visible)
-      if (!region.intersect(0, 0, screenshot.width, screenshot.height)) return null
-      val width = region.width()
-      val pixels = IntArray(width * region.height())
-      screenshot.getPixels(pixels, 0, width, region.left, region.top, width, region.height())
-      var count = 0
-      var sumX = 0L
-      var sumY = 0L
-      pixels.forEachIndexed { index, pixel ->
-        if (
-            abs(Color.red(pixel) - Color.red(color)) <= 12 &&
-                abs(Color.green(pixel) - Color.green(color)) <= 12 &&
-                abs(Color.blue(pixel) - Color.blue(color)) <= 12
-        ) {
-          count++
-          sumX += index % width
-          sumY += index / width
+      compose.waitUntil(MAP_TEST_TIMEOUT_MILLIS) {
+        val point = vm.uiState.value.manualDraft.point
+        point != null && point != previous
+      }
+      val draft = vm.uiState.value.manualDraft
+      val point = checkNotNull(draft.point)
+      val details = "Long press at $target, actual=$point"
+      assertEquals(details, feature.point.latitude(), point.latitude, tolerance)
+      assertEquals(details, feature.point.longitude(), point.longitude, tolerance)
+      assertEquals("", draft.name)
+      return Point.fromLngLat(point.longitude, point.latitude).also(::assertMarkerAt)
+    } catch (failure: Throwable) {
+      throw AssertionError(
+          "Selection failed for $target, previous=$previous, actual=${vm.uiState.value.manualDraft}",
+          failure,
+      )
+    }
+  }
+
+  private fun locateRenderedFeature(
+      feature: GeographicFeature,
+      expectedProjection: ProjectionName,
+  ): PressTarget {
+    compose.onNodeWithTag(PlacePickerTestTags.MAP).performScrollTo()
+    val view = compose.runOnIdle { compose.findMapView() }
+    val map = view.mapboxMap
+    var diagnostics = "Waiting for map layout"
+    var queryDetails = "No query issued"
+    suspend fun hits(geometry: RenderedQueryGeometry): Boolean {
+      val result =
+          map.queryRenderedFeatures(geometry, RenderedQueryOptions(listOf(feature.layer), null))
+      val features = result.value.orEmpty()
+      val summaries = features.map {
+        val queried = it.queriedFeature
+        "${queried.feature.getStringProperty("target")} (id=${queried.feature.id()}) " +
+            "from ${queried.source} on ${it.layers}"
+      }
+      queryDetails = "$geometry -> ${result.error ?: summaries}"
+      return features.any { it.queriedFeature.feature.getStringProperty("target") == feature.id }
+    }
+
+    try {
+      return runBlocking {
+        withTimeout(MAP_TEST_TIMEOUT_MILLIS) {
+          withContext(Dispatchers.Main) {
+            var visible: ScreenBox? = null
+            while (visible == null) {
+              val rect = Rect()
+              val isVisible = view.getLocalVisibleRect(rect)
+              val style = map.style
+              val projection = style?.getProjection()?.name
+              val loaded = style?.isStyleLoaded() == true
+              val sourcePresent = style?.styleSourceExists(GEOGRAPHIC_SOURCE) == true
+              val layerPresent = style?.styleLayerExists(feature.layer) == true
+              diagnostics =
+                  "projection=$projection expected=$expectedProjection camera=${map.cameraState} " +
+                      "view=${view.width}x${view.height} visible=$rect " +
+                      "styleLoaded=$loaded source=$GEOGRAPHIC_SOURCE:$sourcePresent " +
+                      "layer=${feature.layer}:$layerPresent"
+              if (
+                  isVisible &&
+                      !rect.isEmpty &&
+                      loaded &&
+                      sourcePresent &&
+                      layerPresent &&
+                      projection == expectedProjection
+              ) {
+                val box =
+                    ScreenBox(
+                        ScreenCoordinate(rect.left.toDouble(), rect.top.toDouble()),
+                        ScreenCoordinate(rect.right.toDouble(), rect.bottom.toDouble()),
+                    )
+                if (hits(RenderedQueryGeometry(box))) visible = box
+              }
+              if (visible == null) delay(50)
+            }
+
+            // The circle is symmetric in screen space. Find its four hit-test edges, then
+            // aim at their midpoint to avoid a radius-dependent error in the coordinate assertion.
+            val center = renderedCircleCenter(visible, ::hits)
+            check(hits(RenderedQueryGeometry(center))) { "Center missed the rendered feature" }
+            val point =
+                Offset((center.x / view.width).toFloat(), (center.y / view.height).toFloat())
+            check(abs(center.x - view.width / 2.0) > 4 || abs(center.y - view.height / 2.0) > 4) {
+              "Rendered feature overlaps the center of the map"
+            }
+            PressTarget(point, "$feature $diagnostics center=$center query=$queryDetails")
+          }
         }
       }
-      if (count < 12) return null
-      return Offset(
-          (region.left - bounds.left + sumX.toFloat() / count + 0.5f) / bounds.width(),
-          (region.top - bounds.top + sumY.toFloat() / count + 0.5f) / bounds.height(),
+    } catch (failure: Exception) {
+      throw AssertionError(
+          "Could not locate $feature. $diagnostics. Last query: $queryDetails",
+          failure,
       )
-    } finally {
-      screenshot.recycle()
     }
+  }
+
+  private fun pressRenderedFeature(target: PressTarget) {
+    Log.i("PlacePickerMapTest", "Pressing ${target.diagnostics}")
+    nativeGesture(
+        target.point,
+        duration = ViewConfiguration.getLongPressTimeout() + 100L,
+    )
   }
 
   @Test
@@ -764,12 +826,18 @@ class PlacePickerMapRenderedTest {
   }
 }
 
-private data class GeographicFeature(val point: Point, val color: Int)
+private data class GeographicFeature(val id: String, val point: Point) {
+  val layer = "target-$id"
+}
+
+private data class PressTarget(val point: Offset, val diagnostics: String)
+
+private const val GEOGRAPHIC_SOURCE = "targets"
 
 private val knownFeatures =
     listOf(
-        GeographicFeature(Point.fromLngLat(-19.0, 16.0), Color.MAGENTA),
-        GeographicFeature(Point.fromLngLat(22.0, 24.0), Color.CYAN),
+        GeographicFeature("west", Point.fromLngLat(-19.0, 16.0)),
+        GeographicFeature("east", Point.fromLngLat(22.0, 24.0)),
     )
 
 private val geographicTestStyle =
@@ -778,17 +846,14 @@ private val geographicTestStyle =
     "version": 8,
     "projection": {"name": "globe"},
     "sources": {
-      "targets": {
+      "$GEOGRAPHIC_SOURCE": {
         "type": "geojson",
         "data": {
           "type": "FeatureCollection",
           "features": [
             ${knownFeatures.joinToString(",") { feature ->
-              """{
-                "type":"Feature",
-                "geometry":${feature.point.toJson()},
-                "properties":{"color":"#${(feature.color and 0xffffff).toString(16).padStart(6, '0')}"}
-              }"""
+              """{"type":"Feature","id":"${feature.id}","geometry":${feature.point.toJson()},
+                  "properties":{"target":"${feature.id}"}}"""
             }}
           ]
         }
@@ -796,12 +861,55 @@ private val geographicTestStyle =
     },
     "layers": [
       {"id":"background","type":"background","paint":{"background-color":"#202020"}},
-      {"id":"points","type":"circle","source":"targets",
-        "paint":{"circle-radius":9,"circle-color":["to-color",["get","color"]],"circle-pitch-alignment":"viewport"}}
+      ${knownFeatures.joinToString(",") { feature ->
+        """{"id":"${feature.layer}","type":"circle","source":"$GEOGRAPHIC_SOURCE",
+            "filter":["==",["get","target"],"${feature.id}"],
+            "paint":{"circle-radius":9,"circle-color":"#ff00ff","circle-pitch-alignment":"viewport"}}"""
+      }}
     ]
   }
 """
         .trimIndent()
+
+private suspend fun renderedCircleCenter(
+    bounds: ScreenBox,
+    hits: suspend (RenderedQueryGeometry) -> Boolean,
+): ScreenCoordinate = coroutineScope {
+  suspend fun findEdge(horizontal: Boolean, leading: Boolean): Double {
+    var low = if (horizontal) bounds.min.x else bounds.min.y
+    var high = if (horizontal) bounds.max.x else bounds.max.y
+    while (high - low > 0.5) {
+      val middle = (low + high) / 2
+      val testedStrip =
+          when {
+            horizontal && leading -> ScreenBox(bounds.min, ScreenCoordinate(middle, bounds.max.y))
+            horizontal -> ScreenBox(ScreenCoordinate(middle, bounds.min.y), bounds.max)
+            leading -> ScreenBox(bounds.min, ScreenCoordinate(bounds.max.x, middle))
+            else -> ScreenBox(ScreenCoordinate(bounds.min.x, middle), bounds.max)
+          }
+      if (hits(RenderedQueryGeometry(testedStrip)) == leading) high = middle else low = middle
+    }
+    return (low + high) / 2
+  }
+
+  val left = async { findEdge(horizontal = true, leading = true) }
+  val right = async { findEdge(horizontal = true, leading = false) }
+  val top = async { findEdge(horizontal = false, leading = true) }
+  val bottom = async { findEdge(horizontal = false, leading = false) }
+  val x0 = left.await()
+  val x1 = right.await()
+  val y0 = top.await()
+  val y1 = bottom.await()
+  check(
+      x0 - bounds.min.x > 1 &&
+          bounds.max.x - x1 > 1 &&
+          y0 - bounds.min.y > 1 &&
+          bounds.max.y - y1 > 1
+  ) {
+    "Circle is clipped by visible map bounds: [$x0,$y0][$x1,$y1], visible=$bounds"
+  }
+  ScreenCoordinate((x0 + x1) / 2, (y0 + y1) / 2)
+}
 
 // Web Mercator spans 1024 logical pixels at zoom 1 (0.352° longitude per pixel).
 // Allow about three logical pixels for raster rounding, input and alignment. At zoom 10, use a
