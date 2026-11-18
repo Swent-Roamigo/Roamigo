@@ -51,11 +51,12 @@ internal fun NavBackStackEntry.tripId(): String = requireNotNull(arguments?.getS
 
 /** The trip name and dates given to [Route.newActivity]. */
 internal fun NavBackStackEntry.activityFormTrip(): ActivityFormTrip {
-  val arguments = requireNotNull(arguments)
+  fun argument(name: String): String =
+      requireNotNull(arguments?.getString(name)) { "Missing route argument $name" }
   return ActivityFormTrip(
-      name = requireNotNull(arguments.getString("tripName")),
-      startDate = LocalDate.parse(arguments.getString("startDate")),
-      endDate = LocalDate.parse(arguments.getString("endDate")),
+      name = argument("tripName"),
+      startDate = LocalDate.parse(argument("startDate")),
+      endDate = LocalDate.parse(argument("endDate")),
   )
 }
 
