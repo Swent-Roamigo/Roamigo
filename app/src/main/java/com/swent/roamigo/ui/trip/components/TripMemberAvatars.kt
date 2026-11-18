@@ -71,6 +71,7 @@ internal fun TripMemberAvatars(
             },
         size = AvatarSize.Small,
         overlap = 8.dp,
+        ringColor = MaterialTheme.colorScheme.background,
     )
     Icon(
         painter = painterResource(R.drawable.ic_c2_chevron_right),

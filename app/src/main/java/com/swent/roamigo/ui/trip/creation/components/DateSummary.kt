@@ -22,7 +22,6 @@ import androidx.compose.ui.semantics.testTag
 import com.swent.roamigo.R
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.theme.dateRange
-import com.swent.roamigo.ui.theme.detail
 import com.swent.roamigo.ui.trip.creation.CreateTripUiState
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -76,7 +75,7 @@ internal fun DateSummary(state: CreateTripUiState, onFlexibleDatesChange: (Boole
                         state.tripNights.toInt(),
                     ),
                 ),
-            style = MaterialTheme.typography.detail,
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       } else {

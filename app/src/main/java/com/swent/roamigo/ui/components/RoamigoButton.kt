@@ -17,18 +17,16 @@ import androidx.compose.ui.unit.dp
 /** Minimum height shared by every main action, so switching tabs or screens does not resize it. */
 val RoamigoButtonMinHeight: Dp = 52.dp
 
-/** Emphasis of a [RoamigoButton]: the main action, a calmer one, or one that destroys something. */
+/** Emphasis of a [RoamigoButton]: the main action, or a calmer one. */
 enum class ButtonVariant {
   Primary,
   Secondary,
-  Danger,
 }
 
 /**
  * The app's button. [ButtonVariant.Primary] is the dark main action, [ButtonVariant.Secondary] an
- * outline for a second action, and [ButtonVariant.Danger] a red one for something that cannot be
- * undone. While [loading] the button ignores clicks and reports itself as not enabled, but keeps
- * its normal colours so the action does not look different while it works.
+ * outline for a second action. While [loading] the button ignores clicks and reports itself as not
+ * enabled, but keeps its normal colours so the action does not look different while it works.
  */
 @Composable
 fun RoamigoButton(
@@ -37,14 +35,10 @@ fun RoamigoButton(
     variant: ButtonVariant = ButtonVariant.Primary,
     enabled: Boolean = true,
     loading: Boolean = false,
-    fillWidth: Boolean = true,
     content: @Composable RowScope.() -> Unit,
 ) {
   val colors = MaterialTheme.colorScheme
-  val sized =
-      modifier
-          .then(if (fillWidth) Modifier.fillMaxWidth() else Modifier)
-          .heightIn(min = RoamigoButtonMinHeight)
+  val sized = modifier.fillMaxWidth().heightIn(min = RoamigoButtonMinHeight)
   val active = enabled && !loading
   when (variant) {
     ButtonVariant.Secondary ->
@@ -64,27 +58,22 @@ fun RoamigoButton(
                 ),
             content = content,
         )
-    ButtonVariant.Primary,
-    ButtonVariant.Danger -> {
-      val base =
-          if (variant == ButtonVariant.Danger) colors.error to colors.onError
-          else colors.primary to colors.onPrimary
-      Button(
-          onClick = onClick,
-          modifier = sized,
-          enabled = active,
-          shape = MaterialTheme.shapes.small,
-          colors =
-              ButtonDefaults.buttonColors(
-                  containerColor = base.first,
-                  contentColor = base.second,
-                  disabledContainerColor =
-                      if (loading) base.first else colors.onSurface.copy(alpha = 0.12f),
-                  disabledContentColor =
-                      if (loading) base.second else colors.onSurface.copy(alpha = 0.38f),
-              ),
-          content = content,
-      )
-    }
+    ButtonVariant.Primary ->
+        Button(
+            onClick = onClick,
+            modifier = sized,
+            enabled = active,
+            shape = MaterialTheme.shapes.small,
+            colors =
+                ButtonDefaults.buttonColors(
+                    containerColor = colors.primary,
+                    contentColor = colors.onPrimary,
+                    disabledContainerColor =
+                        if (loading) colors.primary else colors.onSurface.copy(alpha = 0.12f),
+                    disabledContentColor =
+                        if (loading) colors.onPrimary else colors.onSurface.copy(alpha = 0.38f),
+                ),
+            content = content,
+        )
   }
 }
