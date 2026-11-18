@@ -75,7 +75,8 @@ class ActivityFormViewModelTest {
           FakeActivityRepository(listOf(activity)),
           ActivityFormMode.Edit(TRIP_ID, activity),
           trip,
-          zone = zone,
+          SavedStateHandle(),
+          zone,
       )
 
   private fun ActivityFormViewModel.fillValid() {
@@ -517,7 +518,8 @@ class ActivityFormViewModelTest {
             repository,
             ActivityFormMode.Edit(TRIP_ID, activity),
             trip,
-            zone = zone,
+            SavedStateHandle(),
+            zone,
         )
     form.updateName("Lunch")
     form.save()

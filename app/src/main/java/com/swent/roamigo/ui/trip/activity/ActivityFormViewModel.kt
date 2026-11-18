@@ -40,7 +40,7 @@ class ActivityFormViewModel(
     private val repository: ActivityRepository,
     private val mode: ActivityFormMode,
     trip: ActivityFormTrip,
-    private val savedState: SavedStateHandle = SavedStateHandle(),
+    private val savedState: SavedStateHandle,
     private val zone: ZoneId = ZoneId.systemDefault(),
 ) : ViewModel() {
   private val editedActivity = (mode as? ActivityFormMode.Edit)?.activity
