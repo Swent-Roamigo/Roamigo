@@ -11,8 +11,6 @@ import androidx.compose.ui.test.performTextInput
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.google.firebase.Timestamp
-import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.sampleDestinationRepository
@@ -21,9 +19,6 @@ import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.place.FakePlaceRepository
 import com.swent.roamigo.model.place.PlaceCandidate
 import com.swent.roamigo.model.trip.FakeTripRepository
-import com.swent.roamigo.model.trip.TravelMode
-import com.swent.roamigo.model.trip.Trip
-import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.trip.activity.FakeActivityRepository
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.resources.C
@@ -35,7 +30,6 @@ import com.swent.roamigo.ui.trip.activity.ActivityFormTestTags
 import com.swent.roamigo.ui.trip.activity.ActivityFormTrip
 import com.swent.roamigo.ui.trip.activity.pickPlace
 import com.swent.roamigo.ui.trip.activity.waitForTag
-import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -63,23 +57,7 @@ class ActivityFormNavigationTest {
   private lateinit var navController: NavHostController
 
   private fun openTrip(injectPlaces: Boolean = true) {
-    val now = Instant.now().epochSecond
-    val trip =
-        Trip(
-            tripId,
-            tripName,
-            null,
-            listOf(TripLocation(38.7, -9.1, "Lisbon")),
-            Timestamp(now - 3600, 0),
-            Timestamp(now + 86400, 0),
-            false,
-            TravelMode.GROUP,
-            2,
-            "owner",
-            listOf("owner", "member"),
-            TripStatus.ACTIVE,
-            Timestamp(now - 7200, 0),
-        )
+    val trip = navigationTestTrip(tripId, tripName)
     composeRule.setContent {
       navController = rememberNavController()
       RoamigoTheme {

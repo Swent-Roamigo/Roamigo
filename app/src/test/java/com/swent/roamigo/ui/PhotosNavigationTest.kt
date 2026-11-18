@@ -13,7 +13,6 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
-import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.connectivity.FakeConnectivityRepository
@@ -24,8 +23,6 @@ import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.photo.PhotoRepository
 import com.swent.roamigo.model.photo.TripPhoto
 import com.swent.roamigo.model.trip.FakeTripRepository
-import com.swent.roamigo.model.trip.TravelMode
-import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.model.users.FakeUserRepository
@@ -55,22 +52,7 @@ class PhotosNavigationTest {
       memberIds: List<String> = listOf("owner", "member"),
   ) {
     val now = Instant.now().epochSecond
-    val trip =
-        Trip(
-            tripId,
-            tripName,
-            null,
-            listOf(TripLocation(38.7, -9.1, "Lisbon")),
-            Timestamp(now - 3600, 0),
-            Timestamp(now + 86400, 0),
-            false,
-            TravelMode.GROUP,
-            2,
-            "owner",
-            memberIds,
-            TripStatus.ACTIVE,
-            Timestamp(now - 7200, 0),
-        )
+    val trip = navigationTestTrip(tripId, tripName, memberIds)
     composeRule.setContent {
       navController = rememberNavController()
       RoamigoTheme {
