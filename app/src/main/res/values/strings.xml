@@ -589,4 +589,5 @@
     <string name="activity_form_failure_permission">You cannot add activities to this trip.</string>
     <string name="activity_form_failure_network">Could not save the activity. Check your connection and try again.</string>
     <string name="activity_form_failure_unknown">Something went wrong while saving the activity. Try again.</string>
+    <string name="activity_form_failure_already_saved">This activity was already saved with the details shown here, so your later changes were not applied. Save to continue.</string>
 </resources>

@@ -333,6 +333,33 @@ class ActivityFormViewModelTest {
   }
 
   @Test
+  fun changesAfterACommittedButFailedWriteAreNotReportedAsSaved() = runTest {
+    val repository = FlakyActivityRepository(failures = 1, commitBeforeFailing = true)
+    val form = createForm(repository)
+    form.fillValid()
+    form.save()
+    advanceUntilIdle()
+
+    form.updateName("Lunch")
+    form.updateDescription("Changed after the failure")
+    form.save()
+    advanceUntilIdle()
+    val stored = repository.delegate.stored().single()
+    assertEquals("Dinner", stored.name)
+    assertEquals(ActivityFormFailure.ALREADY_SAVED, form.uiState.value.failure)
+    assertEquals("Dinner", form.uiState.value.fields.name)
+    assertEquals("", form.uiState.value.fields.description)
+    assertFalse(form.uiState.value.isSaved)
+    assertNull(form.consumeResult())
+
+    form.save()
+    advanceUntilIdle()
+    assertEquals(1, repository.delegate.stored().size)
+    assertNull(form.uiState.value.failure)
+    assertEquals(ActivityFormResult.Saved(stored.uid), form.consumeResult())
+  }
+
+  @Test
   fun doubleSubmitCreatesOneActivity() = runTest {
     val gate = CompletableDeferred<Unit>()
     val repository = FlakyActivityRepository(failures = 0, gate = gate)
