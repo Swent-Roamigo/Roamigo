@@ -179,7 +179,8 @@ fun TripsScreen(
       containerColor = MaterialTheme.colorScheme.background,
       bottomBar = {
         Column {
-          NewTripButton(onClick = onNewTripClick)
+          // Capped like the list above it, while the tab bar below keeps the full width.
+          Box(Modifier.fillMaxWidth().contentWidth()) { NewTripButton(onClick = onNewTripClick) }
           AppBottomBar(
               onTripsClick = onTripsClick,
               onMapClick = onMapClick,
