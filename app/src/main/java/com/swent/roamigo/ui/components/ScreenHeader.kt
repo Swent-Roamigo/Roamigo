@@ -43,6 +43,7 @@ fun ScreenHeader(
     trailing: (@Composable () -> Unit)? = null,
     below: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
+  check(onBack == null || backLabel != null) { "A back button needs a label for screen readers" }
   Row(
       modifier.fillMaxWidth(),
       horizontalArrangement = Arrangement.SpaceBetween,

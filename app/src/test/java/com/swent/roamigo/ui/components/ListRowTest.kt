@@ -2,16 +2,23 @@
 package com.swent.roamigo.ui.components
 
 import androidx.compose.material3.Text
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.height
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -52,5 +59,19 @@ class ListRowTest {
     composeRule.setContent { RoamigoTheme { ListRow("Only", onClick = {}) } }
 
     composeRule.onNodeWithText("Only").assertIsDisplayed()
+  }
+
+  @Test
+  fun aRowIsAtLeastAsTallAsATouchTargetEvenWithTinyText() {
+    composeRule.setContent {
+      // Tiny text, so only the minimum height can make the row reach 48dp.
+      val density = LocalDensity.current
+      CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = 0.25f)) {
+        RoamigoTheme { ListRow("Only", onClick = {}, modifier = Modifier.testTag("row")) }
+      }
+    }
+
+    val height = composeRule.onNodeWithTag("row").getUnclippedBoundsInRoot().height
+    assertTrue("Row is only $height tall", height >= 48.dp)
   }
 }

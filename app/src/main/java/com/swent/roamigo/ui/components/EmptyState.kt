@@ -1,6 +1,7 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.ui.components
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,12 +30,12 @@ fun EmptyState(
     title: String,
     description: String,
     modifier: Modifier = Modifier,
-    icon: Int? = null,
+    @DrawableRes icon: Int? = null,
 ) {
   Column(
       modifier,
       horizontalAlignment = Alignment.CenterHorizontally,
-      verticalArrangement = Arrangement.spacedBy(Spacing.small),
+      verticalArrangement = Arrangement.spacedBy(Spacing.small, Alignment.CenterVertically),
   ) {
     // On a short screen (a phone in landscape) the icon would push the text out of view.
     if (icon != null && LocalConfiguration.current.screenHeightDp >= MIN_HEIGHT_FOR_ICON_DP) {
