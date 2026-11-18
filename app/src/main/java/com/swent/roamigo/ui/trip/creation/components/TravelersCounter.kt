@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.MAX_GROUP_TRAVELER_COUNT
 import com.swent.roamigo.model.trip.MIN_GROUP_TRAVELER_COUNT
+import com.swent.roamigo.ui.theme.Spacing
 
 internal object TravelersCounterTestTags {
   const val DECREMENT = "c2_travelers_decrement"
@@ -52,7 +53,7 @@ internal fun TravelersCounter(
     )
     Text(
         text = stringResource(R.string.c2_travelers),
-        modifier = Modifier.padding(start = 12.dp).weight(1f),
+        modifier = Modifier.padding(start = Spacing.medium).weight(1f),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onBackground,
     )
@@ -66,7 +67,7 @@ internal fun TravelersCounter(
     Text(
         text = count.toString(),
         modifier =
-            Modifier.padding(horizontal = 14.dp).semantics {
+            Modifier.padding(horizontal = Spacing.cardPadding).semantics {
               testTag = TravelersCounterTestTags.COUNT
             },
         style = MaterialTheme.typography.titleMedium,

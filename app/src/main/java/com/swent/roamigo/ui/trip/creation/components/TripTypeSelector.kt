@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,6 +25,8 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.TravelMode
+import com.swent.roamigo.ui.theme.RoamigoShapes
+import com.swent.roamigo.ui.theme.Spacing
 
 internal object TripTypeSelectorTestTags {
   const val SOLO = "c2_trip_type_solo"
@@ -38,10 +39,10 @@ internal fun TripTypeSelector(type: TravelMode, onChange: (TravelMode) -> Unit) 
       modifier =
           Modifier.fillMaxWidth()
               .height(46.dp)
-              .clip(RoundedCornerShape(14.dp))
+              .clip(MaterialTheme.shapes.small)
               .background(MaterialTheme.colorScheme.surfaceVariant)
-              .padding(4.dp),
-      horizontalArrangement = Arrangement.spacedBy(4.dp),
+              .padding(Spacing.compact),
+      horizontalArrangement = Arrangement.spacedBy(Spacing.compact),
   ) {
     TripTypeOption(
         label = stringResource(R.string.c2_solo),
@@ -72,7 +73,7 @@ private fun TripTypeOption(
       modifier =
           modifier
               .fillMaxSize()
-              .clip(RoundedCornerShape(11.dp))
+              .clip(RoamigoShapes.chip)
               .background(
                   if (selected) MaterialTheme.colorScheme.surface
                   else MaterialTheme.colorScheme.surfaceVariant

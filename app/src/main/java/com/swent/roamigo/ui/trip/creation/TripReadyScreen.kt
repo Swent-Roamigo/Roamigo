@@ -22,13 +22,13 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.ui.components.PhotoCreditsDialogTestTags
 import com.swent.roamigo.ui.components.markNotImplemented
+import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.creation.components.TripReadyCard
 import com.swent.roamigo.ui.trip.creation.components.TripReadyHeader
 import java.time.format.DateTimeFormatter
@@ -99,7 +99,7 @@ internal fun TripReadyScreen(
         }
     TripReadyState.Error ->
         Column(
-            Modifier.fillMaxSize().padding(24.dp),
+            Modifier.fillMaxSize().padding(Spacing.extraLarge),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
@@ -161,7 +161,10 @@ private fun TripReadySuccessContent(
       }
   ) {
     TripReadyHeader(dateSummary = dateSummary, photo = photo)
-    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        Modifier.padding(Spacing.screenPadding),
+        verticalArrangement = Arrangement.spacedBy(Spacing.medium),
+    ) {
       TripReadyCard(
           title = stringResource(R.string.trip_ready_summary, stopsText, durationText),
           detail = trip.destinations.joinToString(" → ") { it.name },

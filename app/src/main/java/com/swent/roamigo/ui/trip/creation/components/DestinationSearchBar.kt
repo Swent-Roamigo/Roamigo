@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
@@ -29,6 +28,7 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
+import com.swent.roamigo.ui.theme.Spacing
 
 internal object DestinationSearchBarTestTags {
   const val SEARCH_FIELD = "destination_search_field"
@@ -45,12 +45,12 @@ fun DestinationSearchBar(
       modifier =
           Modifier.fillMaxWidth()
               .height(46.dp)
-              .background(colors.surfaceVariant, RoundedCornerShape(14.dp))
-              .padding(horizontal = 14.dp),
+              .background(colors.surfaceVariant, MaterialTheme.shapes.small)
+              .padding(horizontal = Spacing.cardPadding),
       verticalAlignment = Alignment.CenterVertically,
   ) {
     SearchGlyph(Modifier.size(20.dp), colors.onSurfaceVariant)
-    Spacer(Modifier.width(10.dp))
+    Spacer(Modifier.width(Spacing.cozy))
     Box(Modifier.fillMaxWidth()) {
       if (query.isEmpty()) {
         Text(

@@ -50,6 +50,7 @@ import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.PHOTO_FADE_IN_MILLIS
 import com.swent.roamigo.ui.components.PhotoCreditsDialog
 import com.swent.roamigo.ui.components.markNotImplemented
+import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trips.MainTripBadge
 import com.swent.roamigo.ui.trips.MainTripUiModel
 
@@ -127,8 +128,8 @@ internal fun MainTripCard(
                   },
               modifier =
                   Modifier.padding(
-                      horizontal = 10.dp,
-                      vertical = 6.dp,
+                      horizontal = Spacing.cozy,
+                      vertical = Spacing.snug,
                   ),
               style = MaterialTheme.typography.bodyMedium,
               color = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -146,7 +147,7 @@ internal fun MainTripCard(
             overflow = TextOverflow.Ellipsis,
         )
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(Spacing.compact))
 
         val durationText =
             pluralStringResource(
@@ -168,12 +169,12 @@ internal fun MainTripCard(
             color = MaterialTheme.colorScheme.onPrimary,
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(Spacing.medium))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
           MemberAvatars(trip.memberInitials)
 
-          Spacer(modifier = Modifier.width(14.dp))
+          Spacer(modifier = Modifier.width(Spacing.cardPadding))
 
           Surface(
               onClick = onInviteClick,
@@ -187,8 +188,8 @@ internal fun MainTripCard(
             Row(
                 modifier =
                     Modifier.padding(
-                        horizontal = 14.dp,
-                        vertical = 8.dp,
+                        horizontal = Spacing.cardPadding,
+                        vertical = Spacing.small,
                     ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -199,7 +200,7 @@ internal fun MainTripCard(
                   tint = MaterialTheme.colorScheme.primary,
               )
 
-              Spacer(modifier = Modifier.width(4.dp))
+              Spacer(modifier = Modifier.width(Spacing.compact))
 
               Text(
                   text = stringResource(R.string.trips_invite),

@@ -38,11 +38,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.swent.roamigo.R
@@ -51,6 +49,9 @@ import com.swent.roamigo.model.destination.DestinationPhoto
 import com.swent.roamigo.ui.components.PHOTO_FADE_IN_MILLIS
 import com.swent.roamigo.ui.components.PhotoCreditsDialog
 import com.swent.roamigo.ui.components.PhotoShimmer
+import com.swent.roamigo.ui.theme.Spacing
+import com.swent.roamigo.ui.theme.checkmark
+import com.swent.roamigo.ui.theme.infoGlyph
 
 internal object DestinationCardTestTags {
   const val PREFIX = "destination_card_"
@@ -129,16 +130,16 @@ fun DestinationCard(
     if (selected) {
       Box(
           Modifier.align(Alignment.TopEnd)
-              .padding(8.dp)
+              .padding(Spacing.small)
               .size(24.dp)
               .clip(CircleShape)
               .background(colors.primary),
           contentAlignment = Alignment.Center,
       ) {
-        Text("✓", color = colors.onPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Text("✓", color = colors.onPrimary, style = MaterialTheme.typography.checkmark)
       }
     }
-    Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(10.dp)) {
+    Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(Spacing.cozy)) {
       Text(
           destination.name,
           color = colors.onPrimary,
@@ -172,7 +173,7 @@ fun DestinationCard(
                 Modifier.size(28.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)),
             color = Color.White,
             textAlign = TextAlign.Center,
-            fontSize = 20.sp,
+            style = MaterialTheme.typography.infoGlyph,
         )
       }
     }

@@ -48,6 +48,7 @@ import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
+import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trips.components.HistoryButton
 import com.swent.roamigo.ui.trips.components.MainTripCard
 import com.swent.roamigo.ui.trips.components.NextActivityCard
@@ -195,12 +196,12 @@ fun TripsScreen(
           modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.trips_list },
           contentPadding =
               PaddingValues(
-                  start = 20.dp,
-                  top = 20.dp,
-                  end = 20.dp,
+                  start = Spacing.screenPadding,
+                  top = Spacing.screenPadding,
+                  end = Spacing.screenPadding,
                   bottom = 28.dp,
               ),
-          verticalArrangement = Arrangement.spacedBy(20.dp),
+          verticalArrangement = Arrangement.spacedBy(Spacing.screenPadding),
       ) {
         item {
           TripsHeader(
@@ -266,7 +267,7 @@ fun TripsScreen(
               item {
                 SectionTitle(stringResource(R.string.trips_next_up))
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(Spacing.medium))
 
                 NextActivityCard(
                     activity = activity,
@@ -310,7 +311,7 @@ fun TripsScreen(
 
 @Composable
 private fun TripsLoadError(message: String, onRetryClick: () -> Unit) {
-  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+  Column(verticalArrangement = Arrangement.spacedBy(Spacing.small)) {
     Text(
         text = message,
         style = MaterialTheme.typography.bodyLarge,
@@ -331,7 +332,7 @@ private fun NewTripButton(onClick: () -> Unit) {
       onClick = onClick,
       modifier =
           Modifier.fillMaxWidth()
-              .padding(horizontal = 20.dp, vertical = 8.dp)
+              .padding(horizontal = Spacing.screenPadding, vertical = Spacing.small)
               .height(50.dp)
               .markNotImplemented(onClick)
               .semantics { testTag = C.Tag.trips_new_trip_button },
@@ -343,7 +344,7 @@ private fun NewTripButton(onClick: () -> Unit) {
           ),
   ) {
     Icon(imageVector = Icons.Default.Add, contentDescription = null)
-    Spacer(modifier = Modifier.width(8.dp))
+    Spacer(modifier = Modifier.width(Spacing.small))
     Text(
         text = stringResource(R.string.trips_new_trip),
         style = MaterialTheme.typography.titleMedium,

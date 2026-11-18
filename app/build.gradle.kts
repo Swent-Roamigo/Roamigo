@@ -300,3 +300,43 @@ tasks.register("jacocoTestReport", JacocoReport::class) {
       }
   )
 }
+
+// Design values live in ui/theme. Screens use Spacing, MaterialTheme.shapes and typography styles,
+// so a change in Figma is one edit instead of one per screen.
+val checkDesignTokens =
+    tasks.register("checkDesignTokens") {
+      val uiDir = layout.projectDirectory.dir("src/main/java/com/swent/roamigo/ui")
+      val themeDir = uiDir.dir("theme").asFile
+      val rules =
+          mapOf(
+              Regex("""Color\(0x""") to "a hardcoded colour; add it to ui/theme/Color.kt",
+              Regex("""fontSize\s*=""") to
+                  "a text size override; use a text style from ui/theme/Type.kt",
+              Regex("""RoundedCornerShape\(""") to
+                  "a corner shape; use MaterialTheme.shapes or RoamigoShapes",
+              Regex(
+                  """\b(padding|spacedBy|PaddingValues)\([^)]*(?<![\d.])(2|4|6|8|10|12|14|16|20|24)\.dp"""
+              ) to "a spacing value that has a Spacing token",
+          )
+      doLast {
+        val violations =
+            uiDir.asFile
+                .walkTopDown()
+                .filter { it.isFile && it.extension == "kt" && !it.startsWith(themeDir) }
+                .flatMap { file ->
+                  file.readLines().mapIndexedNotNull { index, line ->
+                    rules.entries
+                        .firstOrNull { it.key.containsMatchIn(line) }
+                        ?.let { "${file.relativeTo(uiDir.asFile)}:${index + 1}: ${it.value}" }
+                  }
+                }
+                .toList()
+        if (violations.isNotEmpty()) {
+          throw GradleException(
+              "Design values outside ui/theme:\n" + violations.joinToString("\n") { "  $it" }
+          )
+        }
+      }
+    }
+
+tasks.named("check") { dependsOn(checkDesignTokens) }

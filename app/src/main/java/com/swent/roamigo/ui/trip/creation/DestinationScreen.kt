@@ -19,9 +19,9 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
-import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.destination.Destination
+import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffold
 import com.swent.roamigo.ui.trip.creation.components.DestinationList
 import com.swent.roamigo.ui.trip.creation.components.DestinationScreenTestTags
@@ -61,12 +61,12 @@ fun DestinationScreen(
           query = uiState.destinationQuery,
           onQueryChange = onQueryChange,
       )
-      Spacer(Modifier.height(16.dp))
+      Spacer(Modifier.height(Spacing.large))
       SelectedDestinations(
           destinations = uiState.selectedDestinations,
           onRemove = onRemoveDestination,
       )
-      Spacer(Modifier.height(20.dp))
+      Spacer(Modifier.height(Spacing.screenPadding))
       when (uiState.destinationSearchStatus) {
         DestinationSearchStatus.INITIAL ->
             // Nothing typed yet: offer well-known cities instead of an empty screen.

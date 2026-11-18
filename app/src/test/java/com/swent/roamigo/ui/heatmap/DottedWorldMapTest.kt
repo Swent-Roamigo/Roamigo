@@ -1,6 +1,10 @@
 package com.swent.roamigo.ui.heatmap
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.swent.roamigo.ui.theme.HeatmapDark
+import com.swent.roamigo.ui.theme.HeatmapLight
+import com.swent.roamigo.ui.theme.HeatmapMedium
+import com.swent.roamigo.ui.theme.HeatmapUnvisited
 import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

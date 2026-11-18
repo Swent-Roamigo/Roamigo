@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.LocationOff
@@ -190,7 +189,6 @@ fun TripMapRoute(
 }
 
 private val MyLocationDotSize = 18.dp
-private val MapCardShape = RoundedCornerShape(20.dp)
 private val SHARING_ICON_SIZE = 20.dp
 private val MyLocationDotBorderWidth = 3.dp
 
@@ -277,7 +275,7 @@ fun TripMapScreen(
                     top = Spacing.medium,
                     end = Spacing.screenPadding,
                 )
-                .clip(MapCardShape)
+                .clip(MaterialTheme.shapes.large)
     ) {
       MapboxMap(
           modifier = Modifier.fillMaxSize().testTag(C.Tag.trip_map_map),

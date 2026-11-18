@@ -20,6 +20,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
+import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trips.OtherTripUiModel
 
 /** Displays a secondary trip that can be opened. */
@@ -37,7 +38,7 @@ internal fun OtherTripCard(trip: OtherTripUiModel, onClick: () -> Unit) {
           ),
   ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        modifier = Modifier.fillMaxWidth().padding(Spacing.large),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -50,7 +51,7 @@ internal fun OtherTripCard(trip: OtherTripUiModel, onClick: () -> Unit) {
         )
 
         if (trip.isInProgress) {
-          Spacer(modifier = Modifier.height(4.dp))
+          Spacer(modifier = Modifier.height(Spacing.compact))
           StatusPill(stringResource(R.string.trips_in_progress))
         }
 
@@ -71,7 +72,7 @@ internal fun OtherTripCard(trip: OtherTripUiModel, onClick: () -> Unit) {
       }
 
       if (trip.memberCount > 1) {
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(Spacing.small))
         StatusPill(stringResource(R.string.trips_shared))
       }
     }

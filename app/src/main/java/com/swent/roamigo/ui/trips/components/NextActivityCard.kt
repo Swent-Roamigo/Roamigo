@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trips.ActivityCardUiModel
 
 /** Displays the next upcoming activity. */
@@ -39,7 +40,7 @@ internal fun NextActivityCard(
       color = MaterialTheme.colorScheme.surfaceVariant,
   ) {
     Row(
-        modifier = Modifier.padding(14.dp),
+        modifier = Modifier.padding(Spacing.cardPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
       Box(modifier = Modifier.size(72.dp).clip(MaterialTheme.shapes.small)) {
@@ -49,7 +50,7 @@ internal fun NextActivityCard(
         )
       }
 
-      Spacer(modifier = Modifier.width(14.dp))
+      Spacer(modifier = Modifier.width(Spacing.cardPadding))
 
       Column(modifier = Modifier.weight(1f)) {
         Text(
@@ -68,7 +69,7 @@ internal fun NextActivityCard(
         )
       }
 
-      Spacer(modifier = Modifier.width(8.dp))
+      Spacer(modifier = Modifier.width(Spacing.small))
 
       StatusPill(stringResource(R.string.trips_confirmed))
     }

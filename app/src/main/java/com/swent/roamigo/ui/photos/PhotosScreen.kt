@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material3.CircularProgressIndicator
@@ -125,15 +124,15 @@ private fun FailedUploadsBanner(state: PhotosUiState, onRetryClick: (String) -> 
   if (failed.isEmpty()) return
   Surface(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.photos_failed_banner),
-      shape = RoundedCornerShape(16.dp),
+      shape = MaterialTheme.shapes.medium,
       color = MaterialTheme.colorScheme.surfaceVariant,
   ) {
     Row(
-        Modifier.padding(horizontal = 14.dp, vertical = Spacing.small),
+        Modifier.padding(horizontal = Spacing.cardPadding, vertical = Spacing.small),
         horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)) {
         Text(
             pluralStringResource(R.plurals.photos_failed_summary, failed.size, failed.size),
             style = MaterialTheme.typography.titleSmall,
@@ -300,7 +299,7 @@ private fun UploadedTile(photo: TripPhoto, currentUserId: String?, onClick: (Str
         photo = photo,
         contentDescription =
             stringResource(R.string.photos_uploaded_description, photo.takenAtText()),
-        modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp)),
+        modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(MaterialTheme.shapes.small),
     )
     Text(
         uploadedByText(photo, currentUserId),
@@ -330,7 +329,7 @@ private fun PendingPhotoRow(photo: PendingPhoto, file: File, onRetryClick: (Stri
     AsyncImage(
         model = file,
         contentDescription = stringResource(R.string.photos_item_description, time),
-        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)),
+        modifier = Modifier.size(64.dp).clip(MaterialTheme.shapes.small),
         contentScale = ContentScale.Crop,
     )
     Text(

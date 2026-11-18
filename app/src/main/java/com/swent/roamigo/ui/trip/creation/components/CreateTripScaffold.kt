@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -28,8 +27,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.swent.roamigo.R
+import com.swent.roamigo.ui.theme.RoamigoShapes
+import com.swent.roamigo.ui.theme.Spacing
+import com.swent.roamigo.ui.theme.glyph
 
 internal object CreateTripScaffoldTestTags {
   const val PRIMARY_ACTION = "create_trip_primary_action"
@@ -58,8 +59,8 @@ fun CreateTripScaffold(
           Modifier.fillMaxSize()
               .background(colors.background)
               .navigationBarsPadding()
-              .padding(horizontal = 20.dp)
-              .padding(top = 8.dp, bottom = 20.dp),
+              .padding(horizontal = Spacing.screenPadding)
+              .padding(top = Spacing.small, bottom = Spacing.screenPadding),
   ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -86,30 +87,30 @@ fun CreateTripScaffold(
           enabled = navigationEnabled,
       )
     }
-    Spacer(Modifier.height(14.dp))
+    Spacer(Modifier.height(Spacing.cardPadding))
     Box(
         modifier =
             Modifier.fillMaxWidth()
                 .height(6.dp)
-                .clip(RoundedCornerShape(3.dp))
+                .clip(RoamigoShapes.pill)
                 .background(colors.outlineVariant)
     ) {
       Box(
           Modifier.fillMaxWidth((step / CREATE_TRIP_TOTAL_STEPS.toFloat()).coerceIn(0f, 1f))
               .height(6.dp)
-              .clip(RoundedCornerShape(3.dp))
+              .clip(RoamigoShapes.pill)
               .background(colors.primary)
       )
     }
-    Spacer(Modifier.height(14.dp))
+    Spacer(Modifier.height(Spacing.cardPadding))
     Text(title, style = MaterialTheme.typography.headlineMedium, color = colors.onBackground)
     if (subtitle != null) {
-      Spacer(Modifier.height(6.dp))
+      Spacer(Modifier.height(Spacing.snug))
       Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
     }
-    Spacer(Modifier.height(16.dp))
+    Spacer(Modifier.height(Spacing.large))
     Column(modifier = Modifier.fillMaxWidth().weight(1f), content = content)
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(Spacing.medium))
     Button(
         onClick = onPrimaryAction,
         modifier =
@@ -135,7 +136,7 @@ private fun HeaderAction(
   Box(
       modifier =
           Modifier.size(36.dp)
-              .clip(RoundedCornerShape(18.dp))
+              .clip(MaterialTheme.shapes.medium)
               .background(MaterialTheme.colorScheme.surfaceVariant)
               .clickable(enabled = enabled, onClick = onClick)
               .semantics {
@@ -147,8 +148,7 @@ private fun HeaderAction(
     Text(
         glyph,
         color = MaterialTheme.colorScheme.onBackground,
-        fontSize = 24.sp,
-        lineHeight = 24.sp,
+        style = MaterialTheme.typography.glyph,
     )
   }
 }

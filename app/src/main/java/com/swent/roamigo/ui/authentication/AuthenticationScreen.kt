@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -58,7 +57,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -70,7 +68,10 @@ import com.swent.roamigo.ui.theme.AuthErrorSurface
 import com.swent.roamigo.ui.theme.AuthErrorTitle
 import com.swent.roamigo.ui.theme.AuthNoticeBorder
 import com.swent.roamigo.ui.theme.AuthNoticeSurface
+import com.swent.roamigo.ui.theme.RoamigoShapes
 import com.swent.roamigo.ui.theme.Spacing
+import com.swent.roamigo.ui.theme.finePrint
+import com.swent.roamigo.ui.theme.tagline
 
 /** Connects [authRepository] to [AuthenticationScreen] and forwards successful sign-in. */
 @Composable
@@ -120,7 +121,7 @@ fun AuthenticationScreen(
               .padding(horizontal = Spacing.extraLarge, vertical = 28.dp),
           verticalArrangement = Arrangement.SpaceBetween,
       ) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.cozy)) {
           Text(
               stringResource(R.string.auth_heading),
               modifier = Modifier.testTag(AuthenticationScreenTestTags.heading),
@@ -134,7 +135,7 @@ fun AuthenticationScreen(
           )
         }
         Spacer(Modifier.height(Spacing.extraLarge * 2))
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.cozy)) {
           uiState.errorMessageRes?.let { AuthenticationFeedback(it) }
           GoogleSignInButton(uiState, onSignInClick)
           Text(
@@ -142,8 +143,7 @@ fun AuthenticationScreen(
               modifier = Modifier.fillMaxWidth(),
               textAlign = TextAlign.Center,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
-              style =
-                  MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 14.85.sp),
+              style = MaterialTheme.typography.finePrint,
           )
         }
       }
@@ -206,7 +206,7 @@ private fun AuthenticationFeedback(messageRes: Int) {
           .border(1.dp, if (cancelled) AuthNoticeBorder else AuthErrorBorder, shape)
           .semantics { liveRegion = LiveRegionMode.Polite }
           .padding(horizontal = 17.dp, vertical = 15.dp),
-      verticalArrangement = Arrangement.spacedBy(4.dp),
+      verticalArrangement = Arrangement.spacedBy(Spacing.compact),
   ) {
     Text(
         stringResource(
@@ -237,7 +237,7 @@ private fun AuthenticationHero(modifier: Modifier = Modifier) {
           .fillMaxWidth()
           .clipToBounds()
           .background(MaterialTheme.colorScheme.primary)
-          .padding(top = 14.dp, bottom = 36.dp),
+          .padding(top = Spacing.cardPadding, bottom = 36.dp),
   ) {
     TravelPhotoRow(
         listOf(
@@ -264,7 +264,7 @@ private fun AuthenticationHero(modifier: Modifier = Modifier) {
     )
     Column(
         Modifier.padding(start = 28.dp, end = 28.dp, top = 17.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(Spacing.cozy),
     ) {
       Row(
           verticalAlignment = Alignment.CenterVertically,
@@ -284,12 +284,7 @@ private fun AuthenticationHero(modifier: Modifier = Modifier) {
       Text(
           stringResource(R.string.auth_tagline),
           color = MaterialTheme.colorScheme.onPrimary,
-          style =
-              MaterialTheme.typography.bodyLarge.copy(
-                  fontSize = 18.sp,
-                  lineHeight = 25.sp,
-                  fontWeight = FontWeight.Medium,
-              ),
+          style = MaterialTheme.typography.tagline,
       )
     }
   }
@@ -311,7 +306,7 @@ private fun TravelPhotoRow(photos: List<Pair<Int, Int>>, offset: Dp) {
     ) {
       repeat(photoCount) { index ->
         val (image, label) = photos[index % photos.size]
-        Box(Modifier.size(photoWidth, 120.dp).clip(RoundedCornerShape(18.dp))) {
+        Box(Modifier.size(photoWidth, 120.dp).clip(MaterialTheme.shapes.medium)) {
           Image(
               painterResource(image),
               contentDescription = null,
@@ -325,7 +320,7 @@ private fun TravelPhotoRow(photos: List<Pair<Int, Int>>, offset: Dp) {
               modifier =
                   Modifier.align(Alignment.BottomStart)
                       .padding(Spacing.small)
-                      .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                      .background(Color.Black.copy(alpha = 0.5f), RoamigoShapes.chip)
                       .padding(horizontal = Spacing.small, vertical = 3.dp),
           )
         }

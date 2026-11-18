@@ -19,10 +19,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.swent.roamigo.R
+import com.swent.roamigo.ui.theme.Spacing
+import com.swent.roamigo.ui.theme.dateRange
+import com.swent.roamigo.ui.theme.detail
 import com.swent.roamigo.ui.trip.creation.CreateTripUiState
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -44,7 +44,10 @@ internal fun DateSummary(state: CreateTripUiState, onFlexibleDatesChange: (Boole
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.SpaceBetween,
   ) {
-    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(
+        modifier = Modifier.weight(1f),
+        verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall),
+    ) {
       if (!state.isSelectingEndDate) {
         Text(
             modifier = Modifier.semantics { testTag = DateSummaryTestTags.DATE_RANGE },
@@ -54,11 +57,7 @@ internal fun DateSummary(state: CreateTripUiState, onFlexibleDatesChange: (Boole
                     state.startDate.format(dateFormatter),
                     state.endDate.format(dateFormatter),
                 ),
-            style =
-                MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                ),
+            style = MaterialTheme.typography.dateRange,
             color = MaterialTheme.colorScheme.onBackground,
         )
         Text(
@@ -77,11 +76,7 @@ internal fun DateSummary(state: CreateTripUiState, onFlexibleDatesChange: (Boole
                         state.tripNights.toInt(),
                     ),
                 ),
-            style =
-                MaterialTheme.typography.bodySmall.copy(
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Normal,
-                ),
+            style = MaterialTheme.typography.detail,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       } else {
@@ -94,11 +89,11 @@ internal fun DateSummary(state: CreateTripUiState, onFlexibleDatesChange: (Boole
     }
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.small),
     ) {
       Text(
           text = stringResource(R.string.c2_flexible_dates),
-          style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
+          style = MaterialTheme.typography.labelMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
       FlexibleDatesToggle(state.flexibleDates, onFlexibleDatesChange)

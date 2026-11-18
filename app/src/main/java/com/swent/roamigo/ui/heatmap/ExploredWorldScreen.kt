@@ -198,7 +198,7 @@ private fun CountryVisitRow(
                 ),
             modifier =
                 Modifier.padding(
-                    horizontal = 10.dp,
+                    horizontal = Spacing.cozy,
                     vertical = 5.dp,
                 ),
             style = MaterialTheme.typography.labelMedium,

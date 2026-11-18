@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.LocationOn
@@ -33,6 +32,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.theme.RoamigoShapes
 import com.swent.roamigo.ui.theme.Spacing
 
 /**
@@ -62,7 +62,7 @@ fun PhotoLocationPill(
             stringResource(R.string.photo_preview_location_retake) to onRetake
         else -> null
       }
-  val shape = RoundedCornerShape(50)
+  val shape = RoamigoShapes.pill
   // Same dimming as the disabled Cancel button.
   val contentColor = Color.White.copy(alpha = if (enabled) 1f else 0.5f)
   Row(

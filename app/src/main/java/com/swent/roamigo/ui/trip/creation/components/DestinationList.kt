@@ -14,10 +14,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.destination.Destination
 import com.swent.roamigo.model.destination.DestinationPhoto
+import com.swent.roamigo.ui.theme.Spacing
 
 private const val DESTINATION_GRID_COLUMNS = 2
 
@@ -40,12 +40,12 @@ internal fun DestinationList(
         style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.onBackground,
     )
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(Spacing.medium))
     LazyVerticalGrid(
         columns = GridCells.Fixed(DESTINATION_GRID_COLUMNS),
         modifier = Modifier.weight(1f).fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
+        verticalArrangement = Arrangement.spacedBy(Spacing.large),
     ) {
       items(destinations, key = { it.stableId }) { destination ->
         DestinationCard(

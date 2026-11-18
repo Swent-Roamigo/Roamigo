@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
@@ -34,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.theme.RoamigoShapes
 import com.swent.roamigo.ui.theme.Spacing
 import java.io.File
 
@@ -240,7 +240,7 @@ private fun Pill(text: String, tag: String, color: Color = Color.White) {
       text,
       modifier =
           Modifier.testTag(tag)
-              .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(50))
+              .background(Color.Black.copy(alpha = 0.6f), RoamigoShapes.pill)
               .padding(horizontal = Spacing.large, vertical = Spacing.small),
       style = MaterialTheme.typography.bodySmall,
       color = color,

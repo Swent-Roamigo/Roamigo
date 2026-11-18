@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import com.swent.roamigo.ui.theme.Spacing
 
 /** Displays a compact status label for trip cards. */
 @Composable
@@ -27,8 +27,8 @@ internal fun StatusPill(text: String) {
         text = text,
         modifier =
             Modifier.padding(
-                horizontal = 10.dp,
-                vertical = 6.dp,
+                horizontal = Spacing.cozy,
+                vertical = Spacing.snug,
             ),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,

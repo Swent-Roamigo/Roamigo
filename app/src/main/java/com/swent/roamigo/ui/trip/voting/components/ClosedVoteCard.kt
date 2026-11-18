@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -49,13 +48,13 @@ internal fun ClosedVoteCard(
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth().testTag(C.Tag.closedVote(vote.uid)),
-        shape = RoundedCornerShape(22.dp),
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary,
     ) {
       Column(
           Modifier.padding(horizontal = Spacing.screenPadding, vertical = 18.dp),
-          verticalArrangement = Arrangement.spacedBy(6.dp),
+          verticalArrangement = Arrangement.spacedBy(Spacing.snug),
       ) {
         Text(
             stringResource(
@@ -102,13 +101,13 @@ internal fun ClosedVoteCard(
               Modifier.fillMaxWidth().testTag(C.Tag.voteTie(vote.uid)).semantics(
                   mergeDescendants = true
               ) {},
-          shape = RoundedCornerShape(14.dp),
+          shape = MaterialTheme.shapes.small,
           color = VoteTieSurface,
           contentColor = VoteTieContent,
           border = BorderStroke(1.dp, VoteTieBorder),
       ) {
         Column(
-            Modifier.padding(horizontal = Spacing.medium, vertical = 14.dp),
+            Modifier.padding(horizontal = Spacing.medium, vertical = Spacing.cardPadding),
             verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall),
         ) {
           Text(stringResource(R.string.vote_tie_title), style = MaterialTheme.typography.titleSmall)

@@ -21,9 +21,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
-import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.destination.Destination
+import com.swent.roamigo.ui.theme.Spacing
 
 internal object SelectedDestinationsTestTags {
   const val REMOVE_PREFIX = "selected_destination_remove_"
@@ -38,7 +38,7 @@ fun SelectedDestinations(
 ) {
   Row(
       modifier = Modifier.horizontalScroll(rememberScrollState()),
-      horizontalArrangement = Arrangement.spacedBy(8.dp),
+      horizontalArrangement = Arrangement.spacedBy(Spacing.small),
       verticalAlignment = Alignment.CenterVertically,
   ) {
     destinations.forEachIndexed { index, destination ->
@@ -60,9 +60,14 @@ private fun DestinationChip(destination: Destination, onRemove: () -> Unit) {
       modifier =
           Modifier.clip(CircleShape)
               .background(MaterialTheme.colorScheme.primary)
-              .padding(start = 12.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+              .padding(
+                  start = Spacing.medium,
+                  end = Spacing.small,
+                  top = Spacing.snug,
+                  bottom = Spacing.snug,
+              ),
       verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(6.dp),
+      horizontalArrangement = Arrangement.spacedBy(Spacing.snug),
   ) {
     Text(
         destination.name,
@@ -74,7 +79,7 @@ private fun DestinationChip(destination: Destination, onRemove: () -> Unit) {
         modifier =
             Modifier.clip(CircleShape)
                 .clickable(onClick = onRemove)
-                .padding(horizontal = 2.dp)
+                .padding(horizontal = Spacing.extraSmall)
                 .semantics {
                   contentDescription = removeDescription
                   testTag = SelectedDestinationsTestTags.removeFor(destination.stableId)

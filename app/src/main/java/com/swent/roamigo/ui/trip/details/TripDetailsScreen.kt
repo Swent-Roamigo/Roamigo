@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -42,6 +41,7 @@ import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.ui.components.TripActionButton
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
+import com.swent.roamigo.ui.theme.RoamigoShapes
 import com.swent.roamigo.ui.theme.Spacing
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -222,8 +222,9 @@ private fun TripDetailsSummaryCard(
       color = MaterialTheme.colorScheme.surfaceVariant,
   ) {
     Row(
-        Modifier.heightIn(min = 68.dp).padding(horizontal = 14.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        Modifier.heightIn(min = 68.dp)
+            .padding(horizontal = Spacing.cardPadding, vertical = Spacing.cozy),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.cozy),
         verticalAlignment = Alignment.CenterVertically,
     ) {
       Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
@@ -252,13 +253,13 @@ private fun TripDetailsSummaryCard(
 @Composable
 private fun TripDetailsBadge(text: String) {
   Surface(
-      shape = RoundedCornerShape(6.dp),
+      shape = RoamigoShapes.chip,
       color = MaterialTheme.colorScheme.primaryContainer,
       contentColor = MaterialTheme.colorScheme.primary,
   ) {
     Text(
         text,
-        Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+        Modifier.padding(horizontal = Spacing.small, vertical = 3.dp),
         style =
             MaterialTheme.typography.labelSmall.copy(
                 fontWeight = FontWeight.SemiBold,
