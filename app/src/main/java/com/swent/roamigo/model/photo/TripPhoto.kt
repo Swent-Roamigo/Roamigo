@@ -1,8 +1,8 @@
-// Implemented with assistance from Claude (Anthropic).
+// Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.model.photo
 
 /**
- * A photo of a trip that the server has, whoever took it.
+ * A photo from a trip's gallery, whoever took it. It may be awaiting server confirmation.
  *
  * @param id identifies the photo.
  * @param uploadedBy the user who took it.

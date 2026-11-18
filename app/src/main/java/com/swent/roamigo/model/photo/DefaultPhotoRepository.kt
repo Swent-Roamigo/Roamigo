@@ -1,4 +1,4 @@
-// Implemented with assistance from Claude (Anthropic).
+// Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.model.photo
 
 import java.io.File
@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.map
 /**
  * [PhotoRepository] that keeps photos in a [PhotoQueue] until [PhotoSyncer] uploads them.
  *
- * @param gallery the photos of a trip that the server has.
+ * @param gallery the trip's bounded photo list, including any locally written gallery photos.
  * @param currentUserId the signed-in user, or null.
  */
 class DefaultPhotoRepository(
