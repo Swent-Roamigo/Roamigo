@@ -45,6 +45,7 @@ import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.adaptive.contentWidth
 import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
@@ -190,7 +191,7 @@ fun TripsScreen(
     PullToRefreshBox(
         isRefreshing = uiState.isRefreshing,
         onRefresh = { if (!uiState.isLoading && !uiState.isRefreshing) onRetryClick() },
-        modifier = Modifier.fillMaxSize().padding(innerPadding),
+        modifier = Modifier.fillMaxSize().padding(innerPadding).contentWidth(),
     ) {
       LazyColumn(
           modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.trips_list },

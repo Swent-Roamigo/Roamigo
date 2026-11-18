@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -15,16 +16,20 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.unit.width
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.adaptive.ContentMaxWidth
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
 class FriendsScreenTest {
@@ -390,5 +395,15 @@ class FriendsScreenTest {
       assertEquals(0, originalDismissals)
       assertEquals(1, replacementDismissals)
     }
+  }
+
+  @Test
+  @Config(qualifiers = "w1000dp-h800dp")
+  fun onATabletTheListStaysAReadableColumn() {
+    show()
+
+    val list = composeRule.onNodeWithTag(C.Tag.friends_list).getUnclippedBoundsInRoot()
+    assertTrue(list.width <= ContentMaxWidth)
+    composeRule.onNodeWithText("Sam").assertIsDisplayed()
   }
 }

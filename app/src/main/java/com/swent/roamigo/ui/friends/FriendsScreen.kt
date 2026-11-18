@@ -47,6 +47,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.adaptive.contentWidth
 import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.AvatarSize
 import com.swent.roamigo.ui.components.ButtonVariant
@@ -140,7 +141,10 @@ fun FriendsScreen(
   ) { innerPadding ->
     Column(
         modifier =
-            Modifier.fillMaxSize().padding(innerPadding).padding(horizontal = Spacing.screenPadding)
+            Modifier.fillMaxSize()
+                .padding(innerPadding)
+                .contentWidth()
+                .padding(horizontal = Spacing.screenPadding)
     ) {
       FriendsList(
           uiState = uiState,

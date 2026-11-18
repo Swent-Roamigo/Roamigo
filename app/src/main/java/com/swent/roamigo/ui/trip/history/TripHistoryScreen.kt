@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.adaptive.contentWidth
 import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.heatmap.TravelHeatmapPreview
@@ -61,7 +62,7 @@ fun TripHistoryScreen(
       },
   ) { innerPadding ->
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(innerPadding),
+        modifier = Modifier.fillMaxSize().padding(innerPadding).contentWidth(),
         contentPadding =
             PaddingValues(
                 horizontal = Spacing.screenPadding,

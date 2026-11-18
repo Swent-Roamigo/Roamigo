@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.adaptive.contentWidth
 import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.SyncState
 import com.swent.roamigo.ui.components.SyncStatus
@@ -71,68 +72,71 @@ internal fun TripScreen(
     content: @Composable () -> Unit,
 ) {
   Column(modifier.fillMaxSize().safeDrawingPadding()) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-      IconButton(onClick = onBack) {
-        Icon(
-            Icons.AutoMirrored.Filled.ArrowBack,
-            contentDescription = stringResource(R.string.trip_details_back),
-        )
-      }
-      Column(Modifier.weight(1f)) {
-        if (trip != null) {
-          Text(trip.name, style = MaterialTheme.typography.headlineMedium)
-          val locale = LocalConfiguration.current.locales[0]
-          val formatter = DateTimeFormatter.ofPattern("EEE d MMM", locale)
-          // The header is identical on every tab so switching tabs never changes it.
-          Row(horizontalArrangement = Arrangement.spacedBy(Spacing.small)) {
-            Text(
-                "${formatter.format(trip.startDate)} – ${formatter.format(trip.endDate)}",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            // Synced is the normal state and says nothing; the indicator appears when it is not.
-            if (syncState != null && syncState != SyncState.Synced) {
-              SyncStatus(
-                  syncState,
-                  Modifier.testTag(C.Tag.trip_sync_status),
-                  compact = true,
+    // The tab bar below stays full width; only the header and the tab's content are capped.
+    Column(Modifier.weight(1f).contentWidth()) {
+      Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        IconButton(onClick = onBack) {
+          Icon(
+              Icons.AutoMirrored.Filled.ArrowBack,
+              contentDescription = stringResource(R.string.trip_details_back),
+          )
+        }
+        Column(Modifier.weight(1f)) {
+          if (trip != null) {
+            Text(trip.name, style = MaterialTheme.typography.headlineMedium)
+            val locale = LocalConfiguration.current.locales[0]
+            val formatter = DateTimeFormatter.ofPattern("EEE d MMM", locale)
+            // The header is identical on every tab so switching tabs never changes it.
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.small)) {
+              Text(
+                  "${formatter.format(trip.startDate)} – ${formatter.format(trip.endDate)}",
+                  style = MaterialTheme.typography.bodyMedium,
               )
+              // Synced is the normal state and says nothing; the indicator appears when it is not.
+              if (syncState != null && syncState != SyncState.Synced) {
+                SyncStatus(
+                    syncState,
+                    Modifier.testTag(C.Tag.trip_sync_status),
+                    compact = true,
+                )
+              }
             }
           }
         }
-      }
-      if (trip != null) {
-        TripMemberAvatars(
-            members = trip.members,
-            memberCount = trip.memberCount,
-            onClick = onMembersClick,
-        )
-      }
-      if (selectedTab == TripSection.Detail && onAddClick != null) {
-        IconButton(onClick = onAddClick, modifier = Modifier.testTag(C.Tag.trip_add_button)) {
-          Icon(Icons.Default.Add, contentDescription = stringResource(R.string.trip_add_menu))
+        if (trip != null) {
+          TripMemberAvatars(
+              members = trip.members,
+              memberCount = trip.memberCount,
+              onClick = onMembersClick,
+          )
+        }
+        if (selectedTab == TripSection.Detail && onAddClick != null) {
+          IconButton(onClick = onAddClick, modifier = Modifier.testTag(C.Tag.trip_add_button)) {
+            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.trip_add_menu))
+          }
+        }
+        if (selectedTab != TripSection.Map && isSharing) {
+          TextButton(onClick = onPauseSharing) {
+            Text(stringResource(R.string.trip_map_pause_sharing))
+          }
         }
       }
-      if (selectedTab != TripSection.Map && isSharing) {
-        TextButton(onClick = onPauseSharing) {
-          Text(stringResource(R.string.trip_map_pause_sharing))
-        }
-      }
-    }
-    if (showEndedBanner) {
-      EndedTripBanner(
-          Modifier.padding(horizontal = Spacing.screenPadding, vertical = Spacing.small)
-      )
-    }
-    SecondaryTabRow(selectedTabIndex = selectedTab.ordinal) {
-      TripSection.entries.forEach { section ->
-        Tab(
-            selected = section == selectedTab,
-            onClick = { onTabSelected(section) },
-            text = { Text(stringResource(section.label)) },
+      if (showEndedBanner) {
+        EndedTripBanner(
+            Modifier.padding(horizontal = Spacing.screenPadding, vertical = Spacing.small)
         )
       }
+      SecondaryTabRow(selectedTabIndex = selectedTab.ordinal) {
+        TripSection.entries.forEach { section ->
+          Tab(
+              selected = section == selectedTab,
+              onClick = { onTabSelected(section) },
+              text = { Text(stringResource(section.label)) },
+          )
+        }
+      }
+      Box(Modifier.weight(1f)) { content() }
     }
-    Box(Modifier.weight(1f)) { content() }
     // Global destinations leave the current trip. A trip belongs to the Trips destination, so that
     // tab stays highlighted inside it.
     AppBottomBar(

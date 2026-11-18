@@ -35,6 +35,7 @@ import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.adaptive.contentWidth
 import com.swent.roamigo.ui.components.RoamigoAvatar
 import com.swent.roamigo.ui.components.avatarColor
 import com.swent.roamigo.ui.theme.Spacing
@@ -73,7 +74,9 @@ fun TripMembersScreen(
     onBack: () -> Unit,
     onRetry: () -> Unit,
 ) {
-  Column(Modifier.fillMaxSize().safeDrawingPadding().testTag(C.Tag.trip_members_screen)) {
+  Column(
+      Modifier.fillMaxSize().safeDrawingPadding().contentWidth().testTag(C.Tag.trip_members_screen)
+  ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
       IconButton(onClick = onBack, modifier = Modifier.testTag(C.Tag.trip_members_back)) {
         Icon(
