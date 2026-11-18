@@ -34,6 +34,7 @@ import com.swent.roamigo.model.trip.activity.ActivityRepository
 import com.swent.roamigo.model.trip.isCompletedOn
 import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.users.UserRepository
+import com.swent.roamigo.ui.components.SyncState
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.map.LocationViewModel
 import com.swent.roamigo.ui.map.TripMapRoute
@@ -101,11 +102,11 @@ internal fun TripRoute(
   val readOnly = fromHistory || loaded?.trip?.isCompletedOn(today, zone) != false
   var hasOpenedMap by rememberSaveable { mutableStateOf(false) }
   if (tab == TripSection.Map && !readOnly) SideEffect { hasOpenedMap = true }
+  val connectivity =
+      connectivityRepository ?: remember(context) { DefaultConnectivityRepository(context) }
   val locationFactory =
       if ((tab == TripSection.Map || hasOpenedMap) && (!readOnly || hasOpenedMap)) {
         val location = resolveLocationRepository(locationRepository, context)
-        val connectivity =
-            connectivityRepository ?: remember(context) { DefaultConnectivityRepository(context) }
         remember(tripId, userId, location, connectivity) {
           LocationViewModel.factory(tripId, userId, location, connectivity)
         }
@@ -146,7 +147,9 @@ internal fun TripRoute(
     if (authRepository.getCurrentUser() == null) onAuthenticationRequired()
     else tab = TripSection.Map
   }
+  val isOnline by connectivity.isOnline.collectAsStateWithLifecycle(initialValue = true)
   TripScreen(
+      syncState = if (isOnline) SyncState.Synced else SyncState.Offline,
       trip =
           loaded?.trip?.let { trip ->
             TripHeaderUiState(
@@ -205,8 +208,6 @@ internal fun TripRoute(
                 onCreateVote,
             )
         TripSection.Photos -> {
-          val connectivity =
-              connectivityRepository ?: remember(context) { DefaultConnectivityRepository(context) }
           val location = resolveLocationRepository(locationRepository, context)
           PhotosRoute(
               photoRepository = photoRepository,

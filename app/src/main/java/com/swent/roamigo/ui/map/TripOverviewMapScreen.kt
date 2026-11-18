@@ -1,7 +1,6 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.map
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,13 +13,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -32,11 +29,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -51,6 +46,7 @@ import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
+import com.swent.roamigo.ui.components.ListRow
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.Spacing
@@ -259,47 +255,16 @@ internal fun TripRows(
       verticalArrangement = Arrangement.spacedBy(Spacing.small),
   ) {
     trips.forEach { (tripId, tripMarkers) ->
-      Surface(
+      val first = tripMarkers.first()
+      val subtitle = tripRowSubtitle(first, tripMarkers, today)
+      ListRow(
+          title = first.title,
           onClick = { onTripClick(tripId) },
-          modifier = Modifier.fillMaxWidth().testTag(C.Tag.trip_overview_row_prefix + tripId),
-          shape = MaterialTheme.shapes.medium,
-          color = MaterialTheme.colorScheme.surface,
-          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-      ) {
-        Row(
-            modifier =
-                Modifier.padding(horizontal = Spacing.cardPadding, vertical = Spacing.medium),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
-        ) {
-          Column(modifier = Modifier.weight(1f)) {
-            Text(
-                tripMarkers.first().title,
-                style = MaterialTheme.typography.titleSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            val first = tripMarkers.first()
-            val subtitle = tripRowSubtitle(first, tripMarkers, today)
-            // A trip named after its only destination would otherwise say the same thing twice.
-            if (subtitle != first.title) {
-              Text(
-                  subtitle,
-                  style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
-                  maxLines = 1,
-                  overflow = TextOverflow.Ellipsis,
-              )
-            }
-          }
-          Icon(
-              painter = painterResource(R.drawable.ic_c2_chevron_right),
-              contentDescription = null,
-              modifier = Modifier.size(CHEVRON_SIZE),
-              tint = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
-      }
+          modifier = Modifier.testTag(C.Tag.trip_overview_row_prefix + tripId),
+          // A trip named after its only destination would otherwise say the same thing twice.
+          subtitle = subtitle.takeIf { it != first.title },
+          showChevron = true,
+      )
     }
   }
 }

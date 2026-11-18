@@ -38,6 +38,7 @@ import coil.compose.AsyncImage
 import com.swent.roamigo.R
 import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.adaptive.contentWidth
 import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.ButtonVariant
 import com.swent.roamigo.ui.components.InfoRow
@@ -94,7 +95,8 @@ fun ProfileScreen(
   ) { padding ->
     // Scaffold reports the footer height so the content is not drawn underneath it.
     Column(
-        modifier = Modifier.fillMaxSize().padding(padding).padding(Spacing.screenPadding),
+        modifier =
+            Modifier.fillMaxSize().padding(padding).contentWidth().padding(Spacing.screenPadding),
         verticalArrangement = Arrangement.spacedBy(Spacing.medium),
     ) {
       // Only the content scrolls, so the button stays reachable with large fonts or small screens.

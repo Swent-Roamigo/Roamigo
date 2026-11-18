@@ -85,6 +85,7 @@ object C {
     const val friends_empty_state = "friends_empty_state"
     const val friends_add_friend = "friends_add_friend"
     const val trip_add_button = "trip_add_button"
+    const val trip_sync_status = "trip_sync_status"
     const val trip_member_avatars = "trip_member_avatars"
     const val trip_add_sheet = "trip_add_sheet"
     const val trip_members_screen = "trip_members_screen"

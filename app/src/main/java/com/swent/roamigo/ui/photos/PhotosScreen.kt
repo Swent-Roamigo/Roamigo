@@ -36,7 +36,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.swent.roamigo.R
@@ -44,6 +43,7 @@ import com.swent.roamigo.model.photo.PendingPhoto
 import com.swent.roamigo.model.photo.PhotoUploadStatus
 import com.swent.roamigo.model.photo.TripPhoto
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.components.EmptyState
 import com.swent.roamigo.ui.components.TripActionButton
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.theme.Success
@@ -188,22 +188,12 @@ private fun PhotosBanner(state: PhotosUiState) {
 
 @Composable
 private fun EmptyPhotos() {
-  Column(
-      Modifier.testTag(C.Tag.photos_empty),
-      horizontalAlignment = Alignment.CenterHorizontally,
-      verticalArrangement = Arrangement.spacedBy(Spacing.small),
-  ) {
-    Text(
-        stringResource(R.string.photos_empty_title),
-        style = MaterialTheme.typography.titleLarge,
-    )
-    Text(
-        stringResource(R.string.photos_empty_description),
-        style = MaterialTheme.typography.bodyMedium,
-        textAlign = TextAlign.Center,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-  }
+  EmptyState(
+      title = stringResource(R.string.photos_empty_title),
+      description = stringResource(R.string.photos_empty_description),
+      modifier = Modifier.testTag(C.Tag.photos_empty),
+      icon = R.drawable.ic_trip_details_photos,
+  )
 }
 
 @Composable

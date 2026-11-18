@@ -4,6 +4,8 @@ package com.swent.roamigo.ui.trip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,7 +28,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.adaptive.contentWidth
 import com.swent.roamigo.ui.components.AppBottomBar
+import com.swent.roamigo.ui.components.SyncState
+import com.swent.roamigo.ui.components.SyncStatus
 import com.swent.roamigo.ui.map.MemberDisplayInfo
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.components.EndedTripBanner
@@ -50,6 +55,7 @@ internal enum class TripSection(val label: Int) {
 }
 
 /** Renders the shared trip header and navigation around the selected tab's [content]. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun TripScreen(
     trip: TripHeaderUiState?,
@@ -65,61 +71,78 @@ internal fun TripScreen(
     modifier: Modifier = Modifier,
     onAddClick: (() -> Unit)? = null,
     showEndedBanner: Boolean = false,
+    syncState: SyncState? = null,
     content: @Composable () -> Unit,
 ) {
   Column(modifier.fillMaxSize().safeDrawingPadding()) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-      IconButton(onClick = onBack) {
-        Icon(
-            Icons.AutoMirrored.Filled.ArrowBack,
-            contentDescription = stringResource(R.string.trip_details_back),
+    // The bottom bar below stays full width; the header, the tabs and the tab's content are capped.
+    Column(Modifier.weight(1f).contentWidth()) {
+      Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        IconButton(onClick = onBack) {
+          Icon(
+              Icons.AutoMirrored.Filled.ArrowBack,
+              contentDescription = stringResource(R.string.trip_details_back),
+          )
+        }
+        Column(Modifier.weight(1f)) {
+          if (trip != null) {
+            Text(trip.name, style = MaterialTheme.typography.headlineMedium)
+            val locale = LocalConfiguration.current.locales[0]
+            val formatter = DateTimeFormatter.ofPattern("EEE d MMM", locale)
+            // The header is identical on every tab so switching tabs never changes it.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.small),
+                verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall),
+            ) {
+              Text(
+                  "${formatter.format(trip.startDate)} – ${formatter.format(trip.endDate)}",
+                  style = MaterialTheme.typography.bodyMedium,
+              )
+              // Synced is the normal state and says nothing; the indicator appears when it is not.
+              if (syncState != null && syncState != SyncState.Synced) {
+                SyncStatus(
+                    syncState,
+                    Modifier.testTag(C.Tag.trip_sync_status),
+                    compact = true,
+                )
+              }
+            }
+          }
+        }
+        if (trip != null) {
+          TripMemberAvatars(
+              members = trip.members,
+              memberCount = trip.memberCount,
+              onClick = onMembersClick,
+          )
+        }
+        if (selectedTab == TripSection.Detail && onAddClick != null) {
+          IconButton(onClick = onAddClick, modifier = Modifier.testTag(C.Tag.trip_add_button)) {
+            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.trip_add_menu))
+          }
+        }
+        if (selectedTab != TripSection.Map && isSharing) {
+          TextButton(onClick = onPauseSharing) {
+            Text(stringResource(R.string.trip_map_pause_sharing))
+          }
+        }
+      }
+      if (showEndedBanner) {
+        EndedTripBanner(
+            Modifier.padding(horizontal = Spacing.screenPadding, vertical = Spacing.small)
         )
       }
-      Column(Modifier.weight(1f)) {
-        if (trip != null) {
-          Text(trip.name, style = MaterialTheme.typography.headlineMedium)
-          val locale = LocalConfiguration.current.locales[0]
-          val formatter = DateTimeFormatter.ofPattern("EEE d MMM", locale)
-          // The header is identical on every tab so switching tabs never changes it.
-          Text(
-              "${formatter.format(trip.startDate)} – ${formatter.format(trip.endDate)}",
-              style = MaterialTheme.typography.bodyMedium,
+      SecondaryTabRow(selectedTabIndex = selectedTab.ordinal) {
+        TripSection.entries.forEach { section ->
+          Tab(
+              selected = section == selectedTab,
+              onClick = { onTabSelected(section) },
+              text = { Text(stringResource(section.label)) },
           )
         }
       }
-      if (trip != null) {
-        TripMemberAvatars(
-            members = trip.members,
-            memberCount = trip.memberCount,
-            onClick = onMembersClick,
-        )
-      }
-      if (selectedTab == TripSection.Detail && onAddClick != null) {
-        IconButton(onClick = onAddClick, modifier = Modifier.testTag(C.Tag.trip_add_button)) {
-          Icon(Icons.Default.Add, contentDescription = stringResource(R.string.trip_add_menu))
-        }
-      }
-      if (selectedTab != TripSection.Map && isSharing) {
-        TextButton(onClick = onPauseSharing) {
-          Text(stringResource(R.string.trip_map_pause_sharing))
-        }
-      }
+      Box(Modifier.weight(1f)) { content() }
     }
-    if (showEndedBanner) {
-      EndedTripBanner(
-          Modifier.padding(horizontal = Spacing.screenPadding, vertical = Spacing.small)
-      )
-    }
-    SecondaryTabRow(selectedTabIndex = selectedTab.ordinal) {
-      TripSection.entries.forEach { section ->
-        Tab(
-            selected = section == selectedTab,
-            onClick = { onTabSelected(section) },
-            text = { Text(stringResource(section.label)) },
-        )
-      }
-    }
-    Box(Modifier.weight(1f)) { content() }
     // Global destinations leave the current trip. A trip belongs to the Trips destination, so that
     // tab stays highlighted inside it.
     AppBottomBar(
