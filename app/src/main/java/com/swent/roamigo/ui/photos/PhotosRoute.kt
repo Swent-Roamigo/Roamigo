@@ -1,4 +1,4 @@
-// Implemented with assistance from Claude (Anthropic).
+// Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui.photos
 
 import android.Manifest
@@ -127,9 +127,6 @@ fun PhotosRoute(
   }
 
   BackHandler(enabled = state.preview != null) { viewModel.onPreviewClosed() }
-  BackHandler(enabled = state.preview == null && state.viewing != null) {
-    viewModel.onViewerClosed()
-  }
 
   val preview = state.preview
   val viewing = state.viewing

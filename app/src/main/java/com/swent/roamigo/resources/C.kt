@@ -1,3 +1,4 @@
+// AI assistance was used for implementation support.
 package com.swent.roamigo.resources
 
 // Like R, but C
@@ -193,6 +194,9 @@ object C {
     const val photo_viewer_image = "photo_viewer_image"
     const val photo_viewer_close = "photo_viewer_close"
     const val photo_viewer_caption = "photo_viewer_caption"
+    const val photo_viewer_previous = "photo_viewer_previous"
+    const val photo_viewer_next = "photo_viewer_next"
+    const val photo_viewer_position = "photo_viewer_position"
 
     const val camera_rationale_sheet = "camera_rationale_sheet"
     const val camera_rationale_continue = "camera_rationale_continue"

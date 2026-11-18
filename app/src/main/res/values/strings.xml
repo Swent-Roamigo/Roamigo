@@ -550,6 +550,12 @@
     <string name="photos_gallery_loading">Loading the trip’s photos…</string>
     <string name="photos_gallery_error">Could not load the trip’s photos.</string>
     <string name="photo_viewer_close">Close</string>
+    <string name="photo_viewer_you">You</string>
+    <string name="photo_viewer_unknown_photographer">Unknown photographer</string>
+    <string name="photo_viewer_image_description">Photo taken %1$s</string>
+    <string name="photo_viewer_previous">Previous photo</string>
+    <string name="photo_viewer_next">Next photo</string>
+    <string name="photo_viewer_position">Photo %1$d of %2$d</string>
     <string name="camera_rationale_title">Take photos for the trip?</string>
     <string name="camera_rationale_description">Roamigo uses the camera only while you take a photo. Photos are shared with trip members only.</string>
     <string name="camera_rationale_continue">Continue</string>
