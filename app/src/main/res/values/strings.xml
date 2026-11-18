@@ -518,15 +518,12 @@
     <string name="vote_resolution_waiting_results">Waiting for current results before confirming.</string>
 
     <!-- Place picker -->
-    <string name="place_picker_choose_on_map">Choose on map</string>
-    <string name="place_picker_view_on_map">View on map</string>
     <string name="place_picker_map_title">Choose on map</string>
     <string name="place_picker_map_back">Back to place search</string>
     <string name="place_picker_map_instruction">Press and hold anywhere on the map to select a location.</string>
     <string name="place_picker_map_name">Place name</string>
     <string name="place_picker_map_name_hint">Enter a name for this point.</string>
     <string name="place_picker_map_marker">Selected point</string>
-    <string name="place_picker_map_description">Interactive map. Press and hold to select a location.</string>
     <string name="place_picker_map_error">Could not load the map. Check your connection or return to search. Your selection is kept.</string>
     <string name="place_picker_map_retry">Retry map</string>
     <string name="place_picker_title">Choose a place</string>
