@@ -26,6 +26,7 @@ import com.swent.roamigo.model.destination.FakeDestinationRepository
 import com.swent.roamigo.model.destination.sampleDestination
 import com.swent.roamigo.model.destination.sampleDestinationRepository
 import com.swent.roamigo.model.destination.sampleDestinations
+import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
@@ -81,6 +82,7 @@ class RoamigoAppInjectionTest {
       navController = rememberNavController()
       RoamigoTheme {
         RoamigoApp(
+            friendRepository = FakeFriendRepository("sam"),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
             tripRepository = FakeTripRepository(trips = listOf(trip)),
@@ -129,6 +131,7 @@ class RoamigoAppInjectionTest {
       navController = rememberNavController()
       RoamigoTheme {
         RoamigoApp(
+            friendRepository = FakeFriendRepository("sam"),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
             tripRepository = FakeTripRepository(trips = listOf(trip)),
@@ -181,6 +184,7 @@ class RoamigoAppInjectionTest {
     composeRule.setContent {
       RoamigoTheme {
         RoamigoApp(
+            friendRepository = FakeFriendRepository("alex"),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
             tripRepository = repository,
@@ -257,6 +261,7 @@ class RoamigoAppInjectionTest {
     composeRule.setContent {
       RoamigoTheme {
         RoamigoApp(
+            friendRepository = FakeFriendRepository("alex"),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = destinationRepository,
             tripRepository = FakeTripRepository(currentUserId = "alex"),
@@ -315,6 +320,7 @@ class RoamigoAppInjectionTest {
       navController = rememberNavController()
       RoamigoTheme {
         RoamigoApp(
+            friendRepository = FakeFriendRepository("alex"),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
             tripRepository = FakeTripRepository(currentUserId = null),
@@ -340,6 +346,7 @@ class RoamigoAppInjectionTest {
     composeRule.setContent {
       RoamigoTheme {
         RoamigoApp(
+            friendRepository = FakeFriendRepository("alex"),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
             tripRepository = repository,

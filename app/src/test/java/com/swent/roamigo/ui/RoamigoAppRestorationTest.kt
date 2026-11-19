@@ -26,6 +26,7 @@ import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.sampleDestination
 import com.swent.roamigo.model.destination.sampleDestinationRepository
+import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.authentication.AuthenticationScreenTestTags
@@ -67,6 +68,7 @@ class RoamigoAppRestorationTest {
           }
       RoamigoTheme {
         RoamigoApp(
+            friendRepository = FakeFriendRepository("alex"),
             destinationRepository = sampleDestinationRepository(),
             authRepository = authRepository,
             voteRepository = InMemoryVoteRepository(),
@@ -114,6 +116,7 @@ class RoamigoAppRestorationTest {
     restoration.setContent {
       RoamigoTheme {
         RoamigoApp(
+            friendRepository = FakeFriendRepository("alex"),
             destinationRepository = sampleDestinationRepository(),
             authRepository = authRepository,
             voteRepository = InMemoryVoteRepository(),
@@ -141,6 +144,7 @@ class RoamigoAppRestorationTest {
     restoration.setContent {
       RoamigoTheme {
         RoamigoApp(
+            friendRepository = FakeFriendRepository("alex"),
             destinationRepository = sampleDestinationRepository(),
             authRepository = authRepository,
             voteRepository = InMemoryVoteRepository(),

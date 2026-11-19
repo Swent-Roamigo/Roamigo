@@ -40,6 +40,8 @@ import java.io.File
  * @param locationRepository only read to tag photos; this screen never asks for the permission.
  * @param tripId identifier of the trip whose photos are shown.
  * @param currentUserId identifier of the signed-in user, or null when signed out.
+ * @param onOpenMap switches the trip to its Map tab; this screen never asks for the location
+ *   permission itself.
  * @param photoUri provides the content URI handed to the external camera for a capture file.
  */
 @Composable
@@ -50,6 +52,7 @@ fun PhotosRoute(
     tripId: String,
     tripName: String,
     currentUserId: String?,
+    onOpenMap: () -> Unit,
     modifier: Modifier = Modifier,
     summary: String? = null,
     readOnly: Boolean = false,
@@ -110,7 +113,13 @@ fun PhotosRoute(
     }
   }
 
+  // The map tab, where the permission is asked, leaves this screen composed out, not paused.
+  LaunchedEffect(viewModel, state.preview) {
+    viewModel.onLocationPermissionChecked(locationRepository.hasLocationPermission())
+  }
+
   LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+    viewModel.onLocationPermissionChecked(locationRepository.hasLocationPermission())
     viewModel.onScreenResumed(
         ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
@@ -130,9 +139,11 @@ fun PhotosRoute(
         isOnline = state.isOnline,
         saving = state.saving,
         saveFailed = state.saveFailed,
+        location = state.previewLocation,
         onSave = viewModel::onSave,
         onRetake = viewModel::onRetake,
         onClose = viewModel::onPreviewClosed,
+        onOpenMap = onOpenMap,
         modifier = modifier,
     )
   } else if (viewing != null) {

@@ -52,6 +52,7 @@ fun PlacePickerScreen(
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
+    onChooseOnMap: () -> Unit = {},
 ) {
   Surface(modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
     Column(
@@ -182,6 +183,23 @@ fun PlacePickerScreen(
         }
         // Search Box supplies a plain-text notice. Never interpret provider text as markup or URLs.
         state.attribution?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+      }
+      OutlinedButton(
+          onClick = onChooseOnMap,
+          enabled = !state.finished,
+          modifier =
+              Modifier.fillMaxWidth()
+                  .testTag(
+                      if (state.selectedLocation == null) PlacePickerTestTags.CHOOSE_ON_MAP
+                      else PlacePickerTestTags.VIEW_ON_MAP
+                  ),
+      ) {
+        Text(
+            stringResource(
+                if (state.selectedLocation == null) R.string.place_picker_choose_on_map
+                else R.string.place_picker_view_on_map
+            )
+        )
       }
       val uriHandler = LocalUriHandler.current
       TextButton(

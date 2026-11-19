@@ -353,8 +353,8 @@ class UserRepositoryFirestore(
     const val EMAIL_INDEX = "userEmailLookups"
     const val SEARCH_METADATA = "userSearchMetadata"
 
-    const val MAX_NAME = 120
-    const val MAX_EMAIL = 254
+    const val MAX_NAME = MAX_USER_NAME_LENGTH
+    const val MAX_EMAIL = MAX_USER_EMAIL_LENGTH
 
     const val MAX_RESULTS = 20L
   }

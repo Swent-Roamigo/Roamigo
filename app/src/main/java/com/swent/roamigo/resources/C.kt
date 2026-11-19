@@ -70,6 +70,16 @@ object C {
     const val trips_profile_photo = "trips_profile_photo"
 
     const val friends_screen = "friends_screen"
+    const val friends_list = "friends_list"
+    const val friends_loading = "friends_loading"
+    const val friends_load_error = "friends_load_error"
+    const val friends_retry = "friends_retry"
+    const val friends_photo_prefix = "friends_photo_"
+    const val friends_incoming_request_prefix = "friends_incoming_request_"
+    const val friends_accept_prefix = "friends_accept_"
+    const val friends_decline_prefix = "friends_decline_"
+    const val friends_remove_prefix = "friends_remove_"
+    const val friends_action_error = "friends_action_error"
     const val friends_friend_row = "friends_friend_row"
     const val friends_pending_request_row = "friends_pending_request_row"
     const val friends_empty_state = "friends_empty_state"
@@ -179,5 +189,6 @@ object C {
     const val photo_preview_save = "photo_preview_save"
     const val photo_preview_retake = "photo_preview_retake"
     const val photo_preview_error = "photo_preview_error"
+    const val photo_preview_location = "photo_preview_location"
   }
 }

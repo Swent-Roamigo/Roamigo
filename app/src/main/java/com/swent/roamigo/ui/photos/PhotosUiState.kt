@@ -32,6 +32,12 @@ sealed interface PhotoLocationStatus {
 
   /** The location permission is off, so the photo has no position. */
   data object Off : PhotoLocationStatus
+
+  /**
+   * The permission has been granted since this photo was taken, so the photo itself still has no
+   * position: only the next one will.
+   */
+  data object NextPhotoOnly : PhotoLocationStatus
 }
 
 /**

@@ -31,7 +31,9 @@ class FakeUserRepository(
   override suspend fun searchUsers(query: String): List<User> {
     throwIfNeeded()
     val normalized = query.trim().lowercase(Locale.ROOT)
-    require(normalized.length <= if ('@' in normalized) 254 else 120)
+    require(
+        normalized.length <= if ('@' in normalized) MAX_USER_EMAIL_LENGTH else MAX_USER_NAME_LENGTH
+    )
 
     if (normalized.isEmpty()) return emptyList()
 

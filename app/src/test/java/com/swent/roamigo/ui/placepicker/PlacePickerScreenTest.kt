@@ -12,6 +12,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.platform.testTag
@@ -80,8 +81,13 @@ class PlacePickerScreenTest {
             } as T
           }
         }
-    compose.setContent { if (showing) PlacePickerRoute(repo, {}, {}, viewModelFactory = factory) }
+    compose.setContent {
+      CompositionLocalProvider(LocalInspectionMode provides true) {
+        if (showing) PlacePickerRoute(repo, {}, {}, viewModelFactory = factory)
+      }
+    }
     compose.onNodeWithTag(PlacePickerTestTags.QUERY).performTextInput("old query")
+    compose.onNodeWithTag(PlacePickerTestTags.CHOOSE_ON_MAP).performClick()
     repeat(3) { opening ->
       compose.runOnIdle { showing = false }
       compose.runOnIdle { assertEquals(opening + 1, cleared) }
@@ -105,7 +111,11 @@ class PlacePickerScreenTest {
     val repo =
         FakePlaceRepository(search = { _, _ -> search.await() }, resolve = { resolve.await() })
     val results = mutableListOf<TripLocation>()
-    compose.setContent { RoamigoTheme { PlacePickerRoute(repo, { results += it }, {}) } }
+    compose.setContent {
+      CompositionLocalProvider(LocalInspectionMode provides true) {
+        RoamigoTheme { PlacePickerRoute(repo, { results += it }, {}) }
+      }
+    }
     compose.onNodeWithTag(PlacePickerTestTags.CONFIRM).assertIsNotEnabled()
     compose.onNodeWithTag(PlacePickerTestTags.QUERY).performTextInput("ca")
     compose.onNodeWithText("Enter at least 3 characters to search.").assertIsDisplayed()
@@ -132,6 +142,12 @@ class PlacePickerScreenTest {
         .assertIsDisplayed()
         .assertTextEquals("Selected place: Chosen café")
     compose.onNodeWithText("Search for a place and select a result.").assertDoesNotExist()
+    compose.onNodeWithTag(PlacePickerTestTags.VIEW_ON_MAP).assertIsDisplayed().performClick()
+    compose
+        .onNodeWithTag(PlacePickerTestTags.MAP_NAME)
+        .performScrollTo()
+        .assertTextContains("Chosen café")
+    compose.onNodeWithTag(PlacePickerTestTags.MAP_BACK).performScrollTo().performClick()
     compose.onNodeWithText("Confirm Chosen café").assertIsEnabled()
     compose.onNodeWithTag(PlacePickerTestTags.CONFIRM).performClick()
     compose.waitUntil { results.size == 1 }
@@ -211,18 +227,30 @@ class PlacePickerScreenTest {
     var parentTitle by mutableStateOf("")
     var parentDescription by mutableStateOf("")
     var showing by mutableStateOf(false)
+    var pickerVm: PlacePickerViewModel? = null
+    val factory =
+        object : ViewModelProvider.Factory {
+          @Suppress("UNCHECKED_CAST")
+          override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
+              PlacePickerViewModel(repo, extras.createSavedStateHandle(), parentLocation).also {
+                pickerVm = it
+              } as T
+        }
     compose.setContent {
       RoamigoTheme {
         if (showing)
-            PlacePickerRoute(
-                repo,
-                {
-                  parentLocation = it
-                  showing = false
-                },
-                { showing = false },
-                initialLocation = parentLocation,
-            )
+            CompositionLocalProvider(LocalInspectionMode provides true) {
+              PlacePickerRoute(
+                  repo,
+                  {
+                    parentLocation = it
+                    showing = false
+                  },
+                  { showing = false },
+                  initialLocation = parentLocation,
+                  viewModelFactory = factory,
+              )
+            }
         else
             Column {
               OutlinedTextField(parentTitle, { parentTitle = it }, Modifier.testTag("title"))
@@ -241,6 +269,14 @@ class PlacePickerScreenTest {
     compose.onNodeWithTag(PlacePickerTestTags.QUERY).performTextInput("café")
     awaitTag(PlacePickerTestTags.ERROR)
     compose.onNodeWithTag(PlacePickerTestTags.SELECTED).assertTextEquals("Selected place: Original")
+    compose.onNodeWithTag(PlacePickerTestTags.VIEW_ON_MAP).performClick()
+    compose
+        .onNodeWithTag(PlacePickerTestTags.MAP_NAME)
+        .performScrollTo()
+        .performTextReplacement("Unconfirmed")
+    compose.runOnIdle { pickerVm!!.mapLoadingFailed() }
+    compose.onNodeWithTag(PlacePickerTestTags.MAP_ERROR).performScrollTo().assertIsDisplayed()
+    compose.onNodeWithTag(PlacePickerTestTags.MAP_BACK).performScrollTo().performClick()
     compose.runOnIdle {
       assertEquals("Edited title", parentTitle)
       assertEquals("Edited description", parentDescription)
@@ -421,6 +457,11 @@ class PlacePickerScreenTest {
                 "longitude" to 180.0,
                 "country" to "CH",
                 "query" to "café",
+                "mapMode" to true,
+                "mapLatitude" to 0.0,
+                "mapLongitude" to 180.0,
+                "mapName" to "Manual draft",
+                "mapCountry" to "CH",
             )
         )
     val parcel = Parcel.obtain()
@@ -436,6 +477,11 @@ class PlacePickerScreenTest {
     val vm = PlacePickerViewModel(repo, restored)
     assertEquals(TripLocation(0.0, 180.0, "Chosen", "CH"), vm.uiState.value.selectedLocation)
     assertEquals("café", vm.uiState.value.query)
+    assertTrue(vm.uiState.value.isMapMode)
+    assertEquals(
+        TripLocation(0.0, 180.0, "Manual draft", "CH"),
+        vm.uiState.value.manualDraft.location,
+    )
     assertTrue(vm.uiState.value.candidates.isEmpty())
     assertTrue(repo.resolveRequests.isEmpty())
   }

@@ -243,6 +243,26 @@
 
     <!-- Friends -->
     <string name="friends_title">Friends</string>
+    <string name="friends_loading">Loading friends…</string>
+    <string name="friends_load_failed">Could not load friends and requests.</string>
+    <string name="friends_profiles_failed">Some names and photos could not be loaded.</string>
+    <string name="friends_session_ended">Your session has ended. Please sign in again.</string>
+    <string name="friends_retry">Retry</string>
+    <string name="friends_unknown_traveler">Unknown traveler</string>
+    <string name="friends_incoming_title">Incoming requests</string>
+    <string name="friends_established_title">Your friends</string>
+    <string name="friends_outgoing_title">Outgoing requests</string>
+    <string name="friends_accept">Accept</string>
+    <string name="friends_decline">Decline</string>
+    <string name="friends_remove">Remove friend</string>
+    <string name="friends_updating">Updating…</string>
+    <string name="friends_accept_accessibility">Accept friend request from %1$s</string>
+    <string name="friends_decline_accessibility">Decline friend request from %1$s</string>
+    <string name="friends_remove_accessibility">Remove %1$s from friends</string>
+    <string name="friends_accept_failed">Could not accept the request. Please try again.</string>
+    <string name="friends_decline_failed">Could not decline the request. Please try again.</string>
+    <string name="friends_remove_failed">Could not remove the friend. Please try again.</string>
+    <string name="friends_no_matches">No matching friends or requests.</string>
     <string name="friends_privacy_subtitle">Maps are visible to friends only</string>
     <string name="profile_log_out_title">Log out of Roamigo?</string>
     <string name="profile_log_out_message">Your trips stay saved. Trips you opened offline will need a connection after you sign in again.</string>
@@ -508,6 +528,13 @@
     <string name="photo_preview_save_offline">Save on this phone</string>
     <string name="photo_preview_retake">Retake</string>
     <string name="photo_preview_save_failed">Could not save the photo. Try again.</string>
+    <string name="photo_preview_location_locating">Getting location…</string>
+    <string name="photo_preview_location_attached">Location attached</string>
+    <string name="photo_preview_location_unavailable">Location unavailable</string>
+    <string name="photo_preview_location_off">Location off · Turn on in Map</string>
+    <string name="photo_preview_location_open_map">Open the trip map</string>
+    <string name="photo_preview_location_next_photo">Location is on for your next photo · Retake to add it</string>
+    <string name="photo_preview_location_retake">Retake the photo with location</string>
     <string name="vote_close">Close vote</string>
     <string name="vote_closing">Closing vote…</string>
     <string name="vote_close_title">Close this vote?</string>
@@ -538,6 +565,17 @@
     <string name="vote_resolution_waiting_results">Waiting for current results before confirming.</string>
 
     <!-- Place picker -->
+    <string name="place_picker_choose_on_map">Choose on map</string>
+    <string name="place_picker_view_on_map">View on map</string>
+    <string name="place_picker_map_title">Choose on map</string>
+    <string name="place_picker_map_back">Back to place search</string>
+    <string name="place_picker_map_instruction">Press and hold anywhere on the map to select a location.</string>
+    <string name="place_picker_map_name">Place name</string>
+    <string name="place_picker_map_name_hint">Enter a name for this point.</string>
+    <string name="place_picker_map_marker">Selected point</string>
+    <string name="place_picker_map_description">Interactive map. Press and hold to select a location.</string>
+    <string name="place_picker_map_error">Could not load the map. Check your connection or return to search. Your selection is kept.</string>
+    <string name="place_picker_map_retry">Retry map</string>
     <string name="place_picker_title">Choose a place</string>
     <string name="place_picker_cancel">Cancel place selection</string>
     <string name="place_picker_search">Search places or addresses</string>
@@ -559,4 +597,17 @@
     <string name="place_picker_confirm">Confirm location</string>
     <string name="place_picker_confirm_named">Confirm %1$s</string>
     <string name="place_picker_attribution">© Mapbox and its suppliers · Terms and attribution</string>
+
+    <!-- Activity form -->
+    <string name="activity_form_error_name_blank">Enter a name for the activity.</string>
+    <string name="activity_form_error_name_too_long">This name is too long. Shorten it.</string>
+    <string name="activity_form_error_description_too_long">This description is too long. Shorten it.</string>
+    <string name="activity_form_error_place_missing">Choose a place for the activity.</string>
+    <string name="activity_form_error_place_invalid">This place has no usable location. Choose another place.</string>
+    <string name="activity_form_error_end_before_start">This activity would end before it starts. Choose an earlier time.</string>
+    <string name="activity_form_failure_not_signed_in">Sign in again to save this activity.</string>
+    <string name="activity_form_failure_permission">You cannot add activities to this trip.</string>
+    <string name="activity_form_failure_network">Could not save the activity. Check your connection and try again.</string>
+    <string name="activity_form_failure_unknown">Something went wrong while saving the activity. Try again.</string>
+    <string name="activity_form_failure_already_saved">This activity was already saved with the details shown here, so your later changes were not applied. Save to continue.</string>
 </resources>

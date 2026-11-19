@@ -1,17 +1,28 @@
 // Implemented with assistance from OpenAI Codex.
 package com.swent.roamigo.ui.trip
 
+import android.Manifest
 import android.content.Context
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.activity.result.ActivityResultRegistry
+import androidx.activity.result.ActivityResultRegistryOwner
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.core.app.ActivityOptionsCompat
+import androidx.core.content.FileProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
 import com.swent.roamigo.R
@@ -21,6 +32,9 @@ import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.connectivity.FakeConnectivityRepository
 import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.photo.FakePhotoRepository
+import com.swent.roamigo.model.photo.PhotoCoordinates
+import com.swent.roamigo.model.photo.PhotoModule
+import com.swent.roamigo.model.photo.PhotoRepository
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
@@ -35,6 +49,7 @@ import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.voting.interactionVote
+import java.io.File
 import java.io.IOException
 import java.time.Instant
 import java.time.LocalDate
@@ -45,13 +60,43 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+
+/** Takes every picture successfully and answers permission requests with a grant. */
+private class RecordingRegistry : ActivityResultRegistry() {
+  val launched = mutableListOf<Pair<ActivityResultContract<*, *>, Any?>>()
+
+  @Suppress("UNCHECKED_CAST")
+  override fun <I, O> onLaunch(
+      requestCode: Int,
+      contract: ActivityResultContract<I, O>,
+      input: I,
+      options: ActivityOptionsCompat?,
+  ) {
+    launched += contract to input
+    when (contract) {
+      is ActivityResultContracts.RequestPermission -> dispatchResult(requestCode, true as O)
+      is ActivityResultContracts.TakePicture -> dispatchResult(requestCode, true as O)
+    }
+  }
+}
 
 @RunWith(AndroidJUnit4::class)
 class TripRouteTest {
   @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
+
+  /** FileProvider keeps the first test's data directory otherwise, and rejects the next one's. */
+  @Before
+  fun forgetCachedFileProviderRoots() {
+    val cache = FileProvider::class.java.getDeclaredField("sCache")
+    cache.isAccessible = true
+    (cache.get(null) as MutableMap<*, *>).clear()
+  }
 
   @Test
   fun staysReadOnlyAcrossTabsUntilTripLoadSucceeds() {
@@ -143,6 +188,193 @@ class TripRouteTest {
         .onNodeWithText(composeRule.activity.getString(R.string.trip_details_tab))
         .performClick()
     composeRule.onNodeWithTag(C.Tag.trip_add_button).assertIsDisplayed()
+  }
+
+  @Test
+  fun offLocationPillInThePhotoPreviewOpensTheMapTabOfTheSameTrip() {
+    val registry = RecordingRegistry()
+    val locations = FakeLocationRepository()
+    showOffLocationPhotoPreview(signedInAuth(), registry, locations) {}
+
+    composeRule.onNodeWithTag(C.Tag.photo_preview_location).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.photo_preview).assertDoesNotExist()
+    assertTrue(
+        registry.launched.none { it.first is ActivityResultContracts.RequestMultiplePermissions }
+    )
+    assertTrue(
+        registry.launched
+            .filter { it.first is ActivityResultContracts.RequestPermission }
+            .all { it.second == Manifest.permission.CAMERA }
+    )
+    assertTrue(locations.startSharingCalls.isEmpty())
+  }
+
+  @Test
+  fun photoPreviewIsKeptAndSaysLocationAppliesToTheNextPhotoAfterGrantingItOnTheMap() {
+    val registry = RecordingRegistry()
+    val locations = FakeLocationRepository()
+    showOffLocationPhotoPreview(signedInAuth(), registry, locations) {}
+    val picturesTaken = {
+      registry.launched.count { it.first is ActivityResultContracts.TakePicture }
+    }
+    assertEquals(1, picturesTaken())
+
+    composeRule.onNodeWithTag(C.Tag.photo_preview_location).performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertIsDisplayed()
+    locations.hasPermission = true
+    composeRule
+        .onNodeWithText(composeRule.activity.getString(R.string.trips_nav_photos))
+        .performClick()
+
+    composeRule.onNodeWithTag(C.Tag.photo_preview).assertIsDisplayed()
+    composeRule.waitUntil(5_000) {
+      runCatching {
+        composeRule
+            .onNodeWithTag(C.Tag.photo_preview_location)
+            .assertTextEquals("Location is on for your next photo · Retake to add it")
+      }
+          .isSuccess
+    }
+    assertEquals(1, picturesTaken())
+    assertTrue(locations.startSharingCalls.isEmpty())
+  }
+
+  @Test
+  fun offLocationPillAsksASignedOutUserToSignInInsteadOfOpeningTheMap() {
+    val auth = signedInAuth()
+    var authenticationRequests = 0
+    showOffLocationPhotoPreview(auth, RecordingRegistry(), FakeLocationRepository()) {
+      authenticationRequests++
+    }
+
+    auth.signOut()
+    composeRule.onNodeWithTag(C.Tag.photo_preview_location).performClick()
+
+    assertEquals(1, authenticationRequests)
+    composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.photo_preview).assertIsDisplayed()
+  }
+
+  @Test
+  @Config(qualifiers = "w640dp-h360dp-land")
+  fun photoPreviewFitsInsideTheTripScreenInALandscapePhoneWithEveryMessage() {
+    val failingSaves =
+        object :
+            PhotoRepository by FakePhotoRepository(
+                File(composeRule.activity.filesDir, PhotoModule.PHOTO_DIRECTORY)
+            ) {
+          override suspend fun savePhoto(
+              tripId: String,
+              file: File,
+              takenAtMillis: Long,
+              coordinates: PhotoCoordinates?,
+          ) = throw IOException("disk full")
+        }
+    showOffLocationPhotoPreview(
+        signedInAuth(),
+        RecordingRegistry(),
+        FakeLocationRepository(),
+        connectivity = FakeConnectivityRepository(isOnlineInitially = false),
+        photos = failingSaves,
+        onAuthenticationRequired = {},
+    )
+    composeRule.onNodeWithTag(C.Tag.photo_preview_save).performClick()
+    composeRule.waitUntil(5_000) {
+      composeRule.onAllNodesWithTag(C.Tag.photo_preview_error).fetchSemanticsNodes().isNotEmpty()
+    }
+
+    val tags =
+        listOf(
+            C.Tag.photo_preview_location,
+            C.Tag.photo_preview_offline,
+            C.Tag.photo_preview_error,
+            C.Tag.photo_preview_close,
+            C.Tag.photo_preview_save,
+            C.Tag.photo_preview_retake,
+        )
+    tags.forEach { composeRule.onNodeWithTag(it).assertIsDisplayed() }
+    val root = composeRule.onRoot().getUnclippedBoundsInRoot()
+    val bounds = tags.associateWith { composeRule.onNodeWithTag(it).getUnclippedBoundsInRoot() }
+    bounds.forEach { (tag, box) ->
+      assertTrue(
+          "$tag $box is not inside the root $root",
+          box.left >= root.left &&
+              box.top >= root.top &&
+              box.right <= root.right &&
+              box.bottom <= root.bottom,
+      )
+    }
+    tags.forEachIndexed { i, first ->
+      tags.drop(i + 1).forEach { second ->
+        val a = bounds.getValue(first)
+        val b = bounds.getValue(second)
+        val overlaps = a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
+        assertTrue("$first $a overlaps $second $b", !overlaps)
+      }
+    }
+  }
+
+  private fun showOffLocationPhotoPreview(
+      auth: FakeAuthRepository,
+      registry: RecordingRegistry,
+      locations: FakeLocationRepository,
+      connectivity: FakeConnectivityRepository = FakeConnectivityRepository(),
+      photos: PhotoRepository =
+          FakePhotoRepository(File(composeRule.activity.filesDir, PhotoModule.PHOTO_DIRECTORY)),
+      onAuthenticationRequired: () -> Unit,
+  ) {
+    val trip = trip()
+    val owner =
+        object : ActivityResultRegistryOwner {
+          override val activityResultRegistry = registry
+        }
+    shadowOf(composeRule.activity.application).grantPermissions(Manifest.permission.CAMERA)
+    composeRule.setContent {
+      RoamigoTheme {
+        CompositionLocalProvider(
+            LocalInspectionMode provides true,
+            LocalActivityResultRegistryOwner provides owner,
+        ) {
+          TripRoute(
+              tripId = trip.uid,
+              fromHistory = false,
+              openMap = false,
+              authRepository = auth,
+              tripRepository = FakeTripRepository(trips = listOf(trip)),
+              activityRepository = FakeActivityRepository(),
+              userRepository = FakeUserRepository(User("member", "Member", null)),
+              voteRepository = InMemoryVoteRepository(),
+              photoRepository = photos,
+              connectivityRepository = connectivity,
+              locationRepository = locations,
+              onBack = {},
+              onAuthenticationRequired = onAuthenticationRequired,
+              onOpenVote = { _, _ -> },
+              onCreateVote = {},
+              onMembersClick = {},
+              onTripsClick = {},
+              onMapClick = {},
+              onFriendsClick = {},
+          )
+        }
+      }
+    }
+
+    composeRule
+        .onNodeWithText(composeRule.activity.getString(R.string.trips_nav_photos))
+        .performClick()
+    composeRule.onNodeWithTag(C.Tag.photos_take_photo).performClick()
+    composeRule.onNodeWithTag(C.Tag.photo_preview).assertIsDisplayed()
+    composeRule.waitUntil(5_000) {
+      runCatching {
+        composeRule
+            .onNodeWithTag(C.Tag.photo_preview_location)
+            .assertTextEquals("Location off · Turn on in Map")
+      }
+          .isSuccess
+    }
   }
 
   @Test
