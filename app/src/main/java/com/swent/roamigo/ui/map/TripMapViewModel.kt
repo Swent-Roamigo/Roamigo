@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.swent.roamigo.model.photo.PhotoRepository
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.activity.ActivityRepository
 import com.swent.roamigo.model.users.User
@@ -20,26 +21,29 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Loads a single trip and observes its activity markers, with a viewport covering its destinations,
- * activities and suggestions. The trip is shown without waiting for the members' profiles, which
- * may load more slowly.
+ * Loads a trip and independently observes its activities and gallery photos.
+ *
+ * The viewport covers destinations, activities and suggestions. Member profiles may load later.
  *
  * @param tripId identifier of the trip to show.
  * @param tripRepository the repository providing the user's trips.
  * @param activityRepository the repository providing live activity and suggestion updates.
  * @param userRepository the repository providing the members' profiles.
+ * @param photoRepository the repository providing the trip's gallery photos.
  */
 class TripMapViewModel(
     private val tripId: String,
     private val tripRepository: TripRepository,
     private val activityRepository: ActivityRepository,
     private val userRepository: UserRepository,
+    private val photoRepository: PhotoRepository,
 ) : ViewModel() {
   private val _uiState = MutableStateFlow<TripMapUiState>(TripMapUiState.Loading)
   val uiState: StateFlow<TripMapUiState> = _uiState.asStateFlow()
 
   private var tripLoadJob: Job? = null
   private var activitiesObserveJob: Job? = null
+  private var photosObserveJob: Job? = null
 
   init {
     retryTrip()
@@ -55,8 +59,9 @@ class TripMapViewModel(
   fun retryTrip() {
     tripLoadJob?.cancel()
     activitiesObserveJob?.cancel()
+    photosObserveJob?.cancel()
+    _uiState.value = TripMapUiState.Loading
     tripLoadJob = viewModelScope.launch {
-      _uiState.value = TripMapUiState.Loading
       try {
         val trip = tripRepository.getTrips().find { it.uid == tripId }
         if (trip == null) {
@@ -76,6 +81,7 @@ class TripMapViewModel(
             )
         _uiState.value = loaded
         observeActivities(loaded)
+        observePhotos()
 
         val members = loadMembers(trip.memberIds)
         _uiState.update { state ->
@@ -146,6 +152,54 @@ class TripMapViewModel(
     }
   }
 
+  /**
+   * Restarts photo observation, retaining current markers during loading and failure.
+   *
+   * Calls before the trip loads have no effect.
+   */
+  fun retryPhotos() {
+    if (_uiState.value !is TripMapUiState.Loaded) return
+    observePhotos()
+  }
+
+  private fun observePhotos() {
+    photosObserveJob?.cancel()
+    photosObserveJob = viewModelScope.launch {
+      _uiState.update { state ->
+        if (state is TripMapUiState.Loaded && state.trip.uid == tripId) {
+          state.copy(photosLoadState = PhotosLoadState.LOADING)
+        } else {
+          state
+        }
+      }
+      try {
+        photoRepository.tripPhotos(tripId).collect { photos ->
+          currentCoroutineContext().ensureActive()
+          val markers = photos.toPhotoMarkerUiStates()
+          _uiState.update { state ->
+            if (state is TripMapUiState.Loaded && state.trip.uid == tripId) {
+              state.copy(photoMarkers = markers, photosLoadState = PhotosLoadState.LOADED)
+            } else {
+              state
+            }
+          }
+        }
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        currentCoroutineContext().ensureActive()
+        Log.w(TAG, "Could not load photos for trip $tripId", e)
+        _uiState.update { state ->
+          if (state is TripMapUiState.Loaded && state.trip.uid == tripId) {
+            state.copy(photosLoadState = PhotosLoadState.ERROR)
+          } else {
+            state
+          }
+        }
+      }
+    }
+  }
+
   private suspend fun loadMembers(memberIds: List<String>): Map<String, MemberDisplayInfo> {
     val usersById =
         try {
@@ -174,6 +228,7 @@ class TripMapViewModel(
      * @param tripRepository the repository providing the user's trips.
      * @param activityRepository the repository providing live activity and suggestion updates.
      * @param userRepository the repository providing the members' profiles.
+     * @param photoRepository the repository providing the trip's gallery photos.
      * @return a factory capable of creating [TripMapViewModel] instances.
      */
     fun factory(
@@ -181,6 +236,7 @@ class TripMapViewModel(
         tripRepository: TripRepository,
         activityRepository: ActivityRepository,
         userRepository: UserRepository,
+        photoRepository: PhotoRepository,
     ): ViewModelProvider.Factory =
         object : ViewModelProvider.Factory {
 
@@ -192,6 +248,7 @@ class TripMapViewModel(
                   tripRepository = tripRepository,
                   activityRepository = activityRepository,
                   userRepository = userRepository,
+                  photoRepository = photoRepository,
               )
                   as T
             }

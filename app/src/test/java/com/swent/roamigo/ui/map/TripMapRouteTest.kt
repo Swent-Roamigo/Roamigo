@@ -18,6 +18,7 @@ import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.connectivity.FakeConnectivityRepository
 import com.swent.roamigo.model.location.FakeLocationRepository
+import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
@@ -151,6 +152,7 @@ class TripMapRouteTest {
             tripRepository = FakeTripRepository(trips = listOf(trip)),
             activityRepository = FakeActivityRepository(),
             userRepository = FakeUserRepository(User("member", "Member", null)),
+            photoRepository = FakePhotoRepository(),
         )
     val locationFactory =
         LocationViewModel.factory(

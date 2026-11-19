@@ -35,6 +35,7 @@ import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.photo.PhotoCoordinates
 import com.swent.roamigo.model.photo.PhotoModule
 import com.swent.roamigo.model.photo.PhotoRepository
+import com.swent.roamigo.model.photo.TripPhoto
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
@@ -58,6 +59,7 @@ import java.time.ZoneId
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -144,6 +146,14 @@ class TripRouteTest {
   @Test
   fun slowActivitiesDoNotDelayTheHeaderTripActionsOrLocationObservation() {
     val trip = trip()
+    val photoRequests = mutableListOf<String>()
+    val photos =
+        object : PhotoRepository by FakePhotoRepository(composeRule.activity.cacheDir) {
+          override fun tripPhotos(tripId: String): Flow<List<TripPhoto>> {
+            photoRequests += tripId
+            return flowOf(emptyList())
+          }
+        }
     val pendingActivities = CompletableDeferred<List<Activity>>()
     val activities =
         object : ActivityRepository by FakeActivityRepository() {
@@ -164,7 +174,7 @@ class TripRouteTest {
               activityRepository = activities,
               userRepository = FakeUserRepository(User("member", "Member", null)),
               voteRepository = InMemoryVoteRepository(),
-              photoRepository = FakePhotoRepository(composeRule.activity.cacheDir),
+              photoRepository = photos,
               connectivityRepository = FakeConnectivityRepository(),
               locationRepository = locations,
               onBack = {},
@@ -185,7 +195,10 @@ class TripRouteTest {
     composeRule.onNodeWithTag(C.Tag.trip_map_sharing_banner).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.trip_map_sharing_button).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.trip_map_loading).assertDoesNotExist()
-    composeRule.runOnIdle { assertEquals(1, locations.observeMemberLocationsCalls) }
+    composeRule.runOnIdle {
+      assertEquals(1, locations.observeMemberLocationsCalls)
+      assertEquals(listOf(trip.uid), photoRequests)
+    }
 
     composeRule
         .onNodeWithText(composeRule.activity.getString(R.string.trip_details_tab))
