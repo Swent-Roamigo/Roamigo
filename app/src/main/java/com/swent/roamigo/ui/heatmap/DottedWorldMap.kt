@@ -29,6 +29,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
+import com.swent.roamigo.ui.theme.HeatmapDark
+import com.swent.roamigo.ui.theme.HeatmapLight
+import com.swent.roamigo.ui.theme.HeatmapMedium
+import com.swent.roamigo.ui.theme.HeatmapUnvisited
 import com.swent.roamigo.ui.theme.PaperSubtle
 import com.swent.roamigo.ui.theme.Spacing
 import kotlin.math.min
@@ -59,11 +63,6 @@ internal fun parseWorldDots(lines: Sequence<String>): List<WorldDot> =
           }
         }
         .toList()
-
-internal val HeatmapUnvisited = Color(0xFFD7DFDC)
-internal val HeatmapLight = Color(0xFFB7E9DF)
-internal val HeatmapMedium = Color(0xFF66C9B8)
-internal val HeatmapDark = Color(0xFF078C79)
 
 internal fun colorForVisits(count: Int): Color =
     when {
@@ -167,7 +166,7 @@ internal fun DottedWorldMap(
     }
 
     Row(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.snug),
         verticalAlignment = Alignment.CenterVertically,
     ) {
       Text(

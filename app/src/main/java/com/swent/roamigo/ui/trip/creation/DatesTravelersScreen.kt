@@ -16,10 +16,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.TripCreationException
+import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.creation.components.CalendarCard
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffold
 import com.swent.roamigo.ui.trip.creation.components.DateSummary
@@ -73,7 +73,7 @@ fun DatesTravelersScreen(
               Modifier.fillMaxSize()
                   .verticalScroll(rememberScrollState())
                   .testTag(DatesTravelersScreenTestTags.SCREEN),
-          verticalArrangement = Arrangement.spacedBy(14.dp),
+          verticalArrangement = Arrangement.spacedBy(Spacing.cardPadding),
       ) {
         if (error != null) {
           Text(

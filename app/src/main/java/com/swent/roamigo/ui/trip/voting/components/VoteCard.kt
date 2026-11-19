@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -32,7 +31,6 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.voting.Vote
 import com.swent.roamigo.model.trip.voting.VoteResult
@@ -40,6 +38,8 @@ import com.swent.roamigo.model.trip.voting.VoteStatus
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.Ink
 import com.swent.roamigo.ui.theme.Spacing
+import com.swent.roamigo.ui.theme.eyebrow
+import com.swent.roamigo.ui.theme.voteQuestion
 import com.swent.roamigo.ui.trip.voting.LiveVoteSummary
 
 /** Renders the trip summary; ballot observation and interaction stay outside the card. */
@@ -74,27 +74,22 @@ private fun LiveVoteCard(
 ) {
   Surface(
       modifier = modifier.fillMaxWidth(),
-      shape = RoundedCornerShape(22.dp),
+      shape = MaterialTheme.shapes.large,
       color = MaterialTheme.colorScheme.primary,
       contentColor = MaterialTheme.colorScheme.onPrimary,
   ) {
     Column(
         Modifier.padding(horizontal = Spacing.screenPadding, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(Spacing.snug),
     ) {
       Text(
           if (vote.parentVoteId != null) stringResource(R.string.vote_revote_round, vote.round)
           else stringResource(R.string.votes_live_vote),
-          style = MaterialTheme.typography.bodySmall,
-          fontSize = 13.sp,
-          lineHeight = 18.sp,
-          fontWeight = FontWeight.Medium,
+          style = MaterialTheme.typography.eyebrow,
       )
       Text(
           vote.question,
-          style = MaterialTheme.typography.headlineLarge,
-          fontSize = 30.sp,
-          lineHeight = 36.sp,
+          style = MaterialTheme.typography.voteQuestion,
       )
       vote.options.forEach { option ->
         VoteCountRow(
@@ -184,7 +179,7 @@ private fun ClosedVoteRow(vote: Vote, result: VoteResult, onClick: () -> Unit, m
       color = MaterialTheme.colorScheme.surface,
   ) {
     Row(
-        Modifier.heightIn(min = 48.dp).padding(vertical = 4.dp),
+        Modifier.heightIn(min = 48.dp).padding(vertical = Spacing.compact),
         horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
         verticalAlignment = Alignment.CenterVertically,
     ) {

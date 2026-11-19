@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
@@ -24,6 +23,7 @@ import androidx.compose.ui.res.stringResource
 import com.swent.roamigo.R
 import com.swent.roamigo.model.photo.TripPhoto
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.theme.RoamigoShapes
 import com.swent.roamigo.ui.theme.Spacing
 
 /**
@@ -69,7 +69,7 @@ fun PhotoViewer(
                 .safeDrawingPadding()
                 .padding(Spacing.screenPadding)
                 .testTag(C.Tag.photo_viewer_caption)
-                .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(50))
+                .background(Color.Black.copy(alpha = 0.6f), RoamigoShapes.pill)
                 .padding(horizontal = Spacing.large, vertical = Spacing.small),
         style = MaterialTheme.typography.bodySmall,
         color = Color.White,

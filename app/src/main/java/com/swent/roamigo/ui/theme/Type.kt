@@ -149,3 +149,31 @@ val Typography =
                 letterSpacing = 0.sp,
             ),
     )
+
+// Figma text styles that no Material slot covers. Screens use these instead of overriding sizes.
+val Typography.eyebrow
+  get() = bodySmall.copy(fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium)
+
+val Typography.voteQuestion
+  get() = headlineLarge.copy(fontSize = 30.sp, lineHeight = 36.sp)
+
+val Typography.tagline
+  get() = bodyLarge.copy(fontSize = 18.sp, lineHeight = 25.sp, fontWeight = FontWeight.Medium)
+
+val Typography.finePrint
+  get() = bodySmall.copy(fontSize = 11.sp, lineHeight = 14.85.sp)
+
+val Typography.dateRange
+  get() = bodyMedium.copy(fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+
+val Typography.glyph
+  get() = bodyLarge.copy(fontSize = 24.sp, lineHeight = 24.sp)
+
+val Typography.checkmark
+  get() = bodyLarge.copy(fontSize = 14.sp, fontWeight = FontWeight.Bold)
+
+val Typography.infoGlyph
+  get() = bodyLarge.copy(fontSize = 20.sp)
+
+val Typography.badge
+  get() = labelSmall.copy(fontWeight = FontWeight.SemiBold, lineHeight = 15.sp)

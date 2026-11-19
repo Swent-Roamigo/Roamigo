@@ -13,3 +13,9 @@ val Shapes =
         large = RoundedCornerShape(24.dp),
         extraLarge = RoundedCornerShape(24.dp),
     )
+
+/** Shapes Material has no slot for: small chips and fully rounded pills and bars. */
+object RoamigoShapes {
+  val chip = RoundedCornerShape(8.dp)
+  val pill = RoundedCornerShape(50)
+}

@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -33,6 +32,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
+import com.swent.roamigo.ui.theme.RoamigoShapes
+import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.creation.CreateTripUiState
 import java.time.LocalDate
 import java.time.YearMonth
@@ -77,14 +78,19 @@ internal fun CalendarCard(
   Column(
       modifier =
           Modifier.fillMaxWidth()
-              .clip(RoundedCornerShape(18.dp))
+              .clip(MaterialTheme.shapes.medium)
               .background(colors.surface)
-              .border(BorderStroke(1.dp, colors.outlineVariant), RoundedCornerShape(18.dp))
-              .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 10.dp),
-      verticalArrangement = Arrangement.spacedBy(4.dp),
+              .border(BorderStroke(1.dp, colors.outlineVariant), MaterialTheme.shapes.medium)
+              .padding(
+                  start = Spacing.medium,
+                  end = Spacing.medium,
+                  top = Spacing.medium,
+                  bottom = Spacing.cozy,
+              ),
+      verticalArrangement = Arrangement.spacedBy(Spacing.compact),
   ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.compact),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -185,7 +191,7 @@ private fun CalendarDay(
       modifier =
           modifier
               .height(38.dp)
-              .clip(RoundedCornerShape(10.dp))
+              .clip(RoamigoShapes.chip)
               .background(
                   when {
                     isEndpoint -> colors.primary

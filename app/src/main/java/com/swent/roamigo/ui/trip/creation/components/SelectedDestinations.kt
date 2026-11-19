@@ -3,7 +3,6 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.trip.creation.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -21,9 +20,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
-import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.destination.Destination
+import com.swent.roamigo.ui.components.ChipTone
+import com.swent.roamigo.ui.components.RoamigoChip
+import com.swent.roamigo.ui.theme.Spacing
 
 internal object SelectedDestinationsTestTags {
   const val REMOVE_PREFIX = "selected_destination_remove_"
@@ -38,7 +39,7 @@ fun SelectedDestinations(
 ) {
   Row(
       modifier = Modifier.horizontalScroll(rememberScrollState()),
-      horizontalArrangement = Arrangement.spacedBy(8.dp),
+      horizontalArrangement = Arrangement.spacedBy(Spacing.small),
       verticalAlignment = Alignment.CenterVertically,
   ) {
     destinations.forEachIndexed { index, destination ->
@@ -56,31 +57,24 @@ private fun DestinationChip(destination: Destination, onRemove: () -> Unit) {
           destination.name,
           destination.countryName,
       )
-  Row(
-      modifier =
-          Modifier.clip(CircleShape)
-              .background(MaterialTheme.colorScheme.primary)
-              .padding(start = 12.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(6.dp),
-  ) {
-    Text(
-        destination.name,
-        color = MaterialTheme.colorScheme.onPrimary,
-        style = MaterialTheme.typography.labelMedium,
-    )
-    Text(
-        "×",
-        modifier =
-            Modifier.clip(CircleShape)
-                .clickable(onClick = onRemove)
-                .padding(horizontal = 2.dp)
-                .semantics {
-                  contentDescription = removeDescription
-                  testTag = SelectedDestinationsTestTags.removeFor(destination.stableId)
-                },
-        color = MaterialTheme.colorScheme.onPrimary,
-        style = MaterialTheme.typography.labelMedium,
-    )
-  }
+  RoamigoChip(
+      text = destination.name,
+      tone = ChipTone.Brand,
+      textStyle = MaterialTheme.typography.labelMedium,
+      trailing = {
+        Text(
+            "×",
+            modifier =
+                Modifier.clip(CircleShape)
+                    .clickable(onClick = onRemove)
+                    .padding(horizontal = Spacing.extraSmall)
+                    .semantics {
+                      contentDescription = removeDescription
+                      testTag = SelectedDestinationsTestTags.removeFor(destination.stableId)
+                    },
+            color = MaterialTheme.colorScheme.onPrimary,
+            style = MaterialTheme.typography.labelMedium,
+        )
+      },
+  )
 }

@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,13 +31,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.TripRepository
+import com.swent.roamigo.ui.components.RoamigoBadge
 import com.swent.roamigo.ui.components.TripActionButton
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
@@ -166,7 +165,7 @@ private fun TripDetailsContent(
                 .clickable(role = Role.Button, onClick = unfinished),
             contentAlignment = Alignment.CenterEnd,
         ) {
-          TripDetailsBadge(stringResource(R.string.trip_details_invite))
+          RoamigoBadge(stringResource(R.string.trip_details_invite))
         }
       }
       TripDetailsSummaryCard(
@@ -178,7 +177,7 @@ private fun TripDetailsContent(
               details.suggestedPlaceCount,
           ),
       ) {
-        TripDetailsBadge(details.suggestedPlaceCount.toString())
+        RoamigoBadge(details.suggestedPlaceCount.toString())
       }
       TripDetailsSummaryCard(
           R.drawable.ic_trip_details_check,
@@ -222,8 +221,9 @@ private fun TripDetailsSummaryCard(
       color = MaterialTheme.colorScheme.surfaceVariant,
   ) {
     Row(
-        Modifier.heightIn(min = 68.dp).padding(horizontal = 14.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        Modifier.heightIn(min = 68.dp)
+            .padding(horizontal = Spacing.cardPadding, vertical = Spacing.cozy),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.cozy),
         verticalAlignment = Alignment.CenterVertically,
     ) {
       Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
@@ -246,25 +246,6 @@ private fun TripDetailsSummaryCard(
       }
       trailingContent()
     }
-  }
-}
-
-@Composable
-private fun TripDetailsBadge(text: String) {
-  Surface(
-      shape = RoundedCornerShape(6.dp),
-      color = MaterialTheme.colorScheme.primaryContainer,
-      contentColor = MaterialTheme.colorScheme.primary,
-  ) {
-    Text(
-        text,
-        Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-        style =
-            MaterialTheme.typography.labelSmall.copy(
-                fontWeight = FontWeight.SemiBold,
-                lineHeight = 15.sp,
-            ),
-    )
   }
 }
 

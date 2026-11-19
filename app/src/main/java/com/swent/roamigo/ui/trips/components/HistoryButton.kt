@@ -12,10 +12,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
-import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.markNotImplemented
+import com.swent.roamigo.ui.theme.Spacing
 
 /** Button that opens the user's completed trip history. */
 @Composable
@@ -29,7 +29,7 @@ internal fun HistoryButton(onClick: () -> Unit) {
         imageVector = Icons.Outlined.History,
         contentDescription = null,
     )
-    Spacer(modifier = Modifier.width(4.dp))
+    Spacer(modifier = Modifier.width(Spacing.compact))
     Text(stringResource(R.string.trips_history))
   }
 }

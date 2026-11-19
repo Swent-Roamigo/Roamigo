@@ -29,6 +29,7 @@ import coil.compose.AsyncImage
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.markNotImplemented
+import com.swent.roamigo.ui.theme.Spacing
 
 /** Displays the Trips Home title and profile shortcut. */
 @Composable
@@ -57,7 +58,7 @@ internal fun TripsHeader(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(Spacing.compact))
       }
 
       Text(

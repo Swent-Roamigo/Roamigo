@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -176,7 +175,7 @@ private fun OverviewMapCard(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-  Box(modifier = modifier.clip(RoundedCornerShape(MAP_CARD_RADIUS))) {
+  Box(modifier = modifier.clip(MaterialTheme.shapes.large)) {
     MapboxMap(
         modifier = Modifier.fillMaxSize(),
         mapViewportState = rememberTripDestinationsMapViewport(uiState.markers),
@@ -304,8 +303,6 @@ internal fun TripRows(
     }
   }
 }
-
-private val MAP_CARD_RADIUS = 20.dp
 
 /**
  * The line under a trip's name: its dates and where it stands ("Sat 12 Oct – Sat 19 Oct · in 3

@@ -60,7 +60,7 @@ internal fun TripHistoryCard(
       Spacer(Modifier.width(Spacing.medium))
       Column(
           modifier = Modifier.weight(1f),
-          verticalArrangement = Arrangement.spacedBy(4.dp),
+          verticalArrangement = Arrangement.spacedBy(Spacing.compact),
       ) {
         Text(
             text = trip.name,
@@ -98,7 +98,7 @@ internal fun TripHistoryCard(
       ) {
         Text(
             text = stringResource(R.string.trip_history_completed),
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+            modifier = Modifier.padding(horizontal = Spacing.small, vertical = 5.dp),
             style = MaterialTheme.typography.labelSmall,
         )
       }

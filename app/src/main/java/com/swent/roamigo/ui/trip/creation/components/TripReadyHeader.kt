@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.swent.roamigo.R
 import com.swent.roamigo.ui.components.PhotoCreditsDialog
+import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.creation.TripReadyTestTags
 
 @Composable
@@ -49,7 +50,7 @@ internal fun TripReadyHeader(dateSummary: String, photo: Bundle?) {
         onError = { imageLoaded = false },
     )
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)))
-    Column(Modifier.align(Alignment.BottomStart).padding(24.dp)) {
+    Column(Modifier.align(Alignment.BottomStart).padding(Spacing.extraLarge)) {
       Text(
           stringResource(R.string.trip_ready_title),
           modifier = Modifier.semantics { testTag = TripReadyTestTags.TITLE },

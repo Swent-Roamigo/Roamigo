@@ -2,7 +2,6 @@ package com.swent.roamigo.ui.trips.components
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -47,9 +45,13 @@ import coil.request.ImageRequest
 import com.swent.roamigo.R
 import com.swent.roamigo.model.destination.DestinationPhoto
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.components.AvatarItem
+import com.swent.roamigo.ui.components.AvatarStack
 import com.swent.roamigo.ui.components.PHOTO_FADE_IN_MILLIS
 import com.swent.roamigo.ui.components.PhotoCreditsDialog
+import com.swent.roamigo.ui.components.avatarColor
 import com.swent.roamigo.ui.components.markNotImplemented
+import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trips.MainTripBadge
 import com.swent.roamigo.ui.trips.MainTripUiModel
 
@@ -127,8 +129,8 @@ internal fun MainTripCard(
                   },
               modifier =
                   Modifier.padding(
-                      horizontal = 10.dp,
-                      vertical = 6.dp,
+                      horizontal = Spacing.cozy,
+                      vertical = Spacing.snug,
                   ),
               style = MaterialTheme.typography.bodyMedium,
               color = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -146,7 +148,7 @@ internal fun MainTripCard(
             overflow = TextOverflow.Ellipsis,
         )
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(Spacing.compact))
 
         val durationText =
             pluralStringResource(
@@ -168,12 +170,12 @@ internal fun MainTripCard(
             color = MaterialTheme.colorScheme.onPrimary,
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(Spacing.medium))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
           MemberAvatars(trip.memberInitials)
 
-          Spacer(modifier = Modifier.width(14.dp))
+          Spacer(modifier = Modifier.width(Spacing.cardPadding))
 
           Surface(
               onClick = onInviteClick,
@@ -187,8 +189,8 @@ internal fun MainTripCard(
             Row(
                 modifier =
                     Modifier.padding(
-                        horizontal = 14.dp,
-                        vertical = 8.dp,
+                        horizontal = Spacing.cardPadding,
+                        vertical = Spacing.small,
                     ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -199,7 +201,7 @@ internal fun MainTripCard(
                   tint = MaterialTheme.colorScheme.primary,
               )
 
-              Spacer(modifier = Modifier.width(4.dp))
+              Spacer(modifier = Modifier.width(Spacing.compact))
 
               Text(
                   text = stringResource(R.string.trips_invite),
@@ -228,43 +230,5 @@ internal fun MainTripCard(
 
 @Composable
 private fun MemberAvatars(initials: List<String>) {
-  if (initials.isEmpty()) {
-    return
-  }
-
-  val avatarSize = 40.dp
-  val avatarSpacing = 30.dp
-
-  Box(
-      modifier = Modifier.width(avatarSize + avatarSpacing * (initials.size - 1)).height(avatarSize)
-  ) {
-    initials.forEachIndexed { index, initial ->
-      val avatarColors =
-          when (index % 3) {
-            0 -> MaterialTheme.colorScheme.secondary to MaterialTheme.colorScheme.onSecondary
-            1 -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
-            else -> MaterialTheme.colorScheme.tertiary to MaterialTheme.colorScheme.onTertiary
-          }
-
-      Box(
-          modifier =
-              Modifier.offset(x = avatarSpacing * index)
-                  .size(avatarSize)
-                  .clip(CircleShape)
-                  .background(avatarColors.first)
-                  .border(
-                      width = 2.dp,
-                      color = MaterialTheme.colorScheme.surface,
-                      shape = CircleShape,
-                  ),
-          contentAlignment = Alignment.Center,
-      ) {
-        Text(
-            text = initial,
-            style = MaterialTheme.typography.bodyMedium,
-            color = avatarColors.second,
-        )
-      }
-    }
-  }
+  AvatarStack(initials.mapIndexed { index, initial -> AvatarItem(initial, avatarColor(index)) })
 }

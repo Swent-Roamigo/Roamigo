@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -25,11 +24,11 @@ import com.swent.roamigo.ui.theme.Spacing
 fun VotesHintCard(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
   Surface(
       modifier = modifier.fillMaxWidth().testTag(C.Tag.votes_hint),
-      shape = RoundedCornerShape(16.dp),
+      shape = MaterialTheme.shapes.medium,
       color = MaterialTheme.colorScheme.surfaceVariant,
   ) {
     Column(
-        modifier = Modifier.padding(horizontal = 14.dp, vertical = Spacing.small),
+        modifier = Modifier.padding(horizontal = Spacing.cardPadding, vertical = Spacing.small),
         verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall),
     ) {
       Text(
