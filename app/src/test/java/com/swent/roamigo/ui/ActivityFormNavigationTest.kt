@@ -143,7 +143,7 @@ class ActivityFormNavigationTest {
   }
 
   @Test
-  fun withoutAnInjectedPlaceRepositoryTheFormSearchesWithTheApplicationOne() {
+  fun withoutAnInjectedPlaceRepositoryThePlacePickerStillOpens() {
     openTrip(injectPlaces = false)
     chooseAddAnActivity()
     composeRule.waitForTag(ActivityFormTestTags.SCREEN)
