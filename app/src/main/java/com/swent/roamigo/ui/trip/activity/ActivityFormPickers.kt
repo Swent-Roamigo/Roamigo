@@ -56,7 +56,9 @@ internal fun ActivityDateDialog(
                 onPick(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate())
               }
               onDismiss()
-            }
+            },
+            // Typed text that is not a valid date leaves no selection to confirm.
+            enabled = pickerState.selectedDateMillis != null,
         ) {
           Text(stringResource(R.string.activity_form_dialog_confirm))
         }
