@@ -1,6 +1,7 @@
 // Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui.map
 
+import android.graphics.Bitmap
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -16,6 +17,7 @@ import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.location.MemberLocation
 import com.swent.roamigo.model.photo.FakePhotoRepository
+import com.swent.roamigo.model.photo.TripPhoto
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.FakeTripRepository
@@ -28,6 +30,7 @@ import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.theme.Spacing
+import java.io.ByteArrayOutputStream
 import java.time.Instant
 import java.util.Date
 import kotlinx.coroutines.flow.Flow
@@ -142,6 +145,75 @@ class TripMapScreenPreviews {
         isSharing = false,
         cameraState = cameraState,
     )
+  }
+
+  /**
+   * Three photos taken in different parts of Lisbon, shown as three separate markers. Mapbox draws
+   * only a placeholder in the preview pane, so run the preview on a device to see the markers.
+   */
+  @Preview(name = "Photos around the city", showBackground = true, widthDp = 390, heightDp = 844)
+  @Composable
+  private fun TripMapScatteredPhotosPreview() {
+    TripMapPhotosPreview(
+        tripId = "trip_lisbon_scattered_photos",
+        photos =
+            remember {
+              listOf(
+                  previewPhoto("alfama", PREVIEW_ALFAMA, PREVIEW_RED, minutesAgo = 10),
+                  previewPhoto("belem", PREVIEW_BELEM, PREVIEW_GREEN, minutesAgo = 20),
+                  previewPhoto("baixa", PREVIEW_BAIXA, PREVIEW_BLUE, minutesAgo = 30),
+              )
+            },
+    )
+  }
+
+  /**
+   * Three photos taken at the same place, shown as one marker with a count of three. Mapbox draws
+   * only a placeholder in the preview pane, so run the preview on a device to see the marker.
+   */
+  @Preview(name = "Photos at one place", showBackground = true, widthDp = 390, heightDp = 844)
+  @Composable
+  private fun TripMapStackedPhotosPreview() {
+    TripMapPhotosPreview(
+        tripId = "trip_lisbon_stacked_photos",
+        photos =
+            remember {
+              listOf(
+                  previewPhoto("first", PREVIEW_ALFAMA, PREVIEW_RED, minutesAgo = 10),
+                  previewPhoto("second", PREVIEW_ALFAMA, PREVIEW_GREEN, minutesAgo = 20),
+                  previewPhoto("third", PREVIEW_ALFAMA, PREVIEW_BLUE, minutesAgo = 30),
+              )
+            },
+    )
+  }
+
+  @Composable
+  /**
+   * Shows [TripMapRoute] for a copy of the preview trip identified by [tripId], whose gallery holds
+   * [photos]. The trip is given its own ID so each preview gets its own ViewModel.
+   */
+  private fun TripMapPhotosPreview(tripId: String, photos: List<TripPhoto>) {
+    val factory = remember {
+      val trip = previewTrip.copy(uid = tripId)
+      TripMapViewModel.factory(
+          tripId = trip.uid,
+          tripRepository = FakeTripRepository(trips = listOf(trip)),
+          activityRepository = FakeActivityRepository(),
+          userRepository =
+              FakeUserRepository(
+                  User(uid = trip.ownerId, displayName = "Alex", profilePictureUrl = null)
+              ),
+          photoRepository = FakePhotoRepository().apply { setUploaded(photos) },
+      )
+    }
+    RoamigoTheme {
+      TripMapRoute(
+          tripId = tripId,
+          tripMapViewModelFactory = factory,
+          locationViewModelFactory = null,
+          currentUserId = previewTrip.ownerId,
+      )
+    }
   }
 
   @Preview(showBackground = true, widthDp = 390, heightDp = 844)
@@ -306,6 +378,36 @@ private fun previewActivity(
         createdByUserId = previewTripWithActivities.ownerId,
         creationTime = previewTripWithActivities.createdAt,
     )
+
+private val PREVIEW_ALFAMA = MapCoordinate(38.7111, -9.1290)
+private val PREVIEW_BELEM = MapCoordinate(38.6916, -9.2160)
+private val PREVIEW_BAIXA = MapCoordinate(38.7139, -9.1394)
+private const val PREVIEW_RED = 0xFFD9534F.toInt()
+private const val PREVIEW_GREEN = 0xFF5CB85C.toInt()
+private const val PREVIEW_BLUE = 0xFF428BCA.toInt()
+
+/** A gallery photo whose image is a plain [color] square, encoded as a JPEG like real photos. */
+private fun previewPhoto(
+    id: String,
+    coordinate: MapCoordinate,
+    color: Int,
+    minutesAgo: Long,
+): TripPhoto {
+  val bitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888).apply { eraseColor(color) }
+  val image =
+      ByteArrayOutputStream().use { output ->
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)
+        output.toByteArray()
+      }
+  return TripPhoto(
+      id = id,
+      uploadedBy = previewTrip.ownerId,
+      takenAtMillis = PREVIEW_NOW_MILLIS - minutesAgo * 60_000L,
+      latitude = coordinate.latitude,
+      longitude = coordinate.longitude,
+      image = image,
+  )
+}
 
 private fun previewTimestamp(isoDateTime: String): Timestamp =
     Timestamp(Date.from(Instant.parse(isoDateTime)))

@@ -489,7 +489,7 @@ fun TripMapScreen(
         )
       }
     }
-    if (selectedPhotoGroup != null && loaded != null) {
+    if (selectedPhotoGroup != null) {
       // Keyed so that another group opens on its newest photo.
       key(selectedPhotoGroup.coordinate) {
         PhotoViewer(

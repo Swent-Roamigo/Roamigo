@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.mapbox.geojson.Point
 import com.mapbox.maps.CameraOptions
 import com.mapbox.maps.CameraState
 import com.swent.roamigo.R
@@ -60,7 +61,7 @@ class TripMapRenderedPhotosTest {
             )
         )
     composeRule.runOnIdle {
-      composeRule.findMapView().mapboxMap.setCamera(CameraOptions.Builder().zoom(19.0).build())
+      zoomBetween(HERE, MapCoordinate(HERE.latitude + MEMBER_OFFSET_DEGREES, HERE.longitude), 19.0)
     }
 
     waitForTag(photoMarkerTag(HERE))
@@ -113,9 +114,7 @@ class TripMapRenderedPhotosTest {
       exists(photoMarkerTag(HERE)) || exists(photoMarkerTag(NEARBY))
     }
 
-    composeRule.runOnIdle {
-      composeRule.findMapView().mapboxMap.setCamera(CameraOptions.Builder().zoom(20.0).build())
-    }
+    composeRule.runOnIdle { zoomBetween(HERE, NEARBY, 20.0) }
     waitForTag(photoMarkerTag(NEARBY))
     composeRule.waitUntil(timeoutMillis = MAP_TEST_TIMEOUT_MILLIS) {
       exists(photoMarkerTag(HERE)) &&
@@ -168,6 +167,27 @@ class TripMapRenderedPhotosTest {
     }
     composeRule.loadLocalMapStyle()
     composeRule.runOnIdle { tripState.value = loaded(markers) }
+  }
+
+  /**
+   * Zooms in on the midpoint of [first] and [second]. Mapbox hides markers outside the map, and
+   * zooming around one of them can push the other off a small screen such as CI's 320x640 one.
+   */
+  private fun zoomBetween(first: MapCoordinate, second: MapCoordinate, zoom: Double) {
+    composeRule
+        .findMapView()
+        .mapboxMap
+        .setCamera(
+            CameraOptions.Builder()
+                .center(
+                    Point.fromLngLat(
+                        (first.longitude + second.longitude) / 2,
+                        (first.latitude + second.latitude) / 2,
+                    )
+                )
+                .zoom(zoom)
+                .build()
+        )
   }
 
   private fun select(coordinate: MapCoordinate?) {
