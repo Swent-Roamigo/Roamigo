@@ -33,6 +33,7 @@ import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.LocationOff
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -130,6 +131,8 @@ fun TripMapRoute(
   val locationViewModel: LocationViewModel? = locationViewModelFactory?.let {
     viewModel(key = "trip_map_location_$tripId", factory = it)
   }
+  // This route is only composed for the map, so the trip's photos start loading here.
+  LaunchedEffect(tripMapViewModel) { tripMapViewModel.onMapShown() }
   val tripUiState by tripMapViewModel.uiState.collectAsStateWithLifecycle()
   val locationUiState =
       locationViewModel?.uiState?.collectAsStateWithLifecycle()?.value ?: LocationUiState()
@@ -307,9 +310,8 @@ fun TripMapScreen(
             modifier = Modifier.fillMaxSize().testTag(C.Tag.trip_map_map),
             mapViewportState = mapViewportState,
             mapState = mapState,
-            // Top end: the sharing chip and the offline banner are stacked at the top start, and
-            // the
-            // logo and attribution stay at the bottom.
+            // Top end: the banners are stacked at the top start, and the logo and attribution stay
+            // at the bottom.
             scaleBar = {
               ScaleBar(
                   contentPadding = PaddingValues(top = Spacing.medium, end = Spacing.medium),
@@ -349,9 +351,8 @@ fun TripMapScreen(
                       viewAnnotationOptions {
                         geometry(Point.fromLngLat(location.longitude, location.latitude))
                         annotationAnchor { anchor(ViewAnnotationAnchor.BOTTOM) }
-                        // Members travel together, so their markers often collide. Mapbox would
-                        // hide
-                        // all but one of them by default.
+                        // Members travel together, so their markers often collide. Mapbox
+                        // would hide all but one of them by default.
                         allowOverlap(true)
                       }
               ) {
@@ -386,23 +387,13 @@ fun TripMapScreen(
 
         // Stacked so that the status overlays never cover the sharing chip.
         Column(modifier = Modifier.fillMaxSize()) {
-          if (!readOnly) {
-            SharingChip(
-                isSharing = isSharing,
-                isStartingSharing = isStartingSharing,
-                modifier = Modifier.padding(Spacing.medium),
-            )
-          }
-          if (isOffline) {
-            OfflineBanner(modifier = Modifier.padding(horizontal = Spacing.medium))
-          }
-          if (loaded != null) {
-            PhotosStatusPill(
-                state = loaded.photosLoadState,
-                hasMarkers = loaded.photoMarkers.isNotEmpty(),
-                modifier = Modifier.padding(horizontal = Spacing.medium, vertical = Spacing.small),
-            )
-          }
+          TripMapStatusBanners(
+              readOnly = readOnly,
+              isSharing = isSharing,
+              isStartingSharing = isStartingSharing,
+              isOffline = isOffline,
+              loaded = loaded,
+          )
           Box(
               modifier =
                   Modifier.weight(1f)
@@ -413,70 +404,26 @@ fun TripMapScreen(
               contentAlignment = Alignment.Center,
           ) {
             TripStatusOverlay(uiState = uiState, onRetry = onRetry)
-            // Stacked so that the snackbar never covers the retry button.
-            Column(
+            TripMapBottomActions(
+                snackbarHostState = snackbarHostState,
+                showAllLocations =
+                    if (cameraState.shouldShowAllLocations(viewport)) {
+                      cameraState::showAllLocations
+                    } else {
+                      null
+                    },
+                onRetryActivities =
+                    onRetryActivities.takeIf {
+                      loaded?.activitiesLoadState == ActivitiesLoadState.ERROR
+                    },
+                onRetryPhotos =
+                    onRetryPhotos.takeIf { loaded?.photosLoadState == PhotosLoadState.ERROR },
                 modifier =
                     Modifier.align(Alignment.BottomCenter)
                         .windowInsetsPadding(
                             WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)
                         ),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-              SnackbarHost(
-                  hostState = snackbarHostState,
-                  modifier = Modifier.testTag(C.Tag.trip_map_location_error),
-              )
-              if (cameraState.shouldShowAllLocations(viewport)) {
-                Button(
-                    onClick = cameraState::showAllLocations,
-                    shape = MaterialTheme.shapes.medium,
-                    modifier =
-                        Modifier.padding(
-                                horizontal = Spacing.screenPadding,
-                                vertical = Spacing.medium,
-                            )
-                            .testTag(C.Tag.trip_map_show_all_locations),
-                ) {
-                  Text(stringResource(R.string.trip_map_show_all_locations))
-                }
-              }
-              if (
-                  uiState is TripMapUiState.Loaded &&
-                      uiState.activitiesLoadState == ActivitiesLoadState.ERROR
-              ) {
-                Button(
-                    onClick = onRetryActivities,
-                    shape = MaterialTheme.shapes.medium,
-                    colors =
-                        ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                        ),
-                    modifier =
-                        Modifier.padding(
-                                horizontal = Spacing.screenPadding,
-                                vertical = Spacing.medium,
-                            )
-                            .testTag(C.Tag.trip_map_retry_activities),
-                ) {
-                  Text(stringResource(R.string.trip_map_retry_activities))
-                }
-              }
-              if (loaded?.photosLoadState == PhotosLoadState.ERROR) {
-                Button(
-                    onClick = onRetryPhotos,
-                    shape = MaterialTheme.shapes.medium,
-                    modifier =
-                        Modifier.padding(
-                                horizontal = Spacing.screenPadding,
-                                vertical = Spacing.medium,
-                            )
-                            .testTag(C.Tag.trip_map_retry_photos),
-                ) {
-                  Text(stringResource(R.string.trip_map_retry_photos))
-                }
-              }
-            }
+            )
           }
         }
       }
@@ -536,6 +483,102 @@ private fun PhotoMarkerAnnotation(marker: PhotoMarkerUiState, onClick: (MapCoord
               },
   ) {
     PhotoMarkerIcon(photoCount = marker.photoCount)
+  }
+}
+
+/**
+ * The banners stacked at the top of the map, emitted into the caller's column so that the status
+ * overlays below them never cover the sharing chip.
+ */
+@Composable
+private fun TripMapStatusBanners(
+    readOnly: Boolean,
+    isSharing: Boolean,
+    isStartingSharing: Boolean,
+    isOffline: Boolean,
+    loaded: TripMapUiState.Loaded?,
+) {
+  if (!readOnly) {
+    SharingChip(
+        isSharing = isSharing,
+        isStartingSharing = isStartingSharing,
+        modifier = Modifier.padding(Spacing.medium),
+    )
+  }
+  if (isOffline) {
+    OfflineBanner(modifier = Modifier.padding(horizontal = Spacing.medium))
+  }
+  if (loaded != null) {
+    PhotosStatusPill(
+        state = loaded.photosLoadState,
+        hasMarkers = loaded.photoMarkers.isNotEmpty(),
+        modifier = Modifier.padding(horizontal = Spacing.medium, vertical = Spacing.small),
+    )
+  }
+}
+
+/**
+ * The location error snackbar and the map's actions, stacked so that the snackbar never covers
+ * them. An action is shown only when its callback is not null.
+ */
+@Composable
+private fun TripMapBottomActions(
+    snackbarHostState: SnackbarHostState,
+    showAllLocations: (() -> Unit)?,
+    onRetryActivities: (() -> Unit)?,
+    onRetryPhotos: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+  Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+    SnackbarHost(
+        hostState = snackbarHostState,
+        modifier = Modifier.testTag(C.Tag.trip_map_location_error),
+    )
+    showAllLocations?.let {
+      TripMapActionButton(
+          text = R.string.trip_map_show_all_locations,
+          tag = C.Tag.trip_map_show_all_locations,
+          onClick = it,
+      )
+    }
+    onRetryActivities?.let {
+      TripMapActionButton(
+          text = R.string.trip_map_retry_activities,
+          tag = C.Tag.trip_map_retry_activities,
+          onClick = it,
+          colors =
+              ButtonDefaults.buttonColors(
+                  containerColor = MaterialTheme.colorScheme.primary,
+                  contentColor = MaterialTheme.colorScheme.onPrimary,
+              ),
+      )
+    }
+    onRetryPhotos?.let {
+      TripMapActionButton(
+          text = R.string.trip_map_retry_photos,
+          tag = C.Tag.trip_map_retry_photos,
+          onClick = it,
+      )
+    }
+  }
+}
+
+@Composable
+private fun TripMapActionButton(
+    @StringRes text: Int,
+    tag: String,
+    onClick: () -> Unit,
+    colors: ButtonColors = ButtonDefaults.buttonColors(),
+) {
+  Button(
+      onClick = onClick,
+      shape = MaterialTheme.shapes.medium,
+      colors = colors,
+      modifier =
+          Modifier.padding(horizontal = Spacing.screenPadding, vertical = Spacing.medium)
+              .testTag(tag),
+  ) {
+    Text(stringResource(text))
   }
 }
 

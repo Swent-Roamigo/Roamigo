@@ -24,6 +24,8 @@ import kotlinx.coroutines.launch
  * Loads a trip and independently observes its activities and gallery photos.
  *
  * The viewport covers destinations, activities and suggestions. Member profiles may load later.
+ * Gallery photos load only once the map has been shown, see [onMapShown], since the trip screen
+ * creates this ViewModel for every tab.
  *
  * @param tripId identifier of the trip to show.
  * @param tripRepository the repository providing the user's trips.
@@ -44,6 +46,7 @@ class TripMapViewModel(
   private var tripLoadJob: Job? = null
   private var activitiesObserveJob: Job? = null
   private var photosObserveJob: Job? = null
+  private var photosRequested = false
 
   init {
     retryTrip()
@@ -81,7 +84,7 @@ class TripMapViewModel(
             )
         _uiState.value = loaded
         observeActivities(loaded)
-        observePhotos()
+        if (photosRequested) observePhotos()
 
         val profiles = loadProfiles(trip.memberIds)
         val members =
@@ -92,13 +95,7 @@ class TripMapViewModel(
                   user.displayName.trim().takeIf { it.isNotEmpty() }?.let { userId to it }
                 }
                 .toMap()
-        _uiState.update { state ->
-          if (state is TripMapUiState.Loaded && state.trip.uid == trip.uid) {
-            state.copy(members = members, photographerNames = photographerNames)
-          } else {
-            state
-          }
-        }
+        updateLoaded { it.copy(members = members, photographerNames = photographerNames) }
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
@@ -171,14 +168,24 @@ class TripMapViewModel(
   }
 
   /**
+   * Starts observing the gallery the first time the map is shown, so opening another tab of the
+   * trip does not download its photos. Later calls have no effect: once started, photos are
+   * restarted only by [retryPhotos] or [retryTrip].
+   */
+  fun onMapShown() {
+    photosRequested = true
+    if (_uiState.value is TripMapUiState.Loaded && photosObserveJob == null) {
+      observePhotos()
+    }
+  }
+
+  /**
    * Opens the photo group at [coordinate] in the viewer. Coordinates without a current group are
    * ignored, e.g. a tap on a marker removed by a gallery update.
    */
   fun selectPhotoGroup(coordinate: MapCoordinate) {
-    _uiState.update { state ->
-      if (
-          state is TripMapUiState.Loaded && state.photoMarkers.any { it.coordinate == coordinate }
-      ) {
+    updateLoaded { state ->
+      if (state.photoMarkers.any { it.coordinate == coordinate }) {
         state.copy(selectedPhotoCoordinate = coordinate)
       } else {
         state
@@ -188,54 +195,35 @@ class TripMapViewModel(
 
   /** Closes the photo viewer and returns to the map. */
   fun closePhotoViewer() {
-    _uiState.update { state ->
-      if (state is TripMapUiState.Loaded) state.copy(selectedPhotoCoordinate = null) else state
-    }
+    updateLoaded { it.copy(selectedPhotoCoordinate = null) }
   }
 
   private fun observePhotos() {
     photosObserveJob?.cancel()
     photosObserveJob = viewModelScope.launch {
-      _uiState.update { state ->
-        if (state is TripMapUiState.Loaded && state.trip.uid == tripId) {
-          state.copy(photosLoadState = PhotosLoadState.LOADING)
-        } else {
-          state
-        }
-      }
+      updateLoaded { it.copy(photosLoadState = PhotosLoadState.LOADING) }
       try {
         photoRepository.tripPhotos(tripId).collect { photos ->
           currentCoroutineContext().ensureActive()
           val markers = photos.toPhotoMarkerUiStates()
-          _uiState.update { state ->
-            if (state is TripMapUiState.Loaded && state.trip.uid == tripId) {
-              state.copy(
-                  photoMarkers = markers,
-                  photosLoadState = PhotosLoadState.LOADED,
-                  // The viewer closes when its group leaves the gallery.
-                  selectedPhotoCoordinate =
-                      state.selectedPhotoCoordinate?.takeIf { selected ->
-                        markers.any { it.coordinate == selected }
-                      },
-              )
-            } else {
-              state
-            }
-          }
+          updateLoaded { it.withPhotoMarkers(markers) }
         }
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
         currentCoroutineContext().ensureActive()
         Log.w(TAG, "Could not load photos for trip $tripId", e)
-        _uiState.update { state ->
-          if (state is TripMapUiState.Loaded && state.trip.uid == tripId) {
-            state.copy(photosLoadState = PhotosLoadState.ERROR)
-          } else {
-            state
-          }
-        }
+        updateLoaded { it.copy(photosLoadState = PhotosLoadState.ERROR) }
       }
+    }
+  }
+
+  /** Applies [transform] to the state while it shows this trip, and leaves other states alone. */
+  private inline fun updateLoaded(
+      crossinline transform: (TripMapUiState.Loaded) -> TripMapUiState.Loaded
+  ) {
+    _uiState.update { state ->
+      if (state is TripMapUiState.Loaded && state.trip.uid == tripId) transform(state) else state
     }
   }
 
@@ -294,6 +282,22 @@ class TripMapViewModel(
         }
   }
 }
+
+/**
+ * Shows the latest gallery [markers]. The open group stays selected only while it is still in the
+ * gallery, so the viewer closes when its photos are removed.
+ */
+private fun TripMapUiState.Loaded.withPhotoMarkers(
+    markers: List<PhotoMarkerUiState>
+): TripMapUiState.Loaded =
+    copy(
+        photoMarkers = markers,
+        photosLoadState = PhotosLoadState.LOADED,
+        selectedPhotoCoordinate =
+            selectedPhotoCoordinate?.takeIf { selected ->
+              markers.any { it.coordinate == selected }
+            },
+    )
 
 /**
  * Builds the display information of a trip member.

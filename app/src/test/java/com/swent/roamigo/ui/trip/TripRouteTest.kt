@@ -17,6 +17,7 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -141,6 +142,65 @@ class TripRouteTest {
     composeRule.onNodeWithText("Photos").performClick()
     composeRule.onNodeWithText("Take a photo").assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.photos_screen).assertIsDisplayed()
+  }
+
+  @Test
+  fun tripPhotosAreRequestedOnlyOnceTheMapTabIsOpened() {
+    val trip = trip()
+    val photoRequests = mutableListOf<String>()
+    val photos =
+        object : PhotoRepository by FakePhotoRepository(composeRule.activity.cacheDir) {
+          override fun tripPhotos(tripId: String): Flow<List<TripPhoto>> {
+            photoRequests += tripId
+            return flowOf(emptyList())
+          }
+        }
+    composeRule.setContent {
+      RoamigoTheme {
+        CompositionLocalProvider(LocalInspectionMode provides true) {
+          TripRoute(
+              tripId = trip.uid,
+              fromHistory = false,
+              openMap = false,
+              authRepository = signedInAuth(),
+              tripRepository = FakeTripRepository(trips = listOf(trip)),
+              activityRepository = FakeActivityRepository(),
+              userRepository = FakeUserRepository(User("member", "Member", null)),
+              voteRepository = InMemoryVoteRepository(),
+              photoRepository = photos,
+              connectivityRepository = FakeConnectivityRepository(),
+              locationRepository = FakeLocationRepository(),
+              onBack = {},
+              onAuthenticationRequired = {},
+              onOpenVote = { _, _ -> },
+              onCreateVote = {},
+              onCreateActivity = {},
+              onMembersClick = {},
+              onTripsClick = {},
+              onMapClick = {},
+              onFriendsClick = {},
+          )
+        }
+      }
+    }
+
+    composeRule.onNodeWithText(trip.name).assertIsDisplayed()
+    composeRule.runOnIdle { assertTrue(photoRequests.isEmpty()) }
+
+    // The trip's tab row comes before the app's bottom bar, which also has a Map item.
+    composeRule
+        .onAllNodesWithText(composeRule.activity.getString(R.string.trips_nav_map))[0]
+        .performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_map_map).assertIsDisplayed()
+    composeRule.runOnIdle { assertEquals(listOf(trip.uid), photoRequests) }
+
+    composeRule
+        .onNodeWithText(composeRule.activity.getString(R.string.trip_details_tab))
+        .performClick()
+    composeRule
+        .onAllNodesWithText(composeRule.activity.getString(R.string.trips_nav_map))[0]
+        .performClick()
+    composeRule.runOnIdle { assertEquals(listOf(trip.uid), photoRequests) }
   }
 
   @Test
