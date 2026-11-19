@@ -205,6 +205,7 @@ internal fun TripRoute(
                 tripMapViewModelFactory = tripMapFactory,
                 locationViewModelFactory = locationFactory,
                 readOnly = readOnly,
+                currentUserId = userId,
             )
         TripSection.Votes ->
             TripVotes(

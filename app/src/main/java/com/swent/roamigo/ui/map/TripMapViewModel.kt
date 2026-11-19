@@ -83,10 +83,18 @@ class TripMapViewModel(
         observeActivities(loaded)
         observePhotos()
 
-        val members = loadMembers(trip.memberIds)
+        val profiles = loadProfiles(trip.memberIds)
+        val members =
+            trip.memberIds.associateWith { userId -> memberDisplayInfo(userId, profiles[userId]) }
+        val photographerNames =
+            profiles
+                .mapNotNull { (userId, user) ->
+                  user.displayName.trim().takeIf { it.isNotEmpty() }?.let { userId to it }
+                }
+                .toMap()
         _uiState.update { state ->
           if (state is TripMapUiState.Loaded && state.trip.uid == trip.uid) {
-            state.copy(members = members)
+            state.copy(members = members, photographerNames = photographerNames)
           } else {
             state
           }
@@ -162,6 +170,29 @@ class TripMapViewModel(
     observePhotos()
   }
 
+  /**
+   * Opens the photo group at [coordinate] in the viewer. Coordinates without a current group are
+   * ignored, e.g. a tap on a marker removed by a gallery update.
+   */
+  fun selectPhotoGroup(coordinate: MapCoordinate) {
+    _uiState.update { state ->
+      if (
+          state is TripMapUiState.Loaded && state.photoMarkers.any { it.coordinate == coordinate }
+      ) {
+        state.copy(selectedPhotoCoordinate = coordinate)
+      } else {
+        state
+      }
+    }
+  }
+
+  /** Closes the photo viewer and returns to the map. */
+  fun closePhotoViewer() {
+    _uiState.update { state ->
+      if (state is TripMapUiState.Loaded) state.copy(selectedPhotoCoordinate = null) else state
+    }
+  }
+
   private fun observePhotos() {
     photosObserveJob?.cancel()
     photosObserveJob = viewModelScope.launch {
@@ -178,7 +209,15 @@ class TripMapViewModel(
           val markers = photos.toPhotoMarkerUiStates()
           _uiState.update { state ->
             if (state is TripMapUiState.Loaded && state.trip.uid == tripId) {
-              state.copy(photoMarkers = markers, photosLoadState = PhotosLoadState.LOADED)
+              state.copy(
+                  photoMarkers = markers,
+                  photosLoadState = PhotosLoadState.LOADED,
+                  // The viewer closes when its group leaves the gallery.
+                  selectedPhotoCoordinate =
+                      state.selectedPhotoCoordinate?.takeIf { selected ->
+                        markers.any { it.coordinate == selected }
+                      },
+              )
             } else {
               state
             }
@@ -200,18 +239,15 @@ class TripMapViewModel(
     }
   }
 
-  private suspend fun loadMembers(memberIds: List<String>): Map<String, MemberDisplayInfo> {
-    val usersById =
-        try {
-          userRepository.getUsers(memberIds.toSet()).associateBy { it.uid }
-        } catch (e: CancellationException) {
-          throw e
-        } catch (e: Exception) {
-          // Profiles only decorate the markers: the map stays usable with the fallback names.
-          emptyMap()
-        }
-    return memberIds.associateWith { userId -> memberDisplayInfo(userId, usersById[userId]) }
-  }
+  private suspend fun loadProfiles(memberIds: List<String>): Map<String, User> =
+      try {
+        userRepository.getUsers(memberIds.toSet()).associateBy { it.uid }
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        // Profiles only decorate the markers: the map stays usable with the fallback names.
+        emptyMap()
+      }
 
   companion object {
 
