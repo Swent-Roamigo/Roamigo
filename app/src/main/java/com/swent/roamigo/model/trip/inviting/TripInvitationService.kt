@@ -13,6 +13,14 @@ import kotlinx.coroutines.tasks.await
  */
 data class InvitationLink(val token: String, val expiresAt: Instant? = null)
 
+/** What a person sees before joining: the trip is not readable to them yet. */
+data class InvitationPreview(
+    val tripId: String,
+    val tripName: String,
+    val inviterName: String?,
+    val alreadyMember: Boolean,
+)
+
 /** Why an invitation operation failed, in terms the screens can explain. */
 sealed class InvitationException(message: String, cause: Throwable? = null) :
     Exception(message, cause) {
@@ -32,12 +40,21 @@ sealed class InvitationException(message: String, cause: Throwable? = null) :
 }
 
 /**
- * Invitations to a trip. They are created and revoked by trusted functions, because joining a trip
- * changes its members, which clients cannot write themselves.
+ * Invitations to a trip. They are created, read and accepted by trusted functions, because joining
+ * a trip changes its members, which clients cannot write themselves.
  */
 interface TripInvitationService {
   /** The organiser's current link for [tripId]; asking again returns it while it is valid. */
   suspend fun createLink(tripId: String): InvitationLink
+
+  /**
+   * Who invited the user to which trip. It works for people who are not on the trip and cannot read
+   * it yet. Throws [InvitationException.Invalid] for an unknown, stopped or expired link.
+   */
+  suspend fun preview(token: String): InvitationPreview
+
+  /** Adds the signed-in user to the trip, and returns its ID. Joining twice changes nothing. */
+  suspend fun accept(token: String): String
 
   /** Revokes every link of [tripId]. Members who already joined stay on the trip. */
   suspend fun revokeLinks(tripId: String)
@@ -51,6 +68,11 @@ interface TripInvitationService {
 internal object UnavailableTripInvitationService : TripInvitationService {
   override suspend fun createLink(tripId: String): InvitationLink =
       throw InvitationException.Unavailable()
+
+  override suspend fun preview(token: String): InvitationPreview =
+      throw InvitationException.Unavailable()
+
+  override suspend fun accept(token: String): String = throw InvitationException.Unavailable()
 
   override suspend fun revokeLinks(tripId: String): Unit = throw InvitationException.Unavailable()
 }
@@ -84,6 +106,19 @@ internal class TripInvitationServiceFunctions(
     val expiresAt = (data["expirationTime"] as? Number)?.toLong()?.let(Instant::ofEpochMilli)
     return InvitationLink(token = data.string("token"), expiresAt = expiresAt)
   }
+
+  override suspend fun preview(token: String): InvitationPreview {
+    val data = call("previewTripInvitation", mapOf("token" to token))
+    return InvitationPreview(
+        tripId = data.string("tripId"),
+        tripName = data.string("tripName"),
+        inviterName = (data["inviterName"] as? String)?.takeIf { it.isNotBlank() },
+        alreadyMember = data["alreadyMember"] == true,
+    )
+  }
+
+  override suspend fun accept(token: String): String =
+      call("acceptTripInvitation", mapOf("token" to token)).string("tripId")
 
   override suspend fun revokeLinks(tripId: String) {
     call("revokeTripInvitations", mapOf("tripId" to tripId))

@@ -3,9 +3,13 @@
 // Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui
 
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -15,6 +19,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.util.Consumer
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.ClearCredentialException
@@ -23,6 +28,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navDeepLink
 import com.swent.roamigo.RoamigoApplication
 import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.authentication.AuthRepositoryFirebase
@@ -37,6 +43,7 @@ import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.activity.ActivityRepository
 import com.swent.roamigo.model.trip.activity.FakeActivityRepository
+import com.swent.roamigo.model.trip.inviting.InvitationLinks
 import com.swent.roamigo.model.trip.inviting.TripInvitationService
 import com.swent.roamigo.model.trip.inviting.UnavailableTripInvitationService
 import com.swent.roamigo.model.trip.voting.VoteRepository
@@ -53,6 +60,7 @@ import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.navigation.activityFormTrip
 import com.swent.roamigo.ui.navigation.isReadOnly
 import com.swent.roamigo.ui.navigation.opensMap
+import com.swent.roamigo.ui.navigation.token
 import com.swent.roamigo.ui.navigation.tripId
 import com.swent.roamigo.ui.navigation.voteId
 import com.swent.roamigo.ui.permissions.PermissionsScreen
@@ -64,6 +72,8 @@ import com.swent.roamigo.ui.trip.creation.CreateTripRoute
 import com.swent.roamigo.ui.trip.creation.TripReadyRoute
 import com.swent.roamigo.ui.trip.history.TripHistoryRoute
 import com.swent.roamigo.ui.trip.inviting.InviteRoute
+import com.swent.roamigo.ui.trip.inviting.JoinTripRoute
+import com.swent.roamigo.ui.trip.inviting.JoinWithCodeDialog
 import com.swent.roamigo.ui.trip.members.TripMembersRoute
 import com.swent.roamigo.ui.trip.voting.CreateVoteRoute
 import com.swent.roamigo.ui.trip.voting.VoteRoute
@@ -82,8 +92,8 @@ import kotlinx.coroutines.launch
  * @param voteRepository Shared backend for trip vote discovery, creation, and individual ballots.
  * @param photoRepository Takes trip photos and keeps them until they are uploaded.
  * @param connectivityRepository Tells whether the device is online; the device's own by default.
- * @param invitationService Creates and stops the links that invite people to a trip. Every call
- *   fails by default, so only production wiring talks to the backend.
+ * @param invitationService Creates, previews and accepts the links that invite people to a trip.
+ *   Every call fails by default, so only production wiring talks to the backend.
  * @param locationRepository Shares the user's location on a trip map; the app-wide instance of
  *   [RoamigoApplication] by default, since sharing must go through a single instance.
  * @param placeRepository Searches places for the activity form; the app-wide instance of
@@ -110,8 +120,37 @@ fun RoamigoApp(
   val context = LocalContext.current
   val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }
   val scope = rememberCoroutineScope()
-  // The trip whose invitation sheet is open.
+  // MainActivity is singleTop, so a link opened while the app is running arrives as a new intent
+  // on the same activity. The navigation graph only follows it when it is told about it.
+  val hostActivity = LocalActivity.current as? ComponentActivity
+  DisposableEffect(navController, hostActivity) {
+    val listener =
+        Consumer<Intent> { intent ->
+          // A link from another app comes with FLAG_ACTIVITY_NEW_TASK, and handleDeepLink then
+          // rebuilds the back stack. The app is running, so the join screen opens on top instead.
+          // The token is not checked here, as for a link that starts the app: the server answers
+          // "invalid" for a truncated one, so the user sees the same result either way.
+          val link = intent.data
+          if (
+              link?.scheme.equals(InvitationLinks.SCHEME, ignoreCase = true) &&
+                  link?.host.equals(InvitationLinks.HOST, ignoreCase = true)
+          ) {
+            link
+                ?.lastPathSegment
+                ?.takeIf { it.isNotBlank() }
+                ?.let { token ->
+                  navController.navigate(Route.join(token)) { launchSingleTop = true }
+                }
+          }
+        }
+    hostActivity?.addOnNewIntentListener(listener)
+    onDispose { hostActivity?.removeOnNewIntentListener(listener) }
+  }
+  // The trip whose invitation sheet is open, and whether the "join with a code" dialog is.
   var inviteTripId by rememberSaveable { mutableStateOf<String?>(null) }
+  var joinCodeOpen by rememberSaveable { mutableStateOf(false) }
+  // An invitation opened while signed out is kept, and followed once the user has signed in.
+  var pendingJoinToken by rememberSaveable { mutableStateOf<String?>(null) }
   LaunchedEffect(authRepository, userRepository) {
     if (authRepository.getCurrentUser() != null) {
       publishProfileSafely(userRepository)
@@ -133,6 +172,10 @@ fun RoamigoApp(
               popUpTo(Route.PERMISSIONS) { inclusive = true }
               launchSingleTop = true
             }
+            pendingJoinToken?.let { token ->
+              pendingJoinToken = null
+              navController.navigate(Route.join(token))
+            }
           }
       )
     }
@@ -153,16 +196,17 @@ fun RoamigoApp(
     }
     composable(Route.TRIPS) { entry ->
       val refreshRequested by
-          entry.savedStateHandle.getStateFlow("trip_created", false).collectAsState()
+          entry.savedStateHandle.getStateFlow(TRIP_CREATED_KEY, false).collectAsState()
       TripsRoute(
           refreshRequested = refreshRequested,
-          onRefreshConsumed = { entry.savedStateHandle["trip_created"] = false },
+          onRefreshConsumed = { entry.savedStateHandle[TRIP_CREATED_KEY] = false },
           onMapClick = onMapClick,
           tripRepository = tripRepository,
           userRepository = userRepository,
           destinationRepository = destinationRepository,
           authRepository = authRepository,
           onInviteTrip = { tripId -> inviteTripId = tripId },
+          onJoinClick = { joinCodeOpen = true },
           onNewTripClick = { navController.navigate(Route.NEW_TRIP) },
           onProfileClick = { navController.navigate(Route.PROFILE) },
           onFriendsClick = onFriendsClick,
@@ -250,6 +294,7 @@ fun RoamigoApp(
       ProfileRoute(
           authRepository = authRepository,
           onSignedOut = {
+            pendingJoinToken = null
             scope.launch {
               try {
                 manager.clearCredentialState(ClearCredentialStateRequest())
@@ -355,6 +400,46 @@ fun RoamigoApp(
       )
     }
 
+    composable(
+        Route.JOIN,
+        deepLinks =
+            listOf(
+                navDeepLink {
+                  uriPattern = "${InvitationLinks.SCHEME}://${InvitationLinks.HOST}/{token}"
+                }
+            ),
+    ) { entry ->
+      val token = entry.token()
+      if (authRepository.getCurrentUser() == null) {
+        LaunchedEffect(token) {
+          pendingJoinToken = token
+          redirectToAuthentication(navController)
+        }
+      } else {
+        JoinTripRoute(
+            token = token,
+            service = invitationService,
+            onJoined = { tripId ->
+              // The join screen is removed, not the trips list below it, which can be missing (a
+              // link
+              // opened while Permissions was showing). Otherwise back would return to a joined
+              // screen that joins again.
+              // Trips home does not know the trip yet. Creating a trip refreshes it the same way.
+              requestTripsRefresh(navController)
+              navController.navigate(Route.tripDetails(tripId)) {
+                popUpTo(Route.JOIN) { inclusive = true }
+                launchSingleTop = true
+              }
+            },
+            onClose = {
+              if (!navController.popBackStack()) {
+                navController.navigate(Route.TRIPS) { launchSingleTop = true }
+              }
+            },
+        )
+      }
+    }
+
     composable(Route.NEW_TRIP) { entry ->
       CreateTripRoute(
           tripRepository = tripRepository,
@@ -368,7 +453,7 @@ fun RoamigoApp(
             }
           },
           onTripCreated = { tripId, photo ->
-            navController.getBackStackEntry(Route.TRIPS).savedStateHandle["trip_created"] = true
+            requestTripsRefresh(navController)
             navController.navigate(Route.tripReady(tripId)) {
               popUpTo(Route.NEW_TRIP) { inclusive = true }
               launchSingleTop = true
@@ -407,6 +492,15 @@ fun RoamigoApp(
   }
   inviteTripId?.let { tripId ->
     InviteRoute(tripId, invitationService, onDismiss = { inviteTripId = null })
+  }
+  if (joinCodeOpen) {
+    JoinWithCodeDialog(
+        onSubmit = { token ->
+          joinCodeOpen = false
+          navController.navigate(Route.join(token))
+        },
+        onDismiss = { joinCodeOpen = false },
+    )
   }
 }
 
@@ -449,5 +543,20 @@ private suspend fun publishProfileSafely(userRepository: UserRepository) {
     throw error
   } catch (error: Exception) {
     Log.w("RoamigoApp", "Could not publish user directory profile", error)
+  }
+}
+
+/** The saved-state key that asks Trips home to reload, after a trip was created or joined. */
+private const val TRIP_CREATED_KEY = "trip_created"
+
+/**
+ * Asks Trips home to reload. Trips home is missing from the back stack only when a link was opened
+ * while Permissions was still showing; it then loads fresh when it is opened.
+ */
+private fun requestTripsRefresh(navController: NavHostController) {
+  try {
+    navController.getBackStackEntry(Route.TRIPS).savedStateHandle[TRIP_CREATED_KEY] = true
+  } catch (_: IllegalArgumentException) {
+    // Trips home is not on the back stack.
   }
 }

@@ -239,6 +239,27 @@ class TripsScreenTest {
   }
 
   @Test
+  fun joinActionIsOnlyShownWhenItIsProvided() {
+    var joinClicks = 0
+    var provided by mutableStateOf(false)
+    composeTestRule.setContent {
+      MaterialTheme {
+        TripsScreen(
+            uiState = TripsUiState(isLoading = false),
+            onJoinClick = if (provided) ({ joinClicks++ }) else null,
+        )
+      }
+    }
+
+    composeTestRule.onAllNodesWithTag(C.Tag.trips_join_button).assertCountEquals(0)
+
+    provided = true
+    composeTestRule.onNodeWithTag(C.Tag.trips_join_button).performClick()
+
+    assertEquals(1, joinClicks)
+  }
+
+  @Test
   fun inviteWithoutAHandlerIsMarkedAndGivesTheNotImplementedFeedback() {
     showMainTrip()
 

@@ -27,6 +27,9 @@ object Route {
       "trip/{tripId}/new_activity?tripName={tripName}&startDate={startDate}&endDate={endDate}"
   const val MEMBERS = "trip/{tripId}/members"
   const val TRIP_OVERVIEW_MAP = "trip_overview_map"
+  const val JOIN = "join/{token}"
+
+  fun join(token: String): String = "join/${Uri.encode(token)}"
 
   fun tripDetails(tripId: String, readOnly: Boolean = false, openMap: Boolean = false): String =
       "trip/${Uri.encode(tripId)}/details?readOnly=$readOnly&initialTab=${if (openMap) "map" else "detail"}"
@@ -48,6 +51,9 @@ object Route {
 
 /** The trip this destination was opened for. */
 internal fun NavBackStackEntry.tripId(): String = requireNotNull(arguments?.getString("tripId"))
+
+/** The invitation token this destination was opened for. */
+internal fun NavBackStackEntry.token(): String = requireNotNull(arguments?.getString("token"))
 
 /** The trip name and dates given to [Route.newActivity]. */
 internal fun NavBackStackEntry.activityFormTrip(): ActivityFormTrip {

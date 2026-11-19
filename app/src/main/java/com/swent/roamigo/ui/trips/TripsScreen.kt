@@ -49,6 +49,7 @@ import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.trips.components.HistoryButton
+import com.swent.roamigo.ui.trips.components.JoinTripButton
 import com.swent.roamigo.ui.trips.components.MainTripCard
 import com.swent.roamigo.ui.trips.components.NextActivityCard
 import com.swent.roamigo.ui.trips.components.OtherTripCard
@@ -68,6 +69,8 @@ import java.time.Clock
  * @param nextActivityImageRes the optional image resource displayed for the next activity.
  * @param onInviteTrip invoked with the highlighted trip's ID when the user selects the invite
  *   action. Shows the "not implemented" feedback when it is not set.
+ * @param onJoinClick invoked when the user wants to join a trip with a code. The action is only
+ *   shown when it is set.
  * @param onNewTripClick invoked when the user selects the new-trip action.
  * @param onTripsClick invoked when the Trips navigation destination is selected.
  * @param onMapClick invoked when the Map navigation destination is selected.
@@ -88,6 +91,7 @@ fun TripsRoute(
     @DrawableRes mainTripImageRes: Int? = null,
     @DrawableRes nextActivityImageRes: Int? = null,
     onInviteTrip: ((tripId: String) -> Unit)? = null,
+    onJoinClick: (() -> Unit)? = null,
     onNewTripClick: () -> Unit = rememberNotImplementedAction(),
     onTripsClick: () -> Unit = {},
     onMapClick: () -> Unit = rememberNotImplementedAction(),
@@ -131,6 +135,7 @@ fun TripsRoute(
       mainTripImageRes = mainTripImageRes,
       nextActivityImageRes = nextActivityImageRes,
       onInviteClick = inviteMainTrip,
+      onJoinClick = onJoinClick,
       onNewTripClick = onNewTripClick,
       onTripsClick = onTripsClick,
       onMapClick = onMapClick,
@@ -153,6 +158,7 @@ fun TripsRoute(
  * @param mainTripImageRes the optional image resource displayed for the highlighted trip.
  * @param nextActivityImageRes the optional image resource displayed for the next activity.
  * @param onInviteClick invoked when the user selects the invite action.
+ * @param onJoinClick invoked when the user wants to join a trip with a code, shown when set.
  * @param onNewTripClick invoked when the user selects the new-trip action.
  * @param onTripsClick invoked when the Trips navigation destination is selected.
  * @param onMapClick invoked when the Map navigation destination is selected.
@@ -169,6 +175,7 @@ fun TripsScreen(
     @DrawableRes mainTripImageRes: Int? = null,
     @DrawableRes nextActivityImageRes: Int? = null,
     onInviteClick: () -> Unit = rememberNotImplementedAction(),
+    onJoinClick: (() -> Unit)? = null,
     onNewTripClick: () -> Unit = rememberNotImplementedAction(),
     onTripsClick: () -> Unit = {},
     onMapClick: () -> Unit = rememberNotImplementedAction(),
@@ -291,12 +298,16 @@ fun TripsScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
               if (uiState.errorMessage == null && uiState.otherTrips.isNotEmpty()) {
-                SectionTitle(stringResource(R.string.trips_other_trips))
+                // The title gives way to the buttons on narrow screens or with large fonts.
+                SectionTitle(stringResource(R.string.trips_other_trips), Modifier.weight(1f))
               } else {
                 Spacer(modifier = Modifier.weight(1f))
               }
 
-              HistoryButton(onClick = onHistoryClick)
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                if (onJoinClick != null) JoinTripButton(onClick = onJoinClick)
+                HistoryButton(onClick = onHistoryClick)
+              }
             }
           }
           if (uiState.errorMessage == null) {
