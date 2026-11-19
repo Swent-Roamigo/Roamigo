@@ -17,6 +17,7 @@ import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.sampleDestinationRepository
+import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
@@ -88,6 +89,7 @@ class RoamigoAppInvitationTest {
                     AuthenticatedUser("alex", "Alex", null, null),
                     initiallySignedIn = true,
                 ),
+            friendRepository = FakeFriendRepository("alex"),
             navController = navController,
             locationRepository = FakeLocationRepository(),
             invitationService = service,
