@@ -2,10 +2,14 @@
 package com.swent.roamigo.ui.trip.activity
 
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -19,6 +23,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.unit.dp
 import com.swent.roamigo.ui.components.NotImplemented
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.activity.ActivityFormFixtures.day
@@ -26,6 +32,7 @@ import com.swent.roamigo.ui.trip.activity.ActivityFormFixtures.place
 import com.swent.roamigo.ui.trip.activity.ActivityFormFixtures.trip
 import java.time.LocalTime
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -59,7 +66,7 @@ class ActivityFormScreenTest {
   // setContent can only run once per test, so later calls only swap the state.
   private var shown by mutableStateOf<ActivityFormUiState?>(null)
 
-  private fun show(state: ActivityFormUiState) {
+  private fun show(state: ActivityFormUiState, modifier: Modifier = Modifier) {
     val first = shown == null
     shown = state
     if (!first) return
@@ -68,13 +75,21 @@ class ActivityFormScreenTest {
       RoamigoTheme {
         ActivityFormScreen(
             state = current,
-            onNameChange = { events += "name:$it" },
+            // Typed text is kept, as the ViewModel does, so a field never reverts on focus loss.
+            onNameChange = {
+              events += "name:$it"
+              shown = current.copy(fields = current.fields.copy(name = it))
+            },
             onTimeChange = { events += (it ?: "no time") },
             onPlaceClick = { events += "place" },
-            onDescriptionChange = { events += "description:$it" },
+            onDescriptionChange = {
+              events += "description:$it"
+              shown = current.copy(fields = current.fields.copy(description = it))
+            },
             onSave = { events += "save" },
             onClose = { events += "close" },
             onDelete = { events += "delete" },
+            modifier = modifier,
         )
       }
     }
@@ -86,7 +101,7 @@ class ActivityFormScreenTest {
   fun createModeShowsEveryFieldAndNoDeleteAction() {
     show(createState)
     compose.onNodeWithText("New activity").assertIsDisplayed()
-    compose.onNode(hasText("Lisbon → Porto · ", substring = true)).assertIsDisplayed()
+    compose.onNodeWithText("Lisbon → Porto · Tue, Oct 13").assertIsDisplayed()
     listOf(
             ActivityFormTestTags.NAME,
             ActivityFormTestTags.DATE,
@@ -118,11 +133,36 @@ class ActivityFormScreenTest {
   }
 
   @Test
-  fun fieldsAreLabelledForAccessibility() {
+  fun pickersAnnounceTheirLabelAndValue() {
+    show(editState)
+    mapOf(
+            ActivityFormTestTags.DATE to ("Date" to "Tue, Oct 13"),
+            ActivityFormTestTags.PLACE to ("Place" to "Time Out Market"),
+        )
+        .forEach { (tag, announced) -> compose.onNodeWithTag(tag).assertAnnounces(announced) }
+    // Locale data may put a narrow no-break space before "PM".
+    val time = compose.onNodeWithTag(ActivityFormTestTags.TIME).fetchSemanticsNode().config
+    assertEquals(listOf("Time"), time[SemanticsProperties.ContentDescription])
+    assertTrue(time[SemanticsProperties.StateDescription].startsWith("7:30"))
     show(createState)
-    listOf("Activity", "Date", "Time", "Place", "Description").forEach {
-      compose.onNodeWithContentDescription(it).assertExists()
-    }
+    compose.onNodeWithTag(ActivityFormTestTags.PLACE).assertAnnounces("Place" to "Choose a place")
+  }
+
+  @Test
+  fun textFieldsAnnounceTheirLabelThenWhatWasTyped() {
+    show(editState)
+    mapOf(
+            ActivityFormTestTags.NAME to ("Activity" to "Dinner at Time Out Market"),
+            ActivityFormTestTags.DESCRIPTION to ("Description" to "Bring cash"),
+        )
+        .forEach { (tag, announced) ->
+          val (label, typed) = announced
+          compose.onNodeWithText(label).assertExists()
+          compose
+              .onNodeWithTag(tag)
+              .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.ContentDescription))
+              .assert(hasText(typed))
+        }
     compose.onNodeWithContentDescription("Close").assertExists()
   }
 
@@ -197,11 +237,18 @@ class ActivityFormScreenTest {
   fun changesAndActionsAreForwarded() {
     show(editState.copy(isEdit = false, fields = editState.fields.copy(name = "")))
     compose.onNodeWithTag(ActivityFormTestTags.NAME).performTextInput("Dinner")
-    compose.onNodeWithTag(ActivityFormTestTags.PLACE).performClick()
-    compose.onNodeWithTag(ActivityFormTestTags.TIME_CLEAR).performClick()
-    compose.onNodeWithTag(ActivityFormTestTags.CLOSE).performClick()
+    compose
+        .onNodeWithTag(ActivityFormTestTags.DESCRIPTION)
+        .performScrollTo()
+        .performTextReplacement("Bring snacks")
+    compose.onNodeWithTag(ActivityFormTestTags.PLACE).performScrollTo().performClick()
+    compose.onNodeWithTag(ActivityFormTestTags.TIME_CLEAR).performScrollTo().performClick()
+    compose.onNodeWithTag(ActivityFormTestTags.CLOSE).performScrollTo().performClick()
     compose.onNodeWithTag(ActivityFormTestTags.SUBMIT).performClick()
-    assertEquals(listOf<Any>("name:Dinner", "place", "no time", "close", "save"), events)
+    assertEquals(
+        listOf<Any>("name:Dinner", "description:Bring snacks", "place", "no time", "close", "save"),
+        events,
+    )
   }
 
   @Test
@@ -261,11 +308,53 @@ class ActivityFormScreenTest {
         )
     )
     compose.onNodeWithTag(ActivityFormTestTags.SUBMIT).assertIsDisplayed()
-    compose.onNodeWithTag(ActivityFormTestTags.DELETE).assertIsDisplayed()
-    compose.onNodeWithTag(ActivityFormTestTags.CLOSE).assertIsDisplayed()
-    compose.onNodeWithTag(ActivityFormTestTags.DESCRIPTION).performScrollTo().assertIsDisplayed()
-    compose.onNodeWithTag(ActivityFormTestTags.NAME).performScrollTo().assertIsDisplayed()
-    compose.onNodeWithTag(ActivityFormTestTags.SUBMIT).assertIsDisplayed().performClick()
+    listOf(
+            ActivityFormTestTags.FAILURE,
+            ActivityFormTestTags.DELETE,
+            ActivityFormTestTags.DESCRIPTION,
+            ActivityFormTestTags.NAME,
+            ActivityFormTestTags.CLOSE,
+        )
+        .forEach {
+          compose.onNodeWithTag(it).performScrollTo().assertIsDisplayed()
+          compose.onNodeWithTag(ActivityFormTestTags.SUBMIT).assertIsDisplayed()
+        }
+    compose.onNodeWithTag(ActivityFormTestTags.SUBMIT).performClick()
     assertEquals(listOf<Any>("save"), events)
+  }
+
+  @Test
+  @Config(qualifiers = "en-rUS-w640dp-h360dp-land")
+  fun fieldsStayUsableAboveTheKeyboardInLandscape() {
+    // Robolectric shows no keyboard, so the screen gets the height the keyboard leaves free.
+    show(
+        editState.copy(
+            trip = trip.copy(name = "A very long trip name ".repeat(LONG_NAME_REPEATS)),
+            failure = ActivityFormFailure.NETWORK,
+        ),
+        Modifier.height(HEIGHT_ABOVE_KEYBOARD),
+    )
+    compose.onNodeWithTag(ActivityFormTestTags.FAILURE).assertIsDisplayed()
+    compose.onNodeWithTag(ActivityFormTestTags.NAME).performScrollTo().assertIsDisplayed()
+    compose.onNodeWithTag(ActivityFormTestTags.SUBMIT).assertIsDisplayed()
+  }
+
+  private fun SemanticsNodeInteraction.assertAnnounces(announced: Pair<String, String>) =
+      assert(
+              SemanticsMatcher.expectValue(
+                  SemanticsProperties.ContentDescription,
+                  listOf(announced.first),
+              )
+          )
+          .assert(
+              SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, announced.second)
+          )
+
+  private companion object {
+    /** Height left on a 360dp-high phone in landscape once the keyboard is open. */
+    val HEIGHT_ABOVE_KEYBOARD = 160.dp
+
+    /** Repeats that make the trip name longer than the subtitle can show. */
+    const val LONG_NAME_REPEATS = 10
   }
 }
