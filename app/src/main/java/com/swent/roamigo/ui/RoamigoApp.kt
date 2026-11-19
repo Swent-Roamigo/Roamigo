@@ -53,6 +53,7 @@ import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.ui.authentication.AuthenticationRoute
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.friends.FriendsRoute
+import com.swent.roamigo.ui.friends.FriendsSearchRoute
 import com.swent.roamigo.ui.heatmap.ExploredWorldRoute
 import com.swent.roamigo.ui.heatmap.VisitedCountryCounts
 import com.swent.roamigo.ui.map.TripOverviewMapRoute
@@ -287,6 +288,20 @@ fun RoamigoApp(
             onSessionEnded = { redirectToAuthentication(navController) },
             onTripsClick = onTripsClick,
             onMapClick = onMapClick,
+            onAddFriendClick = { navController.navigate(Route.FRIENDS_SEARCH) },
+        )
+      }
+    }
+
+    composable(Route.FRIENDS_SEARCH) {
+      SignedIn(authRepository, navController) { userId ->
+        FriendsSearchRoute(
+            userRepository = userRepository,
+            friendRepository = friendRepository,
+            authRepository = authRepository,
+            currentUserId = userId,
+            onBack = { navController.popBackStack() },
+            onSessionEnded = { redirectToAuthentication(navController) },
         )
       }
     }

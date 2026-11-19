@@ -3,6 +3,8 @@ package com.swent.roamigo.ui.friends
 
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
+import com.swent.roamigo.model.authentication.AuthenticatedUser
+import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.friends.FriendRepository
 import com.swent.roamigo.model.friends.FriendRepositoryException
@@ -50,6 +52,12 @@ class FriendsSearchViewModelTest {
 
   private val friends = ControlledFriends(aliceFriends)
 
+  private val auth =
+      FakeAuthRepository(
+          AuthenticatedUser("alice", "Alice", null, null),
+          initiallySignedIn = true,
+      )
+
   private val alice = User("alice", "Alice", null)
   private val bob = User("bob", "Bob", "https://example.com/bob.png")
   private val carol = User("carol", "Bonnie", null)
@@ -73,7 +81,7 @@ class FriendsSearchViewModelTest {
   }
 
   private fun model(): FriendsSearchViewModel =
-      FriendsSearchViewModel(users, friends, "alice").also { store.put("search", it) }
+      FriendsSearchViewModel(users, friends, "alice", auth).also { store.put("search", it) }
 
   private fun FriendsSearchViewModel.status(uid: String): SearchRelationship? =
       uiState.value.results.find { it.user.uid == uid }?.relationship
@@ -547,7 +555,7 @@ class FriendsSearchViewModelTest {
   @Test
   fun factoryCreatesViewModelWithExpectedAccount() =
       runTest(dispatcher) {
-        val factory = FriendsSearchViewModel.factory(users, friends, "alice")
+        val factory = FriendsSearchViewModel.factory(users, friends, "alice", auth)
 
         val model = ViewModelProvider(store, factory)[FriendsSearchViewModel::class.java]
 
@@ -1105,7 +1113,9 @@ class FriendsSearchViewModelTest {
             }
 
         val model =
-            FriendsSearchViewModel(directory, friends, "alice").also { store.put("search", it) }
+            FriendsSearchViewModel(directory, friends, "alice", auth).also {
+              store.put("search", it)
+            }
 
         model.updateQuery("Bob")
         advanceTimeBy(300.milliseconds)
@@ -1144,7 +1154,9 @@ class FriendsSearchViewModelTest {
             }
 
         val model =
-            FriendsSearchViewModel(directory, friends, "alice").also { store.put("search", it) }
+            FriendsSearchViewModel(directory, friends, "alice", auth).also {
+              store.put("search", it)
+            }
 
         model.updateQuery("Bob")
         advanceTimeBy(300.milliseconds)
@@ -1181,7 +1193,9 @@ class FriendsSearchViewModelTest {
             }
 
         val model =
-            FriendsSearchViewModel(users, repository, "alice").also { store.put("search", it) }
+            FriendsSearchViewModel(users, repository, "alice", auth).also {
+              store.put("search", it)
+            }
 
         model.updateQuery("Bo")
         advanceUntilIdle()
@@ -1235,6 +1249,63 @@ class FriendsSearchViewModelTest {
         assertTrue(model.uiState.value.sendingIds.isEmpty())
         assertEquals(SearchRelationship.INCOMING_PENDING, model.status("bob"))
         assertEquals(SearchRelationship.FRIEND, model.status("carol"))
+      }
+
+  @Test
+  fun signingOutAfterRelationshipObservationFailureClearsPreviousSearch() =
+      runTest(dispatcher) {
+        val model = model()
+        model.updateQuery("Bob")
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("bob"),
+            model.uiState.value.results.map { it.user.uid },
+        )
+
+        aliceFriends.failure = FriendRepositoryException.Network()
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.relationshipsFailed)
+        assertEquals(0, aliceFriends.activeObservers)
+        assertTrue(model.uiState.value.results.isNotEmpty())
+
+        auth.signOut()
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.sessionEnded)
+        assertTrue(model.uiState.value.results.isEmpty())
+        assertTrue(model.uiState.value.query.isEmpty())
+
+        // A terminated session must not restart operations.
+        model.retryRelationships()
+        model.retrySearch()
+        model.sendRequest("bob")
+        advanceUntilIdle()
+
+        assertEquals(0, aliceFriends.activeObservers)
+        assertEquals(1, users.searchCount)
+        assertEquals(0, friends.sendCount)
+      }
+
+  @Test
+  fun switchingAccountsAfterFailedObservationClearsPersonalData() =
+      runTest(dispatcher) {
+        val model = model()
+        model.updateQuery("Bob")
+        advanceUntilIdle()
+
+        aliceFriends.failure = FriendRepositoryException.Network()
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.relationshipsFailed)
+
+        auth.setCurrentAccount(AuthenticatedUser("another", "Another", null, null))
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.sessionEnded)
+        assertTrue(model.uiState.value.results.isEmpty())
+        assertEquals(0, aliceFriends.activeObservers)
       }
 
   private class ControlledFriends(

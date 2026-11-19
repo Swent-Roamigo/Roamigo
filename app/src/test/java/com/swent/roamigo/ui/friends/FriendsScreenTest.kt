@@ -25,6 +25,7 @@ import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
 class FriendsScreenTest {
@@ -390,5 +391,29 @@ class FriendsScreenTest {
       assertEquals(0, originalDismissals)
       assertEquals(1, replacementDismissals)
     }
+  }
+
+  @Test
+  fun emptyStateIsCenteredInAvailableFriendsContent() {
+    show(uiState = FriendsUiState())
+
+    val listBounds = composeRule.onNodeWithTag(C.Tag.friends_list).fetchSemanticsNode().boundsInRoot
+
+    val emptyBounds =
+        composeRule.onNodeWithTag(C.Tag.friends_empty_state).fetchSemanticsNode().boundsInRoot
+
+    assertEquals(listBounds.center.y, emptyBounds.center.y, 1f)
+
+    composeRule.onNodeWithTag(C.Tag.friends_add_friend).assertIsDisplayed()
+  }
+
+  @Test
+  @Config(qualifiers = "w640dp-h320dp-land")
+  fun emptyStateRemainsScrollableOnShortScreens() {
+    show(uiState = FriendsUiState())
+
+    composeRule.onNodeWithTag(C.Tag.friends_empty_state).performScrollTo().assertIsDisplayed()
+
+    composeRule.onNodeWithTag(C.Tag.friends_add_friend).assertIsDisplayed()
   }
 }
