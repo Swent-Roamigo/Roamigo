@@ -6,6 +6,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -60,13 +62,16 @@ class ActivityFormPickersTest {
   }
 
   @Test
-  fun dateDialogWithoutAValidDateOnlyCloses() {
+  fun dateDialogCannotBeConfirmedWithoutAValidDate() {
     showDateDialog()
     compose.onNodeWithContentDescription("Switch to text input mode").performClick()
     compose.onNode(hasSetTextAction()).performTextClearance()
-    compose.onNodeWithText("OK").performClick()
+    compose.onNodeWithText("OK").assertIsNotEnabled()
+    // The field formats the digits itself, as 10/15/2026 in en-US.
+    compose.onNode(hasSetTextAction()).performTextReplacement("10152026")
+    compose.onNodeWithText("OK").assertIsEnabled().performClick()
     compose.runOnIdle {
-      assertEquals(emptyList<LocalDate>(), picked)
+      assertEquals(listOf<Any>(LocalDate.of(2026, 10, 15)), picked)
       assertEquals(1, dismissed)
     }
   }
