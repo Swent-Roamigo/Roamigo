@@ -87,6 +87,26 @@ class TripDetailsScreenTest {
   }
 
   @Test
+  fun theInviteBadgeOnTheMembersCardInvitesInsteadOfOpeningTheMembersList() {
+    val actions = mutableListOf<String>()
+    composeRule.setContent {
+      RoamigoTheme {
+        TripDetailsScreen(
+            readyState(),
+            {},
+            {},
+            onMembersClick = { actions += "members" },
+            onInviteClick = { actions += "invite" },
+        )
+      }
+    }
+
+    composeRule.onNodeWithText("Invite").performScrollTo().performClick()
+
+    org.junit.Assert.assertEquals(listOf("invite"), actions)
+  }
+
+  @Test
   fun longNamesAndLargeTextKeepPhotoAndMapActionsReachable() {
 
     var mapped = false

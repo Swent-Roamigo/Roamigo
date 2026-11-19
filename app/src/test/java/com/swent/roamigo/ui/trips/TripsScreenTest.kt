@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -22,6 +23,7 @@ import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.unit.dp
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
 import com.swent.roamigo.R
@@ -38,6 +40,7 @@ import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.isNotImplemented
 import com.swent.roamigo.ui.trips.components.OtherTripCard
 import java.time.Clock
 import java.time.Instant
@@ -47,6 +50,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowToast
 
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w800dp-h1600dp")
@@ -154,7 +158,7 @@ class TripsScreenTest {
         TripsRoute(
             tripRepository = tripRepository,
             userRepository = userRepository,
-            onInviteClick = { inviteClicks++ },
+            onInviteTrip = { inviteClicks++ },
             clock = clock,
         )
       }
@@ -184,6 +188,67 @@ class TripsScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.trips_invite_button).performClick()
 
     assertEquals(1, inviteClicks)
+  }
+
+  private val inviteNow = Instant.parse("2026-10-08T12:00:00Z")
+
+  /** Shows Trips home with one highlighted trip; [onInviteTrip] null means "not wired yet". */
+  private fun showMainTrip(onInviteTrip: ((String) -> Unit)? = null) {
+    val mainTrip =
+        trip(
+            uid = "main",
+            name = "Lisbon & Porto",
+            start = inviteNow.minusSeconds(24 * 60 * 60),
+            end = inviteNow.plusSeconds(3 * 24 * 60 * 60),
+            status = TripStatus.ACTIVE,
+            ownerId = "alex",
+        )
+    composeTestRule.setContent {
+      MaterialTheme {
+        TripsRoute(
+            tripRepository =
+                FakeTripRepository(
+                    trips = listOf(mainTrip),
+                    membersByTripId = mapOf(mainTrip.uid to listOf(member("alex", inviteNow))),
+                ),
+            userRepository = FakeUserRepository(currentUser = User("alex", "Alex", null)),
+            onInviteTrip = onInviteTrip,
+            clock = Clock.fixed(inviteNow, ZoneOffset.UTC),
+        )
+      }
+    }
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule
+          .onAllNodesWithTag(C.Tag.trips_invite_button)
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+  }
+
+  @Test
+  fun inviteOpensTheInvitationOfTheHighlightedTrip() {
+    var invitedTrip: String? = null
+    showMainTrip(onInviteTrip = { invitedTrip = it })
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.trips_invite_button)
+        .assert(isNotImplemented.not())
+        .performClick()
+
+    assertEquals("main", invitedTrip)
+  }
+
+  @Test
+  fun inviteWithoutAHandlerIsMarkedAndGivesTheNotImplementedFeedback() {
+    showMainTrip()
+
+    composeTestRule.onNodeWithTag(C.Tag.trips_invite_button).assert(isNotImplemented).performClick()
+
+    assertEquals(
+        ApplicationProvider.getApplicationContext<android.content.Context>()
+            .getString(R.string.feature_not_implemented),
+        ShadowToast.getTextOfLatestToast(),
+    )
   }
 
   @Test

@@ -39,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.TripRepository
+import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.TripActionButton
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
@@ -58,6 +59,7 @@ fun TripDetailsRoute(
     onVotesClick: (String) -> Unit,
     onTripMapClick: () -> Unit,
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
+    onInviteClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   val model = viewModel(key = tripId) { TripDetailsViewModel(tripId, tripRepository) }
   val state by model.uiState.collectAsStateWithLifecycle()
@@ -72,6 +74,7 @@ fun TripDetailsRoute(
       onVotesClick = { state.details?.let { onVotesClick(it.name) } },
       onTripMapClick = onTripMapClick,
       onPhotosClick = onPhotosClick,
+      onInviteClick = onInviteClick,
   )
 }
 
@@ -85,8 +88,9 @@ fun TripDetailsScreen(
     onVotesClick: () -> Unit = {},
     onTripMapClick: () -> Unit = rememberNotImplementedAction(),
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
+    onInviteClick: () -> Unit = rememberNotImplementedAction(),
 ) {
-  Scaffold(modifier = Modifier.testTag("trip_details_screen")) { padding ->
+  Scaffold(modifier = Modifier.testTag(C.Tag.trip_details_screen)) { padding ->
     when {
       state.isLoading ->
           Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
@@ -118,6 +122,7 @@ fun TripDetailsScreen(
               onVotesClick = onVotesClick,
               onTripMapClick = onTripMapClick,
               onPhotosClick = onPhotosClick,
+              onInviteClick = onInviteClick,
           )
     }
   }
@@ -132,6 +137,7 @@ private fun TripDetailsContent(
     onVotesClick: () -> Unit,
     onTripMapClick: () -> Unit,
     onPhotosClick: () -> Unit,
+    onInviteClick: () -> Unit,
 ) {
   Column(
       modifier.padding(
@@ -162,8 +168,9 @@ private fun TripDetailsContent(
       ) {
         Box(
             Modifier.size(48.dp)
-                .markNotImplemented(unfinished)
-                .clickable(role = Role.Button, onClick = unfinished),
+                .testTag(C.Tag.trip_details_invite)
+                .markNotImplemented(onInviteClick)
+                .clickable(role = Role.Button, onClick = onInviteClick),
             contentAlignment = Alignment.CenterEnd,
         ) {
           TripDetailsBadge(stringResource(R.string.trip_details_invite))

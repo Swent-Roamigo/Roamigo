@@ -2,6 +2,7 @@
 package com.swent.roamigo.model.trip.voting
 
 import com.google.firebase.functions.FirebaseFunctions
+import com.swent.roamigo.model.FUNCTIONS_REGION
 import kotlinx.coroutines.tasks.await
 
 /** Trusted tie validation and atomic persistence; callers never supply counts or owner identity. */
@@ -13,7 +14,7 @@ interface VoteResolutionService {
 
 internal class VoteResolutionServiceFunctions(
     private val functions: () -> FirebaseFunctions = {
-      FirebaseFunctions.getInstance("europe-west1")
+      FirebaseFunctions.getInstance(FUNCTIONS_REGION)
     },
 ) : VoteResolutionService {
   override suspend fun createRevote(tripId: String, parentVoteId: String, voteId: String) {
