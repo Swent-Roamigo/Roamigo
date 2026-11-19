@@ -599,6 +599,25 @@
     <string name="place_picker_attribution">© Mapbox and its suppliers · Terms and attribution</string>
 
     <!-- Activity form -->
+    <string name="activity_form_title_new">New activity</string>
+    <string name="activity_form_title_edit">Edit activity</string>
+    <string name="activity_form_subtitle">%1$s · %2$s</string>
+    <string name="activity_form_close">Close</string>
+    <string name="activity_form_name">Activity</string>
+    <string name="activity_form_name_placeholder">What are you planning?</string>
+    <string name="activity_form_date">Date</string>
+    <string name="activity_form_outside_trip">This date is outside the trip (%1$s – %2$s). You can still save it.</string>
+    <string name="activity_form_time">Time</string>
+    <string name="activity_form_time_placeholder">Add a time (optional)</string>
+    <string name="activity_form_time_clear">Remove time</string>
+    <string name="activity_form_place">Place</string>
+    <string name="activity_form_place_placeholder">Choose a place</string>
+    <string name="activity_form_description">Description</string>
+    <string name="activity_form_description_placeholder">Notes for the group (optional)</string>
+    <string name="activity_form_add">Add activity</string>
+    <string name="activity_form_adding">Adding activity…</string>
+    <string name="activity_form_save_changes">Save changes</string>
+    <string name="activity_form_delete">Delete activity</string>
     <string name="activity_form_error_name_blank">Enter a name for the activity.</string>
     <string name="activity_form_error_name_too_long">This name is too long. Shorten it.</string>
     <string name="activity_form_error_description_too_long">This description is too long. Shorten it.</string>
