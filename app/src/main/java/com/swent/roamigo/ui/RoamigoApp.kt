@@ -119,8 +119,19 @@ fun RoamigoApp(
         Consumer<Intent> { intent ->
           // A link from another app comes with FLAG_ACTIVITY_NEW_TASK, and handleDeepLink then
           // rebuilds the back stack. The app is running, so the join screen opens on top instead.
-          intent.dataString?.let(InvitationLinks::tokenFrom)?.let { token ->
-            navController.navigate(Route.join(token)) { launchSingleTop = true }
+          // The token is not checked here, as for a link that starts the app: the server answers
+          // "invalid" for a truncated one, so the user sees the same result either way.
+          val link = intent.data
+          if (
+              link?.scheme.equals(InvitationLinks.SCHEME, ignoreCase = true) &&
+                  link?.host.equals(InvitationLinks.HOST, ignoreCase = true)
+          ) {
+            link
+                ?.lastPathSegment
+                ?.takeIf { it.isNotBlank() }
+                ?.let { token ->
+                  navController.navigate(Route.join(token)) { launchSingleTop = true }
+                }
           }
         }
     hostActivity?.addOnNewIntentListener(listener)
@@ -378,9 +389,10 @@ fun RoamigoApp(
             token = token,
             service = invitationService,
             onJoined = { tripId ->
-              // The join screen is removed, not the trips list below it, which a link opened on a
-              // cold start does not have. Otherwise back would return to a joined screen that
-              // joins again.
+              // The join screen is removed, not the trips list below it, which can be missing (a
+              // link
+              // opened while Permissions was showing). Otherwise back would return to a joined
+              // screen that joins again.
               // Trips home does not know the trip yet. Creating a trip refreshes it the same way.
               requestTripsRefresh(navController)
               navController.navigate(Route.tripDetails(tripId)) {
@@ -511,8 +523,9 @@ private const val TRIP_CREATED_KEY = "trip_created"
  * while Permissions was still showing; it then loads fresh when it is opened.
  */
 private fun requestTripsRefresh(navController: NavHostController) {
-  runCatching { navController.getBackStackEntry(Route.TRIPS) }
-      .getOrNull()
-      ?.savedStateHandle
-      ?.set(TRIP_CREATED_KEY, true)
+  try {
+    navController.getBackStackEntry(Route.TRIPS).savedStateHandle[TRIP_CREATED_KEY] = true
+  } catch (_: IllegalArgumentException) {
+    // Trips home is not on the back stack.
+  }
 }

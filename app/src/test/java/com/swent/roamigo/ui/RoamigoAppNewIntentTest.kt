@@ -106,6 +106,17 @@ class RoamigoAppNewIntentTest {
   }
 
   @Test
+  fun aTruncatedLinkOpenedWhileRunningOpensTheJoinScreenLikeOneThatStartsTheApp() {
+    start()
+    composeRule.waitUntil(5_000) { route() == Route.TRIPS }
+
+    deliverNewIntent("roamigo://invite/abc")
+
+    composeRule.waitUntil(5_000) { route() == Route.JOIN }
+    composeRule.waitUntil(5_000) { service.previewed == listOf("abc") }
+  }
+
+  @Test
   fun anIntentThatIsNotAnInvitationChangesNothing() {
     start()
     composeRule.waitUntil(5_000) { route() == Route.TRIPS }
