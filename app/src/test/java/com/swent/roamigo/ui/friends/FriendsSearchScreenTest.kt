@@ -341,4 +341,26 @@ class FriendsSearchScreenTest {
     compose.onNodeWithTag(C.Tag.friends_search_back).performClick()
     assertEquals(1, backs)
   }
+
+  @Test
+  fun unknownRelationshipAfterFailureDoesNotShowLoadingStatus() {
+    show(
+        FriendsSearchState(
+            query = "Bob",
+            relationshipsLoading = false,
+            relationshipsFailed = true,
+            results = listOf(UserSearchMatch(bob, SearchRelationship.UNKNOWN)),
+        )
+    )
+
+    compose
+        .onNodeWithText(resources.string(R.string.friends_search_status_unknown))
+        .assertIsDisplayed()
+
+    compose
+        .onNodeWithText(resources.string(R.string.friends_search_status_checking))
+        .assertDoesNotExist()
+
+    compose.onNodeWithTag(C.Tag.friends_directory_send_prefix + "bob").assertDoesNotExist()
+  }
 }

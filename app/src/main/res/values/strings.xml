@@ -311,7 +311,8 @@
     <string name="friends_search_pending">Request sent</string>
     <string name="friends_search_incoming">Incoming request</string>
     <string name="friends_search_already_friends">Already friends</string>
-    <string name="friends_search_status_unknown">Checking status…</string>
+    <string name="friends_search_status_unknown">Status unavailable</string>
+    <string name="friends_search_status_checking">Checking status…</string>
     <!-- Existing vote interaction -->
     <string name="vote_submit">Submit vote</string>
     <string name="vote_update">Update vote</string>

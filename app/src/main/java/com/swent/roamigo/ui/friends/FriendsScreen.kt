@@ -153,8 +153,8 @@ fun FriendsScreen(
       BoxWithConstraints(
           modifier = Modifier.fillMaxWidth().weight(1f),
       ) {
-        // Centre l'état vide sur les écrans suffisamment hauts.
-        // Sur un petit écran en paysage, il reste dans la liste déroulante.
+        // Center the empty state when enough vertical space is available.
+        // On shorter screens, keep it inside the scrollable list.
         val centerEmptyState =
             !uiState.hasRelationships &&
                 !uiState.isLoading &&

@@ -253,8 +253,16 @@ fun FriendsSearchScreen(
                 SearchRelationship.FRIEND ->
                     Text(stringResource(R.string.friends_search_already_friends))
 
-                SearchRelationship.UNKNOWN ->
-                    Text(stringResource(R.string.friends_search_status_unknown))
+                SearchRelationship.UNKNOWN -> {
+                  val statusResource =
+                      if (state.relationshipsLoading && !state.relationshipsFailed) {
+                        R.string.friends_search_status_checking
+                      } else {
+                        R.string.friends_search_status_unknown
+                      }
+
+                  Text(stringResource(statusResource))
+                }
               }
             }
           }
