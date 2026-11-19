@@ -26,7 +26,9 @@ sealed interface TripMapUiState {
    * @property activityMarkers markers for activities and suggestions belonging to the trip.
    * @property activitiesLoadState loading status of the activities and suggestions. Existing
    *   markers remain available while refreshing or after a failed refresh.
-   * @property photoMarkers grouped gallery photos with usable coordinates.
+   * @property photoMarkers grouped gallery photos with usable coordinates. The last successful
+   *   markers remain available while refreshing or after a failed refresh.
+   * @property photosLoadState loading status of the gallery, independent of trip and activities.
    */
   data class Loaded(
       val trip: Trip,
@@ -35,11 +37,19 @@ sealed interface TripMapUiState {
       val activityMarkers: List<TripMarkerUiState> = emptyList(),
       val activitiesLoadState: ActivitiesLoadState = ActivitiesLoadState.LOADING,
       val photoMarkers: List<PhotoMarkerUiState> = emptyList(),
+      val photosLoadState: PhotosLoadState = PhotosLoadState.LOADING,
   ) : TripMapUiState
 }
 
 /** Loading status of a trip's activities and suggestions, independent of the trip itself. */
 enum class ActivitiesLoadState {
+  LOADING,
+  LOADED,
+  ERROR,
+}
+
+/** Loading status of a trip's photo gallery, independent of trip and activity loading. */
+enum class PhotosLoadState {
   LOADING,
   LOADED,
   ERROR,

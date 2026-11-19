@@ -15,6 +15,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.location.MemberLocation
+import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.FakeTripRepository
@@ -171,6 +172,7 @@ class TripMapScreenPreviews {
                       profilePictureUrl = null,
                   )
               ),
+          photoRepository = FakePhotoRepository(),
       )
     }
     val tripMapViewModel: TripMapViewModel =

@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelStore
 import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.photo.FakePhotoRepository
+import com.swent.roamigo.model.photo.PhotoRepository
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.FakeTripRepository
@@ -73,6 +75,7 @@ class TripMapViewModelTest {
             viewport = TripMapViewport.Centered(PARIS.latitude, PARIS.longitude),
             members = mapOf(ALICE.uid to MemberDisplayInfo("Alice", "A", ALICE_AVATAR)),
             activitiesLoadState = ActivitiesLoadState.LOADED,
+            photosLoadState = PhotosLoadState.LOADED,
         ),
         viewModel.uiState.value,
     )
@@ -795,6 +798,7 @@ class TripMapViewModelTest {
             FakeTripRepository(),
             FakeActivityRepository(),
             FakeUserRepository(ALICE),
+            FakePhotoRepository(),
         )
 
     assertTrue(factory.create(TripMapViewModel::class.java) is TripMapViewModel)
@@ -883,6 +887,7 @@ class TripMapViewModelTest {
                     "bob-id" to MemberDisplayInfo("B", "B", null),
                 ),
             activitiesLoadState = ActivitiesLoadState.LOADED,
+            photosLoadState = PhotosLoadState.LOADED,
         ),
         viewModel.uiState.value,
     )
@@ -900,6 +905,7 @@ class TripMapViewModelTest {
                     "bob-id" to MemberDisplayInfo("Bob", "B", BOB_AVATAR),
                 ),
             activitiesLoadState = ActivitiesLoadState.LOADED,
+            photosLoadState = PhotosLoadState.LOADED,
         ),
         viewModel.uiState.value,
     )
@@ -1069,10 +1075,16 @@ class TripMapViewModelTest {
       repository: TripRepository,
       userRepository: UserRepository = FakeUserRepository(ALICE),
       activityRepository: ActivityRepository = FakeActivityRepository(),
+      photoRepository: PhotoRepository = FakePhotoRepository(),
   ): TripMapViewModel =
-      TripMapViewModel(TRIP_ID, repository, activityRepository, userRepository).also {
-        store.put("map", it)
-      }
+      TripMapViewModel(
+              tripId = TRIP_ID,
+              tripRepository = repository,
+              activityRepository = activityRepository,
+              userRepository = userRepository,
+              photoRepository = photoRepository,
+          )
+          .also { store.put("map", it) }
 
   private fun repository(load: suspend () -> List<Trip>): TripRepository =
       object : TripRepository by FakeTripRepository() {

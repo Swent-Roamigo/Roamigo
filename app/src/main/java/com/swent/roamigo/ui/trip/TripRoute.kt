@@ -92,8 +92,14 @@ internal fun TripRoute(
     return
   }
   val tripMapFactory =
-      remember(tripId, tripRepository, activityRepository, userRepository) {
-        TripMapViewModel.factory(tripId, tripRepository, activityRepository, userRepository)
+      remember(tripId, tripRepository, activityRepository, userRepository, photoRepository) {
+        TripMapViewModel.factory(
+            tripId = tripId,
+            tripRepository = tripRepository,
+            activityRepository = activityRepository,
+            userRepository = userRepository,
+            photoRepository = photoRepository,
+        )
       }
   val tripModel: TripMapViewModel = viewModel(key = "trip_map_$tripId", factory = tripMapFactory)
   val tripState by tripModel.uiState.collectAsStateWithLifecycle()

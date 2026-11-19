@@ -52,6 +52,7 @@ import com.swent.roamigo.model.connectivity.ConnectivityRepository
 import com.swent.roamigo.model.location.DeviceLocation
 import com.swent.roamigo.model.location.LocationRepository
 import com.swent.roamigo.model.location.MemberLocation
+import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.trip.Activity as TripActivity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.FakeTripRepository
@@ -955,6 +956,7 @@ class TripMapScreenTest {
             tripRepository = tripRepository,
             activityRepository = activityRepository,
             userRepository = FakeUserRepository(User(USER_ID, "Alex", null)),
+            photoRepository = FakePhotoRepository(),
         )
     val locationViewModelFactory =
         LocationViewModel.factory(
