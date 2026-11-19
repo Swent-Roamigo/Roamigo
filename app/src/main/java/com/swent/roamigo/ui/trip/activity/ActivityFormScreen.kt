@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -35,6 +37,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +50,8 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.ui.components.markNotImplemented
@@ -64,17 +69,23 @@ private val PRIMARY_ACTION_MIN_HEIGHT = 50.dp
 /** Minimum height of a picker field, matching an outlined text field. */
 private val FIELD_MIN_HEIGHT = 56.dp
 
+/** Size of the progress indicator inside the primary action. */
+private val PROGRESS_SIZE = 24.dp
+
 /** Stroke width of the progress indicator inside the primary action. */
 private val PROGRESS_STROKE_WIDTH = 2.dp
+
+/** Border width of a picker field, matching an outlined text field. */
+private val FIELD_BORDER_WIDTH = 1.dp
+
+/** Lines the header subtitle may take before a long trip name is cut short. */
+private const val SUBTITLE_MAX_LINES = 2
 
 /** Lines the description field shows before it scrolls. */
 private const val DESCRIPTION_MIN_LINES = 3
 
-/** Date skeleton for a full day, such as "Tue, Oct 13", ordered for the user's locale. */
+/** Date skeleton for a day, such as "Tue, Oct 13", ordered for the user's locale. */
 private const val DAY_SKELETON = "EEEdMMM"
-
-/** Date skeleton for the header, such as "Tue 13", ordered for the user's locale. */
-private const val SHORT_DAY_SKELETON = "EEEd"
 
 /**
  * Renders the activity form from [state] and forwards every change and action.
@@ -97,11 +108,13 @@ fun ActivityFormScreen(
   val enabled = state.canSave
   val locale = LocalConfiguration.current.locales[0]
   val dayFormat = remember(locale) { formatter(locale, DAY_SKELETON) }
-  val shortDayFormat = remember(locale) { formatter(locale, SHORT_DAY_SKELETON) }
   val timeFormat =
       remember(locale) { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale) }
   val openPicker = rememberNotImplementedAction()
   val colors = MaterialTheme.colorScheme
+  val failureRequester = remember { BringIntoViewRequester() }
+  // The failure sits below the fields, so show it when a save fails while the user is further up.
+  LaunchedEffect(state.failure) { if (state.failure != null) failureRequester.bringIntoView() }
   Column(
       modifier
           .fillMaxSize()
@@ -112,11 +125,12 @@ fun ActivityFormScreen(
           .testTag(ActivityFormTestTags.SCREEN),
       verticalArrangement = Arrangement.spacedBy(Spacing.medium),
   ) {
-    Header(state, fields.date.format(shortDayFormat), onClose)
+    // Only Save stays pinned: with the keyboard open, little height is left for the fields.
     Column(
         Modifier.weight(1f).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(Spacing.large),
     ) {
+      Header(state, fields.date.format(dayFormat), onClose)
       FormTextField(
           label = stringResource(R.string.activity_form_name),
           placeholder = stringResource(R.string.activity_form_name_placeholder),
@@ -188,9 +202,26 @@ fun ActivityFormScreen(
           tag = ActivityFormTestTags.DESCRIPTION,
           singleLine = false,
       )
-    }
-    state.failure?.let {
-      ErrorText(stringResource(it.message), Modifier.testTag(ActivityFormTestTags.FAILURE))
+      state.failure?.let {
+        ErrorText(
+            stringResource(it.message),
+            Modifier.bringIntoViewRequester(failureRequester).testTag(ActivityFormTestTags.FAILURE),
+        )
+      }
+      if (state.isEdit) {
+        // Kept apart from the primary action, as in UX-26, so a delete is never a mistaken tap.
+        TextButton(
+            onClick = onDelete,
+            enabled = enabled,
+            colors = ButtonDefaults.textButtonColors(contentColor = colors.error),
+            modifier =
+                Modifier.fillMaxWidth()
+                    .testTag(ActivityFormTestTags.DELETE)
+                    .markNotImplemented(onDelete),
+        ) {
+          Text(stringResource(R.string.activity_form_delete))
+        }
+      }
     }
     Button(
         onClick = onSave,
@@ -202,7 +233,7 @@ fun ActivityFormScreen(
     ) {
       if (state.isSaving) {
         CircularProgressIndicator(
-            Modifier.size(Spacing.extraLarge),
+            Modifier.size(PROGRESS_SIZE),
             strokeWidth = PROGRESS_STROKE_WIDTH,
         )
         Spacer(Modifier.width(Spacing.small))
@@ -216,20 +247,6 @@ fun ActivityFormScreen(
               }
           )
       )
-    }
-    if (state.isEdit) {
-      // Kept apart from the primary action, as in UX-26, so a delete is never a mistaken tap.
-      TextButton(
-          onClick = onDelete,
-          enabled = enabled,
-          colors = ButtonDefaults.textButtonColors(contentColor = colors.error),
-          modifier =
-              Modifier.fillMaxWidth()
-                  .testTag(ActivityFormTestTags.DELETE)
-                  .markNotImplemented(onDelete),
-      ) {
-        Text(stringResource(R.string.activity_form_delete))
-      }
     }
   }
 }
@@ -256,6 +273,8 @@ private fun Header(state: ActivityFormUiState, day: String, onClose: () -> Unit)
           stringResource(R.string.activity_form_subtitle, state.trip.name, day),
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
+          maxLines = SUBTITLE_MAX_LINES,
+          overflow = TextOverflow.Ellipsis,
       )
     }
   }
@@ -272,7 +291,9 @@ private fun FormTextField(
     tag: String,
     singleLine: Boolean = true,
 ) {
-  LabeledField(label, error) {
+  // A content description would replace the typed text for TalkBack, so the label is read on its
+  // own just before the field.
+  LabeledField(label, error, announceLabel = true) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
@@ -282,7 +303,7 @@ private fun FormTextField(
         singleLine = singleLine,
         minLines = if (singleLine) 1 else DESCRIPTION_MIN_LINES,
         shape = MaterialTheme.shapes.small,
-        modifier = Modifier.fillMaxWidth().testTag(tag).semantics { contentDescription = label },
+        modifier = Modifier.fillMaxWidth().testTag(tag),
     )
   }
 }
@@ -305,13 +326,18 @@ private fun PickerField(
         onClick = onClick,
         enabled = enabled,
         shape = MaterialTheme.shapes.small,
-        border = BorderStroke(1.dp, if (error != null) colors.error else colors.outline),
+        border =
+            BorderStroke(FIELD_BORDER_WIDTH, if (error != null) colors.error else colors.outline),
         modifier =
             Modifier.fillMaxWidth()
                 .heightIn(min = FIELD_MIN_HEIGHT)
                 .testTag(tag)
                 .markNotImplemented(onClick)
-                .semantics { contentDescription = label },
+                .semantics {
+                  contentDescription = label
+                  // Read after the label, as the card's description replaces the text it shows.
+                  stateDescription = value
+                },
     ) {
       Row(
           Modifier.heightIn(min = FIELD_MIN_HEIGHT)
@@ -335,14 +361,15 @@ private fun PickerField(
 private fun LabeledField(
     label: String,
     error: ActivityFormError?,
+    announceLabel: Boolean = false,
     field: @Composable () -> Unit,
 ) {
   Column(verticalArrangement = Arrangement.spacedBy(Spacing.small)) {
-    // The field itself carries the label for accessibility services.
     Text(
         label,
         style = MaterialTheme.typography.labelLarge,
-        modifier = Modifier.clearAndSetSemantics {},
+        // Unless announced here, the field itself carries the label for accessibility services.
+        modifier = if (announceLabel) Modifier else Modifier.clearAndSetSemantics {},
     )
     field()
     error?.let { ErrorText(stringResource(it.message)) }
