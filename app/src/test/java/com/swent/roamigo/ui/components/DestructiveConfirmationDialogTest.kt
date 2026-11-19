@@ -6,6 +6,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -21,7 +22,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "en-rUS")
-class DiscardChangesDialogTest {
+class DestructiveConfirmationDialogTest {
   @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
 
   private val events = mutableListOf<String>()
@@ -29,12 +30,14 @@ class DiscardChangesDialogTest {
   private fun show(modifier: Modifier = Modifier) {
     compose.setContent {
       RoamigoTheme {
-        DiscardChangesDialog(
+        DestructiveConfirmationDialog(
             title = "Discard this draft?",
             message = "Your changes will be lost.",
-            onDiscard = { events += "discard" },
-            onKeepEditing = { events += "keep" },
-            discardTestTag = DISCARD_TAG,
+            confirmLabel = "Discard",
+            dismissLabel = "Keep editing",
+            onConfirm = { events += "confirm" },
+            onDismiss = { events += "dismiss" },
+            confirmTestTag = CONFIRM_TAG,
             modifier = modifier,
         )
       }
@@ -42,11 +45,11 @@ class DiscardChangesDialogTest {
   }
 
   @Test
-  fun showsTheTextsAndTheSharedButtons() {
+  fun showsTheTextsAndTheCallerLabels() {
     show()
     compose.onNodeWithText("Discard this draft?").assertIsDisplayed()
     compose.onNodeWithText("Your changes will be lost.").assertIsDisplayed()
-    compose.onNodeWithTag(DISCARD_TAG).assertIsDisplayed()
+    compose.onNodeWithTag(CONFIRM_TAG).assertTextEquals("Discard")
     compose.onNodeWithText("Keep editing").assertIsDisplayed()
   }
 
@@ -54,8 +57,8 @@ class DiscardChangesDialogTest {
   fun eachButtonCallsItsOwnCallback() {
     show()
     compose.onNodeWithText("Keep editing").performClick()
-    compose.onNodeWithTag(DISCARD_TAG).performClick()
-    compose.runOnIdle { assertEquals(listOf("keep", "discard"), events) }
+    compose.onNodeWithTag(CONFIRM_TAG).performClick()
+    compose.runOnIdle { assertEquals(listOf("dismiss", "confirm"), events) }
   }
 
   @Test
@@ -65,6 +68,6 @@ class DiscardChangesDialogTest {
   }
 
   private companion object {
-    const val DISCARD_TAG = "discard_test_confirm"
+    const val CONFIRM_TAG = "destructive_test_confirm"
   }
 }
