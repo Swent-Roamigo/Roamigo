@@ -1,11 +1,13 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.friends
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.friends.FriendRepository
 import com.swent.roamigo.model.friends.FriendRepositoryException
 import com.swent.roamigo.model.friends.FriendRequest
@@ -75,6 +77,7 @@ class FriendsSearchViewModel(
     private val users: UserRepository,
     private val friends: FriendRepository,
     private val currentUserId: String,
+    private val authRepository: AuthRepository,
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow(FriendsSearchState())
@@ -83,11 +86,36 @@ class FriendsSearchViewModel(
   private var relationships: Relationships? = null
   private var relationshipJob: Job? = null
   private var searchJob: Job? = null
+  private var sessionJob: Job? = null
   private val sendJobs = mutableMapOf<String, Job>()
   private var searchVersion = 0L
 
   init {
+    observeSession()
     observeRelationships()
+  }
+
+  /**
+   * Observes authentication independently of relationship streams.
+   *
+   * This also detects sign-out or account switching when Firestore observations have already
+   * failed.
+   */
+  private fun observeSession() {
+    val job =
+        viewModelScope.launch(start = CoroutineStart.LAZY) {
+          try {
+            authRepository.observeCurrentUser().requireSession().collect { account ->
+              if (account?.uid != currentUserId) endSession()
+            }
+          } catch (cancelled: CancellationException) {
+            throw cancelled
+          } catch (_: Exception) {
+            endSession()
+          }
+        }
+    sessionJob = job
+    job.start()
   }
 
   fun updateQuery(query: String) {
@@ -309,6 +337,7 @@ class FriendsSearchViewModel(
       version: Long,
       error: Exception,
   ) {
+    Log.e("FriendsSearch", "Directory search failed", error)
     if (error.isSessionFailure()) {
       endSession()
       return
@@ -325,6 +354,9 @@ class FriendsSearchViewModel(
   }
 
   private fun observeRelationships() {
+
+    if (_uiState.value.sessionEnded) return
+
     val previous = relationshipJob
     previous?.cancel()
 
@@ -414,6 +446,7 @@ class FriendsSearchViewModel(
         )
 
     relationships = null
+    sessionJob?.cancel()
     searchJob?.cancel()
     relationshipJob?.cancel()
     sendJobs.values.toList().forEach { it.cancel() }
@@ -423,12 +456,14 @@ class FriendsSearchViewModel(
     private const val SEARCH_DEBOUNCE_MS = 300L
     private const val MAX_SEARCH_RESULTS = 20
 
+    /** Creates the search ViewModel with its repository and authentication dependencies. */
     fun factory(
         users: UserRepository,
         friends: FriendRepository,
         currentUserId: String,
+        authRepository: AuthRepository,
     ): ViewModelProvider.Factory = viewModelFactory {
-      initializer { FriendsSearchViewModel(users, friends, currentUserId) }
+      initializer { FriendsSearchViewModel(users, friends, currentUserId, authRepository) }
     }
   }
 }

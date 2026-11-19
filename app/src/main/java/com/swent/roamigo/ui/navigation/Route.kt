@@ -13,6 +13,7 @@ object Route {
   const val TRIPS = "trips"
   const val PROFILE = "profile"
   const val FRIENDS = "friends"
+  const val FRIENDS_SEARCH = "friends/search"
   const val NEW_TRIP = "new_trip"
   const val TRIP_READY = "trip/{tripId}/ready"
 

@@ -701,7 +701,7 @@ class FriendsRouteTest {
         .performScrollTo()
         .assertIsDisplayed()
         .performClick()
-    composeRule.onNodeWithTag(C.Tag.friends_empty_state).performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertIsDisplayed()
   }
 
   @Test

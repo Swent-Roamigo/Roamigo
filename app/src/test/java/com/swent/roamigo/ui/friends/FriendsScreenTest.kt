@@ -391,4 +391,18 @@ class FriendsScreenTest {
       assertEquals(1, replacementDismissals)
     }
   }
+
+  @Test
+  fun emptyStateIsCenteredInAvailableFriendsContent() {
+    show(uiState = FriendsUiState())
+
+    val listBounds = composeRule.onNodeWithTag(C.Tag.friends_list).fetchSemanticsNode().boundsInRoot
+
+    val emptyBounds =
+        composeRule.onNodeWithTag(C.Tag.friends_empty_state).fetchSemanticsNode().boundsInRoot
+
+    assertEquals(listBounds.center.y, emptyBounds.center.y, 1f)
+
+    composeRule.onNodeWithTag(C.Tag.friends_add_friend).assertIsDisplayed()
+  }
 }

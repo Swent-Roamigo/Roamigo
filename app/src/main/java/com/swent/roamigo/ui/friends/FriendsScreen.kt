@@ -6,6 +6,7 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -149,17 +150,37 @@ fun FriendsScreen(
         modifier =
             Modifier.fillMaxSize().padding(innerPadding).padding(horizontal = Spacing.screenPadding)
     ) {
-      FriendsList(
-          uiState = uiState,
-          query = query,
-          onQueryChange = { query = it },
-          onRetry = onRetry,
-          onViewMapClick = onViewMapClick,
-          onAcceptRequest = onAcceptRequest,
-          onDeclineRequest = onDeclineRequest,
-          onRemoveFriend = onRemoveFriend,
-          modifier = Modifier.weight(1f),
-      )
+      BoxWithConstraints(
+          modifier = Modifier.fillMaxWidth().weight(1f),
+      ) {
+        // Centre l'état vide sur les écrans suffisamment hauts.
+        // Sur un petit écran en paysage, il reste dans la liste déroulante.
+        val centerEmptyState =
+            !uiState.hasRelationships &&
+                !uiState.isLoading &&
+                uiState.loadError == null &&
+                query.isBlank() &&
+                maxHeight >= 300.dp
+
+        FriendsList(
+            uiState = uiState,
+            query = query,
+            onQueryChange = { query = it },
+            onRetry = onRetry,
+            onViewMapClick = onViewMapClick,
+            onAcceptRequest = onAcceptRequest,
+            onDeclineRequest = onDeclineRequest,
+            onRemoveFriend = onRemoveFriend,
+            modifier = Modifier.fillMaxSize(),
+            showEmptyInline = !centerEmptyState,
+        )
+
+        if (centerEmptyState) {
+          EmptyFriendsState(
+              modifier = Modifier.align(Alignment.Center),
+          )
+        }
+      }
 
       OutlinedButton(
           onClick = onAddFriendClick,
@@ -225,6 +246,7 @@ private fun FriendsList(
     onDeclineRequest: ((String) -> Unit)?,
     onRemoveFriend: ((String) -> Unit)?,
     modifier: Modifier = Modifier,
+    showEmptyInline: Boolean = true,
 ) {
   val filtered = uiState.matching(query)
   LazyColumn(
@@ -237,7 +259,7 @@ private fun FriendsList(
       verticalArrangement = Arrangement.spacedBy(Spacing.medium),
   ) {
     item(key = "header") { FriendsHeader(friendCount = uiState.friends.size) }
-    statusItems(uiState, onRetry)
+    statusItems(uiState, onRetry, showEmptyInline)
     if (uiState.hasRelationships || query.isNotEmpty()) {
       searchItem(query, onQueryChange)
     }
@@ -250,7 +272,11 @@ private fun FriendsList(
   }
 }
 
-private fun LazyListScope.statusItems(uiState: FriendsUiState, onRetry: () -> Unit) {
+private fun LazyListScope.statusItems(
+    uiState: FriendsUiState,
+    onRetry: () -> Unit,
+    showEmptyInline: Boolean,
+) {
   if (uiState.isLoading) {
     item(key = "loading") {
       val loadingDescription = stringResource(R.string.friends_loading)
@@ -281,7 +307,12 @@ private fun LazyListScope.statusItems(uiState: FriendsUiState, onRetry: () -> Un
       }
     }
   }
-  if (!uiState.hasRelationships && !uiState.isLoading && uiState.loadError == null) {
+  if (
+      showEmptyInline &&
+          !uiState.hasRelationships &&
+          !uiState.isLoading &&
+          uiState.loadError == null
+  ) {
     item(key = "empty") { EmptyFriendsState() }
   }
 }
@@ -555,7 +586,7 @@ private fun OutgoingRequestRow(request: OutgoingFriendRequestUiModel) {
 }
 
 @Composable
-private fun InitialAvatar(
+internal fun InitialAvatar(
     displayName: String,
     userId: String,
     profilePictureUrl: String? = null,
