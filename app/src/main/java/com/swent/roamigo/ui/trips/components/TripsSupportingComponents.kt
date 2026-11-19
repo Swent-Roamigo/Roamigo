@@ -38,9 +38,10 @@ internal fun StatusPill(text: String) {
 
 /** Displays a section heading on the Trips Home screen. */
 @Composable
-internal fun SectionTitle(text: String) {
+internal fun SectionTitle(text: String, modifier: Modifier = Modifier) {
   Text(
       text = text,
+      modifier = modifier,
       style = MaterialTheme.typography.headlineSmall,
       fontWeight = FontWeight.SemiBold,
       color = MaterialTheme.colorScheme.onBackground,

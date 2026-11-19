@@ -47,6 +47,10 @@ interface TripInvitationService {
   /** The organiser's current link for [tripId]; asking again returns it while it is valid. */
   suspend fun createLink(tripId: String): InvitationLink
 
+  /**
+   * Who invited the user to which trip. It works for people who are not on the trip and cannot read
+   * it yet. Throws [InvitationException.Invalid] for an unknown, stopped or expired link.
+   */
   suspend fun preview(token: String): InvitationPreview
 
   /** Adds the signed-in user to the trip, and returns its ID. Joining twice changes nothing. */

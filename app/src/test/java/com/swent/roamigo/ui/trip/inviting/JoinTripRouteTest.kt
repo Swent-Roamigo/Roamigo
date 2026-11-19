@@ -8,7 +8,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.trip.inviting.FakeTripInvitationService
-import com.swent.roamigo.model.trip.inviting.InvitationPreview
+import com.swent.roamigo.model.trip.inviting.samplePreview
 import com.swent.roamigo.resources.C
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -22,7 +22,7 @@ class JoinTripRouteTest {
   @get:Rule val composeRule = createComposeRule()
 
   private val service =
-      FakeTripInvitationService(preview = InvitationPreview("trip-7", "Lisbon", "Alex", false))
+      FakeTripInvitationService(preview = samplePreview(tripId = "trip-7", tripName = "Lisbon"))
   private var joined: String? = null
   private var closes = 0
 

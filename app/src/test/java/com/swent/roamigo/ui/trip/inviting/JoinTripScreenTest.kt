@@ -16,7 +16,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.R
-import com.swent.roamigo.model.trip.inviting.InvitationPreview
+import com.swent.roamigo.model.trip.inviting.samplePreview
 import com.swent.roamigo.resources.C
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -29,7 +29,7 @@ import org.robolectric.annotation.Config
 class JoinTripScreenTest {
   @get:Rule val composeRule = createComposeRule()
 
-  private val preview = InvitationPreview("trip", "Lisbon with friends", "Alex", false)
+  private val preview = samplePreview(tripId = "trip")
   private var joins = 0
   private var retries = 0
   private var closes = 0
@@ -100,6 +100,15 @@ class JoinTripScreenTest {
 
     composeRule.onNodeWithText(text(R.string.join_invalid)).assertIsDisplayed()
     composeRule.onAllNodesWithTag(C.Tag.join_button).assertCountEquals(0)
+  }
+
+  @Test
+  fun aRefusedInvitationIsExplainedWithoutAJoinOrRetryButton() {
+    show(JoinTripUiState.NotAllowed)
+
+    composeRule.onNodeWithText(text(R.string.join_not_allowed)).assertIsDisplayed()
+    composeRule.onAllNodesWithTag(C.Tag.join_button).assertCountEquals(0)
+    composeRule.onAllNodesWithTag(C.Tag.join_retry).assertCountEquals(0)
   }
 
   @Test

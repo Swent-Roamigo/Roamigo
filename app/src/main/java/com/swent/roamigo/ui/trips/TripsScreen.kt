@@ -298,7 +298,8 @@ fun TripsScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
               if (uiState.errorMessage == null && uiState.otherTrips.isNotEmpty()) {
-                SectionTitle(stringResource(R.string.trips_other_trips))
+                // The title gives way to the buttons on narrow screens or with large fonts.
+                SectionTitle(stringResource(R.string.trips_other_trips), Modifier.weight(1f))
               } else {
                 Spacer(modifier = Modifier.weight(1f))
               }

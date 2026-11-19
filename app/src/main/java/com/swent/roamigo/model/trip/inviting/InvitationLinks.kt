@@ -14,8 +14,14 @@ object InvitationLinks {
   /** The host that tells invitation links apart from other links of the app. */
   const val HOST = "invite"
 
-  // 16 random bytes in URL-safe base64, as created by the function. Anything else is not a token.
-  private val tokenPattern = Regex("[A-Za-z0-9_-]{16,64}")
+  /**
+   * The shortest and longest text read as a token. The function creates 16 random bytes in URL-safe
+   * base64, which is 22 characters (`randomBytes(16)` in `functions/src/tripInvitations.ts`). The
+   * bounds leave room if that length changes, and still reject text that is clearly not a token.
+   */
+  private const val MIN_TOKEN_LENGTH = 16
+  private const val MAX_TOKEN_LENGTH = 64
+  private val tokenPattern = Regex("[A-Za-z0-9_-]{$MIN_TOKEN_LENGTH,$MAX_TOKEN_LENGTH}")
 
   // The link may sit inside a longer text, such as the whole message the app shares. The token must
   // end where the link ends, so a longer run of token characters is not read as a shorter token.

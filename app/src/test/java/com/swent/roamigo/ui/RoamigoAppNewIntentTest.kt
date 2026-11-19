@@ -11,12 +11,14 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.sampleDestinationRepository
+import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.trip.inviting.FakeTripInvitationService
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -42,6 +44,7 @@ class RoamigoAppNewIntentTest {
         RoamigoApp(
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
+            friendRepository = FakeFriendRepository("alex"),
             authRepository =
                 FakeAuthRepository(
                     AuthenticatedUser("alex", "Alex", null, null),
@@ -55,8 +58,11 @@ class RoamigoAppNewIntentTest {
     }
   }
 
-  private fun deliverNewIntent(link: String) {
-    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(link))
+  private fun deliverNewIntent(link: String, newTask: Boolean = false) {
+    val intent =
+        Intent(Intent.ACTION_VIEW, Uri.parse(link)).apply {
+          if (newTask) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
     composeRule.runOnUiThread {
       // Activity.onNewIntent is protected, and the activity is only reachable through the rule.
       val method =
@@ -77,6 +83,26 @@ class RoamigoAppNewIntentTest {
 
     composeRule.waitUntil(5_000) { route() == Route.JOIN }
     composeRule.waitUntil(5_000) { service.previewed == listOf(token) }
+  }
+
+  @Test
+  fun aLinkFromAnotherAppOpensOnTopOfTheCurrentScreenAndKeepsTheBackStack() {
+    start()
+    composeRule.waitUntil(5_000) { route() == Route.TRIPS }
+    composeRule.runOnUiThread { navController.navigate(Route.NEW_TRIP) }
+    composeRule.waitUntil(5_000) { route() == Route.NEW_TRIP }
+
+    // A link tapped in WhatsApp or Gmail comes with a task of its own, which makes handleDeepLink
+    // rebuild the back stack from the start destination and lose the form.
+    deliverNewIntent("roamigo://invite/$token", newTask = true)
+
+    composeRule.waitUntil(5_000) { route() == Route.JOIN }
+    val stack = composeRule.runOnUiThread {
+      navController.currentBackStack.value.map { it.destination.route }
+    }
+    assertTrue(stack.toString(), Route.NEW_TRIP in stack && Route.TRIPS in stack)
+    composeRule.runOnUiThread { navController.popBackStack() }
+    composeRule.waitUntil(5_000) { route() == Route.NEW_TRIP }
   }
 
   @Test

@@ -24,12 +24,16 @@ import com.swent.roamigo.resources.C
  * [onSubmit] receives the token inside what the user pasted.
  */
 @Composable
-fun JoinWithCodeDialog(onSubmit: (token: String) -> Unit, onDismiss: () -> Unit) {
+fun JoinWithCodeDialog(
+    onSubmit: (token: String) -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
   var text by rememberSaveable { mutableStateOf("") }
   var showError by rememberSaveable { mutableStateOf(false) }
   AlertDialog(
       onDismissRequest = onDismiss,
-      modifier = Modifier.testTag(C.Tag.join_code_dialog),
+      modifier = modifier.testTag(C.Tag.join_code_dialog),
       title = { Text(stringResource(R.string.join_code_title)) },
       text = {
         Column {

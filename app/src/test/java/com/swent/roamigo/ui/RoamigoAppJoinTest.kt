@@ -19,9 +19,10 @@ import com.swent.roamigo.R
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.sampleDestinationRepository
+import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.trip.inviting.FakeTripInvitationService
-import com.swent.roamigo.model.trip.inviting.InvitationPreview
+import com.swent.roamigo.model.trip.inviting.samplePreview
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.navigation.Route
@@ -41,10 +42,7 @@ class RoamigoAppJoinTest {
   @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
 
   private val token = "AbCdEfGh_ijkLMNo-pQrSt"
-  private val service =
-      FakeTripInvitationService(
-          preview = InvitationPreview("trip-1", "Lisbon with friends", "Sam", false)
-      )
+  private val service = FakeTripInvitationService(preview = samplePreview(inviterName = "Sam"))
   private val account = AuthenticatedUser("alex", "Alex", null, null)
   private val auth = FakeAuthRepository(account)
   private lateinit var navController: NavHostController
@@ -57,6 +55,7 @@ class RoamigoAppJoinTest {
         RoamigoApp(
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
+            friendRepository = FakeFriendRepository("alex"),
             authRepository = auth,
             navController = navController,
             locationRepository = FakeLocationRepository(),

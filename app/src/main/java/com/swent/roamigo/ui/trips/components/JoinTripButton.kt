@@ -19,10 +19,10 @@ import com.swent.roamigo.resources.C
 
 /** Button that asks for an invitation link or code, to join someone else's trip. */
 @Composable
-internal fun JoinTripButton(onClick: () -> Unit) {
+internal fun JoinTripButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
   TextButton(
       onClick = onClick,
-      modifier = Modifier.semantics { testTag = C.Tag.trips_join_button },
+      modifier = modifier.semantics { testTag = C.Tag.trips_join_button },
   ) {
     Icon(imageVector = Icons.Outlined.GroupAdd, contentDescription = null)
     Spacer(modifier = Modifier.width(4.dp))

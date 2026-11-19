@@ -16,20 +16,27 @@ import kotlinx.coroutines.launch
 
 /** Presentation state of the screen opened from an invitation. */
 sealed interface JoinTripUiState {
+  /** The invitation is being checked. */
   data object Loading : JoinTripUiState
 
   /** The invitation is valid. [joinFailed] is set after a failed attempt to join. */
   data class Ready(val preview: InvitationPreview, val joinFailed: Boolean = false) :
       JoinTripUiState
 
+  /** The user accepted and the request is running. */
   data class Joining(val preview: InvitationPreview) : JoinTripUiState
 
+  /** The user is on the trip, which the screen now opens. */
   data class Joined(val tripId: String) : JoinTripUiState
 
   /** Unknown, revoked or expired. */
   data object Invalid : JoinTripUiState
 
+  /** The trip has its maximum number of members. */
   data class Full(val preview: InvitationPreview) : JoinTripUiState
+
+  /** The server refused this user, so trying again cannot help. */
+  data object NotAllowed : JoinTripUiState
 
   /** The invitation could not be checked, for example offline. */
   data object Failed : JoinTripUiState
@@ -48,30 +55,44 @@ class JoinTripViewModel(
     load()
   }
 
+  /** Checks the invitation again, for example after the user was offline. */
   fun load() {
     _uiState.value = JoinTripUiState.Loading
     launchState(
         onError = {
-          if (it is InvitationException.Invalid) JoinTripUiState.Invalid else JoinTripUiState.Failed
+          when (it) {
+            is InvitationException.Invalid -> JoinTripUiState.Invalid
+            is InvitationException.NotAllowed -> JoinTripUiState.NotAllowed
+            else -> JoinTripUiState.Failed
+          }
         }
     ) {
       JoinTripUiState.Ready(service.preview(token))
     }
   }
 
-  /** Joins the trip. A second tap while joining, or after joining, does nothing. */
+  /**
+   * Joins the trip. A second tap while joining, or after joining, does nothing. Someone who is
+   * already on the trip is not sent to the server again, so they reach their trip even if the link
+   * was stopped or the phone went offline since the preview.
+   */
   fun join() {
     val preview =
         when (val state = _uiState.value) {
           is JoinTripUiState.Ready -> state.preview
           else -> return
         }
+    if (preview.alreadyMember) {
+      _uiState.value = JoinTripUiState.Joined(preview.tripId)
+      return
+    }
     _uiState.value = JoinTripUiState.Joining(preview)
     launchState(
         onError = {
           when (it) {
             is InvitationException.Invalid -> JoinTripUiState.Invalid
             is InvitationException.Full -> JoinTripUiState.Full(preview)
+            is InvitationException.NotAllowed -> JoinTripUiState.NotAllowed
             else -> JoinTripUiState.Ready(preview, joinFailed = true)
           }
         }
@@ -101,6 +122,7 @@ class JoinTripViewModel(
   }
 
   companion object {
+    /** Builds the ViewModel of the invitation [token] with its [service]. */
     fun factory(token: String, service: TripInvitationService): ViewModelProvider.Factory =
         object : ViewModelProvider.Factory {
           @Suppress("UNCHECKED_CAST")

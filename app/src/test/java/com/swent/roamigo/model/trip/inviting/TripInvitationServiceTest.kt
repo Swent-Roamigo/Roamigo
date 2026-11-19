@@ -79,7 +79,7 @@ class TripInvitationServiceTest {
     val preview = service.preview("tok")
 
     assertEquals(listOf("previewTripInvitation" to mapOf("token" to "tok")), calls)
-    assertEquals(InvitationPreview("trip-1", "Lisbon", "Alex", true), preview)
+    assertEquals(samplePreview(tripName = "Lisbon", alreadyMember = true), preview)
   }
 
   @Test

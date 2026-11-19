@@ -63,8 +63,9 @@ fun JoinTripScreen(
     onJoin: () -> Unit,
     onRetry: () -> Unit,
     onClose: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-  Box(Modifier.fillMaxSize().background(Paper).safeDrawingPadding().testTag(C.Tag.join_screen)) {
+  Box(modifier.fillMaxSize().background(Paper).safeDrawingPadding().testTag(C.Tag.join_screen)) {
     IconButton(
         onClick = onClose,
         modifier = Modifier.align(Alignment.TopStart).testTag(C.Tag.join_back),
@@ -103,6 +104,7 @@ fun JoinTripScreen(
         // The route leaves this screen as soon as the trip is joined.
         is JoinTripUiState.Joined -> CircularProgressIndicator(Modifier.testTag(C.Tag.join_loading))
         JoinTripUiState.Invalid -> Message(R.string.join_invalid, title = true)
+        JoinTripUiState.NotAllowed -> Message(R.string.join_not_allowed, title = true)
         is JoinTripUiState.Full -> {
           Invitation(state.preview)
           Message(R.string.join_full)

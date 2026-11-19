@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import com.swent.roamigo.model.trip.inviting.FakeTripInvitationService
 import com.swent.roamigo.model.trip.inviting.InvitationException
-import com.swent.roamigo.model.trip.inviting.InvitationPreview
+import com.swent.roamigo.model.trip.inviting.samplePreview
 import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -24,7 +24,7 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class JoinTripViewModelTest {
   private val dispatcher = StandardTestDispatcher()
-  private val preview = InvitationPreview("trip-1", "Lisbon with friends", "Alex", false)
+  private val preview = samplePreview()
   private val service = FakeTripInvitationService(preview = preview)
 
   @Before fun setUp() = Dispatchers.setMain(dispatcher)
@@ -164,6 +164,47 @@ class JoinTripViewModelTest {
       }
 
   @Test
+  fun anExistingMemberOpensTheirTripWithoutAskingTheServerAgain() =
+      runTest(dispatcher) {
+        val member = preview.copy(alreadyMember = true)
+        service.preview = member
+        val model = JoinTripViewModel("tok", service)
+        advanceUntilIdle()
+        // The link was stopped, or the phone went offline, since the preview.
+        service.failure = InvitationException.Invalid()
+
+        model.join()
+        advanceUntilIdle()
+
+        assertEquals(JoinTripUiState.Joined(member.tripId), model.uiState.value)
+        assertEquals(emptyList<String>(), service.accepted)
+      }
+
+  @Test
+  fun aRefusedCheckCannotBeRetried() =
+      runTest(dispatcher) {
+        service.failure = InvitationException.NotAllowed()
+
+        val model = JoinTripViewModel("tok", service)
+        advanceUntilIdle()
+
+        assertEquals(JoinTripUiState.NotAllowed, model.uiState.value)
+      }
+
+  @Test
+  fun aRefusedJoinCannotBeRetried() =
+      runTest(dispatcher) {
+        val model = JoinTripViewModel("tok", service)
+        advanceUntilIdle()
+        service.failure = InvitationException.NotAllowed()
+
+        model.join()
+        advanceUntilIdle()
+
+        assertEquals(JoinTripUiState.NotAllowed, model.uiState.value)
+      }
+
+  @Test
   fun theFactoryBuildsTheViewModelAndClosingItCancelsARunningCheck() =
       runTest(dispatcher) {
         service.gate = CompletableDeferred()
@@ -175,6 +216,8 @@ class JoinTripViewModelTest {
         assertEquals(JoinTripUiState.Loading, model.uiState.value)
 
         store.clear()
+        // The request would now succeed; only cancellation keeps the state from changing.
+        service.gate!!.complete(Unit)
         advanceUntilIdle()
 
         assertEquals(JoinTripUiState.Loading, model.uiState.value)
@@ -195,6 +238,7 @@ class JoinTripViewModelTest {
         assertEquals(JoinTripUiState.Joining(preview), model.uiState.value)
 
         store.clear()
+        service.gate!!.complete(Unit)
         advanceUntilIdle()
 
         assertEquals(JoinTripUiState.Joining(preview), model.uiState.value)

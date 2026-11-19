@@ -115,7 +115,14 @@ fun RoamigoApp(
   // on the same activity. The navigation graph only follows it when it is told about it.
   val hostActivity = LocalActivity.current as? ComponentActivity
   DisposableEffect(navController, hostActivity) {
-    val listener = Consumer<Intent> { navController.handleDeepLink(it) }
+    val listener =
+        Consumer<Intent> { intent ->
+          // A link from another app comes with FLAG_ACTIVITY_NEW_TASK, and handleDeepLink then
+          // rebuilds the back stack. The app is running, so the join screen opens on top instead.
+          intent.dataString?.let(InvitationLinks::tokenFrom)?.let { token ->
+            navController.navigate(Route.join(token)) { launchSingleTop = true }
+          }
+        }
     hostActivity?.addOnNewIntentListener(listener)
     onDispose { hostActivity?.removeOnNewIntentListener(listener) }
   }
@@ -169,10 +176,10 @@ fun RoamigoApp(
     }
     composable(Route.TRIPS) { entry ->
       val refreshRequested by
-          entry.savedStateHandle.getStateFlow("trip_created", false).collectAsState()
+          entry.savedStateHandle.getStateFlow(TRIP_CREATED_KEY, false).collectAsState()
       TripsRoute(
           refreshRequested = refreshRequested,
-          onRefreshConsumed = { entry.savedStateHandle["trip_created"] = false },
+          onRefreshConsumed = { entry.savedStateHandle[TRIP_CREATED_KEY] = false },
           onMapClick = onMapClick,
           tripRepository = tripRepository,
           userRepository = userRepository,
@@ -375,11 +382,7 @@ fun RoamigoApp(
               // cold start does not have. Otherwise back would return to a joined screen that
               // joins again.
               // Trips home does not know the trip yet. Creating a trip refreshes it the same way.
-              try {
-                navController.getBackStackEntry(Route.TRIPS).savedStateHandle["trip_created"] = true
-              } catch (_: IllegalArgumentException) {
-                // Trips home is not on the back stack, so it loads fresh when it is opened.
-              }
+              requestTripsRefresh(navController)
               navController.navigate(Route.tripDetails(tripId)) {
                 popUpTo(Route.JOIN) { inclusive = true }
                 launchSingleTop = true
@@ -407,7 +410,7 @@ fun RoamigoApp(
             }
           },
           onTripCreated = { tripId, photo ->
-            navController.getBackStackEntry(Route.TRIPS).savedStateHandle["trip_created"] = true
+            requestTripsRefresh(navController)
             navController.navigate(Route.tripReady(tripId)) {
               popUpTo(Route.NEW_TRIP) { inclusive = true }
               launchSingleTop = true
@@ -498,4 +501,18 @@ private suspend fun publishProfileSafely(userRepository: UserRepository) {
   } catch (error: Exception) {
     Log.w("RoamigoApp", "Could not publish user directory profile", error)
   }
+}
+
+/** The saved-state key that asks Trips home to reload, after a trip was created or joined. */
+private const val TRIP_CREATED_KEY = "trip_created"
+
+/**
+ * Asks Trips home to reload. Trips home is missing from the back stack only when a link was opened
+ * while Permissions was still showing; it then loads fresh when it is opened.
+ */
+private fun requestTripsRefresh(navController: NavHostController) {
+  runCatching { navController.getBackStackEntry(Route.TRIPS) }
+      .getOrNull()
+      ?.savedStateHandle
+      ?.set(TRIP_CREATED_KEY, true)
 }
