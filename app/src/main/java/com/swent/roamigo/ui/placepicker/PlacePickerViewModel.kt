@@ -43,6 +43,7 @@ class PlacePickerViewModel(
     private val savedStateHandle: SavedStateHandle,
     initialLocation: TripLocation? = null,
     proximity: PlaceProximity? = null,
+    private val countryCodes: Set<String> = emptySet(),
 ) : ViewModel() {
   private val session = synchronized(sessions) { sessions.getOrPut(repository) { PickerSession() } }
   private val proximity = proximity?.takeIf { validCoordinates(it.latitude, it.longitude) }
@@ -136,7 +137,7 @@ class PlacePickerViewModel(
   private suspend fun executeSearch(query: String, request: Long) {
     try {
       session.revision++
-      val results = repository.searchPlaces(query, proximity)
+      val results = repository.searchPlaces(query, proximity, countryCodes)
       if (request == generation) showSearchResults(results)
     } catch (cancelled: CancellationException) {
       throw cancelled
@@ -409,9 +410,16 @@ class PlacePickerViewModel(
         repository: PlaceRepository,
         initialLocation: TripLocation?,
         proximity: PlaceProximity?,
+        countryCodes: Set<String> = emptySet(),
     ) = viewModelFactory {
       initializer {
-        PlacePickerViewModel(repository, createSavedStateHandle(), initialLocation, proximity)
+        PlacePickerViewModel(
+            repository,
+            createSavedStateHandle(),
+            initialLocation,
+            proximity,
+            countryCodes,
+        )
       }
     }
   }

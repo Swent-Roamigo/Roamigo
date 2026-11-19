@@ -67,6 +67,26 @@ class MapboxPlaceRepositoryTest {
   }
 
   @Test
+  fun suggestLimitsTheSearchToTheCountriesInLowerCaseAndOrder() = runTest {
+    val repository = repository { 200 to """{"suggestions":[]}""" }
+
+    repository.searchPlaces("big ben", PlaceProximity(51.5, -0.12), setOf("GB", "FR"))
+
+    assertEquals("fr,gb", requests.single().url.queryParameter("country"))
+  }
+
+  @Test
+  fun suggestSendsNoCountryWithoutOneAndIgnoresMalformedCodes() = runTest {
+    val repository = repository { 200 to """{"suggestions":[]}""" }
+
+    repository.searchPlaces("big ben")
+    repository.searchPlaces("big ben", countryCodes = setOf("gb", "GBR", ""))
+
+    assertEquals(null, requests[0].url.queryParameter("country"))
+    assertEquals(null, requests[1].url.queryParameter("country"))
+  }
+
+  @Test
   fun suggestMapsResultsAndSendsQueryProximityAndSession() = runTest {
     val repository = repository {
       200 to

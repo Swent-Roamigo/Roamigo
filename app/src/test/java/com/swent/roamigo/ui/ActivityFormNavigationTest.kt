@@ -18,6 +18,7 @@ import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.place.FakePlaceRepository
 import com.swent.roamigo.model.place.PlaceCandidate
+import com.swent.roamigo.model.place.PlaceProximity
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.activity.FakeActivityRepository
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
@@ -49,6 +50,7 @@ class ActivityFormNavigationTest {
   private val tripName = "Lisbon & Porto / 2026?"
   private val candidate = PlaceCandidate("market", "Time Out Market", "Lisbon")
   private val activities = FakeActivityRepository()
+  private val places = FakePlaceRepository(search = { _, _ -> listOf(candidate) })
   private val auth =
       FakeAuthRepository(
           AuthenticatedUser("member", "Member", null, null),
@@ -70,9 +72,7 @@ class ActivityFormNavigationTest {
             navController = navController,
             locationRepository = FakeLocationRepository(),
             friendRepository = FakeFriendRepository("member"),
-            placeRepository =
-                if (injectPlaces) FakePlaceRepository(search = { _, _ -> listOf(candidate) })
-                else null,
+            placeRepository = if (injectPlaces) places else null,
         )
       }
     }
@@ -100,6 +100,19 @@ class ActivityFormNavigationTest {
 
     composeRule.onNodeWithText(tripName, substring = true).assertIsDisplayed()
     composeRule.runOnIdle { assertEquals(Route.NEW_ACTIVITY, currentRoute()) }
+  }
+
+  @Test
+  fun thePlaceSearchLooksAroundTheDestinationOfTheTrip() {
+    openActivityForm()
+
+    composeRule.pickPlace(candidate)
+
+    // The trip's destination is Lisbon, which has no country code, so only the ranking is set.
+    composeRule.runOnIdle {
+      assertEquals(PlaceProximity(38.7, -9.1), places.searchRequests.last().second)
+      assertEquals(emptySet<String>(), places.searchCountries.last())
+    }
   }
 
   @Test

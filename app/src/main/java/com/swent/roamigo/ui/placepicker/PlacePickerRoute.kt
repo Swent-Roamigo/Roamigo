@@ -33,12 +33,13 @@ fun PlacePickerRoute(
     modifier: Modifier = Modifier,
     initialLocation: TripLocation? = null,
     proximity: PlaceProximity? = null,
+    countryCodes: Set<String> = emptySet(),
     viewModelFactory: ViewModelProvider.Factory? = null,
 ) {
   val owner = rememberViewModelStoreOwner()
   val factory =
-      remember(placeRepository, initialLocation, proximity) {
-        PlacePickerViewModel.factory(placeRepository, initialLocation, proximity)
+      remember(placeRepository, initialLocation, proximity, countryCodes) {
+        PlacePickerViewModel.factory(placeRepository, initialLocation, proximity, countryCodes)
       }
   val picker: PlacePickerViewModel =
       viewModel(viewModelStoreOwner = owner, factory = viewModelFactory ?: factory)

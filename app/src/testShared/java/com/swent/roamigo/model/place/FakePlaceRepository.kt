@@ -8,8 +8,16 @@ class FakePlaceRepository(
 ) : PlaceRepository {
   val searchRequests = mutableListOf<Pair<String, PlaceProximity?>>()
   val resolveRequests = mutableListOf<PlaceCandidate>()
-  override suspend fun searchPlaces(query: String, proximity: PlaceProximity?): List<PlaceCandidate> {
+  /** The countries of each search, in the order of [searchRequests]. */
+  val searchCountries = mutableListOf<Set<String>>()
+
+  override suspend fun searchPlaces(
+      query: String,
+      proximity: PlaceProximity?,
+      countryCodes: Set<String>,
+  ): List<PlaceCandidate> {
     searchRequests += query to proximity
+    searchCountries += countryCodes
     return search(query, proximity)
   }
   override suspend fun resolvePlace(candidate: PlaceCandidate): Place {
