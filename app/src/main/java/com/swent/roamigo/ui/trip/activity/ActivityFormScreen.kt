@@ -47,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -64,7 +65,6 @@ import com.swent.roamigo.ui.theme.Warning
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import java.util.Locale
 
 /** Minimum height of the primary action, large enough to tap with a thumb. */
@@ -91,6 +91,10 @@ private const val DESCRIPTION_MIN_LINES = 3
 /** Date skeleton for a day, such as "Tue, Oct 13", ordered for the user's locale. */
 private const val DAY_SKELETON = "EEEdMMM"
 
+/** Time skeletons matching the clock the time picker shows, such as "19:30" or "7:30 PM". */
+private const val TIME_24_HOUR_SKELETON = "Hm"
+private const val TIME_12_HOUR_SKELETON = "hm"
+
 /** Renders the activity form from [state] and forwards every change and action. */
 @Composable
 fun ActivityFormScreen(
@@ -109,8 +113,12 @@ fun ActivityFormScreen(
   val enabled = state.canSave
   val locale = LocalConfiguration.current.locales[0]
   val dayFormat = remember(locale) { formatter(locale, DAY_SKELETON) }
+  // Follow the system 12/24-hour setting, like the time picker, rather than the locale alone.
+  val is24Hour = DateFormat.is24HourFormat(LocalContext.current)
   val timeFormat =
-      remember(locale) { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale) }
+      remember(locale, is24Hour) {
+        formatter(locale, if (is24Hour) TIME_24_HOUR_SKELETON else TIME_12_HOUR_SKELETON)
+      }
   var pickingDate by rememberSaveable { mutableStateOf(false) }
   var pickingTime by rememberSaveable { mutableStateOf(false) }
   val colors = MaterialTheme.colorScheme
