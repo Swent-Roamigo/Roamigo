@@ -92,6 +92,7 @@ class MainActivity : ComponentActivity() {
               photoRepository = remember { (application as RoamigoApplication).photos.repository },
               locationRepository =
                   remember { (application as RoamigoApplication).locationRepository },
+              placeRepository = remember { (application as RoamigoApplication).placeRepository },
               countryCounts = countryCounts,
               userRepository = userRepository,
               invitationService = remember { TripInvitationServiceFunctions() },

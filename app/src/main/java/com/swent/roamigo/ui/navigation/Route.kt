@@ -3,6 +3,8 @@ package com.swent.roamigo.ui.navigation
 
 import android.net.Uri
 import androidx.navigation.NavBackStackEntry
+import com.swent.roamigo.ui.trip.activity.ActivityFormTrip
+import java.time.LocalDate
 
 /** Navigation route names, defined once so screens and tests never repeat string literals. */
 object Route {
@@ -21,6 +23,8 @@ object Route {
   const val TRIP_DETAILS = "trip/{tripId}/details?readOnly={readOnly}&initialTab={initialTab}"
   const val VOTE = "trip/{tripId}/vote/{voteId}?readOnly={readOnly}"
   const val NEW_VOTE = "trip/{tripId}/new_vote"
+  const val NEW_ACTIVITY =
+      "trip/{tripId}/new_activity?tripName={tripName}&startDate={startDate}&endDate={endDate}"
   const val MEMBERS = "trip/{tripId}/members"
   const val TRIP_OVERVIEW_MAP = "trip_overview_map"
   const val JOIN = "join/{token}"
@@ -36,6 +40,11 @@ object Route {
   fun members(tripId: String): String = "trip/${Uri.encode(tripId)}/members"
 
   fun newVote(tripId: String): String = "trip/${Uri.encode(tripId)}/new_vote"
+
+  /** Opens the activity form for [trip], whose name and dates the trip screen already has. */
+  fun newActivity(tripId: String, trip: ActivityFormTrip): String =
+      "trip/${Uri.encode(tripId)}/new_activity?tripName=${Uri.encode(trip.name)}" +
+          "&startDate=${trip.startDate}&endDate=${trip.endDate}"
 }
 
 // Argument names are written in the route patterns above, so they are read back in one place.
@@ -45,6 +54,17 @@ internal fun NavBackStackEntry.tripId(): String = requireNotNull(arguments?.getS
 
 /** The invitation token this destination was opened for. */
 internal fun NavBackStackEntry.token(): String = requireNotNull(arguments?.getString("token"))
+
+/** The trip name and dates given to [Route.newActivity]. */
+internal fun NavBackStackEntry.activityFormTrip(): ActivityFormTrip {
+  fun argument(name: String): String =
+      requireNotNull(arguments?.getString(name)) { "Missing route argument $name" }
+  return ActivityFormTrip(
+      name = argument("tripName"),
+      startDate = LocalDate.parse(argument("startDate")),
+      endDate = LocalDate.parse(argument("endDate")),
+  )
+}
 
 /** The vote this destination was opened for. */
 internal fun NavBackStackEntry.voteId(): String = requireNotNull(arguments?.getString("voteId"))

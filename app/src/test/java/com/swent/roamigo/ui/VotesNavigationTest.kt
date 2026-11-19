@@ -23,15 +23,12 @@ import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
 import com.swent.roamigo.R
-import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.sampleDestinationRepository
 import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
-import com.swent.roamigo.model.trip.TravelMode
-import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.model.trip.voting.Vote
@@ -81,22 +78,7 @@ class VotesNavigationTest {
 
   private fun openVotes(historical: Boolean = false) {
     val now = Instant.now().epochSecond
-    val trip =
-        Trip(
-            tripId,
-            tripName,
-            null,
-            listOf(TripLocation(38.7, -9.1, "Lisbon")),
-            Timestamp(if (historical) now - 172800 else now - 3600, 0),
-            Timestamp(if (historical) now - 86400 else now + 86400, 0),
-            false,
-            TravelMode.GROUP,
-            2,
-            "owner",
-            listOf("owner", "member"),
-            if (historical) TripStatus.COMPLETED else TripStatus.ACTIVE,
-            Timestamp(now - 7200, 0),
-        )
+    val trip = navigationTestTrip(tripId, tripName, ended = historical)
     composeRule.setContent {
       navController = rememberNavController()
       RoamigoTheme {

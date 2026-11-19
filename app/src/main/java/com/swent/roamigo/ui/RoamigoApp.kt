@@ -23,6 +23,7 @@ import androidx.core.util.Consumer
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.ClearCredentialException
+import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -37,6 +38,7 @@ import com.swent.roamigo.model.friends.FriendRepository
 import com.swent.roamigo.model.location.LocationRepository
 import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.photo.PhotoRepository
+import com.swent.roamigo.model.place.PlaceRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.activity.ActivityRepository
@@ -55,6 +57,7 @@ import com.swent.roamigo.ui.heatmap.ExploredWorldRoute
 import com.swent.roamigo.ui.heatmap.VisitedCountryCounts
 import com.swent.roamigo.ui.map.TripOverviewMapRoute
 import com.swent.roamigo.ui.navigation.Route
+import com.swent.roamigo.ui.navigation.activityFormTrip
 import com.swent.roamigo.ui.navigation.isReadOnly
 import com.swent.roamigo.ui.navigation.opensMap
 import com.swent.roamigo.ui.navigation.token
@@ -63,6 +66,8 @@ import com.swent.roamigo.ui.navigation.voteId
 import com.swent.roamigo.ui.permissions.PermissionsScreen
 import com.swent.roamigo.ui.profile.ProfileRoute
 import com.swent.roamigo.ui.trip.TripRoute
+import com.swent.roamigo.ui.trip.activity.ActivityFormMode
+import com.swent.roamigo.ui.trip.activity.ActivityFormRoute
 import com.swent.roamigo.ui.trip.creation.CreateTripRoute
 import com.swent.roamigo.ui.trip.creation.TripReadyRoute
 import com.swent.roamigo.ui.trip.history.TripHistoryRoute
@@ -82,7 +87,8 @@ import kotlinx.coroutines.launch
  * Repository defaults provide placeholders for previews and tests; MainActivity supplies real
  * trips, activities, and votes.
  *
- * @param activityRepository Provides live activity and suggestion updates for the trip map.
+ * @param activityRepository Provides live activity and suggestion updates for the trip map, and
+ *   stores the activities created with the activity form.
  * @param voteRepository Shared backend for trip vote discovery, creation, and individual ballots.
  * @param photoRepository Takes trip photos and keeps them until they are uploaded.
  * @param connectivityRepository Tells whether the device is online; the device's own by default.
@@ -90,6 +96,8 @@ import kotlinx.coroutines.launch
  *   Every call fails by default, so only production wiring talks to the backend.
  * @param locationRepository Shares the user's location on a trip map; the app-wide instance of
  *   [RoamigoApplication] by default, since sharing must go through a single instance.
+ * @param placeRepository Searches places for the activity form; the app-wide instance of
+ *   [RoamigoApplication] by default, since Search Box keeps one provider session.
  */
 @Composable
 fun RoamigoApp(
@@ -105,6 +113,7 @@ fun RoamigoApp(
     photoRepository: PhotoRepository = remember { FakePhotoRepository() },
     connectivityRepository: ConnectivityRepository? = null,
     locationRepository: LocationRepository? = null,
+    placeRepository: PlaceRepository? = null,
     countryCounts: VisitedCountryCounts = remember { VisitedCountryCounts { emptyMap() } },
     invitationService: TripInvitationService = UnavailableTripInvitationService,
 ) {
@@ -233,6 +242,27 @@ fun RoamigoApp(
         )
       }
     }
+    composable(Route.NEW_ACTIVITY) { entry ->
+      val tripId = entry.tripId()
+      val trip = remember(entry) { entry.activityFormTrip() }
+      val places =
+          placeRepository
+              ?: remember(context) {
+                (context.applicationContext as RoamigoApplication).placeRepository
+              }
+      SignedIn(authRepository, navController) {
+        // Ignores a second ✕ or back during the exit animation, which would also pop the trip.
+        val leave = dropUnlessResumed { navController.popBackStack() }
+        ActivityFormRoute(
+            activityRepository = activityRepository,
+            placeRepository = places,
+            mode = ActivityFormMode.Create(tripId, defaultDate = null),
+            trip = trip,
+            onClose = leave,
+            onActivitySaved = { leave() },
+        )
+      }
+    }
     composable(Route.MEMBERS) { entry ->
       val tripId = entry.tripId()
       SignedIn(authRepository, navController) { userId ->
@@ -337,6 +367,7 @@ fun RoamigoApp(
             navController.navigate(Route.vote(tripId, voteId, readOnly))
           },
           onCreateVote = { navController.navigate(Route.newVote(tripId)) },
+          onCreateActivity = { trip -> navController.navigate(Route.newActivity(tripId, trip)) },
           onMembersClick = { navController.navigate(Route.members(tripId)) },
           onInviteClick = { inviteTripId = tripId },
           onTripsClick = onTripsClick,

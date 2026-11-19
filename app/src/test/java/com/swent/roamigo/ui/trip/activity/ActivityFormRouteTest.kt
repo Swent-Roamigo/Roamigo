@@ -12,7 +12,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -86,28 +85,6 @@ class ActivityFormRouteTest {
     compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
   }
 
-  private fun pickPlace() {
-    compose.onNodeWithTag(ActivityFormTestTags.PLACE).performClick()
-    compose.onNodeWithTag(PlacePickerTestTags.QUERY).performTextInput("time out")
-    compose.waitUntil(5_000) {
-      compose
-          .onAllNodes(hasTestTag(PlacePickerTestTags.candidate(candidate.id)))
-          .fetchSemanticsNodes()
-          .isNotEmpty()
-    }
-    compose.onNodeWithTag(PlacePickerTestTags.candidate(candidate.id)).performClick()
-    compose.waitUntil(5_000) {
-      compose
-          .onAllNodes(hasTestTag(PlacePickerTestTags.SELECTED))
-          .fetchSemanticsNodes()
-          .isNotEmpty()
-    }
-    compose.onNodeWithTag(PlacePickerTestTags.CONFIRM).performClick()
-    compose.waitUntil(5_000) {
-      compose.onAllNodes(hasTestTag(ActivityFormTestTags.SCREEN)).fetchSemanticsNodes().isNotEmpty()
-    }
-  }
-
   @Test
   fun closingAnUnchangedFormLeavesWithoutAsking() {
     show()
@@ -171,7 +148,7 @@ class ActivityFormRouteTest {
   fun filledFormIsSavedThroughTheRepositoryAndReportedOnce() {
     show()
     compose.onNodeWithTag(ActivityFormTestTags.NAME).performTextInput("Dinner")
-    pickPlace()
+    compose.pickPlace(candidate)
     compose.onNodeWithText("Time Out Market").assertExists()
     compose.onNodeWithTag(ActivityFormTestTags.SUBMIT).performClick()
     compose.waitUntil(5_000) { saved.isNotEmpty() }

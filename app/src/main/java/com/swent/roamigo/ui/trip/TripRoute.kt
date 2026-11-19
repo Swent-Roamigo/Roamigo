@@ -40,6 +40,7 @@ import com.swent.roamigo.ui.map.TripMapRoute
 import com.swent.roamigo.ui.map.TripMapUiState
 import com.swent.roamigo.ui.map.TripMapViewModel
 import com.swent.roamigo.ui.photos.PhotosRoute
+import com.swent.roamigo.ui.trip.activity.ActivityFormTrip
 import com.swent.roamigo.ui.trip.components.AddToTripSheet
 import com.swent.roamigo.ui.trip.details.TripDetailsRoute
 import com.swent.roamigo.ui.trip.voting.VoteCloseDialog
@@ -72,6 +73,7 @@ internal fun TripRoute(
     onAuthenticationRequired: () -> Unit,
     onOpenVote: (String, Boolean) -> Unit,
     onCreateVote: () -> Unit,
+    onCreateActivity: (ActivityFormTrip) -> Unit,
     onMembersClick: () -> Unit,
     onTripsClick: () -> Unit,
     onMapClick: () -> Unit,
@@ -133,12 +135,25 @@ internal fun TripRoute(
             } else kotlinx.coroutines.flow.flowOf(null)
           }
           .collectAsStateWithLifecycle(initialValue = null)
+  val header =
+      loaded?.trip?.let { trip ->
+        TripHeaderUiState(
+            name = trip.name,
+            startDate = trip.startDate.toDate().toInstant().atZone(zone).toLocalDate(),
+            endDate = trip.endDate.toDate().toInstant().atZone(zone).toLocalDate(),
+            memberCount = trip.memberIds.distinct().size,
+            members = trip.memberIds.distinct().mapNotNull { loaded.members[it] },
+        )
+      }
   val tabState = rememberSaveableStateHolder()
   BackHandler(onBack = onBack)
   if (showAdd) {
     AddToTripSheet(
         onDismiss = { showAdd = false },
-        onActivity = notImplemented,
+        // The form shows the trip's name and dates; Add is only offered once the trip has loaded.
+        onActivity = {
+          header?.let { onCreateActivity(ActivityFormTrip(it.name, it.startDate, it.endDate)) }
+        },
         onSuggestion = notImplemented,
         onVote = onCreateVote,
     )
@@ -148,16 +163,7 @@ internal fun TripRoute(
     else tab = TripSection.Map
   }
   TripScreen(
-      trip =
-          loaded?.trip?.let { trip ->
-            TripHeaderUiState(
-                name = trip.name,
-                startDate = trip.startDate.toDate().toInstant().atZone(zone).toLocalDate(),
-                endDate = trip.endDate.toDate().toInstant().atZone(zone).toLocalDate(),
-                memberCount = trip.memberIds.distinct().size,
-                members = trip.memberIds.distinct().mapNotNull { loaded.members[it] },
-            )
-          },
+      trip = header,
       selectedTab = tab,
       isSharing = locationState?.isSharing == true,
       onBack = onBack,
