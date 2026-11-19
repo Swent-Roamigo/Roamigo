@@ -18,7 +18,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
 import com.swent.roamigo.model.place.PlaceRepository
 import com.swent.roamigo.model.trip.activity.ActivityRepository
-import com.swent.roamigo.ui.components.DiscardChangesDialog
+import com.swent.roamigo.ui.components.DestructiveConfirmationDialog
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.placepicker.PlacePickerRoute
 
@@ -96,15 +96,17 @@ fun ActivityFormRoute(
       modifier = modifier,
   )
   if (confirmingDiscard) {
-    DiscardChangesDialog(
+    DestructiveConfirmationDialog(
         title = stringResource(R.string.activity_form_discard_title),
         message = stringResource(R.string.activity_form_discard_message),
-        onDiscard = {
+        confirmLabel = stringResource(R.string.discard_changes_confirm),
+        dismissLabel = stringResource(R.string.discard_changes_keep_editing),
+        onConfirm = {
           confirmingDiscard = false
           onClose()
         },
-        onKeepEditing = { confirmingDiscard = false },
-        discardTestTag = ActivityFormTestTags.DISCARD_CONFIRM,
+        onDismiss = { confirmingDiscard = false },
+        confirmTestTag = ActivityFormTestTags.DISCARD_CONFIRM,
     )
   }
 }

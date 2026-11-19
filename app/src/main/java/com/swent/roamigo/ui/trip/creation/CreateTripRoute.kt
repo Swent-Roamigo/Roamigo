@@ -17,7 +17,7 @@ import com.swent.roamigo.model.destination.DestinationPhoto
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.resources.C
-import com.swent.roamigo.ui.components.DiscardChangesDialog
+import com.swent.roamigo.ui.components.DestructiveConfirmationDialog
 
 /**
  * Owns the draft shared by the destination and date/traveler steps.
@@ -57,15 +57,17 @@ fun CreateTripRoute(
   }
   BackHandler(onBack = back)
   if (confirmingDiscard) {
-    DiscardChangesDialog(
+    DestructiveConfirmationDialog(
         title = stringResource(R.string.create_trip_discard_title),
         message = stringResource(R.string.create_trip_discard_message),
-        onDiscard = {
+        confirmLabel = stringResource(R.string.discard_changes_confirm),
+        dismissLabel = stringResource(R.string.discard_changes_keep_editing),
+        onConfirm = {
           confirmingDiscard = false
           onClose()
         },
-        onKeepEditing = { confirmingDiscard = false },
-        discardTestTag = C.Tag.create_trip_discard_confirm,
+        onDismiss = { confirmingDiscard = false },
+        confirmTestTag = C.Tag.create_trip_discard_confirm,
     )
   }
   LaunchedEffect(state.createdTripId) {
