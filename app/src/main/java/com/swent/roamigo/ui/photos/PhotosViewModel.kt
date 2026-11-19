@@ -185,6 +185,19 @@ class PhotosViewModel(
     if (permissionGranted) startCapture()
   }
 
+  /**
+   * The Photos screen is shown, or back in front, and the location permission may have changed
+   * since the photo in the preview was taken, e.g. on the trip map. The photo keeps the position it
+   * was taken with, so the status never claims one it does not have.
+   */
+  fun onLocationPermissionChecked(granted: Boolean) {
+    val status = local.value.location
+    if (granted && status == PhotoLocationStatus.Off) setLocation(PhotoLocationStatus.NextPhotoOnly)
+    else if (!granted && status == PhotoLocationStatus.NextPhotoOnly) {
+      setLocation(PhotoLocationStatus.Off)
+    }
+  }
+
   /** The camera could not be opened, e.g. because no camera app is installed. */
   fun onCameraUnavailable() {
     captureFile?.let(repository::discard)
@@ -324,7 +337,9 @@ class PhotosViewModel(
           PhotoLocationStatus.Locating -> STATUS_LOCATING
           is PhotoLocationStatus.Attached -> STATUS_ATTACHED
           PhotoLocationStatus.Unavailable -> STATUS_UNAVAILABLE
-          PhotoLocationStatus.Off -> STATUS_OFF
+          // Saved as off: whether the next photo gets a position is checked again on return.
+          PhotoLocationStatus.Off,
+          PhotoLocationStatus.NextPhotoOnly -> STATUS_OFF
         }
     val attached = status as? PhotoLocationStatus.Attached
     savedStateHandle[LATITUDE_KEY] = attached?.latitude

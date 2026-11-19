@@ -9,7 +9,9 @@ package com.swent.roamigo.model.trip.inviting
  * where the link was not clickable.
  */
 object InvitationLinks {
+  /** The URL scheme the app registers for invitation links. */
   const val SCHEME = "roamigo"
+  /** The host that tells invitation links apart from other links of the app. */
   const val HOST = "invite"
 
   // 16 random bytes in URL-safe base64, as created by the function. Anything else is not a token.
@@ -19,6 +21,7 @@ object InvitationLinks {
   // end where the link ends, so a longer run of token characters is not read as a shorter token.
   private val linkPattern = Regex("(?i:$SCHEME://$HOST/)($tokenPattern)(?![A-Za-z0-9_-])")
 
+  /** The link that opens the app on the invitation with [token]. */
   fun linkFor(token: String): String = "$SCHEME://$HOST/$token"
 
   /**

@@ -1,6 +1,7 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.friends
 
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -11,11 +12,16 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -24,6 +30,8 @@ import org.junit.runner.RunWith
 class FriendsScreenTest {
 
   @get:Rule val composeRule = createComposeRule()
+
+  private val resources = FriendsTestResources { ApplicationProvider.getApplicationContext() }
 
   private val populatedState =
       FriendsUiState(
@@ -77,14 +85,40 @@ class FriendsScreenTest {
     show()
 
     composeRule.onNodeWithText("Sam").assertIsDisplayed()
-    composeRule.onNodeWithText("5 countries · 3 trips together").assertIsDisplayed()
+    composeRule
+        .onNodeWithText(
+            resources.string(
+                R.string.friends_metadata,
+                resources.plural(R.plurals.friends_country_count, 5),
+                resources.plural(R.plurals.friends_trip_together_count, 3),
+            )
+        )
+        .assertIsDisplayed()
 
     composeRule.onNodeWithText("Mia").assertIsDisplayed()
-    composeRule.onNodeWithText("9 countries · 2 trips together").assertIsDisplayed()
+    composeRule
+        .onNodeWithText(
+            resources.string(
+                R.string.friends_metadata,
+                resources.plural(R.plurals.friends_country_count, 9),
+                resources.plural(R.plurals.friends_trip_together_count, 2),
+            )
+        )
+        .assertIsDisplayed()
 
     composeRule.onNodeWithText("Jonas").assertIsDisplayed()
-    composeRule.onNodeWithText("3 countries · request sent").assertIsDisplayed()
-    composeRule.onNodeWithText("Pending").assertIsDisplayed()
+    composeRule
+        .onNodeWithText(
+            resources.string(
+                R.string.friends_request_metadata,
+                resources.plural(R.plurals.friends_country_count, 3),
+                resources.string(R.string.friends_request_sent),
+            )
+        )
+        .assertIsDisplayed()
+    composeRule.onNodeWithText(resources.string(R.string.friends_pending)).assertIsDisplayed()
+    composeRule.onNodeWithText(resources.string(R.string.friends_accept)).assertDoesNotExist()
+    composeRule.onNodeWithText(resources.string(R.string.friends_decline)).assertDoesNotExist()
 
     composeRule
         .onNodeWithTag(C.Tag.friends_avatar_prefix + "sam")
@@ -127,11 +161,15 @@ class FriendsScreenTest {
 
     composeRule
         .onNodeWithTag(C.Tag.friends_view_map_prefix + "sam")
-        .assertContentDescriptionEquals("View map for Sam")
+        .assertContentDescriptionEquals(
+            resources.string(R.string.friends_view_map_accessibility, "Sam")
+        )
 
     composeRule
         .onNodeWithTag(C.Tag.friends_view_map_prefix + "mia")
-        .assertContentDescriptionEquals("View map for Mia")
+        .assertContentDescriptionEquals(
+            resources.string(R.string.friends_view_map_accessibility, "Mia")
+        )
   }
 
   @Test
@@ -168,7 +206,7 @@ class FriendsScreenTest {
     show(uiState = FriendsUiState())
 
     composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertIsDisplayed()
-    composeRule.onNodeWithText("No friends yet").assertIsDisplayed()
+    composeRule.onNodeWithText(resources.string(R.string.friends_empty_title)).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.friends_add_friend).assertIsDisplayed()
   }
 
@@ -189,8 +227,16 @@ class FriendsScreenTest {
     show(uiState = state)
 
     composeRule.onNodeWithText("Jonas").assertIsDisplayed()
-    composeRule.onNodeWithText("3 countries · request sent").assertIsDisplayed()
-    composeRule.onNodeWithText("Pending").assertIsDisplayed()
+    composeRule
+        .onNodeWithText(
+            resources.string(
+                R.string.friends_request_metadata,
+                resources.plural(R.plurals.friends_country_count, 3),
+                resources.string(R.string.friends_request_sent),
+            )
+        )
+        .assertIsDisplayed()
+    composeRule.onNodeWithText(resources.string(R.string.friends_pending)).assertIsDisplayed()
 
     composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.friends_view_map_prefix + "jonas").assertDoesNotExist()
@@ -200,7 +246,7 @@ class FriendsScreenTest {
   fun headerShowsFriendCount() {
     show()
 
-    composeRule.onNodeWithText("2 friends").assertIsDisplayed()
+    composeRule.onNodeWithText(resources.plural(R.plurals.friends_count, 2)).assertIsDisplayed()
   }
 
   @Test
@@ -215,9 +261,134 @@ class FriendsScreenTest {
   }
 
   @Test
+  fun searchIncludesIncomingRequestsAndReportsNoMatches() {
+    show(
+        FriendsUiState(
+            incomingRequests = listOf(IncomingFriendRequestUiModel("req-bob", "bob", "Bob"))
+        )
+    )
+    composeRule.onNodeWithTag(C.Tag.friends_search).performTextInput(" bO ")
+    composeRule
+        .onNodeWithTag(C.Tag.friends_accept_prefix + "req-bob")
+        .performScrollTo()
+        .assertIsDisplayed()
+    composeRule
+        .onNodeWithTag(C.Tag.friends_search)
+        .performScrollTo()
+        .performTextReplacement("nobody")
+    composeRule.onNodeWithTag(C.Tag.friends_accept_prefix + "req-bob").assertDoesNotExist()
+    composeRule
+        .onNodeWithText(resources.string(R.string.friends_no_matches))
+        .performScrollTo()
+        .assertIsDisplayed()
+  }
+
+  @Test
   fun searchIsHiddenWhenThereAreNoFriendsOrRequests() {
     show(FriendsUiState())
 
     composeRule.onNodeWithTag(C.Tag.friends_search).assertDoesNotExist()
+  }
+
+  @Test
+  fun leavingTheScreenAcknowledgesTheFailureAndReturningDoesNotReplayIt() {
+    val failure =
+        mutableStateOf<FriendsActionFailure?>(
+            FriendsActionFailure("friendship-sam", FriendsAction.REMOVE)
+        )
+    val visible = mutableStateOf(true)
+    var dismissals = 0
+    composeRule.setContent {
+      RoamigoTheme {
+        if (visible.value) {
+          FriendsScreen(
+              uiState = populatedState.copy(actionFailure = failure.value),
+              onDismissActionFailure = { acknowledgedFailure ->
+                dismissals++
+                if (failure.value == acknowledgedFailure) failure.value = null
+              },
+          )
+        }
+      }
+    }
+    val message = resources.string(R.string.friends_remove_failed)
+    composeRule.onNodeWithText(message).assertIsDisplayed()
+
+    composeRule.runOnIdle { visible.value = false }
+    composeRule.runOnIdle {
+      assertNull(failure.value)
+      assertEquals(1, dismissals)
+      visible.value = true
+    }
+    composeRule.onNodeWithTag(C.Tag.friends_screen).assertIsDisplayed()
+    composeRule.onNodeWithText(message).assertDoesNotExist()
+    composeRule.runOnIdle { assertEquals(1, dismissals) }
+  }
+
+  @Test
+  fun replacingOrClearingAFailureReportsTheSpecificMessageBeingCancelled() {
+    val oldFailure = FriendsActionFailure("friendship-sam", FriendsAction.REMOVE)
+    val newFailure = FriendsActionFailure("request-mia", FriendsAction.DECLINE)
+    val failure = mutableStateOf<FriendsActionFailure?>(oldFailure)
+    val acknowledgements = mutableListOf<FriendsActionFailure>()
+    composeRule.setContent {
+      RoamigoTheme {
+        FriendsScreen(
+            uiState = populatedState.copy(actionFailure = failure.value),
+            onDismissActionFailure = { acknowledgedFailure ->
+              acknowledgements += acknowledgedFailure
+              if (failure.value == acknowledgedFailure) failure.value = null
+            },
+        )
+      }
+    }
+    val oldMessage = resources.string(R.string.friends_remove_failed)
+    val newMessage = resources.string(R.string.friends_decline_failed)
+    composeRule.onNodeWithText(oldMessage).assertIsDisplayed()
+
+    composeRule.runOnIdle { failure.value = newFailure }
+    composeRule.onNodeWithText(newMessage).assertIsDisplayed()
+    composeRule.onNodeWithText(oldMessage).assertDoesNotExist()
+    composeRule.runOnIdle {
+      assertEquals(newFailure, failure.value)
+      assertEquals(listOf(oldFailure), acknowledgements)
+      failure.value = null
+    }
+    composeRule.onNodeWithText(newMessage).assertDoesNotExist()
+    composeRule.runOnIdle { assertEquals(listOf(oldFailure, newFailure), acknowledgements) }
+  }
+
+  @Test
+  fun leavingTheScreenUsesTheLatestDismissCallback() {
+    val failure = FriendsActionFailure("friendship-sam", FriendsAction.REMOVE)
+    val visible = mutableStateOf(true)
+    var originalDismissals = 0
+    var replacementDismissals = 0
+    val dismiss = mutableStateOf<(FriendsActionFailure) -> Unit>({ originalDismissals++ })
+    composeRule.setContent {
+      RoamigoTheme {
+        if (visible.value) {
+          FriendsScreen(
+              uiState = populatedState.copy(actionFailure = failure),
+              onDismissActionFailure = dismiss.value,
+          )
+        }
+      }
+    }
+    val message = resources.string(R.string.friends_remove_failed)
+    composeRule.onNodeWithText(message).assertIsDisplayed()
+    composeRule.runOnIdle {
+      dismiss.value = { acknowledgedFailure ->
+        assertEquals(failure, acknowledgedFailure)
+        replacementDismissals++
+      }
+    }
+    composeRule.waitForIdle()
+
+    composeRule.runOnIdle { visible.value = false }
+    composeRule.runOnIdle {
+      assertEquals(0, originalDismissals)
+      assertEquals(1, replacementDismissals)
+    }
   }
 }

@@ -76,7 +76,7 @@ internal fun TripRoute(
     onTripsClick: () -> Unit,
     onMapClick: () -> Unit,
     onFriendsClick: () -> Unit,
-    onInviteClick: (() -> Unit)? = null,
+    onInviteClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   val context = LocalContext.current
   var tab by rememberSaveable {
@@ -143,6 +143,10 @@ internal fun TripRoute(
         onVote = onCreateVote,
     )
   }
+  val showMapTab = {
+    if (authRepository.getCurrentUser() == null) onAuthenticationRequired()
+    else tab = TripSection.Map
+  }
   TripScreen(
       trip =
           loaded?.trip?.let { trip ->
@@ -177,13 +181,10 @@ internal fun TripRoute(
                 onBack = onBack,
                 onRetryTrip = tripModel::retryTrip,
                 onVotesClick = { tab = TripSection.Votes },
-                onTripMapClick = {
-                  if (authRepository.getCurrentUser() == null) onAuthenticationRequired()
-                  else tab = TripSection.Map
-                },
+                onTripMapClick = showMapTab,
                 onPhotosClick = { tab = TripSection.Photos },
                 onMembersClick = onMembersClick,
-                onInviteClick = onInviteClick ?: notImplemented,
+                onInviteClick = onInviteClick,
             )
         // Keep the map and its camera state when trip loading changes action availability.
         TripSection.Map ->
@@ -215,6 +216,7 @@ internal fun TripRoute(
               locationRepository = location,
               tripId = tripId,
               currentUserId = userId,
+              onOpenMap = showMapTab,
               tripName = loaded?.trip?.name.orEmpty(),
               summary =
                   photosCount?.let { count ->

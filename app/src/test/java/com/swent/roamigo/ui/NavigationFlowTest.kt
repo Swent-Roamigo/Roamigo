@@ -16,6 +16,7 @@ import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.sampleDestinationRepository
+import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TravelMode
@@ -65,6 +66,7 @@ class NavigationFlowTest {
     composeRule.setContent {
       RoamigoTheme {
         RoamigoApp(
+            friendRepository = FakeFriendRepository("alex"),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
             authRepository =

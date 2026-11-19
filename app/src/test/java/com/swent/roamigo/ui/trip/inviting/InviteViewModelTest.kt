@@ -9,6 +9,7 @@ import com.swent.roamigo.model.trip.inviting.FakeTripInvitationService
 import com.swent.roamigo.model.trip.inviting.InvitationException
 import com.swent.roamigo.model.trip.inviting.InvitationLink
 import java.io.IOException
+import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -140,8 +141,12 @@ class InviteViewModelTest {
   @Test
   fun aNewLinkCanBeCreatedAfterStopping() =
       runTest(dispatcher) {
+        service.links =
+            listOf(InvitationLink("first-token-0123456"), InvitationLink("second-token-012345"))
+                .iterator()
         val model = InviteViewModel("trip", service)
         advanceUntilIdle()
+        assertEquals("first-token-0123456", (model.uiState.value as InviteUiState.Ready).token)
         model.stopSharing()
         advanceUntilIdle()
 
@@ -149,7 +154,19 @@ class InviteViewModelTest {
         advanceUntilIdle()
 
         assertEquals(2, service.createdFor.size)
-        assertEquals(true, model.uiState.value is InviteUiState.Ready)
+        assertEquals("second-token-012345", (model.uiState.value as InviteUiState.Ready).token)
+      }
+
+  @Test
+  fun theLinkCarriesTheDateTheBackendGave() =
+      runTest(dispatcher) {
+        val expiry = Instant.parse("2026-11-26T10:00:00Z")
+        service.link = InvitationLink("token-0123456789abcd", expiry)
+
+        val model = InviteViewModel("trip", service)
+        advanceUntilIdle()
+
+        assertEquals(expiry, (model.uiState.value as InviteUiState.Ready).expiresAt)
       }
 
   @Test
@@ -212,6 +229,7 @@ class InviteViewModelTest {
         model.stopSharing()
         advanceUntilIdle()
 
+        // A former owner's links admit nobody, so the link must not be shown as still working.
         assertEquals(InviteUiState.Failed(notAllowed = true), model.uiState.value)
       }
 

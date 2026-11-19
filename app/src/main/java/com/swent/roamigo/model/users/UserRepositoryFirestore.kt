@@ -12,6 +12,7 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.Transaction
 import com.google.firebase.functions.FirebaseFunctions
+import com.swent.roamigo.model.FUNCTIONS_REGION
 import java.security.MessageDigest
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
@@ -36,7 +37,7 @@ class UserRepositoryFirestore(
     private val auth: FirebaseAuth,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val reclaimEmailIndex: suspend (String) -> Unit = { email ->
-      FirebaseFunctions.getInstance("europe-west1")
+      FirebaseFunctions.getInstance(FUNCTIONS_REGION)
           .getHttpsCallable("reclaimEmailLookup")
           .call(mapOf("email" to email))
           .await()
@@ -352,8 +353,8 @@ class UserRepositoryFirestore(
     const val EMAIL_INDEX = "userEmailLookups"
     const val SEARCH_METADATA = "userSearchMetadata"
 
-    const val MAX_NAME = 120
-    const val MAX_EMAIL = 254
+    const val MAX_NAME = MAX_USER_NAME_LENGTH
+    const val MAX_EMAIL = MAX_USER_EMAIL_LENGTH
 
     const val MAX_RESULTS = 20L
   }

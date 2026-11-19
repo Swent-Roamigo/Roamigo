@@ -2,6 +2,7 @@
 package com.swent.roamigo.model.trip.inviting
 
 import com.google.firebase.functions.FirebaseFunctionsException
+import java.time.Instant
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -34,7 +35,19 @@ class TripInvitationServiceTest {
     val link = service.createLink("trip-1")
 
     assertEquals(listOf("createTripInvitation" to mapOf("tripId" to "trip-1")), calls)
-    assertEquals(InvitationLink("tok-0123456789abcdef"), link)
+    assertEquals(
+        InvitationLink("tok-0123456789abcdef", Instant.ofEpochMilli(1_700_000_000_000L)),
+        link,
+    )
+  }
+
+  @Test
+  fun aLinkWithoutAUsableExpiryStillWorksButHasNoDate() = runTest {
+    answer = mapOf("token" to "tok-0123456789abcdef")
+    assertEquals(null, service.createLink("trip-1").expiresAt)
+
+    answer = mapOf("token" to "tok-0123456789abcdef", "expirationTime" to "soon")
+    assertEquals(null, service.createLink("trip-1").expiresAt)
   }
 
   @Test
