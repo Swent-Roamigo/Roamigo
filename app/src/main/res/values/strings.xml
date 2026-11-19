@@ -356,8 +356,8 @@
     <string name="profile_view">View</string>
     <string name="create_trip_discard_title">Discard this trip?</string>
     <string name="create_trip_discard_message">The destinations you chose will not be saved.</string>
-    <string name="create_trip_discard">Discard</string>
-    <string name="create_trip_keep_editing">Keep editing</string>
+    <string name="discard_changes_confirm">Discard</string>
+    <string name="discard_changes_keep_editing">Keep editing</string>
     <string name="profile_log_out">Log out</string>
     <string name="profile_email">%1$s · Signed in with Google</string>
     <plurals name="profile_friend_count">
@@ -629,6 +629,11 @@
     <string name="activity_form_time">Time</string>
     <string name="activity_form_time_placeholder">Add a time (optional)</string>
     <string name="activity_form_time_clear">Remove time</string>
+    <string name="activity_form_time_dialog_title">Choose a time</string>
+    <string name="activity_form_time_use_keyboard">Type the time</string>
+    <string name="activity_form_time_use_clock">Use the clock</string>
+    <string name="activity_form_dialog_confirm">OK</string>
+    <string name="activity_form_dialog_cancel">Cancel</string>
     <string name="activity_form_place">Place</string>
     <string name="activity_form_place_placeholder">Choose a place</string>
     <string name="activity_form_description">Description</string>
@@ -637,6 +642,8 @@
     <string name="activity_form_adding">Adding activity…</string>
     <string name="activity_form_save_changes">Save changes</string>
     <string name="activity_form_delete">Delete activity</string>
+    <string name="activity_form_discard_title">Discard your changes?</string>
+    <string name="activity_form_discard_message">What you entered for this activity will not be saved.</string>
     <string name="activity_form_error_name_blank">Enter a name for the activity.</string>
     <string name="activity_form_error_name_too_long">This name is too long. Shorten it.</string>
     <string name="activity_form_error_description_too_long">This description is too long. Shorten it.</string>

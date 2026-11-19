@@ -1,6 +1,7 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.ui.trip.activity
 
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.getValue
@@ -15,6 +16,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -38,7 +40,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import org.robolectric.shadows.ShadowToast
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "en-rUS-w390dp-h844dp")
@@ -80,6 +81,7 @@ class ActivityFormScreenTest {
               events += "name:$it"
               shown = current.copy(fields = current.fields.copy(name = it))
             },
+            onDateChange = { events += it },
             onTimeChange = { events += (it ?: "no time") },
             onPlaceClick = { events += "place" },
             onDescriptionChange = {
@@ -130,6 +132,13 @@ class ActivityFormScreenTest {
     compose.onNodeWithTag(ActivityFormTestTags.SUBMIT).assertTextContains("Save changes")
     compose.onNodeWithTag(ActivityFormTestTags.DELETE).assertIsDisplayed().performClick()
     assertEquals(listOf<Any>("delete"), events)
+  }
+
+  @Test
+  fun timeFollowsTheSystem24HourSettingLikeThePicker() {
+    Settings.System.putString(compose.activity.contentResolver, Settings.System.TIME_12_24, "24")
+    show(editState)
+    compose.onNodeWithText("19:30").assertExists()
   }
 
   @Test
@@ -252,20 +261,52 @@ class ActivityFormScreenTest {
   }
 
   @Test
-  fun dateAndTimeFieldsGiveTheUnfinishedActionFeedbackUntilTheirPickersExist() {
+  fun dateDialogReturnsTheDayChosenInThePicker() {
     show(createState)
-    listOf(ActivityFormTestTags.DATE, ActivityFormTestTags.TIME).forEach { tag ->
-      ShadowToast.reset()
-      compose
-          .onNodeWithTag(tag)
-          .assert(SemanticsMatcher.expectValue(NotImplemented, true))
-          .performClick()
-      compose.runOnIdle { assertEquals("Not implemented yet", ShadowToast.getTextOfLatestToast()) }
-    }
-    compose
-        .onNodeWithTag(ActivityFormTestTags.PLACE)
-        .assert(SemanticsMatcher.keyNotDefined(NotImplemented))
+    compose.onNodeWithTag(ActivityFormTestTags.DATE).performClick()
+    compose.onNodeWithTag(ActivityFormTestTags.DATE_DIALOG).assertExists()
+    compose.onNode(hasText("Tuesday, October 20, 2026") and hasClickAction()).performClick()
+    compose.onNodeWithText("OK").performClick()
+    compose.onNodeWithTag(ActivityFormTestTags.DATE_DIALOG).assertDoesNotExist()
+    assertEquals(listOf<Any>(day.withDayOfMonth(20)), events)
+  }
+
+  @Test
+  fun cancellingTheDateDialogChangesNothing() {
+    show(createState)
+    compose.onNodeWithTag(ActivityFormTestTags.DATE).performClick()
+    compose.onNode(hasText("Tuesday, October 20, 2026") and hasClickAction()).performClick()
+    compose.onNodeWithText("Cancel").performClick()
+    compose.onNodeWithTag(ActivityFormTestTags.DATE_DIALOG).assertDoesNotExist()
     assertEquals(emptyList<Any>(), events)
+  }
+
+  @Test
+  fun timeDialogReturnsTheHourChosenOnTheClock() {
+    show(editState)
+    compose.onNodeWithTag(ActivityFormTestTags.TIME).performClick()
+    compose.onNodeWithTag(ActivityFormTestTags.TIME_DIALOG).assertExists()
+    // The picker opens on 7:30 PM; choosing 9 on the clock keeps PM and the minutes.
+    compose.onNodeWithContentDescription("9 o'clock").performClick()
+    compose.onNodeWithText("OK").performClick()
+    compose.onNodeWithTag(ActivityFormTestTags.TIME_DIALOG).assertDoesNotExist()
+    assertEquals(listOf<Any>(LocalTime.of(21, 30)), events)
+  }
+
+  @Test
+  fun timeDialogWithoutATimeStartsAtNoon() {
+    show(createState)
+    compose.onNodeWithTag(ActivityFormTestTags.TIME).performClick()
+    compose.onNodeWithText("OK").performClick()
+    assertEquals(listOf<Any>(LocalTime.NOON), events)
+  }
+
+  @Test
+  fun pickerFieldsAreNoLongerPlaceholders() {
+    show(createState)
+    listOf(ActivityFormTestTags.DATE, ActivityFormTestTags.TIME).forEach {
+      compose.onNodeWithTag(it).assert(SemanticsMatcher.keyNotDefined(NotImplemented))
+    }
   }
 
   @Test
