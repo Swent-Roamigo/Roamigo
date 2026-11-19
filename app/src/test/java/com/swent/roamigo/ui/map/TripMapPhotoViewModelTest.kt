@@ -485,6 +485,47 @@ class TripMapPhotoViewModelTest {
   }
 
   @Test
+  fun photosLoadOnlyOnceTheMapIsShownAndOnlyOnce() = runTest {
+    val updates = MutableSharedFlow<List<TripPhoto>>(extraBufferCapacity = 1)
+    val photos = ControlledPhotos { updates }
+    val viewModel = createViewModel(photos, mapShown = false)
+
+    runCurrent()
+    assertEquals(TRIP_ID, viewModel.loaded().trip.uid)
+    assertTrue(photos.requestedTrips.isEmpty())
+
+    viewModel.onMapShown()
+    viewModel.onMapShown()
+    runCurrent()
+    viewModel.onMapShown()
+    runCurrent()
+    assertEquals(listOf(TRIP_ID), photos.requestedTrips)
+    assertEquals(1, updates.subscriptionCount.value)
+
+    assertTrue(updates.tryEmit(listOf(tripPhoto("one", latitude = 1.0, longitude = 2.0))))
+    runCurrent()
+    assertEquals(PhotosLoadState.LOADED, viewModel.loaded().photosLoadState)
+  }
+
+  @Test
+  fun tripReloadRestartsPhotosOnlyIfTheMapWasShown() = runTest {
+    val photos = ControlledPhotos { flowOf(emptyList()) }
+    val viewModel = createViewModel(photos, mapShown = false)
+    runCurrent()
+
+    viewModel.retryTrip()
+    runCurrent()
+    assertTrue(photos.requestedTrips.isEmpty())
+
+    viewModel.onMapShown()
+    runCurrent()
+    viewModel.retryTrip()
+    runCurrent()
+    assertEquals(listOf(TRIP_ID, TRIP_ID), photos.requestedTrips)
+    assertEquals(PhotosLoadState.LOADED, viewModel.loaded().photosLoadState)
+  }
+
+  @Test
   fun photographerNamesHoldOnlyRealProfileNames() = runTest {
     val trips =
         FakeTripRepository(
@@ -513,9 +554,12 @@ class TripMapPhotoViewModelTest {
       tripRepository: TripRepository = FakeTripRepository(trips = listOf(trip())),
       activityRepository: ActivityRepository = FakeActivityRepository(),
       userRepository: UserRepository = FakeUserRepository(USER),
+      mapShown: Boolean = true,
   ): TripMapViewModel =
       TripMapViewModel(TRIP_ID, tripRepository, activityRepository, userRepository, photos).also {
         store.put("map", it)
+        // As TripMapRoute does once the map is on screen, before the trip has loaded.
+        if (mapShown) it.onMapShown()
       }
 
   private fun tripRepository(load: suspend () -> List<Trip>): TripRepository =

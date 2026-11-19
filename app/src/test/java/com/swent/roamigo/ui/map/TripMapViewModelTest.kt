@@ -1097,7 +1097,10 @@ class TripMapViewModelTest {
               userRepository = userRepository,
               photoRepository = photoRepository,
           )
-          .also { store.put("map", it) }
+          .also {
+            store.put("map", it)
+            it.onMapShown()
+          }
 
   private fun repository(load: suspend () -> List<Trip>): TripRepository =
       object : TripRepository by FakeTripRepository() {
