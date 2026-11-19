@@ -18,6 +18,11 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -128,6 +133,30 @@ class InviteSheetContentTest {
 
     assertEquals(ready, shared)
     assertEquals(ready, copied)
+  }
+
+  @Test
+  fun aLinkWithADateSaysWhenItStopsWorking() {
+    val expiry = Instant.parse("2026-11-26T10:00:00Z")
+    show(ready.copy(expiresAt = expiry))
+
+    val date =
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+            .withLocale(Locale.getDefault())
+            .withZone(ZoneId.systemDefault())
+            .format(expiry)
+    composeRule
+        .onNodeWithTag(C.Tag.invite_description)
+        .assertTextEquals("Anyone with this link can join the trip until $date.")
+  }
+
+  @Test
+  fun aLinkWithoutADateDoesNotInventOne() {
+    show(ready)
+
+    composeRule
+        .onNodeWithTag(C.Tag.invite_description)
+        .assertTextEquals(text(R.string.invite_description))
   }
 
   @Test

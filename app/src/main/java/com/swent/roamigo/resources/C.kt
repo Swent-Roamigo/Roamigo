@@ -96,6 +96,7 @@ object C {
     const val trips_history_button = "trips_history_button"
     const val invite_sheet = "invite_sheet"
     const val invite_code = "invite_code"
+    const val invite_description = "invite_description"
     const val invite_share = "invite_share"
     const val invite_copy = "invite_copy"
     const val invite_stop = "invite_stop"

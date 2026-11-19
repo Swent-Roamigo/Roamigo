@@ -1,102 +1,85 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.ui
 
-import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.credentials.CustomCredential
+import androidx.compose.ui.test.performScrollTo
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.google.firebase.Timestamp
+import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.sampleDestinationRepository
 import com.swent.roamigo.model.location.FakeLocationRepository
+import com.swent.roamigo.model.trip.FakeTripRepository
+import com.swent.roamigo.model.trip.TravelMode
+import com.swent.roamigo.model.trip.Trip
+import com.swent.roamigo.model.trip.TripMember
+import com.swent.roamigo.model.trip.TripMemberRole
+import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.trip.inviting.FakeTripInvitationService
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.theme.RoamigoTheme
-import kotlinx.coroutines.runBlocking
+import com.swent.roamigo.ui.trip.creation.TripReadyTestTags
+import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
+/** Every place that offers "Invite" opens the invite sheet for its own trip. */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w800dp-h1600dp")
 class RoamigoAppInvitationTest {
   @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
 
-  private val token = "AbCdEfGh_ijkLMNo-pQrSt"
   private val service = FakeTripInvitationService()
-  private val account = AuthenticatedUser("alex", "Alex", null, null)
-  private val auth = FakeAuthRepository(account)
+  // The app reads the real clock, so the trip must be running now.
+  private val now = Instant.now()
   private lateinit var navController: NavHostController
 
-  private fun start(signedIn: Boolean) {
-    if (signedIn) runBlocking { auth.signInWithGoogle(CustomCredential("test", Bundle())) }
-    composeRule.setContent {
-      navController = rememberNavController()
-      RoamigoTheme {
-        RoamigoApp(
-            voteRepository = InMemoryVoteRepository(),
-            destinationRepository = sampleDestinationRepository(),
-            authRepository = auth,
-            navController = navController,
-            locationRepository = FakeLocationRepository(),
-            invitationService = service,
-        )
-      }
-    }
-  }
+  private fun timestamp(instant: Instant) = Timestamp(instant.epochSecond, 0)
 
-  private fun route() = composeRule.runOnUiThread { navController.currentDestination?.route }
+  private val trip =
+      Trip(
+          uid = "main-trip",
+          name = "Lisbon",
+          description = null,
+          destinations = listOf(TripLocation(38.72, -9.14, "Lisbon")),
+          startDate = timestamp(now.minusSeconds(86_400)),
+          endDate = timestamp(now.plusSeconds(3 * 86_400)),
+          flexibleDates = false,
+          travelMode = TravelMode.GROUP,
+          travelerCount = 2,
+          ownerId = "alex",
+          memberIds = listOf("alex"),
+          status = TripStatus.ACTIVE,
+          createdAt = timestamp(now),
+      )
 
-  @Test
-  fun inviteOnTripsHomeOpensTheInviteSheetForTheMainTrip() {
-    val now = java.time.Instant.now()
-    val timestamp = { instant: java.time.Instant ->
-      com.google.firebase.Timestamp(instant.epochSecond, 0)
-    }
-    val trip =
-        com.swent.roamigo.model.trip.Trip(
-            uid = "main-trip",
-            name = "Lisbon",
-            description = null,
-            destinations = listOf(com.swent.roamigo.model.TripLocation(38.72, -9.14, "Lisbon")),
-            startDate = timestamp(now.minusSeconds(86_400)),
-            endDate = timestamp(now.plusSeconds(3 * 86_400)),
-            flexibleDates = false,
-            travelMode = com.swent.roamigo.model.trip.TravelMode.GROUP,
-            travelerCount = 2,
-            ownerId = "alex",
-            memberIds = listOf("alex"),
-            status = com.swent.roamigo.model.trip.TripStatus.ACTIVE,
-            createdAt = timestamp(now),
-        )
+  private fun start() {
     composeRule.setContent {
       navController = rememberNavController()
       RoamigoTheme {
         RoamigoApp(
             voteRepository = InMemoryVoteRepository(),
             tripRepository =
-                com.swent.roamigo.model.trip.FakeTripRepository(
+                FakeTripRepository(
                     trips = listOf(trip),
                     membersByTripId =
                         mapOf(
-                            "main-trip" to
-                                listOf(
-                                    com.swent.roamigo.model.trip.TripMember(
-                                        "alex",
-                                        com.swent.roamigo.model.trip.TripMemberRole.OWNER,
-                                        timestamp(now),
-                                    )
-                                )
+                            trip.uid to
+                                listOf(TripMember("alex", TripMemberRole.OWNER, timestamp(now)))
                         ),
                 ),
             destinationRepository = sampleDestinationRepository(),
@@ -111,14 +94,48 @@ class RoamigoAppInvitationTest {
         )
       }
     }
-    composeRule.waitUntil(5_000) {
-      composeRule.onAllNodesWithTag(C.Tag.trips_invite_button).fetchSemanticsNodes().isNotEmpty()
-    }
+  }
+
+  private fun waitForTag(tag: String) =
+      composeRule.waitUntil(5_000) {
+        composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
+      }
+
+  private fun assertSheetOpenedForTheTrip() {
+    composeRule.waitUntil(5_000) { service.createdFor.isNotEmpty() }
+    assertEquals(listOf(trip.uid), service.createdFor)
+    composeRule.onNodeWithTag(C.Tag.invite_sheet).assertIsDisplayed()
+  }
+
+  @Test
+  fun inviteOnTripsHomeOpensTheInviteSheetForTheMainTrip() {
+    start()
+    waitForTag(C.Tag.trips_invite_button)
 
     composeRule.onNodeWithTag(C.Tag.trips_invite_button).performClick()
-    composeRule.waitUntil(5_000) { service.createdFor.isNotEmpty() }
 
-    assertEquals(listOf("main-trip"), service.createdFor)
-    composeRule.onNodeWithTag(C.Tag.invite_sheet).assertIsDisplayed()
+    assertSheetOpenedForTheTrip()
+  }
+
+  @Test
+  fun inviteOnTripReadyOpensTheInviteSheetForThatTrip() {
+    start()
+    composeRule.runOnUiThread { navController.navigate(Route.tripReady(trip.uid)) }
+    waitForTag(TripReadyTestTags.INVITE_CARD)
+
+    composeRule.onNodeWithTag(TripReadyTestTags.INVITE_CARD).performScrollTo().performClick()
+
+    assertSheetOpenedForTheTrip()
+  }
+
+  @Test
+  fun inviteOnThePlanTabOpensTheInviteSheetForThatTrip() {
+    start()
+    composeRule.runOnUiThread { navController.navigate(Route.tripDetails(trip.uid)) }
+    waitForTag("trip_details_screen")
+
+    composeRule.onNodeWithText("Invite").performScrollTo().performClick()
+
+    assertSheetOpenedForTheTrip()
   }
 }

@@ -1,7 +1,6 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.ui.trip.inviting
 
-import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
@@ -35,11 +34,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
@@ -47,6 +46,10 @@ import com.swent.roamigo.model.trip.inviting.TripInvitationService
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.TripActionButton
 import com.swent.roamigo.ui.theme.Spacing
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.util.UUID
 
 /** Creates the invitation link of [tripId] and shows it in a bottom sheet. */
@@ -116,7 +119,12 @@ fun InviteSheetContent(
               color = MaterialTheme.colorScheme.error,
           )
         }
-        MutedText(R.string.invite_description)
+        Text(
+            expiryText(state.expiresAt),
+            modifier = Modifier.testTag(C.Tag.invite_description),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Surface(
             shape = MaterialTheme.shapes.small,
             color = MaterialTheme.colorScheme.surfaceVariant,
@@ -124,7 +132,7 @@ fun InviteSheetContent(
         ) {
           Column(
               Modifier.padding(Spacing.large),
-              verticalArrangement = Arrangement.spacedBy(4.dp),
+              verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall * 2),
           ) {
             Text(
                 stringResource(R.string.invite_code_label),
@@ -187,6 +195,17 @@ fun InviteSheetContent(
   }
 }
 
+/** The description of a link, with the day it stops working when the backend said. */
+@Composable
+private fun expiryText(expiresAt: Instant?): String {
+  if (expiresAt == null) return stringResource(R.string.invite_description)
+  val formatter =
+      DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+          .withLocale(LocalLocale.current.platformLocale)
+          .withZone(ZoneId.systemDefault())
+  return stringResource(R.string.invite_description_until, formatter.format(expiresAt))
+}
+
 @Composable
 private fun MutedText(@StringRes text: Int) =
     Text(
@@ -219,12 +238,9 @@ private fun shareInvitation(context: Context, ready: InviteUiState.Ready) {
         type = "text/plain"
         putExtra(Intent.EXTRA_TEXT, message)
       }
-  try {
-    context.startActivity(Intent.createChooser(send, context.getString(R.string.invite_share)))
-  } catch (exception: ActivityNotFoundException) {
-    // The code can still be copied, which the message says.
-    Toast.makeText(context, R.string.invite_share_unavailable, Toast.LENGTH_LONG).show()
-  }
+  // The chooser always resolves, even with no app to share to; the system then says so itself and
+  // the code stays on screen to copy.
+  context.startActivity(Intent.createChooser(send, context.getString(R.string.invite_share)))
 }
 
 private fun copyCode(context: Context, token: String) {

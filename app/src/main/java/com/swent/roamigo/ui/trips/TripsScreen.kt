@@ -119,10 +119,12 @@ fun TripsRoute(
   }
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   val inviteNotImplemented = rememberNotImplementedAction()
-  val inviteMainTrip: () -> Unit = {
-    val tripId = uiState.mainTrip?.id
-    if (tripId != null && onInviteTrip != null) onInviteTrip(tripId) else inviteNotImplemented()
-  }
+  // Without a handler the action stays the not-implemented one, so its semantics flag is kept.
+  val inviteMainTrip: () -> Unit =
+      if (onInviteTrip == null) inviteNotImplemented
+      else {
+        { uiState.mainTrip?.id?.let(onInviteTrip) }
+      }
 
   TripsScreen(
       uiState = uiState,

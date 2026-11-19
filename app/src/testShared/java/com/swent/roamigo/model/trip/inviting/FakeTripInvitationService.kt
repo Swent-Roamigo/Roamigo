@@ -12,10 +12,13 @@ class FakeTripInvitationService(
   /** Suspends every call until it is completed, to observe the state while a call is running. */
   var gate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 
+  /** When set, each call returns the next link, so a new link can be told from the old one. */
+  var links: Iterator<InvitationLink>? = null
+
   override suspend fun createLink(tripId: String): InvitationLink {
     createdFor += tripId
     enter()
-    return link
+    return links?.takeIf { it.hasNext() }?.next() ?: link
   }
 
   override suspend fun revokeLinks(tripId: String) {

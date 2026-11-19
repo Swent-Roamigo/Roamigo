@@ -3,10 +3,15 @@ package com.swent.roamigo.model.trip.inviting
 
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.functions.FirebaseFunctionsException
+import com.swent.roamigo.model.FUNCTIONS_REGION
+import java.time.Instant
 import kotlinx.coroutines.tasks.await
 
-/** A link anyone can use to join a trip, until it expires or the organiser revokes it. */
-data class InvitationLink(val token: String)
+/**
+ * A link anyone can use to join a trip, until [expiresAt] or until the organiser revokes it.
+ * [expiresAt] is null when the backend did not say.
+ */
+data class InvitationLink(val token: String, val expiresAt: Instant? = null)
 
 /** Why an invitation operation failed, in terms the screens can explain. */
 sealed class InvitationException(message: String, cause: Throwable? = null) :
@@ -58,7 +63,7 @@ internal fun interface CallableInvoker {
 /** The callable functions of the real project, in the region the backend is deployed to. */
 internal class FirebaseCallableInvoker(
     private val functions: () -> FirebaseFunctions = {
-      FirebaseFunctions.getInstance("europe-west1")
+      FirebaseFunctions.getInstance(FUNCTIONS_REGION)
     },
 ) : CallableInvoker {
   override suspend fun call(name: String, arguments: Map<String, String>): Any? =
@@ -69,12 +74,15 @@ internal class FirebaseCallableInvoker(
       }
 }
 
+/** The [TripInvitationService] that calls the trusted Cloud Functions. */
 internal class TripInvitationServiceFunctions(
     private val invoker: CallableInvoker = FirebaseCallableInvoker(),
 ) : TripInvitationService {
   override suspend fun createLink(tripId: String): InvitationLink {
     val data = call("createTripInvitation", mapOf("tripId" to tripId))
-    return InvitationLink(token = data.string("token"))
+    // An answer without a usable expiry still gives a working link; the screen just cannot date it.
+    val expiresAt = (data["expirationTime"] as? Number)?.toLong()?.let(Instant::ofEpochMilli)
+    return InvitationLink(token = data.string("token"), expiresAt = expiresAt)
   }
 
   override suspend fun revokeLinks(tripId: String) {
@@ -88,6 +96,7 @@ internal class TripInvitationServiceFunctions(
       (this[key] as? String)?.takeIf { it.isNotBlank() } ?: throw InvitationException.Unavailable()
 }
 
+/** Maps a Cloud Functions error code to the failure the screens explain. */
 internal fun invitationExceptionFor(
     code: FirebaseFunctionsException.Code,
     cause: Throwable? = null,

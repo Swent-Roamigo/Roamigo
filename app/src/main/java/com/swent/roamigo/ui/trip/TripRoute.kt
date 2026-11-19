@@ -76,7 +76,7 @@ internal fun TripRoute(
     onTripsClick: () -> Unit,
     onMapClick: () -> Unit,
     onFriendsClick: () -> Unit,
-    onInviteClick: (() -> Unit)? = null,
+    onInviteClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   val context = LocalContext.current
   var tab by rememberSaveable {
@@ -183,7 +183,7 @@ internal fun TripRoute(
                 },
                 onPhotosClick = { tab = TripSection.Photos },
                 onMembersClick = onMembersClick,
-                onInviteClick = onInviteClick ?: notImplemented,
+                onInviteClick = onInviteClick,
             )
         // Keep the map and its camera state when trip loading changes action availability.
         TripSection.Map ->

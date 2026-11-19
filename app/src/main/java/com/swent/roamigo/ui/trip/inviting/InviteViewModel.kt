@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.swent.roamigo.model.trip.inviting.InvitationException
 import com.swent.roamigo.model.trip.inviting.InvitationLinks
 import com.swent.roamigo.model.trip.inviting.TripInvitationService
+import java.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,15 +16,21 @@ import kotlinx.coroutines.launch
 
 /** Presentation state of the sheet an organiser uses to invite people. */
 sealed interface InviteUiState {
+  /** The link is being created or stopped. */
   data object Loading : InviteUiState
 
   /**
    * [link] is what is shared, and [token] is the code inside it, for chats that block links.
-   * [stopFailed] is set when the organiser asked to stop the link and that did not work, so the
-   * link is still valid and still shown.
+   * [expiresAt] is when the link stops working, if the backend said. [stopFailed] is set when the
+   * organiser asked to stop the link and that did not work, so the link is still valid and still
+   * shown.
    */
-  data class Ready(val link: String, val token: String, val stopFailed: Boolean = false) :
-      InviteUiState
+  data class Ready(
+      val link: String,
+      val token: String,
+      val expiresAt: Instant? = null,
+      val stopFailed: Boolean = false,
+  ) : InviteUiState
 
   /** The link was stopped, so nobody can join with it any more. */
   data object Stopped : InviteUiState
@@ -52,7 +59,11 @@ class InviteViewModel(
   fun load() =
       request({ InviteUiState.Failed(notAllowed = it is InvitationException.NotAllowed) }) {
         val link = service.createLink(tripId)
-        InviteUiState.Ready(link = InvitationLinks.linkFor(link.token), token = link.token)
+        InviteUiState.Ready(
+            link = InvitationLinks.linkFor(link.token),
+            token = link.token,
+            expiresAt = link.expiresAt,
+        )
       }
 
   /**
@@ -60,13 +71,13 @@ class InviteViewModel(
    * request is running does nothing.
    */
   fun stopSharing() {
-    // A link that could not be stopped is still valid, so it stays on screen with the error, not
-    // as a failure to create one.
+    // A link that could not be stopped is still valid, whatever the cause, so it stays on screen
+    // with the warning instead of disappearing as if it had been stopped.
     val shown = _uiState.value as? InviteUiState.Ready
     request(
         onError = {
-          if (it is InvitationException.NotAllowed) InviteUiState.Failed(notAllowed = true)
-          else shown?.copy(stopFailed = true) ?: InviteUiState.Failed(notAllowed = false)
+          shown?.copy(stopFailed = true)
+              ?: InviteUiState.Failed(notAllowed = it is InvitationException.NotAllowed)
         }
     ) {
       service.revokeLinks(tripId)
