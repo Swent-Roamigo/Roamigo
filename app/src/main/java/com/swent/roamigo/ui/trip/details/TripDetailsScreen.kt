@@ -39,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.TripRepository
+import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.TripActionButton
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
@@ -89,7 +90,7 @@ fun TripDetailsScreen(
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
     onInviteClick: () -> Unit = rememberNotImplementedAction(),
 ) {
-  Scaffold(modifier = Modifier.testTag("trip_details_screen")) { padding ->
+  Scaffold(modifier = Modifier.testTag(C.Tag.trip_details_screen)) { padding ->
     when {
       state.isLoading ->
           Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
@@ -167,6 +168,7 @@ private fun TripDetailsContent(
       ) {
         Box(
             Modifier.size(48.dp)
+                .testTag(C.Tag.trip_details_invite)
                 .markNotImplemented(onInviteClick)
                 .clickable(role = Role.Button, onClick = onInviteClick),
             contentAlignment = Alignment.CenterEnd,

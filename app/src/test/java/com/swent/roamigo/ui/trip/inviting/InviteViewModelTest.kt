@@ -220,31 +220,16 @@ class InviteViewModelTest {
       }
 
   @Test
-  fun aStopRefusedForANonOrganiserKeepsTheLinkAndSaysItStillWorks() =
+  fun aFailedStopByAMemberWhoIsNotTheOrganiserIsExplained() =
       runTest(dispatcher) {
         val model = InviteViewModel("trip", service)
-        advanceUntilIdle()
-        val shown = model.uiState.value as InviteUiState.Ready
-        service.failure = InvitationException.NotAllowed()
-
-        model.stopSharing()
-        advanceUntilIdle()
-
-        assertEquals(shown.copy(stopFailed = true), model.uiState.value)
-      }
-
-  @Test
-  fun aStopRefusedWhenNoLinkIsShownExplainsThatTheUserIsNotTheOrganiser() =
-      runTest(dispatcher) {
-        val model = InviteViewModel("trip", service)
-        advanceUntilIdle()
-        model.stopSharing()
         advanceUntilIdle()
         service.failure = InvitationException.NotAllowed()
 
         model.stopSharing()
         advanceUntilIdle()
 
+        // A former owner's links admit nobody, so the link must not be shown as still working.
         assertEquals(InviteUiState.Failed(notAllowed = true), model.uiState.value)
       }
 

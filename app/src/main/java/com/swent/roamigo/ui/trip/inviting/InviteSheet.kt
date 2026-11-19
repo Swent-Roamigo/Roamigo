@@ -29,6 +29,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -132,7 +133,7 @@ fun InviteSheetContent(
         ) {
           Column(
               Modifier.padding(Spacing.large),
-              verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall * 2),
+              verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall),
           ) {
             Text(
                 stringResource(R.string.invite_code_label),
@@ -197,12 +198,13 @@ fun InviteSheetContent(
 
 /** The description of a link, with the day it stops working when the backend said. */
 @Composable
-private fun expiryText(expiresAt: Instant?): String {
+private fun expiryText(expiresAt: Instant?, zone: ZoneId = ZoneId.systemDefault()): String {
   if (expiresAt == null) return stringResource(R.string.invite_description)
+  val locale = LocalLocale.current.platformLocale
   val formatter =
-      DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-          .withLocale(LocalLocale.current.platformLocale)
-          .withZone(ZoneId.systemDefault())
+      remember(locale, zone) {
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale).withZone(zone)
+      }
   return stringResource(R.string.invite_description_until, formatter.format(expiresAt))
 }
 

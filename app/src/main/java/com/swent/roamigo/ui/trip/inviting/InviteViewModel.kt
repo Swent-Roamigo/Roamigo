@@ -71,13 +71,16 @@ class InviteViewModel(
    * request is running does nothing.
    */
   fun stopSharing() {
-    // A link that could not be stopped is still valid, whatever the cause, so it stays on screen
-    // with the warning instead of disappearing as if it had been stopped.
+    // A link that could not be stopped is usually still valid, so it stays on screen with the
+    // warning instead of disappearing as if it had been stopped.
     val shown = _uiState.value as? InviteUiState.Ready
     request(
         onError = {
-          shown?.copy(stopFailed = true)
-              ?: InviteUiState.Failed(notAllowed = it is InvitationException.NotAllowed)
+          // NotAllowed means the caller is a former owner: their links no longer admit anyone
+          // (requireInviterOwns in functions/src/tripInvitations.ts), so a refused stop means the
+          // link is already dead and "it still works" would be wrong.
+          if (it is InvitationException.NotAllowed) InviteUiState.Failed(notAllowed = true)
+          else shown?.copy(stopFailed = true) ?: InviteUiState.Failed(notAllowed = false)
         }
     ) {
       service.revokeLinks(tripId)

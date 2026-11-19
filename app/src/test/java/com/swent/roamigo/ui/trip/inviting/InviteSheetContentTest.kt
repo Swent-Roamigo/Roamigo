@@ -19,10 +19,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
-import java.util.Locale
+import java.util.TimeZone
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -36,10 +34,13 @@ class InviteSheetContentTest {
 
   private val ready =
       InviteUiState.Ready("roamigo://invite/token-0123456789abcd", "token-0123456789abcd")
+  private val defaultZone = TimeZone.getDefault()
   private var shared: InviteUiState.Ready? = null
   private var copied: InviteUiState.Ready? = null
   private var stops = 0
   private var newLinks = 0
+
+  @After fun restoreTimeZone() = TimeZone.setDefault(defaultZone)
 
   private fun show(state: InviteUiState) {
     composeRule.setContent {
@@ -136,18 +137,15 @@ class InviteSheetContentTest {
   }
 
   @Test
+  @Config(qualifiers = "en-rUS-w800dp-h1600dp")
   fun aLinkWithADateSaysWhenItStopsWorking() {
-    val expiry = Instant.parse("2026-11-26T10:00:00Z")
-    show(ready.copy(expiresAt = expiry))
+    // Pinned zone and locale, so the expected text is a literal and not a copy of the formatter.
+    TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+    show(ready.copy(expiresAt = Instant.parse("2026-11-26T10:00:00Z")))
 
-    val date =
-        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-            .withLocale(Locale.getDefault())
-            .withZone(ZoneId.systemDefault())
-            .format(expiry)
     composeRule
         .onNodeWithTag(C.Tag.invite_description)
-        .assertTextEquals("Anyone with this link can join the trip until $date.")
+        .assertTextEquals("Anyone with this link can join the trip until Nov 26, 2026.")
   }
 
   @Test
