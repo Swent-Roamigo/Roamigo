@@ -328,11 +328,16 @@ class FriendsSearchScreenTest {
             query = "Bob",
             sessionEnded = true,
             results = listOf(UserSearchMatch(bob, SearchRelationship.AVAILABLE)),
+            sendFailure = SendRequestFailure("bob", SendFailure.NETWORK),
         )
     )
 
     compose.onNodeWithTag(C.Tag.friends_directory_send_prefix + "bob").assertDoesNotExist()
     compose.onNodeWithTag(C.Tag.friends_directory_query).assertIsNotEnabled()
+
+    compose.onNodeWithTag(C.Tag.friends_directory_send_error).assertDoesNotExist()
+
+    compose.onNodeWithText(resources.string(R.string.friends_session_ended)).assertIsDisplayed()
   }
 
   @Test
@@ -359,6 +364,28 @@ class FriendsSearchScreenTest {
 
     compose
         .onNodeWithText(resources.string(R.string.friends_search_status_checking))
+        .assertDoesNotExist()
+
+    compose.onNodeWithTag(C.Tag.friends_directory_send_prefix + "bob").assertDoesNotExist()
+  }
+
+  @Test
+  fun unknownRelationshipShowsCheckingStatusWhileLoading() {
+    show(
+        FriendsSearchState(
+            query = "Bob",
+            relationshipsLoading = true,
+            relationshipsFailed = false,
+            results = listOf(UserSearchMatch(bob, SearchRelationship.UNKNOWN)),
+        )
+    )
+
+    compose
+        .onNodeWithText(resources.string(R.string.friends_search_status_checking))
+        .assertIsDisplayed()
+
+    compose
+        .onNodeWithText(resources.string(R.string.friends_search_status_unknown))
         .assertDoesNotExist()
 
     compose.onNodeWithTag(C.Tag.friends_directory_send_prefix + "bob").assertDoesNotExist()

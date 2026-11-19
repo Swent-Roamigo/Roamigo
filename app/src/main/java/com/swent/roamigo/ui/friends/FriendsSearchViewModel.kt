@@ -1,7 +1,6 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui.friends
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -337,7 +336,6 @@ class FriendsSearchViewModel(
       version: Long,
       error: Exception,
   ) {
-    Log.e("FriendsSearch", "Directory search failed", error)
     if (error.isSessionFailure()) {
       endSession()
       return
