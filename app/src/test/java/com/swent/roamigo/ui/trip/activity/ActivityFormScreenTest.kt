@@ -1,6 +1,7 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.ui.trip.activity
 
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.getValue
@@ -131,6 +132,13 @@ class ActivityFormScreenTest {
     compose.onNodeWithTag(ActivityFormTestTags.SUBMIT).assertTextContains("Save changes")
     compose.onNodeWithTag(ActivityFormTestTags.DELETE).assertIsDisplayed().performClick()
     assertEquals(listOf<Any>("delete"), events)
+  }
+
+  @Test
+  fun timeFollowsTheSystem24HourSettingLikeThePicker() {
+    Settings.System.putString(compose.activity.contentResolver, Settings.System.TIME_12_24, "24")
+    show(editState)
+    compose.onNodeWithText("19:30").assertExists()
   }
 
   @Test
