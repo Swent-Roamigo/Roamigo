@@ -131,6 +131,18 @@ class ActivityFormNavigationTest {
   }
 
   @Test
+  fun closingTwiceDuringTheExitOnlyLeavesTheForm() {
+    openActivityForm()
+    // Hold the exit animation so the second tap reaches the form that is already leaving.
+    composeRule.mainClock.autoAdvance = false
+    repeat(2) { composeRule.onNodeWithTag(ActivityFormTestTags.CLOSE).performClick() }
+    composeRule.mainClock.autoAdvance = true
+
+    composeRule.waitForTag(C.Tag.trip_add_button)
+    composeRule.runOnIdle { assertEquals(Route.TRIP_DETAILS, currentRoute()) }
+  }
+
+  @Test
   fun withoutAnInjectedPlaceRepositoryTheFormSearchesWithTheApplicationOne() {
     openTrip(injectPlaces = false)
     chooseAddAnActivity()

@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.ClearCredentialException
+import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -206,13 +207,15 @@ fun RoamigoApp(
                 (context.applicationContext as RoamigoApplication).placeRepository
               }
       SignedIn(authRepository, navController) {
+        // Ignores a second ✕ or back during the exit animation, which would also pop the trip.
+        val leave = dropUnlessResumed { navController.popBackStack() }
         ActivityFormRoute(
             activityRepository = activityRepository,
             placeRepository = places,
             mode = ActivityFormMode.Create(tripId, defaultDate = null),
             trip = trip,
-            onClose = { navController.popBackStack() },
-            onActivitySaved = { navController.popBackStack() },
+            onClose = leave,
+            onActivitySaved = { leave() },
         )
       }
     }
