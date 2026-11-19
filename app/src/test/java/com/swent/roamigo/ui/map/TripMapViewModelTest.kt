@@ -76,6 +76,7 @@ class TripMapViewModelTest {
             members = mapOf(ALICE.uid to MemberDisplayInfo("Alice", "A", ALICE_AVATAR)),
             activitiesLoadState = ActivitiesLoadState.LOADED,
             photosLoadState = PhotosLoadState.LOADED,
+            photographerNames = mapOf(ALICE.uid to "Alice"),
         ),
         viewModel.uiState.value,
     )
@@ -906,6 +907,7 @@ class TripMapViewModelTest {
                 ),
             activitiesLoadState = ActivitiesLoadState.LOADED,
             photosLoadState = PhotosLoadState.LOADED,
+            photographerNames = mapOf(ALICE.uid to "Alice", "bob-id" to "Bob"),
         ),
         viewModel.uiState.value,
     )
@@ -1002,6 +1004,7 @@ class TripMapViewModelTest {
     runCurrent()
     val initial = viewModel.uiState.value as TripMapUiState.Loaded
     val profiles = mapOf(ALICE.uid to MemberDisplayInfo("Alice", "A", ALICE_AVATAR))
+    val names = mapOf(ALICE.uid to "Alice")
 
     viewModel.retryActivities()
     runCurrent()
@@ -1014,7 +1017,11 @@ class TripMapViewModelTest {
       pendingUsers.complete(listOf(ALICE))
       runCurrent()
       assertEquals(
-          initial.copy(members = profiles, activitiesLoadState = ActivitiesLoadState.LOADING),
+          initial.copy(
+              members = profiles,
+              photographerNames = names,
+              activitiesLoadState = ActivitiesLoadState.LOADING,
+          ),
           viewModel.uiState.value,
       )
     }
@@ -1041,7 +1048,10 @@ class TripMapViewModelTest {
           )
         }
     assertEquals(
-        expected.copy(members = if (profilesFirst) profiles else initial.members),
+        expected.copy(
+            members = if (profilesFirst) profiles else initial.members,
+            photographerNames = if (profilesFirst) names else emptyMap(),
+        ),
         viewModel.uiState.value,
     )
 
@@ -1050,7 +1060,10 @@ class TripMapViewModelTest {
     }
     advanceUntilIdle()
 
-    assertEquals(expected.copy(members = profiles), viewModel.uiState.value)
+    assertEquals(
+        expected.copy(members = profiles, photographerNames = names),
+        viewModel.uiState.value,
+    )
     assertEquals(1, tripRequests)
     assertEquals(2, activityRequests)
   }

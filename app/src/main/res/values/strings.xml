@@ -186,6 +186,15 @@
     <string name="trip_map_location_blocked_description">Your phone blocks location for Roamigo, so the group can\'t see you on the map. You can still see them.\n\nSettings › Roamigo › Location › While using</string>
     <string name="trip_map_location_blocked_open_settings">Open settings</string>
     <string name="trip_map_location_not_now">Not now</string>
+    <plurals name="trip_map_photo_marker_description">
+        <item quantity="one">%d photo taken here</item>
+        <item quantity="other">%d photos taken here</item>
+    </plurals>
+    <string name="trip_map_photo_marker_open">Open photos</string>
+    <string name="trip_map_photos_loading">Loading photos…</string>
+    <string name="trip_map_photos_empty">No photos with a location yet</string>
+    <string name="trip_map_photos_error">Unable to load photos.</string>
+    <string name="trip_map_retry_photos">Retry loading photos</string>
 
     <!-- Vote creation -->
     <string name="vote_new">New vote</string>

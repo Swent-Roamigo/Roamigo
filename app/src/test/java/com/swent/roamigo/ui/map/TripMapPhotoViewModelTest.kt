@@ -414,6 +414,98 @@ class TripMapPhotoViewModelTest {
     assertEquals(ActivitiesLoadState.LOADED, viewModel.loaded().activitiesLoadState)
   }
 
+  @Test
+  fun selectionFollowsTheGalleryAndClosesWhenItsGroupIsGone() = runTest {
+    val updates = MutableSharedFlow<List<TripPhoto>>(extraBufferCapacity = 1)
+    val viewModel = createViewModel(ControlledPhotos { updates })
+    runCurrent()
+    val here = MapCoordinate(10.0, 20.0)
+    val elsewhere = MapCoordinate(-30.0, 40.0)
+
+    // Nothing to open before the gallery has a group there.
+    viewModel.selectPhotoGroup(here)
+    assertEquals(null, viewModel.loaded().selectedPhotoCoordinate)
+
+    val older = tripPhoto("older", takenAtMillis = 1, latitude = 10.0, longitude = 20.0)
+    val other = tripPhoto("other", latitude = -30.0, longitude = 40.0)
+    assertTrue(updates.tryEmit(listOf(older, other)))
+    runCurrent()
+    viewModel.selectPhotoGroup(here)
+    assertEquals(listOf("older"), viewModel.loaded().selectedPhotoGroup?.photos?.map { it.id })
+
+    val newer = tripPhoto("newer", takenAtMillis = 2, latitude = 10.0, longitude = 20.0)
+    assertTrue(updates.tryEmit(listOf(newer, older, other)))
+    runCurrent()
+    assertEquals(here, viewModel.loaded().selectedPhotoCoordinate)
+    assertEquals(
+        listOf("newer", "older"),
+        viewModel.loaded().selectedPhotoGroup?.photos?.map { it.id },
+    )
+
+    assertTrue(updates.tryEmit(listOf(other)))
+    runCurrent()
+    assertEquals(null, viewModel.loaded().selectedPhotoCoordinate)
+
+    viewModel.selectPhotoGroup(elsewhere)
+    viewModel.closePhotoViewer()
+    assertEquals(null, viewModel.loaded().selectedPhotoGroup)
+  }
+
+  @Test
+  fun selectionSurvivesPhotoFailureAndRetryButNotATripReload() = runTest {
+    val photo = tripPhoto("one", latitude = 10.0, longitude = 20.0)
+    val failure = CompletableDeferred<Unit>()
+    var attempts = 0
+    val photos = ControlledPhotos {
+      if (++attempts == 1) {
+        flow {
+          emit(listOf(photo))
+          failure.await()
+          error("Gallery unavailable")
+        }
+      } else flow { emit(listOf(photo)) }
+    }
+    val viewModel = createViewModel(photos)
+    runCurrent()
+    val here = MapCoordinate(10.0, 20.0)
+    viewModel.selectPhotoGroup(here)
+
+    failure.complete(Unit)
+    runCurrent()
+    assertEquals(PhotosLoadState.ERROR, viewModel.loaded().photosLoadState)
+    assertEquals(listOf("one"), viewModel.loaded().selectedPhotoGroup?.photos?.map { it.id })
+    viewModel.retryPhotos()
+    assertEquals(here, viewModel.loaded().selectedPhotoCoordinate)
+    runCurrent()
+    assertEquals(here, viewModel.loaded().selectedPhotoCoordinate)
+
+    viewModel.retryTrip()
+    runCurrent()
+    assertEquals(null, viewModel.loaded().selectedPhotoCoordinate)
+  }
+
+  @Test
+  fun photographerNamesHoldOnlyRealProfileNames() = runTest {
+    val trips =
+        FakeTripRepository(
+            trips = listOf(trip().copy(memberIds = listOf("alice", "blank", "gone")))
+        )
+    val users =
+        object : UserRepository by FakeUserRepository(USER) {
+          override suspend fun getUsers(userIds: Set<String>): List<User> =
+              listOf(USER.copy(displayName = " Alice "), User("blank", "  ", null))
+        }
+    val viewModel =
+        createViewModel(ControlledPhotos { flowOf(emptyList()) }, trips, userRepository = users)
+
+    runCurrent()
+
+    val state = viewModel.loaded()
+    assertEquals(mapOf("alice" to "Alice"), state.photographerNames)
+    // Members keep their fallback for the map, which the viewer must not use as a name.
+    assertEquals("G", state.members.getValue("gone").displayName)
+  }
+
   private fun TripMapViewModel.loaded() = uiState.value as TripMapUiState.Loaded
 
   private fun createViewModel(

@@ -29,6 +29,10 @@ sealed interface TripMapUiState {
    * @property photoMarkers grouped gallery photos with usable coordinates. The last successful
    *   markers remain available while refreshing or after a failed refresh.
    * @property photosLoadState loading status of the gallery, independent of trip and activities.
+   * @property photographerNames display names from the members' loaded profiles, keyed by user ID.
+   *   Unlike [members], it holds no fallback, so viewers can show their own when a name is missing.
+   * @property selectedPhotoCoordinate coordinate of the photo group open in the viewer, or null
+   *   when the map is shown. Only the coordinate is kept, so the group follows gallery updates.
    */
   data class Loaded(
       val trip: Trip,
@@ -38,7 +42,15 @@ sealed interface TripMapUiState {
       val activitiesLoadState: ActivitiesLoadState = ActivitiesLoadState.LOADING,
       val photoMarkers: List<PhotoMarkerUiState> = emptyList(),
       val photosLoadState: PhotosLoadState = PhotosLoadState.LOADING,
-  ) : TripMapUiState
+      val photographerNames: Map<String, String> = emptyMap(),
+      val selectedPhotoCoordinate: MapCoordinate? = null,
+  ) : TripMapUiState {
+    /** The photo group open in the viewer, resolved from the latest markers, or null. */
+    val selectedPhotoGroup: PhotoMarkerUiState?
+      get() = selectedPhotoCoordinate?.let { coordinate ->
+        photoMarkers.firstOrNull { it.coordinate == coordinate }
+      }
+  }
 }
 
 /** Loading status of a trip's activities and suggestions, independent of the trip itself. */
