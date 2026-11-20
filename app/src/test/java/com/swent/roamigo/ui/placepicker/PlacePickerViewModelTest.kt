@@ -34,6 +34,7 @@ class PlacePickerViewModelTest {
       handle: SavedStateHandle = SavedStateHandle(),
       initial: TripLocation? = null,
       proximity: PlaceProximity? = null,
+      countryCodes: Set<String> = emptySet(),
   ): PlacePickerViewModel {
     val store = ViewModelStore().also { stores += it }
     return ViewModelProvider(
@@ -41,7 +42,7 @@ class PlacePickerViewModelTest {
         object : ViewModelProvider.Factory {
           @Suppress("UNCHECKED_CAST")
           override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
-              PlacePickerViewModel(repo, handle, initial, proximity) as T
+              PlacePickerViewModel(repo, handle, initial, proximity, countryCodes) as T
         },
     )[PlacePickerViewModel::class.java]
   }
@@ -154,6 +155,19 @@ class PlacePickerViewModelTest {
           assertEquals("Chosen", vm.uiState.value.selectedLocation?.name)
           assertNull(vm.uiState.value.resolutionError)
         }
+      }
+
+  @Test
+  fun everySearchCarriesTheCountriesOfTheTrip() =
+      runTest(dispatcher) {
+        val repo = repository()
+        val vm = picker(repo, proximity = PlaceProximity(51.5, -0.12), countryCodes = setOf("GB"))
+
+        vm.updateQuery("big ben")
+        advanceUntilIdle()
+
+        assertEquals(PlaceProximity(51.5, -0.12), repo.searchRequests.single().second)
+        assertEquals(listOf(setOf("GB")), repo.searchCountries)
       }
 
   @Test

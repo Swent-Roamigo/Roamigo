@@ -14,6 +14,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -39,6 +40,8 @@ import com.swent.roamigo.model.location.LocationRepository
 import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.photo.PhotoRepository
 import com.swent.roamigo.model.place.PlaceRepository
+import com.swent.roamigo.model.place.PlaceSearchArea
+import com.swent.roamigo.model.place.placeSearchAreaOf
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.activity.ActivityRepository
@@ -251,6 +254,19 @@ fun RoamigoApp(
               ?: remember(context) {
                 (context.applicationContext as RoamigoApplication).placeRepository
               }
+      // The place search looks around the trip's destinations. Until the trip has loaded, or if it
+      // cannot be read, it searches everywhere, which is how it behaved before.
+      val searchArea by
+          produceState<PlaceSearchArea?>(null, tripId, tripRepository) {
+            value =
+                try {
+                  tripRepository.getTrip(tripId)?.destinations?.let(::placeSearchAreaOf)
+                } catch (cancelled: CancellationException) {
+                  throw cancelled
+                } catch (_: Exception) {
+                  null
+                }
+          }
       SignedIn(authRepository, navController) {
         // Ignores a second ✕ or back during the exit animation, which would also pop the trip.
         val leave = dropUnlessResumed { navController.popBackStack() }
@@ -261,6 +277,7 @@ fun RoamigoApp(
             trip = trip,
             onClose = leave,
             onActivitySaved = { leave() },
+            placeSearchArea = searchArea,
         )
       }
     }

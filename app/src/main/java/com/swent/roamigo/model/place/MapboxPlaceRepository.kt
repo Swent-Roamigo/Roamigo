@@ -44,6 +44,7 @@ class MapboxPlaceRepository(
   override suspend fun searchPlaces(
       query: String,
       proximity: PlaceProximity?,
+      countryCodes: Set<String>,
   ): List<PlaceCandidate> {
     val normalized = query.trim()
     // Checked before the configuration, as documented: such a query never needs the provider.
@@ -57,6 +58,11 @@ class MapboxPlaceRepository(
             .apply {
               if (proximity != null) {
                 addQueryParameter("proximity", "${proximity.longitude},${proximity.latitude}")
+              }
+              // Proximity only ranks, so a name that exists elsewhere can still come first.
+              val countries = countryCodes.mapNotNull { it.validCountryCodeOrNull() }
+              if (countries.isNotEmpty()) {
+                addQueryParameter("country", countries.sorted().joinToString(",").lowercase())
               }
             }
             .build()

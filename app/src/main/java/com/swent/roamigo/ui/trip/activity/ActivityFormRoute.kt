@@ -17,6 +17,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
 import com.swent.roamigo.model.place.PlaceRepository
+import com.swent.roamigo.model.place.PlaceSearchArea
 import com.swent.roamigo.model.trip.activity.ActivityRepository
 import com.swent.roamigo.ui.components.DestructiveConfirmationDialog
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
@@ -32,6 +33,8 @@ import com.swent.roamigo.ui.placepicker.PlacePickerRoute
  * @param trip the trip shown in the header, whose dates decide the outside-trip warning.
  * @param onClose called when the user leaves, after confirming if they changed something.
  * @param onActivitySaved called once with the ID of the stored activity.
+ * @param placeSearchArea where the place search looks, normally around the trip's destinations.
+ *   Null searches everywhere, as when the trip is not known yet.
  * @param viewModelFactory replaces the default factory, for tests.
  */
 @Composable
@@ -43,6 +46,7 @@ fun ActivityFormRoute(
     onClose: () -> Unit,
     onActivitySaved: (String) -> Unit,
     modifier: Modifier = Modifier,
+    placeSearchArea: PlaceSearchArea? = null,
     viewModelFactory: ViewModelProvider.Factory? = null,
 ) {
   val factory =
@@ -79,6 +83,8 @@ fun ActivityFormRoute(
         onCancel = { pickingPlace = false },
         modifier = modifier,
         initialLocation = state.fields.place,
+        proximity = placeSearchArea?.proximity,
+        countryCodes = placeSearchArea?.countryCodes.orEmpty(),
     )
     return
   }

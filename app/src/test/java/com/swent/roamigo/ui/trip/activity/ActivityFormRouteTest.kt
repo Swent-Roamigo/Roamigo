@@ -24,6 +24,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.swent.roamigo.model.place.FakePlaceRepository
 import com.swent.roamigo.model.place.PlaceCandidate
+import com.swent.roamigo.model.place.PlaceProximity
+import com.swent.roamigo.model.place.PlaceSearchArea
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.activity.ActivityDraft
 import com.swent.roamigo.model.trip.activity.ActivityRepository
@@ -63,6 +65,7 @@ class ActivityFormRouteTest {
       mode: ActivityFormMode = ActivityFormMode.Create(TRIP_ID, day),
       modifier: Modifier = Modifier,
       viewModelFactory: ViewModelProvider.Factory? = null,
+      placeSearchArea: PlaceSearchArea? = null,
   ) {
     compose.setContent {
       RoamigoTheme {
@@ -74,6 +77,7 @@ class ActivityFormRouteTest {
             onClose = { closed++ },
             onActivitySaved = { saved += it },
             modifier = modifier,
+            placeSearchArea = placeSearchArea,
             viewModelFactory = viewModelFactory,
         )
       }
@@ -116,6 +120,31 @@ class ActivityFormRouteTest {
     pressBack()
     compose.onNodeWithText("Discard your changes?").assertIsDisplayed()
     compose.runOnIdle { assertEquals(0, closed) }
+  }
+
+  @Test
+  fun thePlaceSearchIsLimitedToTheAreaOfTheTrip() {
+    val london = PlaceSearchArea(PlaceProximity(51.5, -0.12), setOf("GB"))
+    show(placeSearchArea = london)
+
+    compose.pickPlace(candidate)
+
+    compose.runOnIdle {
+      assertEquals(london.proximity, places.searchRequests.last().second)
+      assertEquals(setOf("GB"), places.searchCountries.last())
+    }
+  }
+
+  @Test
+  fun withoutAnAreaThePlaceSearchHasNoLocationAndNoCountry() {
+    show()
+
+    compose.pickPlace(candidate)
+
+    compose.runOnIdle {
+      assertEquals(null, places.searchRequests.last().second)
+      assertEquals(emptySet<String>(), places.searchCountries.last())
+    }
   }
 
   @Test

@@ -12,9 +12,16 @@ interface PlaceRepository {
    * Candidates for [query], best first. A blank or too short query returns an empty list without
    * calling the provider, even when the provider is not configured.
    *
+   * [proximity] ranks candidates near it first, and [countryCodes] (two-letter ISO codes) limits
+   * them to those countries when it is not empty.
+   *
    * @throws PlaceSearchException when the provider cannot answer.
    */
-  suspend fun searchPlaces(query: String, proximity: PlaceProximity? = null): List<PlaceCandidate>
+  suspend fun searchPlaces(
+      query: String,
+      proximity: PlaceProximity? = null,
+      countryCodes: Set<String> = emptySet(),
+  ): List<PlaceCandidate>
 
   /**
    * Resolves [candidate], which must come from [searchPlaces], into a place with coordinates.
