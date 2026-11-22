@@ -137,6 +137,7 @@ class NotificationRepositoryFirestoreTest {
     val states = mutableListOf<List<Notification>>()
     val collection = launch { repository().observeNotifications().toList(states) }
     runCurrent()
+    accountListener.onAuthStateChanged(auth)
     emit()
     runCurrent()
     emit(document("request", requestFields))
@@ -147,6 +148,21 @@ class NotificationRepositoryFirestoreTest {
 
     assertEquals(listOf(emptyList<Notification>()), states)
     verify(registration).remove()
+    verify(auth).removeAuthStateListener(accountListener)
+  }
+
+  @Test
+  fun signOutDuringListenerRegistrationStopsBeforeOpeningAnInboxQuery() = runTest {
+    doAnswer {
+          accountListener = it.getArgument(0)
+          currentUser = null
+          null
+        }
+        .`when`(auth)
+        .addAuthStateListener(any<FirebaseAuth.AuthStateListener>())
+
+    assertTrue(repository().observeNotifications().toList().isEmpty())
+    verifyNoInteractions(db)
     verify(auth).removeAuthStateListener(accountListener)
   }
 
@@ -170,10 +186,22 @@ class NotificationRepositoryFirestoreTest {
   }
 
   @Test
+  fun absentSnapshotFailsObservationAndReleasesBothListeners() = runTest {
+    val result = async { runCatching { repository().observeNotifications().first() } }
+    runCurrent()
+    snapshotListener.onEvent(null, null)
+
+    assertTrue(result.await().exceptionOrNull() is IllegalStateException)
+    verify(registration).remove()
+    verify(auth).removeAuthStateListener(accountListener)
+  }
+
+  @Test
   fun invalidSnapshotFailsWithoutEmittingAPartialInbox() = runTest {
     val repository = repository()
     val malformedEntries =
         listOf(
+            null,
             requestFields + ("recipientUserId" to "other"),
             requestFields + ("type" to "UNKNOWN"),
             requestFields + ("requestId" to "nested/request"),
@@ -207,6 +235,21 @@ class NotificationRepositoryFirestoreTest {
   }
 
   @Test
+  fun markReadDoesNotReportSuccessAfterAnAccountChange() = runTest {
+    val successfulWrite = writeTask()
+    `when`(reference.update("isRead", true)).thenAnswer {
+      currentUser = mock(FirebaseUser::class.java)
+      successfulWrite
+    }
+
+    assertTrue(
+        runCatching { repository().markAsRead("request") }.exceptionOrNull()
+            is IllegalStateException
+    )
+    verify(reference).update("isRead", true)
+  }
+
+  @Test
   fun invalidIdsAndSignedOutCallsCannotAccessFirestore() = runTest {
     val repository = repository()
     for (id in listOf("", ".", "..", "nested/request")) {
@@ -230,7 +273,7 @@ class NotificationRepositoryFirestoreTest {
   private fun TestScope.repository() =
       NotificationRepositoryFirestore(db, auth, StandardTestDispatcher(testScheduler))
 
-  private fun document(id: String, fields: Map<String, Any>): DocumentSnapshot =
+  private fun document(id: String, fields: Map<String, Any>?): DocumentSnapshot =
       mock(DocumentSnapshot::class.java).also {
         `when`(it.id).thenReturn(id)
         `when`(it.data).thenReturn(fields)
