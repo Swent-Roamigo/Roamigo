@@ -59,3 +59,5 @@ export {
 } from "./tripInvitations.js";
 
 export {reclaimEmailLookup} from "./userEmailLookup.js";
+
+export {notifyFriendRequest} from "./notifications.js";
