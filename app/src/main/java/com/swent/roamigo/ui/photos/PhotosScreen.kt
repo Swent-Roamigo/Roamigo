@@ -232,7 +232,12 @@ private fun PhotosContent(
     onGalleryRetryClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-  if (state.photos.isEmpty() && state.uploaded.isEmpty() && !state.galleryFailed) {
+  if (
+      state.photos.isEmpty() &&
+          state.uploaded.isEmpty() &&
+          !state.galleryFailed &&
+          !state.pendingFailed
+  ) {
     Box(modifier, contentAlignment = Alignment.Center) {
       if (state.galleryLoading) GalleryLoading() else EmptyPhotos()
     }
@@ -244,6 +249,16 @@ private fun PhotosContent(
       verticalArrangement = Arrangement.spacedBy(Spacing.medium),
       horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
   ) {
+    if (state.pendingFailed) {
+      item(key = "pending-error", span = { GridItemSpan(maxLineSpan) }) {
+        Text(
+            stringResource(R.string.photos_pending_error),
+            modifier = Modifier.testTag(C.Tag.photos_pending_error),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error,
+        )
+      }
+    }
     items(state.photos, key = { "pending-${it.id}" }, span = { GridItemSpan(maxLineSpan) }) { photo
       ->
       PendingPhotoRow(photo, fileOf(photo), onRetryClick)

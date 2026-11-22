@@ -47,6 +47,7 @@ sealed interface PhotoLocationStatus {
  * @param galleryLoading whether the first read of [uploaded] is still to come, so that an empty
  *   list is not mistaken for a trip without photos.
  * @param galleryFailed whether [uploaded] could not be read.
+ * @param pendingFailed whether [photos] could not be read from the device.
  * @param viewing the uploaded photo shown full screen, if any.
  * @param currentUserId the signed-in user, to tell their photos from the others.
  * @param preview the photo just taken, waiting for the user to keep it or retake it.
@@ -60,6 +61,7 @@ data class PhotosUiState(
     val uploaded: List<TripPhoto> = emptyList(),
     val galleryLoading: Boolean = false,
     val galleryFailed: Boolean = false,
+    val pendingFailed: Boolean = false,
     val viewing: TripPhoto? = null,
     val currentUserId: String? = null,
     val cameraStep: CameraStep = CameraStep.NONE,
@@ -79,4 +81,7 @@ sealed interface PhotosEffect {
 
   /** Open the app's page in the system settings. */
   data object OpenSettings : PhotosEffect
+
+  /** A photo could not be queued for another try, e.g. because the device storage failed. */
+  data object RetryFailed : PhotosEffect
 }

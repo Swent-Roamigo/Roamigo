@@ -102,6 +102,8 @@ fun PhotosRoute(
               viewModel.onCameraUnavailable()
               Toast.makeText(context, R.string.photos_no_camera, Toast.LENGTH_LONG).show()
             }
+        PhotosEffect.RetryFailed ->
+            Toast.makeText(context, R.string.photos_retry_failed, Toast.LENGTH_LONG).show()
         PhotosEffect.OpenSettings ->
             context.startActivity(
                 Intent(

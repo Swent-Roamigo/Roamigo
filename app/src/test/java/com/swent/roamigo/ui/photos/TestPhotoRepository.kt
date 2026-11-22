@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 
 /** What [TestPhotoRepository.savePhoto] was given, besides the trip. */
 data class SavedPhoto(
@@ -46,15 +47,22 @@ class TestPhotoRepository(directory: File) : PhotoRepository {
   var galleryObservations = 0
     private set
 
+  /** Thrown by [pendingPhotos] instead of emitting, when set. */
+  var pendingError: Exception? = null
+
+  /** Thrown by [retry] instead of retrying, when set. */
+  var retryError: Exception? = null
+
   /** Thrown by [savePhoto] instead of saving, when set. */
   var saveError: Exception? = null
 
   /** Awaited by [savePhoto] before it saves, when set. */
   var saveGate: CompletableDeferred<Unit>? = null
 
-  override fun pendingPhotos(tripId: String): Flow<List<PendingPhoto>> = photos.map { list ->
-    list.filter { it.tripId == tripId }
-  }
+  override fun pendingPhotos(tripId: String): Flow<List<PendingPhoto>> =
+      photos
+          .map { list -> list.filter { it.tripId == tripId } }
+          .onStart { pendingError?.let { throw it } }
 
   override fun tripPhotos(tripId: String): Flow<List<TripPhoto>> = flow {
     galleryObservations++
@@ -85,6 +93,7 @@ class TestPhotoRepository(directory: File) : PhotoRepository {
   }
 
   override suspend fun retry(photoId: String) {
+    retryError?.let { throw it }
     retried += photoId
   }
 

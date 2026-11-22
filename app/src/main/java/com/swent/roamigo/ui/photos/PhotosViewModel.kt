@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.swent.roamigo.model.connectivity.ConnectivityRepository
 import com.swent.roamigo.model.photo.PHOTO_LOCATION_TIMEOUT
+import com.swent.roamigo.model.photo.PendingPhoto
 import com.swent.roamigo.model.photo.PhotoCoordinates
 import com.swent.roamigo.model.photo.PhotoLocationResult
 import com.swent.roamigo.model.photo.PhotoLocator
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -60,6 +62,7 @@ class PhotosViewModel(
       val saveFailed: Boolean = false,
       val location: PhotoLocationStatus? = null,
       val viewingId: String? = null,
+      val pendingFailed: Boolean = false,
   )
 
   private data class Gallery(
@@ -95,7 +98,7 @@ class PhotosViewModel(
   private var awaitingSettings = false
 
   val uiState: StateFlow<PhotosUiState> =
-      combine(repository.pendingPhotos(tripId), connectivity.isOnline, local, gallery) {
+      combine(waitingPhotos(), connectivity.isOnline, local, gallery) {
               photos,
               online,
               local,
@@ -106,6 +109,7 @@ class PhotosViewModel(
                 uploaded = gallery.photos,
                 galleryLoading = gallery.loading,
                 galleryFailed = gallery.failed,
+                pendingFailed = local.pendingFailed,
                 // A photo that is no longer in the gallery cannot stay open.
                 viewing = gallery.photos.firstOrNull { it.id == local.viewingId },
                 currentUserId = currentUserId,
@@ -257,7 +261,16 @@ class PhotosViewModel(
   }
 
   fun onRetry(photoId: String) {
-    viewModelScope.launch { repository.retry(photoId) }
+    viewModelScope.launch {
+      try {
+        repository.retry(photoId)
+      } catch (e: CancellationException) {
+        throw e
+      } catch (_: Exception) {
+        // The photo stays failed on screen, so the user is told and can try again.
+        _effects.trySend(PhotosEffect.RetryFailed)
+      }
+    }
   }
 
   override fun onCleared() {
@@ -266,6 +279,13 @@ class PhotosViewModel(
     // A photo being saved is the repository's now. Deleting it here could lose it.
     local.value.takeUnless { it.saving }?.preview?.let(repository::discard)
   }
+
+  /** The photos waiting on the device. A storage error shows as none, with a message. */
+  private fun waitingPhotos(): Flow<List<PendingPhoto>> =
+      repository.pendingPhotos(tripId).catch {
+        local.update { it.copy(pendingFailed = true) }
+        emit(emptyList())
+      }
 
   private fun observeGallery() {
     galleryJob?.cancel()

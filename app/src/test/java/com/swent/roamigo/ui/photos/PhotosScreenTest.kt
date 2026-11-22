@@ -297,6 +297,21 @@ class PhotosScreenTest {
   }
 
   @Test
+  fun saysTheWaitingPhotosCouldNotBeRead() {
+    show(PhotosUiState(pendingFailed = true))
+
+    composeRule.onNodeWithTag(C.Tag.photos_pending_error).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.photos_empty).assertDoesNotExist()
+  }
+
+  @Test
+  fun showsNoWaitingPhotosErrorWhenTheyAreRead() {
+    show(PhotosUiState())
+
+    composeRule.onNodeWithTag(C.Tag.photos_pending_error).assertDoesNotExist()
+  }
+
+  @Test
   fun keepsThePhotosAlreadyReadWhenALaterReadFails() {
     show(PhotosUiState(uploaded = listOf(tripPhoto("a")), galleryFailed = true))
 

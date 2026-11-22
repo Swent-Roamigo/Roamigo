@@ -8,6 +8,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.connectivity.FakeConnectivityRepository
 import com.swent.roamigo.model.photo.FakePhotoLocator
 import com.swent.roamigo.model.photo.PHOTO_LOCATION_TIMEOUT
+import com.swent.roamigo.model.photo.PendingPhoto
 import com.swent.roamigo.model.photo.PhotoCoordinates
 import com.swent.roamigo.model.photo.PhotoLocationResult
 import com.swent.roamigo.model.photo.PhotoLocator
@@ -82,6 +83,32 @@ class PhotosViewModelTest {
     file.writeText("jpeg")
     viewModel.onPictureTaken(true)
     return file
+  }
+
+  @Test
+  fun survivesAnErrorReadingTheWaitingPhotos() {
+    repository.pendingError = java.io.IOException("disk")
+    val model = PhotosViewModel(repository, connectivity, "trip", locator, clock = clock)
+
+    assertTrue(model.uiState.value.pendingFailed)
+    assertEquals(emptyList<PendingPhoto>(), model.uiState.value.photos)
+    // The rest of the screen keeps working.
+    model.onTakePhotoClick(permissionGranted = true)
+    assertEquals(CameraStep.NONE, model.uiState.value.cameraStep)
+  }
+
+  @Test
+  fun doesNotReportAnErrorWhenTheWaitingPhotosAreRead() {
+    assertFalse(state.pendingFailed)
+  }
+
+  @Test
+  fun tellsTheScreenWhenARetryFails() {
+    repository.retryError = java.io.IOException("disk")
+
+    viewModel.onRetry("a")
+
+    assertEquals(listOf<PhotosEffect>(PhotosEffect.RetryFailed), effects)
   }
 
   @Test
