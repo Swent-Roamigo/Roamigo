@@ -12,7 +12,7 @@ assert.ok(authHost && firestoreHost, 'Run through the Firestore and Auth emulato
 const require = createRequire(new URL('../../functions/package.json', import.meta.url));
 const {initializeApp} = require('firebase-admin/app');
 const {getFirestore, Timestamp} = require('firebase-admin/firestore');
-const {createNotification} = require('./lib/notificationWriter.js');
+const {createNotification} = require('./lib/notifications.js');
 const db = getFirestore(initializeApp({projectId: project}));
 
 const requestEvent = {
