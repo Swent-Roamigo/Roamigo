@@ -52,5 +52,6 @@ fun FriendsRoute(
       onDeclineRequest = model::declineRequest,
       onRemoveFriend = model::removeFriend,
       onDismissActionFailure = model::dismissActionFailure,
+      onCancelRequest = model::cancelRequest,
   )
 }

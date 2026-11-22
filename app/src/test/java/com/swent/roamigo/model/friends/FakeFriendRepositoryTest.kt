@@ -724,6 +724,87 @@ class FakeFriendRepositoryTest {
     assertTrue(bob.getIncomingRequests().isEmpty())
   }
 
+  @Test
+  fun cancelPendingRequest_clearsBothListsAndCanBeRepeated() = runTest {
+    val request = alice.sendFriendRequest("bob")
+
+    alice.cancelFriendRequest("bob", request.uid)
+    alice.cancelFriendRequest("bob", request.uid)
+
+    assertTrue(alice.getOutgoingRequests().isEmpty())
+    assertTrue(bob.getIncomingRequests().isEmpty())
+    assertTrue(alice.getFriends().isEmpty())
+
+    val fresh = bob.sendFriendRequest("alice")
+
+    assertNotEquals(request.uid, fresh.uid)
+  }
+
+  @Test
+  fun cancelPendingRequest_senderOnlyAndCannotRemoveAcceptedFriendship() = runTest {
+    val request = alice.sendFriendRequest("bob")
+
+    expectFailure<FriendRepositoryException.PermissionDenied> {
+      bob.cancelFriendRequest("alice", request.uid)
+    }
+
+    bob.acceptFriendRequest("alice", request.uid)
+
+    expectFailure<FriendRepositoryException.Conflict> {
+      alice.cancelFriendRequest("bob", request.uid)
+    }
+
+    assertEquals(1, alice.getFriends().size)
+    assertEquals(1, bob.getFriends().size)
+  }
+
+  @Test
+  fun cancellingOldGenerationNeverDeletesNewRequest() = runTest {
+    val old = alice.sendFriendRequest("bob")
+    alice.cancelFriendRequest("bob", old.uid)
+
+    val newRequest = bob.sendFriendRequest("alice")
+
+    expectFailure<FriendRepositoryException.Conflict> { alice.cancelFriendRequest("bob", old.uid) }
+
+    assertEquals(listOf(newRequest), bob.getOutgoingRequests())
+    assertEquals(listOf(newRequest), alice.getIncomingRequests())
+  }
+
+  @Test
+  fun cancellationNetworkFailurePreservesRequestAndAllowsRetry() = runTest {
+    val request = alice.sendFriendRequest("bob")
+    alice.failure = FriendRepositoryException.Network()
+
+    expectFailure<FriendRepositoryException.Network> {
+      alice.cancelFriendRequest("bob", request.uid)
+    }
+
+    assertEquals(listOf(request), bob.getIncomingRequests())
+
+    alice.failure = null
+    alice.cancelFriendRequest("bob", request.uid)
+
+    assertTrue(bob.getIncomingRequests().isEmpty())
+  }
+
+  @Test
+  fun concurrentCancelAndAcceptOnlyOneOperationWins() = runTest {
+    val request = alice.sendFriendRequest("bob")
+
+    val results =
+        listOf(
+                async { runCatching { alice.cancelFriendRequest("bob", request.uid) } },
+                async { runCatching { bob.acceptFriendRequest("alice", request.uid) } },
+            )
+            .awaitAll()
+
+    assertEquals(1, results.count { it.isSuccess })
+    assertTrue(alice.getOutgoingRequests().isEmpty())
+    assertTrue(bob.getIncomingRequests().isEmpty())
+    assertEquals(alice.getFriends(), bob.getFriends())
+  }
+
   private suspend fun establishFriendship(): Friendship {
     val request = alice.sendFriendRequest("bob")
     return bob.acceptFriendRequest("alice", request.uid)

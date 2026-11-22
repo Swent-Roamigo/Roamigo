@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -99,8 +100,24 @@ fun FriendsScreen(
     onDeclineRequest: ((String) -> Unit)? = null,
     onRemoveFriend: ((String) -> Unit)? = null,
     onDismissActionFailure: (FriendsActionFailure) -> Unit = {},
+    onCancelRequest: ((String) -> Unit)? = null,
 ) {
   var query by rememberSaveable { mutableStateOf("") }
+  var pendingRemoval by remember { mutableStateOf<FriendUiModel?>(null) }
+
+  val confirmableFriend = pendingRemoval?.let { selected ->
+    uiState.friends.find {
+      it.friendshipId == selected.friendshipId &&
+          it.userId == selected.userId &&
+          it.friendshipId != null &&
+          !it.isProcessing
+    }
+  }
+  LaunchedEffect(pendingRemoval, confirmableFriend) {
+    if (pendingRemoval != null && confirmableFriend == null) {
+      pendingRemoval = null
+    }
+  }
   val activity = LocalActivity.current
   val snackbarHostState = remember { SnackbarHostState() }
   val actionFailure = uiState.actionFailure
@@ -111,6 +128,14 @@ fun FriendsScreen(
             when (actionFailure.action) {
               FriendsAction.ACCEPT -> R.string.friends_accept_failed
               FriendsAction.DECLINE -> R.string.friends_decline_failed
+              FriendsAction.CANCEL ->
+                  when (actionFailure.reason) {
+                    FriendsActionFailureReason.NETWORK -> R.string.friends_cancel_request_network
+                    FriendsActionFailureReason.CONFLICT -> R.string.friends_cancel_request_conflict
+                    FriendsActionFailureReason.PERMISSION ->
+                        R.string.friends_cancel_request_permission
+                    FriendsActionFailureReason.OTHER -> R.string.friends_cancel_request_failed
+                  }
               FriendsAction.REMOVE -> R.string.friends_remove_failed
             }
         )
@@ -128,6 +153,53 @@ fun FriendsScreen(
         }
       }
     }
+  }
+  if (confirmableFriend != null) {
+    AlertDialog(
+        onDismissRequest = { pendingRemoval = null },
+        modifier = Modifier.testTag(C.Tag.friends_remove_confirm_dialog),
+        title = { Text(stringResource(R.string.friends_remove_confirm_title)) },
+        text = {
+          val unknown = stringResource(R.string.friends_unknown_traveler)
+
+          Text(
+              if (confirmableFriend.displayName == unknown) {
+                stringResource(
+                    R.string.friends_remove_unknown_message,
+                    confirmableFriend.userId,
+                )
+              } else {
+                stringResource(
+                    R.string.friends_remove_confirm_message,
+                    confirmableFriend.displayName,
+                )
+              }
+          )
+        },
+        confirmButton = {
+          Button(
+              onClick = {
+                val target = confirmableFriend.friendshipId
+                pendingRemoval = null
+
+                if (target != null) {
+                  onRemoveFriend?.invoke(target)
+                }
+              },
+              modifier = Modifier.testTag(C.Tag.friends_remove_confirm_action),
+          ) {
+            Text(stringResource(R.string.friends_remove))
+          }
+        },
+        dismissButton = {
+          TextButton(
+              onClick = { pendingRemoval = null },
+              modifier = Modifier.testTag(C.Tag.friends_remove_dismiss_action),
+          ) {
+            Text(stringResource(R.string.friends_remove_confirm_cancel))
+          }
+        },
+    )
   }
 
   Scaffold(
@@ -170,7 +242,16 @@ fun FriendsScreen(
             onViewMapClick = onViewMapClick,
             onAcceptRequest = onAcceptRequest,
             onDeclineRequest = onDeclineRequest,
-            onRemoveFriend = onRemoveFriend,
+            onCancelRequest = onCancelRequest,
+            onRemoveFriend =
+                onRemoveFriend?.let {
+                  { id ->
+                    uiState.friends
+                        .find { it.friendshipId == id }
+                        ?.let { friend -> pendingRemoval = friend }
+                    Unit
+                  }
+                },
             modifier = Modifier.fillMaxSize(),
             showEmptyInline = !centerEmptyState,
         )
@@ -244,6 +325,7 @@ private fun FriendsList(
     onViewMapClick: ((String) -> Unit)?,
     onAcceptRequest: ((String) -> Unit)?,
     onDeclineRequest: ((String) -> Unit)?,
+    onCancelRequest: ((String) -> Unit)?,
     onRemoveFriend: ((String) -> Unit)?,
     modifier: Modifier = Modifier,
     showEmptyInline: Boolean = true,
@@ -265,7 +347,7 @@ private fun FriendsList(
     }
     incomingSection(filtered.incomingRequests, onAcceptRequest, onDeclineRequest)
     friendsSection(filtered.friends, onViewMapClick, onRemoveFriend)
-    outgoingSection(filtered.outgoingRequests)
+    outgoingSection(filtered.outgoingRequests, onCancelRequest)
     if (uiState.hasRelationships && query.isNotBlank() && !filtered.hasRelationships) {
       item(key = "no_matches") { Text(stringResource(R.string.friends_no_matches)) }
     }
@@ -369,12 +451,28 @@ private fun LazyListScope.friendsSection(
   }
 }
 
-private fun LazyListScope.outgoingSection(requests: List<OutgoingFriendRequestUiModel>) {
+private fun LazyListScope.outgoingSection(
+    requests: List<OutgoingFriendRequestUiModel>,
+    onCancelRequest: ((String) -> Unit)?,
+) {
   if (requests.isNotEmpty()) {
     item(key = "outgoing_title") { RelationshipSectionTitle(R.string.friends_outgoing_title) }
   }
-  items(items = requests, key = { request -> "request:${request.userId}" }) { request ->
-    OutgoingRequestRow(request)
+
+  items(
+      items = requests,
+      key = { request -> "request:${request.userId}" },
+  ) { request ->
+    OutgoingRequestRow(
+        request = request,
+        onCancel =
+            onCancelRequest?.let { callback ->
+              {
+                request.requestId?.let(callback)
+                Unit
+              }
+            },
+    )
   }
 }
 
@@ -536,50 +634,78 @@ private fun FriendRow(
 }
 
 @Composable
-private fun OutgoingRequestRow(request: OutgoingFriendRequestUiModel) {
+private fun OutgoingRequestRow(
+    request: OutgoingFriendRequestUiModel,
+    onCancel: (() -> Unit)?,
+) {
   Surface(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.friends_pending_request_row),
       shape = MaterialTheme.shapes.medium,
       color = MaterialTheme.colorScheme.surfaceVariant,
   ) {
-    Row(
-        modifier = Modifier.padding(Spacing.cardPadding),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-      InitialAvatar(
-          displayName = request.displayName,
-          userId = request.userId,
-          profilePictureUrl = request.profilePictureUrl,
-      )
-
-      Spacer(modifier = Modifier.width(Spacing.medium))
-
-      Column(modifier = Modifier.weight(1f)) {
-        Text(
-            text = request.displayName,
-            style = MaterialTheme.typography.titleMedium,
+    Column(modifier = Modifier.padding(Spacing.cardPadding)) {
+      Row(
+          verticalAlignment = Alignment.CenterVertically,
+      ) {
+        InitialAvatar(
+            displayName = request.displayName,
+            userId = request.userId,
+            profilePictureUrl = request.profilePictureUrl,
         )
 
-        Text(
-            text = outgoingRequestMetadata(request.countriesVisited),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Spacer(modifier = Modifier.width(Spacing.medium))
+
+        Column(modifier = Modifier.weight(1f)) {
+          Text(
+              text = request.displayName,
+              style = MaterialTheme.typography.titleMedium,
+          )
+
+          Text(
+              text = outgoingRequestMetadata(request.countriesVisited),
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
+
+        Surface(
+            shape = MaterialTheme.shapes.small,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ) {
+          Text(
+              text = stringResource(R.string.friends_pending),
+              modifier =
+                  Modifier.padding(
+                      horizontal = Spacing.medium,
+                      vertical = Spacing.small,
+                  ),
+              style = MaterialTheme.typography.bodySmall,
+          )
+        }
       }
 
-      Surface(
-          shape = MaterialTheme.shapes.small,
-          color = MaterialTheme.colorScheme.surfaceContainerHigh,
-      ) {
-        Text(
-            text = stringResource(R.string.friends_pending),
+      if (request.requestId != null && onCancel != null) {
+        val cancelDescription =
+            stringResource(
+                R.string.friends_cancel_request_accessibility,
+                request.displayName,
+            )
+
+        TextButton(
+            onClick = onCancel,
+            enabled = !request.isProcessing,
             modifier =
-                Modifier.padding(
-                    horizontal = Spacing.medium,
-                    vertical = Spacing.small,
-                ),
-            style = MaterialTheme.typography.bodySmall,
-        )
+                Modifier.align(Alignment.End)
+                    .testTag(C.Tag.friends_cancel_request_prefix + request.requestId)
+                    .semantics { contentDescription = cancelDescription },
+        ) {
+          Text(
+              stringResource(
+                  if (request.isProcessing) R.string.friends_updating
+                  else R.string.friends_cancel_request
+              )
+          )
+        }
       }
     }
   }

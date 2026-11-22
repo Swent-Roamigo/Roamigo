@@ -323,16 +323,90 @@ class FriendshipRulesEmulatorTest {
   }
 
   @Test
-  fun removal_requiresAcceptanceAndEitherFriendCanRemoveAndRequestAgain() = emulatorTest {
+  fun cancellationRulesAllowOnlySenderToDeletePendingRequest() = emulatorTest {
+    val requestId = createPending()
+
+    // Bob is the recipient and cannot cancel.
+    denied { document(bob).delete().await() }
+
+    // Alice is the sender and may cancel.
+    document(alice).delete().await()
+
+    assertFalse(document(alice).get(Source.SERVER).await().exists())
+    assertFalse(document(bob).get(Source.SERVER).await().exists())
+
+    // A new request must receive a new generation ID.
+    val newRequestId = createPending()
+    assertNotEquals(requestId, newRequestId)
+
+    alice.repository.cancelFriendRequest(
+        bob.id,
+        newRequestId,
+    )
+  }
+
+  @Test
+  fun concurrentCancellationAndAcceptanceHaveOneWinner() = emulatorTest {
+    val pending = alice.repository.sendFriendRequest(bob.id)
+
+    val results =
+        concurrently(
+            listOf<suspend () -> Result<Unit>>(
+                {
+                  runCatching {
+                    alice.repository.cancelFriendRequest(
+                        bob.id,
+                        pending.uid,
+                    )
+                  }
+                },
+                {
+                  runCatching {
+                    bob.repository.acceptFriendRequest(
+                        alice.id,
+                        pending.uid,
+                    )
+                    Unit
+                  }
+                },
+            )
+        )
+
+    assertEquals(1, results.count { it.isSuccess })
+
+    assertTrue(alice.repository.getOutgoingRequests().isEmpty())
+    assertTrue(bob.repository.getIncomingRequests().isEmpty())
+
+    val friends = alice.repository.getFriends()
+
+    assertEquals(
+        friends,
+        bob.repository.getFriends(),
+    )
+
+    if (friends.isNotEmpty()) {
+      assertEquals(pending.uid, friends.single().uid)
+    }
+  }
+
+  @Test
+  fun acceptedFriendshipCanBeRemovedByEitherFriendAndRequestedAgain() = emulatorTest {
     for (remover in listOf(alice, bob)) {
       val requestId = createPending()
-      denied { document(remover).delete().await() }
+
+      // Bob cannot delete a pending request sent by Alice.
+      denied { document(bob).delete().await() }
+
+      // Once accepted, either participant can remove the friendship.
       respond(bob, "ACCEPTED")
       document(remover).delete().await()
+
       assertFalse(document(alice).get(Source.SERVER).await().exists())
       assertFalse(document(bob).get(Source.SERVER).await().exists())
+
       val newId = createPending()
       assertNotEquals(requestId, newId)
+
       respond(bob, "DECLINED")
     }
   }

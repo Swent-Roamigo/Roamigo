@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasText
@@ -241,6 +242,185 @@ class FriendsScreenTest {
 
     composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.friends_view_map_prefix + "jonas").assertDoesNotExist()
+  }
+
+  @Test
+  fun cancellingOutgoingRequestForwardsCorrectRequestId() {
+    var cancelledId: String? = null
+
+    val state =
+        FriendsUiState(
+            outgoingRequests =
+                listOf(
+                    OutgoingFriendRequestUiModel(
+                        userId = "bob",
+                        displayName = "Bob",
+                        requestId = "request-bob",
+                    )
+                )
+        )
+
+    composeRule.setContent {
+      RoamigoTheme {
+        FriendsScreen(
+            uiState = state,
+            onCancelRequest = { cancelledId = it },
+        )
+      }
+    }
+
+    composeRule
+        .onNodeWithTag(C.Tag.friends_cancel_request_prefix + "request-bob")
+        .performScrollTo()
+        .assertContentDescriptionEquals(
+            resources.string(
+                R.string.friends_cancel_request_accessibility,
+                "Bob",
+            )
+        )
+        .performClick()
+
+    assertEquals("request-bob", cancelledId)
+  }
+
+  @Test
+  fun cancelRequestIsDisabledWhileProcessing() {
+    var cancelCalls = 0
+
+    val state =
+        FriendsUiState(
+            outgoingRequests =
+                listOf(
+                    OutgoingFriendRequestUiModel(
+                        userId = "bob",
+                        displayName = "Bob",
+                        requestId = "request-bob",
+                        isProcessing = true,
+                    )
+                )
+        )
+
+    composeRule.setContent {
+      RoamigoTheme {
+        FriendsScreen(
+            uiState = state,
+            onCancelRequest = { cancelCalls++ },
+        )
+      }
+    }
+
+    composeRule
+        .onNodeWithTag(C.Tag.friends_cancel_request_prefix + "request-bob")
+        .performScrollTo()
+        .assertIsNotEnabled()
+
+    assertEquals(0, cancelCalls)
+  }
+
+  @Test
+  fun removingFriendRequiresConfirmationAndCancelDoesNothing() {
+    var removedId: String? = null
+    var removalCount = 0
+
+    val state =
+        FriendsUiState(
+            friends =
+                listOf(
+                    FriendUiModel(
+                        userId = "bob",
+                        displayName = "Bob",
+                        friendshipId = "friend-bob",
+                    )
+                )
+        )
+
+    composeRule.setContent {
+      RoamigoTheme {
+        FriendsScreen(
+            uiState = state,
+            onRemoveFriend = {
+              removedId = it
+              removalCount++
+            },
+        )
+      }
+    }
+
+    composeRule
+        .onNodeWithTag(C.Tag.friends_remove_prefix + "friend-bob")
+        .performScrollTo()
+        .performClick()
+
+    composeRule.onNodeWithTag(C.Tag.friends_remove_confirm_dialog).assertIsDisplayed()
+
+    composeRule
+        .onNodeWithText(
+            resources.string(
+                R.string.friends_remove_confirm_message,
+                "Bob",
+            )
+        )
+        .assertIsDisplayed()
+
+    assertEquals(0, removalCount)
+
+    composeRule.onNodeWithTag(C.Tag.friends_remove_dismiss_action).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.friends_remove_confirm_dialog).assertDoesNotExist()
+
+    assertEquals(0, removalCount)
+
+    composeRule
+        .onNodeWithTag(C.Tag.friends_remove_prefix + "friend-bob")
+        .performScrollTo()
+        .performClick()
+
+    composeRule.onNodeWithTag(C.Tag.friends_remove_confirm_action).performClick()
+
+    assertEquals(1, removalCount)
+    assertEquals("friend-bob", removedId)
+  }
+
+  @Test
+  fun removalDialogClosesWhenFriendshipDisappears() {
+    val friend =
+        FriendUiModel(
+            userId = "bob",
+            displayName = "Bob",
+            friendshipId = "friend-bob",
+        )
+
+    val state = mutableStateOf(FriendsUiState(friends = listOf(friend)))
+
+    var removals = 0
+
+    composeRule.setContent {
+      RoamigoTheme {
+        FriendsScreen(
+            uiState = state.value,
+            onRemoveFriend = { removals++ },
+        )
+      }
+    }
+
+    composeRule
+        .onNodeWithTag(C.Tag.friends_remove_prefix + "friend-bob")
+        .performScrollTo()
+        .performClick()
+
+    composeRule.onNodeWithTag(C.Tag.friends_remove_confirm_dialog).assertIsDisplayed()
+
+    // Bob removes the friendship from another device.
+    composeRule.runOnIdle { state.value = FriendsUiState() }
+
+    composeRule.onNodeWithTag(C.Tag.friends_remove_confirm_dialog).assertDoesNotExist()
+
+    // The old confirmation must not reappear.
+    composeRule.runOnIdle { state.value = FriendsUiState(friends = listOf(friend)) }
+
+    composeRule.onNodeWithTag(C.Tag.friends_remove_confirm_dialog).assertDoesNotExist()
+
+    assertEquals(0, removals)
   }
 
   @Test

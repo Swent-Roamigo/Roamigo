@@ -270,6 +270,115 @@ class FriendRepositoryFirestoreTest {
   }
 
   @Test
+  fun cancellationDeletesPendingGenerationAndDuplicateIsHarmless() = runTest {
+    val repository =
+        FriendRepositoryFirestore(
+            db,
+            auth,
+            UnconfinedTestDispatcher(testScheduler),
+        )
+    stored = record()
+
+    repository.cancelFriendRequest("bob", "request-1")
+    repository.cancelFriendRequest("bob", "request-1")
+
+    verify(transaction, times(1)).delete(reference)
+    assertNull(stored)
+  }
+
+  @Test
+  fun cancellationRejectsRecipientAcceptedAndReplacedRequests() = runTest {
+    val repository =
+        FriendRepositoryFirestore(
+            db,
+            auth,
+            UnconfinedTestDispatcher(testScheduler),
+        )
+
+    stored = record(sender = "bob", recipient = "alice")
+
+    expect<FriendRepositoryException.PermissionDenied> {
+      repository.cancelFriendRequest("bob", "request-1")
+    }
+
+    stored = record(status = "ACCEPTED")
+
+    expect<FriendRepositoryException.Conflict> {
+      repository.cancelFriendRequest("bob", "request-1")
+    }
+
+    stored = record(requestId = "replacement")
+
+    expect<FriendRepositoryException.Conflict> {
+      repository.cancelFriendRequest("bob", "request-1")
+    }
+
+    verify(transaction, never()).delete(reference)
+  }
+
+  @Test
+  fun cancellationNetworkFailureKeepsPendingData() = runTest {
+    val repository =
+        FriendRepositoryFirestore(
+            db,
+            auth,
+            UnconfinedTestDispatcher(testScheduler),
+        )
+    stored = record()
+
+    transactionFailure =
+        FirebaseFirestoreException(
+            "Offline",
+            FirebaseFirestoreException.Code.UNAVAILABLE,
+        )
+
+    expect<FriendRepositoryException.Network> { repository.cancelFriendRequest("bob", "request-1") }
+
+    assertNotNull(stored)
+
+    transactionFailure = null
+    repository.cancelFriendRequest("bob", "request-1")
+
+    assertNull(stored)
+  }
+
+  @Test
+  fun cancellationRechecksPermissionDenialAgainstCurrentState() = runTest {
+    val repository =
+        FriendRepositoryFirestore(
+            db,
+            auth,
+            UnconfinedTestDispatcher(testScheduler),
+        )
+
+    transactionFailure =
+        FirebaseFirestoreException(
+            "Denied",
+            FirebaseFirestoreException.Code.PERMISSION_DENIED,
+        )
+
+    // Bob accepted before Alice's cancellation committed.
+    stored = record(status = "ACCEPTED")
+
+    expect<FriendRepositoryException.Conflict> {
+      repository.cancelFriendRequest("bob", "request-1")
+    }
+
+    // Alice is not the original sender.
+    stored =
+        record(
+            sender = "bob",
+            recipient = "alice",
+        )
+
+    expect<FriendRepositoryException.PermissionDenied> {
+      repository.cancelFriendRequest("bob", "request-1")
+    }
+
+    verify(transaction, never()).delete(reference)
+  }
+
+  @Test
   fun removal_requiresTheSameAcceptedGenerationAndMissingRemovalIsHarmless() = runTest {
     val repository = FriendRepositoryFirestore(db, auth, UnconfinedTestDispatcher(testScheduler))
     stored = record()
