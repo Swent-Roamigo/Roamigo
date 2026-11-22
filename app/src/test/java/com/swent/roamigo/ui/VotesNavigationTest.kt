@@ -308,6 +308,41 @@ class VotesNavigationTest {
   }
 
   @Test
+  fun backTappedTwiceDuringTheExitOnlyLeavesTheMembersScreen() {
+    openVotes()
+    composeRule.onNodeWithText("Plan").performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_member_avatars).performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_members_screen).assertIsDisplayed()
+
+    // Hold the exit animation so the second tap reaches the screen that is already leaving.
+    composeRule.mainClock.autoAdvance = false
+    repeat(2) { composeRule.onNodeWithTag(C.Tag.trip_members_back).performClick() }
+    composeRule.mainClock.autoAdvance = true
+
+    composeRule.onNodeWithTag("trip_details_screen").assertIsDisplayed()
+    composeRule.runOnIdle {
+      assertEquals(Route.TRIP_DETAILS, navController.currentBackStackEntry?.destination?.route)
+    }
+  }
+
+  @Test
+  fun backTappedTwiceDuringTheExitOnlyLeavesTheHistory() {
+    openVotes()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
+    composeRule.onNodeWithTag(C.Tag.trips_history_button).performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_history_back).assertIsDisplayed()
+
+    composeRule.mainClock.autoAdvance = false
+    repeat(2) { composeRule.onNodeWithTag(C.Tag.trip_history_back).performClick() }
+    composeRule.mainClock.autoAdvance = true
+
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+    composeRule.runOnIdle {
+      assertEquals(Route.TRIPS, navController.currentBackStackEntry?.destination?.route)
+    }
+  }
+
+  @Test
   fun inlineVoteUpdatesCardAndReopeningRestoresChoiceWithoutRefresh() {
     openVotes()
     composeRule.onNodeWithText(vote.question).assertIsDisplayed()

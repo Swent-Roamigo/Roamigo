@@ -226,7 +226,7 @@ fun RoamigoApp(
             tripId = tripId,
             voteId = voteId,
             currentUserId = userId,
-            onBack = { navController.popBackStack() },
+            onBack = dropUnlessResumed { navController.popBackStack() },
             readOnly = entry.isReadOnly(),
         )
       }
@@ -234,12 +234,14 @@ fun RoamigoApp(
     composable(Route.NEW_VOTE) { entry ->
       val tripId = entry.tripId()
       SignedIn(authRepository, navController) { userId ->
+        // Ignores a second back or save during the exit animation, which would also pop the trip.
+        val leave = dropUnlessResumed { navController.popBackStack() }
         CreateVoteRoute(
             voteRepository = voteRepository,
             tripId = tripId,
             currentUserId = userId,
-            onBack = { navController.popBackStack() },
-            onVoteCreated = { navController.popBackStack() },
+            onBack = leave,
+            onVoteCreated = { leave() },
         )
       }
     }
@@ -272,7 +274,7 @@ fun RoamigoApp(
             currentUserId = userId,
             tripRepository = tripRepository,
             userRepository = userRepository,
-            onBack = { navController.popBackStack() },
+            onBack = dropUnlessResumed { navController.popBackStack() },
             // The profile source may not know the signed-in user; their account name does.
             currentUserName = authRepository.getCurrentUser()?.displayName,
         )
@@ -300,7 +302,7 @@ fun RoamigoApp(
             friendRepository = friendRepository,
             authRepository = authRepository,
             currentUserId = userId,
-            onBack = { navController.popBackStack() },
+            onBack = dropUnlessResumed { navController.popBackStack() },
             onSessionEnded = { redirectToAuthentication(navController) },
         )
       }
@@ -334,7 +336,7 @@ fun RoamigoApp(
           tripRepository = tripRepository,
           countryCounts = countryCounts,
           sharedOwner = entry,
-          onBackClick = { navController.popBackStack() },
+          onBackClick = dropUnlessResumed { navController.popBackStack() },
           onMapClick = onMapClick,
           onTripsClick = onTripsClick,
           onOpenTrip = { tripId ->
@@ -354,7 +356,7 @@ fun RoamigoApp(
           tripRepository = tripRepository,
           countryCounts = countryCounts,
           sharedOwner = historyEntry,
-          onBackClick = { navController.popBackStack() },
+          onBackClick = dropUnlessResumed { navController.popBackStack() },
       )
     }
 
@@ -373,10 +375,11 @@ fun RoamigoApp(
           photoRepository = photoRepository,
           connectivityRepository = connectivityRepository,
           locationRepository = locationRepository,
-          onBack = {
-            if (fromHistory) navController.popBackStack()
-            else navController.popBackStack(Route.TRIPS, inclusive = false)
-          },
+          onBack =
+              dropUnlessResumed {
+                if (fromHistory) navController.popBackStack()
+                else navController.popBackStack(Route.TRIPS, inclusive = false)
+              },
           onAuthenticationRequired = { redirectToAuthentication(navController) },
           onOpenVote = { voteId, readOnly ->
             navController.navigate(Route.vote(tripId, voteId, readOnly))
@@ -446,11 +449,12 @@ fun RoamigoApp(
                 launchSingleTop = true
               }
             },
-            onClose = {
-              if (!navController.popBackStack()) {
-                navController.navigate(Route.TRIPS) { launchSingleTop = true }
-              }
-            },
+            onClose =
+                dropUnlessResumed {
+                  if (!navController.popBackStack()) {
+                    navController.navigate(Route.TRIPS) { launchSingleTop = true }
+                  }
+                },
         )
       }
     }
@@ -460,7 +464,7 @@ fun RoamigoApp(
           tripRepository = tripRepository,
           destinationRepository = destinationRepository,
           savedStateHandle = entry.savedStateHandle,
-          onClose = { navController.popBackStack() },
+          onClose = dropUnlessResumed { navController.popBackStack() },
           onSignIn = {
             navController.navigate(Route.AUTHENTICATION) {
               popUpTo(Route.TRIPS) { inclusive = true }
