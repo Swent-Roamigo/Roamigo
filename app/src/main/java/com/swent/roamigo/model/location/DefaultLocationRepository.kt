@@ -56,6 +56,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -105,10 +106,33 @@ class DefaultLocationRepository(
 
   override suspend fun getCurrentLocation(): DeviceLocation? {
     if (!hasLocationPermission()) return null
-    // An enabled provider may still fail to get a fix (e.g. GPS indoors), so fall back to the next.
-    return usableProviders()
-        .firstNotNullOfOrNull { withTimeoutOrNull(PROVIDER_TIMEOUT) { requestSingleLocation(it) } }
-        ?.toDeviceLocation()
+    return firstFix(usableProviders())?.toDeviceLocation()
+  }
+
+  // Returns the first fix, or null once each provider answered without one or timed out. GPS wins
+  // when it is ready at the same time as the network provider. The providers are asked at once
+  // rather than one after the other: GPS may take up to PROVIDER_TIMEOUT without a fix (e.g.
+  // indoors), so callers with a shorter deadline, such as the photo locator, would give up before
+  // the network provider was even asked. The first fix is taken rather than waiting for GPS, since
+  // a quick approximate position is more useful to those callers than none.
+  private suspend fun firstFix(providers: List<String>): Location? = coroutineScope {
+    val pending =
+        providers
+            .map { async { withTimeoutOrNull(PROVIDER_TIMEOUT) { requestSingleLocation(it) } } }
+            .toMutableList()
+    var fix: Location? = null
+    while (fix == null && pending.isNotEmpty()) {
+      // select picks the first clause in this list when several are ready, hence GPS first.
+      val (request, location) =
+          select<Pair<Deferred<Location?>, Location?>> {
+            pending.forEach { request -> request.onAwait { request to it } }
+          }
+      pending -= request
+      fix = location
+    }
+    // Cancelled, or coroutineScope would wait for the providers still searching and keep GPS on.
+    pending.forEach { it.cancel() }
+    fix
   }
 
   /**
@@ -472,8 +496,8 @@ class DefaultLocationRepository(
   )
 
   companion object {
-    // Long enough for a usual fix, short enough not to delay the fallback to the next provider
-    // when GPS cannot get one, e.g. indoors.
+    // Long enough for a usual fix, short enough to give up on a provider that cannot get one, e.g.
+    // GPS indoors.
     internal val PROVIDER_TIMEOUT = 10.seconds
 
     // Leaves room for a slow network while keeping callers from waiting on an offline database.
