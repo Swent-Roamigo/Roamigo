@@ -224,6 +224,25 @@ class PhotosRouteTest {
   }
 
   @Test
+  fun tellsTheUserWhenTheSettingsCannotBeOpened() {
+    registry.permissionGranted = false
+    // Makes starting an activity that no app can handle throw, as it does on a locked-down device.
+    shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>())
+        .checkActivities(true)
+    show()
+    tap(C.Tag.photos_take_photo)
+    tap(C.Tag.camera_rationale_continue)
+
+    tap(C.Tag.camera_blocked_open_settings)
+
+    assertEquals(
+        composeRule.activity.getString(R.string.photos_no_settings),
+        ShadowToast.getTextOfLatestToast(),
+    )
+    composeRule.onNodeWithTag(C.Tag.photos_screen).assertIsDisplayed()
+  }
+
+  @Test
   fun takesThePhotoAfterTheCameraWasAllowedInSettings() {
     registry.permissionGranted = false
     show()

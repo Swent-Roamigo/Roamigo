@@ -91,8 +91,11 @@ class PhotosViewModel(
   // cannot overwrite the state of the photo that replaced it.
   private var fetchGeneration = 0
 
-  // Set while the user is in the app's settings, to resume the photo they asked for.
-  private var awaitingSettings = false
+  // Set while the user is in the app's settings, to resume the photo they asked for. It is kept in
+  // the saved state because Android may kill the app while the user is away.
+  private var awaitingSettings: Boolean
+    get() = savedStateHandle.get<Boolean>(AWAITING_SETTINGS_KEY) ?: false
+    set(value) = savedStateHandle.set(AWAITING_SETTINGS_KEY, value)
 
   val uiState: StateFlow<PhotosUiState> =
       combine(repository.pendingPhotos(tripId), connectivity.isOnline, local, gallery) {
@@ -196,6 +199,11 @@ class PhotosViewModel(
     else if (!granted && status == PhotoLocationStatus.NextPhotoOnly) {
       setLocation(PhotoLocationStatus.Off)
     }
+  }
+
+  /** The settings could not be opened, so there is no return from them to wait for. */
+  fun onSettingsUnavailable() {
+    awaitingSettings = false
   }
 
   /** The camera could not be opened, e.g. because no camera app is installed. */
@@ -423,6 +431,7 @@ class PhotosViewModel(
 
   private companion object {
     const val CAPTURE_FILE_KEY = "capture_file"
+    const val AWAITING_SETTINGS_KEY = "awaiting_settings"
     const val PREVIEW_FILE_KEY = "preview_file"
     const val LOCATION_STATUS_KEY = "preview_location_status"
     const val LATITUDE_KEY = "preview_latitude"
