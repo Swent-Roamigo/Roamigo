@@ -19,9 +19,16 @@ import kotlinx.coroutines.flow.merge
 class FakeLocationRepository(
     var hasPermission: Boolean = false,
     var currentLocation: DeviceLocation? = null,
-    /** Returned by [lastKnownLocation] while [hasPermission] is true, whatever the max age. */
+    /**
+     * Returned by [lastKnownLocation] while [hasPermission] is true and it is no older than the max
+     * age, measured against [nowMillis]. Like the real repository, it is never returned without a
+     * timestamp.
+     */
     var knownLocation: DeviceLocation? = null,
 ) : LocationRepository {
+
+  /** Device time, in milliseconds since the epoch, used to measure the age of [knownLocation]. */
+  var nowMillis: Long = 0L
 
   val memberLocations = MutableStateFlow<List<MemberLocation>>(emptyList())
 
@@ -63,9 +70,11 @@ class FakeLocationRepository(
     return currentLocation
   }
 
-  override fun lastKnownLocation(maxAge: Duration): DeviceLocation? = knownLocation.takeIf {
-    hasPermission
-  }
+  override fun lastKnownLocation(maxAge: Duration): DeviceLocation? =
+      knownLocation?.takeIf { known ->
+        val time = known.timestampMillis
+        hasPermission && time != null && nowMillis - time <= maxAge.inWholeMilliseconds
+      }
 
   /**
    * Awaited by [startSharing] before publishing, when set, like a start waiting for its first
