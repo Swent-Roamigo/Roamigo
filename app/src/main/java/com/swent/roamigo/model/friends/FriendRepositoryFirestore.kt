@@ -141,63 +141,67 @@ class FriendRepositoryFirestore(
   ) {
     operation { user ->
       requireFriendIdentifier(requestId)
-
       val reference = document(user.uid, otherUserId)
 
       try {
-        db.runTransaction { transaction ->
-              ensureSession(user)
-
-              val snapshot = transaction.get(reference)
-
-              if (snapshot.exists()) {
-                val request =
-                    friendRequestFromFirestore(
-                        snapshot.id,
-                        snapshot.data,
-                    )
-
-                if (request.uid != requestId || request.status != FriendRequestStatus.PENDING) {
-                  throw FriendRepositoryException.Conflict()
-                }
-
-                if (request.senderUserId != user.uid) {
-                  throw FriendRepositoryException.PermissionDenied()
-                }
-
-                transaction.delete(reference) // cancel request if all conditions are met
-              }
-
-              Unit
-            }
-            .await()
+        cancelPendingRequestTransaction(user, reference, requestId)
       } catch (error: FirebaseFirestoreException) {
         if (error.code != FirebaseFirestoreException.Code.PERMISSION_DENIED) {
           throw error
         }
 
-        // Recheck the state: acceptance may have won the race.
-        ensureSession(user)
-
-        val latest = reference.get(Source.SERVER).await()
-
-        if (!latest.exists()) {
-          return@operation
-        }
-
-        val current =
-            friendRequestFromFirestore(
-                latest.id,
-                latest.data,
-            )
-
-        if (current.uid != requestId || current.status != FriendRequestStatus.PENDING) {
-          throw FriendRepositoryException.Conflict(error)
-        }
-
-        throw error
+        recheckCancelledRequest(user, reference, requestId, error)
       }
     }
+  }
+
+  private suspend fun cancelPendingRequestTransaction(
+      user: FirebaseUser,
+      reference: DocumentReference,
+      requestId: String,
+  ) {
+    db.runTransaction { transaction ->
+          ensureSession(user)
+          val snapshot = transaction.get(reference)
+
+          if (snapshot.exists()) {
+            val request = friendRequestFromFirestore(snapshot.id, snapshot.data)
+
+            if (request.uid != requestId || request.status != FriendRequestStatus.PENDING) {
+              throw FriendRepositoryException.Conflict()
+            }
+
+            if (request.senderUserId != user.uid) {
+              throw FriendRepositoryException.PermissionDenied()
+            }
+
+            transaction.delete(reference)
+          }
+
+          Unit
+        }
+        .await()
+  }
+
+  private suspend fun recheckCancelledRequest(
+      user: FirebaseUser,
+      reference: DocumentReference,
+      requestId: String,
+      error: FirebaseFirestoreException,
+  ) {
+    // Acceptance or another cancellation may have won the race.
+    ensureSession(user)
+    val latest = reference.get(Source.SERVER).await()
+
+    if (!latest.exists()) return
+
+    val current = friendRequestFromFirestore(latest.id, latest.data)
+
+    if (current.uid != requestId || current.status != FriendRequestStatus.PENDING) {
+      throw FriendRepositoryException.Conflict(error)
+    }
+
+    throw error
   }
 
   override suspend fun removeFriend(otherUserId: String, friendshipId: String) {

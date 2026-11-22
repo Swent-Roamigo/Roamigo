@@ -379,6 +379,42 @@ class FriendRepositoryFirestoreTest {
   }
 
   @Test
+  fun cancellationTreatsAlreadyDeletedRequestAsSuccessAfterPermissionDenial() = runTest {
+    val repository = FriendRepositoryFirestore(db, auth, UnconfinedTestDispatcher(testScheduler))
+
+    stored = null
+    transactionFailure =
+        FirebaseFirestoreException(
+            "Denied",
+            FirebaseFirestoreException.Code.PERMISSION_DENIED,
+        )
+
+    repository.cancelFriendRequest("bob", "request-1")
+
+    assertNull(stored)
+    verify(transaction, never()).delete(reference)
+  }
+
+  @Test
+  fun cancellationRejectsReplacementFoundAfterPermissionDenial() = runTest {
+    val repository = FriendRepositoryFirestore(db, auth, UnconfinedTestDispatcher(testScheduler))
+
+    stored = record(requestId = "new-request")
+    transactionFailure =
+        FirebaseFirestoreException(
+            "Denied",
+            FirebaseFirestoreException.Code.PERMISSION_DENIED,
+        )
+
+    expect<FriendRepositoryException.Conflict> {
+      repository.cancelFriendRequest("bob", "request-1")
+    }
+
+    assertEquals("new-request", stored?.get("requestId"))
+    verify(transaction, never()).delete(reference)
+  }
+
+  @Test
   fun removal_requiresTheSameAcceptedGenerationAndMissingRemovalIsHarmless() = runTest {
     val repository = FriendRepositoryFirestore(db, auth, UnconfinedTestDispatcher(testScheduler))
     stored = record()
