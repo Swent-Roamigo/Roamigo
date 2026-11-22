@@ -21,8 +21,10 @@ import com.google.firebase.database.DatabaseReference.CompletionListener
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ServerValue
 import com.google.firebase.database.ValueEventListener
+import com.swent.roamigo.model.photo.PHOTO_LOCATION_TIMEOUT
 import java.io.IOException
 import java.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -231,43 +233,60 @@ class DefaultLocationRepositoryTest {
       }
 
   @Test
-  fun getCurrentLocation_fallsBackToNetworkProviderWhenGpsHasNoFix() = runTest {
+  fun getCurrentLocation_returnsNetworkFixWithoutWaitingForGps() = runTest {
     application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
 
     val pending = async { repository.getCurrentLocation() }
     runCurrent()
-    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMinutes(1))
-    runCurrent()
-    assertFalse(pending.isCompleted)
-
+    advanceTimeBy(1.seconds)
+    // GPS stays silent, e.g. indoors, while the network provider answers.
     locationManager.simulateLocation(
         recentLocation(LocationManager.NETWORK_PROVIDER).apply {
           latitude = 47.3769
           longitude = 8.5417
         }
     )
+    runCurrent()
 
+    assertTrue(pending.isCompleted)
+    assertTrue(testScheduler.currentTime.milliseconds < PHOTO_LOCATION_TIMEOUT)
     assertEquals(47.3769, pending.await()!!.latitude, 0.0)
+    // The GPS request still searching is cancelled once the network fix is chosen.
+    assertTrue(locationManager.getLocationRequests(LocationManager.GPS_PROVIDER).isEmpty())
   }
 
   @Test
-  fun getCurrentLocation_fallsBackToNetworkProviderWhenGpsIsTooSlow() = runTest {
+  fun getCurrentLocation_prefersGpsWhenBothProvidersHaveAFix() = runTest {
     application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
-
-    val pending = async { repository.getCurrentLocation() }
-    runCurrent()
-    advanceTimeBy(DefaultLocationRepository.PROVIDER_TIMEOUT)
-    runCurrent()
-    assertFalse(pending.isCompleted)
-
     locationManager.simulateLocation(
         recentLocation(LocationManager.NETWORK_PROVIDER).apply {
           latitude = 47.3769
           longitude = 8.5417
         }
     )
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
 
-    assertEquals(47.3769, pending.await()!!.latitude, 0.0)
+    val result = repository.getCurrentLocation()
+
+    assertEquals(46.5191, result!!.latitude, 0.0)
+    assertEquals(6.5668, result.longitude, 0.0)
+  }
+
+  @Test
+  fun getCurrentLocation_returnsNullWhenNoProviderAnswersWithinProviderTimeout() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+
+    val pending = async { repository.getCurrentLocation() }
+    runCurrent()
+    // Runs everything scheduled before the timeout, but not the timeout itself.
+    advanceTimeBy(DefaultLocationRepository.PROVIDER_TIMEOUT)
+    assertFalse(pending.isCompleted)
+    runCurrent()
+
+    assertTrue(pending.isCompleted)
+    assertNull(pending.await())
+    assertTrue(locationManager.getLocationRequests(LocationManager.GPS_PROVIDER).isEmpty())
+    assertTrue(locationManager.getLocationRequests(LocationManager.NETWORK_PROVIDER).isEmpty())
   }
 
   @Test
@@ -300,23 +319,26 @@ class DefaultLocationRepositoryTest {
     application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
 
     val pending = async { repository.getCurrentLocation() }
-    // GPS and then the network provider each time out without a fix.
-    repeat(2) {
-      runCurrent()
-      shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMinutes(1))
-    }
+    runCurrent()
+    // Both providers are asked at once and the platform ends each request without a fix.
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMinutes(1))
 
     assertNull(pending.await())
   }
 
   @Test
-  fun getCurrentLocation_stopsWaitingWhenCancelled() = runTest {
+  fun getCurrentLocation_cancelsEveryProviderRequestWhenCancelled() = runTest {
     application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
 
     val pending = async { repository.getCurrentLocation() }
     runCurrent()
+    assertEquals(1, locationManager.getLocationRequests(LocationManager.GPS_PROVIDER).size)
+    assertEquals(1, locationManager.getLocationRequests(LocationManager.NETWORK_PROVIDER).size)
     pending.cancel()
     runCurrent()
+
+    assertTrue(locationManager.getLocationRequests(LocationManager.GPS_PROVIDER).isEmpty())
+    assertTrue(locationManager.getLocationRequests(LocationManager.NETWORK_PROVIDER).isEmpty())
 
     // A fix arriving after cancellation must not be delivered to the cancelled request.
     locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
