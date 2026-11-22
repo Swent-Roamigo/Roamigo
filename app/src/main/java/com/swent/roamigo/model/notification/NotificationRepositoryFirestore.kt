@@ -43,8 +43,10 @@ class NotificationRepositoryFirestore(
   override fun observeUnreadCount(): Flow<Int> = observe { inbox -> inbox.count { !it.isRead } }
 
   override suspend fun markAsRead(notificationId: String) {
+    // Bind an inbox action to its original account before dispatching the write.
+    val user = authenticatedUser()
     withContext(dispatcher) {
-      val user = authenticatedUser()
+      check(auth.currentUser === user) { "The notification session changed" }
       inbox(user.uid).document(validIdentifier(notificationId)).update("isRead", true).await()
     }
   }
