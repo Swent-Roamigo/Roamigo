@@ -2,7 +2,7 @@
 import {createHash} from "node:crypto";
 import {FieldValue, getFirestore, type Firestore} from "firebase-admin/firestore";
 import {logger} from "firebase-functions";
-import {onDocumentWritten} from "firebase-functions/v2/firestore";
+import {onDocumentCreated, onDocumentWritten} from "firebase-functions/v2/firestore";
 
 type NotificationEvent =
   | {type: "FRIEND_REQUEST_RECEIVED"; requestId: string; senderUserId: string}
@@ -61,5 +61,32 @@ export const notifyFriendRequest = onDocumentWritten(
       requestId,
       senderUserId,
     });
+  },
+);
+
+export const notifyTripVoteCreated = onDocumentCreated(
+  {document: "trips/{tripId}/votes/{voteId}", region: "europe-west1", retry: true},
+  async (event) => {
+    const {tripId, voteId} = event.params;
+    const vote = event.data?.data();
+    if (vote?.status !== "OPEN") return;
+    if (vote.uid !== voteId || vote.tripId !== tripId || !isIdentifier(vote.createdByUserId)) {
+      logger.warn("Skipping invalid trip vote notification", {tripId, voteId});
+      return;
+    }
+
+    const db = getFirestore();
+    const trip = (await db.doc(`trips/${tripId}`).get()).data();
+    if (!trip) return;
+    const memberIds: unknown = trip.memberIds;
+    if (!Array.isArray(memberIds) || !memberIds.every(isIdentifier)) {
+      logger.warn("Skipping vote notifications for invalid trip membership", {tripId, voteId});
+      return;
+    }
+
+    const recipients = [...new Set(memberIds)].filter((userId) => userId !== vote.createdByUserId);
+    await Promise.all(recipients.map((userId) =>
+      createNotification(db, userId, [tripId, voteId], {type: "TRIP_VOTE_CREATED", tripId, voteId}),
+    ));
   },
 );
