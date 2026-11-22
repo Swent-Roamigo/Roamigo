@@ -1,6 +1,7 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.model.location
 
+import kotlin.time.Duration
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
@@ -18,6 +19,8 @@ import kotlinx.coroutines.flow.merge
 class FakeLocationRepository(
     var hasPermission: Boolean = false,
     var currentLocation: DeviceLocation? = null,
+    /** Returned by [lastKnownLocation] while [hasPermission] is true, whatever the max age. */
+    var knownLocation: DeviceLocation? = null,
 ) : LocationRepository {
 
   val memberLocations = MutableStateFlow<List<MemberLocation>>(emptyList())
@@ -58,6 +61,10 @@ class FakeLocationRepository(
   override suspend fun getCurrentLocation(): DeviceLocation? {
     getCurrentLocationCalls++
     return currentLocation
+  }
+
+  override fun lastKnownLocation(maxAge: Duration): DeviceLocation? = knownLocation.takeIf {
+    hasPermission
   }
 
   /**
