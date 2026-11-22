@@ -59,6 +59,11 @@ class PhotoSyncer(
     } catch (e: IOException) {
       queue.setStatus(photo.id, PhotoUploadStatus.FAILED)
       (e as? PhotoUploadException)?.retryable ?: true
+    } catch (_: Exception) {
+      // Anything unplanned, e.g. from the encoder, must not leave the photo marked as uploading
+      // with nothing running, nor stop the photos after it.
+      queue.setStatus(photo.id, PhotoUploadStatus.FAILED)
+      true
     }
   }
 }
