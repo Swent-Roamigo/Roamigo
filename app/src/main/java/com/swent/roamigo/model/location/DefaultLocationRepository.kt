@@ -27,6 +27,7 @@ import com.google.firebase.database.ValueEventListener
 import com.google.firebase.database.database
 import java.io.IOException
 import java.util.concurrent.Executor
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.resume
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -79,6 +80,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  * @param sharedTripsStore saves the trips each user is sharing with, across app processes.
  * @param scope runs the periodic position updates while sharing is on.
  * @param updateInterval delay between two published positions while sharing is on.
+ * @param clock current device time in milliseconds since the epoch, on the same clock as the fix
+ *   timestamps; injectable for tests.
  */
 class DefaultLocationRepository(
     context: Context,
@@ -89,6 +92,7 @@ class DefaultLocationRepository(
     private val sharedTripsStore: DataStore<Preferences> = context.sharedTripsDataStore,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     private val updateInterval: Duration = DEFAULT_UPDATE_INTERVAL,
+    private val clock: () -> Long = System::currentTimeMillis,
 ) : LocationRepository {
 
   private val appContext = context.applicationContext
@@ -100,13 +104,36 @@ class DefaultLocationRepository(
   // while waiting for a location fix or the database, so a stop is not delayed by a pending start.
   private val sharingMutex = Mutex()
 
+  // Newest fix produced by getCurrentLocation(), including the ones taken by the trip map and by
+  // sharing updates, so that callers that cannot wait for a new fix can still use it.
+  private val latestFix = AtomicReference<DeviceLocation?>(null)
+
   override fun hasLocationPermission(): Boolean = LOCATION_PERMISSIONS.any {
     ContextCompat.checkSelfPermission(appContext, it) == PackageManager.PERMISSION_GRANTED
   }
 
   override suspend fun getCurrentLocation(): DeviceLocation? {
     if (!hasLocationPermission()) return null
-    return firstFix(usableProviders())?.toDeviceLocation()
+    val fix = firstFix(usableProviders())?.toDeviceLocation() ?: return null
+    // Calls may finish out of order, so a slower call must not replace a newer fix.
+    latestFix.updateAndGet { latest ->
+      if (latest != null && latest.isNewerThan(fix)) latest else fix
+    }
+    return fix
+  }
+
+  // The permission is checked first, like in getCurrentLocation().
+  @SuppressLint("MissingPermission")
+  override fun lastKnownLocation(maxAge: Duration): DeviceLocation? {
+    if (!hasLocationPermission()) return null
+    val oldestAllowed = clock() - maxAge.inWholeMilliseconds
+    val systemFixes =
+        usableProviders().mapNotNull {
+          locationManager.getLastKnownLocation(it)?.toDeviceLocation()
+        }
+    return (systemFixes + listOfNotNull(latestFix.get()))
+        .filter { location -> location.timestampMillis.let { it != null && it >= oldestAllowed } }
+        .maxByOrNull { it.timestampMillis ?: Long.MIN_VALUE }
   }
 
   // Returns the first fix, or null once each provider answered without one or timed out. GPS wins
@@ -477,6 +504,9 @@ class DefaultLocationRepository(
           continuation.resume(location)
         }
       }
+
+  private fun DeviceLocation.isNewerThan(other: DeviceLocation): Boolean =
+      (timestampMillis ?: Long.MIN_VALUE) > (other.timestampMillis ?: Long.MIN_VALUE)
 
   private fun Location.toDeviceLocation() =
       DeviceLocation(

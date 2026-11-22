@@ -40,6 +40,7 @@ import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.TripReadyTestTags
 import java.time.Instant
+import kotlin.time.Duration
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -447,6 +448,8 @@ class RoamigoAppMapNavigationTest {
     override fun hasLocationPermission(): Boolean = false
 
     override suspend fun getCurrentLocation(): DeviceLocation? = null
+
+    override fun lastKnownLocation(maxAge: Duration): DeviceLocation? = null
 
     override suspend fun startSharing(tripId: String) = Unit
 
