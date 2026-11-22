@@ -457,6 +457,29 @@ class DefaultLocationRepositoryTest {
   }
 
   @Test
+  fun lastKnownLocation_keepsNewerFixWhenALaterCallReadsAnOlderOne() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(
+        recentLocation(LocationManager.GPS_PROVIDER).apply { time = now }
+    )
+    val newer = repository.getCurrentLocation()
+    locationManager.simulateLocation(
+        recentLocation(LocationManager.GPS_PROVIDER).apply {
+          latitude = 47.3769
+          time = now - 1.minutes.inWholeMilliseconds
+        }
+    )
+
+    val older = repository.getCurrentLocation()
+    // Only the fix remembered by the repository is left.
+    locationManager.setLastKnownLocation(LocationManager.GPS_PROVIDER, null)
+
+    assertEquals(47.3769, older!!.latitude, 0.0)
+    assertEquals(now - 1.minutes.inWholeMilliseconds, older.timestampMillis)
+    assertEquals(newer, repository.lastKnownLocation(5.minutes))
+  }
+
+  @Test
   fun isSharing_isFalseByDefault() = runTest { assertFalse(repository.isSharing(TRIP_ID).first()) }
 
   @Test

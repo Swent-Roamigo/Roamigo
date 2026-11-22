@@ -760,6 +760,44 @@ class PhotosViewModelTest {
   }
 
   @Test
+  fun savesWithoutAPositionWhenTheLastReadAfterTheTimeoutFails() = runTest {
+    // The full read never answers, so saving falls back to a read that does not wait, which fails.
+    val failingFallback =
+        object : PhotoLocator {
+          val timeouts = mutableListOf<kotlin.time.Duration>()
+
+          override suspend fun locate(timeout: kotlin.time.Duration): PhotoLocationResult {
+            timeouts += timeout
+            if (timeout == kotlin.time.Duration.ZERO) throw IllegalStateException("broken")
+            awaitCancellation()
+          }
+        }
+    viewModel = PhotosViewModel(repository, connectivity, "trip", failingFallback, clock = clock)
+    viewModel.effects.onEach { effects += it }.launchIn(CoroutineScope(dispatcher))
+    takePicture()
+    assertEquals(PhotoLocationStatus.Locating, state.previewLocation)
+    // Holds the save, so that the preview and its status can be checked once the wait is over.
+    repository.saveGate = CompletableDeferred()
+
+    viewModel.onSave()
+    advanceTimeBy(PHOTO_LOCATION_TIMEOUT - 1.milliseconds)
+    runCurrent()
+    assertEquals(PhotoLocationStatus.Locating, state.previewLocation)
+    advanceTimeBy(1.milliseconds)
+    runCurrent()
+
+    assertEquals(PhotoLocationStatus.Unavailable, state.previewLocation)
+    assertEquals(
+        listOf(PHOTO_LOCATION_TIMEOUT, kotlin.time.Duration.ZERO),
+        failingFallback.timeouts,
+    )
+    repository.saveGate?.complete(Unit)
+    runCurrent()
+    assertEquals(PHOTO_LOCATION_TIMEOUT.inWholeMilliseconds, currentTime)
+    assertNull(repository.savedPhotos.single().coordinates)
+  }
+
+  @Test
   fun savesWhenTheLocatorFails() = runTest {
     val failing =
         object : PhotoLocator {

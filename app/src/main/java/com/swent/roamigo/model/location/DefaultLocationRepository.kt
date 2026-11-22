@@ -106,7 +106,7 @@ class DefaultLocationRepository(
 
   // Newest fix produced by getCurrentLocation(), including the ones taken by the trip map and by
   // sharing updates, so that callers that cannot wait for a new fix can still use it.
-  private val latestFix = AtomicReference<DeviceLocation?>(null)
+  private val latestFix = AtomicReference<Location?>(null)
 
   override fun hasLocationPermission(): Boolean = LOCATION_PERMISSIONS.any {
     ContextCompat.checkSelfPermission(appContext, it) == PackageManager.PERMISSION_GRANTED
@@ -114,12 +114,12 @@ class DefaultLocationRepository(
 
   override suspend fun getCurrentLocation(): DeviceLocation? {
     if (!hasLocationPermission()) return null
-    val fix = firstFix(usableProviders())?.toDeviceLocation() ?: return null
+    val fix = firstFix(usableProviders()) ?: return null
     // Calls may finish out of order, so a slower call must not replace a newer fix.
     latestFix.updateAndGet { latest ->
-      if (latest != null && latest.isNewerThan(fix)) latest else fix
+      if (latest != null && latest.time > fix.time) latest else fix
     }
-    return fix
+    return fix.toDeviceLocation()
   }
 
   // The permission is checked first, like in getCurrentLocation().
@@ -127,13 +127,11 @@ class DefaultLocationRepository(
   override fun lastKnownLocation(maxAge: Duration): DeviceLocation? {
     if (!hasLocationPermission()) return null
     val oldestAllowed = clock() - maxAge.inWholeMilliseconds
-    val systemFixes =
-        usableProviders().mapNotNull {
-          locationManager.getLastKnownLocation(it)?.toDeviceLocation()
-        }
+    val systemFixes = usableProviders().mapNotNull { locationManager.getLastKnownLocation(it) }
     return (systemFixes + listOfNotNull(latestFix.get()))
-        .filter { location -> location.timestampMillis.let { it != null && it >= oldestAllowed } }
-        .maxByOrNull { it.timestampMillis ?: Long.MIN_VALUE }
+        .filter { it.time >= oldestAllowed }
+        .maxByOrNull { it.time }
+        ?.toDeviceLocation()
   }
 
   // Returns the first fix, or null once each provider answered without one or timed out. GPS wins
@@ -504,9 +502,6 @@ class DefaultLocationRepository(
           continuation.resume(location)
         }
       }
-
-  private fun DeviceLocation.isNewerThan(other: DeviceLocation): Boolean =
-      (timestampMillis ?: Long.MIN_VALUE) > (other.timestampMillis ?: Long.MIN_VALUE)
 
   private fun Location.toDeviceLocation() =
       DeviceLocation(
