@@ -199,6 +199,41 @@ class PhotoGalleryFirestoreTest {
   }
 
   @Test
+  fun skipsADocumentWhoseFieldHasTheWrongType() = runTest {
+    val received = mutableListOf<List<TripPhoto>>()
+    val job =
+        launch(UnconfinedTestDispatcher(testScheduler)) {
+          gallery().observe("t1").collect { received += it }
+        }
+    // Firestore throws when a field holds another type than the one asked for.
+    val wrongTime = document("wrong-time")
+    `when`(wrongTime.getLong("takenAt")).thenThrow(RuntimeException("not a number"))
+    val wrongImage = document("wrong-image")
+    `when`(wrongImage.getBlob("image")).thenThrow(RuntimeException("not a blob"))
+
+    listener!!.onEvent(snapshot(document("a"), wrongTime, wrongImage, document("b")), null)
+
+    assertEquals(listOf("a", "b"), received.single().map { it.id })
+    job.cancel()
+  }
+
+  @Test
+  fun dropsAPositionThatHasOnlyOneCoordinate() = runTest {
+    val received = mutableListOf<List<TripPhoto>>()
+    val job =
+        launch(UnconfinedTestDispatcher(testScheduler)) {
+          gallery().observe("t1").collect { received += it }
+        }
+
+    listener!!.onEvent(snapshot(document("a", latitude = 46.5)), null)
+
+    assertEquals(listOf("a"), received.single().map { it.id })
+    assertNull(received.single().single().latitude)
+    assertNull(received.single().single().longitude)
+    job.cancel()
+  }
+
+  @Test
   fun emitsAgainWhenAPhotoIsAdded() = runTest {
     val received = mutableListOf<List<String>>()
     val job =

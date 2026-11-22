@@ -47,21 +47,34 @@ class PhotoGalleryFirestore(
               if (error != null) {
                 close(error)
               } else if (snapshot != null) {
-                trySend(snapshot.documents.mapNotNull { it.toTripPhoto() })
+                trySend(snapshot.documents.mapNotNull { it.toTripPhotoOrNull() })
               }
             }
     awaitClose { registration.remove() }
   }
 
+  // Firestore throws when a field holds another type than the one asked for. One such document
+  // must not stop the others from showing, nor end the listener.
+  private fun DocumentSnapshot.toTripPhotoOrNull(): TripPhoto? =
+      try {
+        toTripPhoto()
+      } catch (_: RuntimeException) {
+        null
+      }
+
   /** The photo in this document, or null if the document is not one the app wrote. */
   private fun DocumentSnapshot.toTripPhoto(): TripPhoto? {
     val image = getBlob(PhotoUploaderFirestore.IMAGE)?.toBytes() ?: return null
+    val latitude = getDouble(PhotoUploaderFirestore.LATITUDE)
+    val longitude = getDouble(PhotoUploaderFirestore.LONGITUDE)
+    // The position is one value: both coordinates, or none.
+    val hasPosition = latitude != null && longitude != null
     return TripPhoto(
         id = id,
         uploadedBy = getString(PhotoUploaderFirestore.UPLOADED_BY) ?: return null,
         takenAtMillis = getLong(PhotoUploaderFirestore.TAKEN_AT) ?: return null,
-        latitude = getDouble(PhotoUploaderFirestore.LATITUDE),
-        longitude = getDouble(PhotoUploaderFirestore.LONGITUDE),
+        latitude = if (hasPosition) latitude else null,
+        longitude = if (hasPosition) longitude else null,
         image = image,
     )
   }
