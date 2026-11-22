@@ -60,4 +60,4 @@ export {
 
 export {reclaimEmailLookup} from "./userEmailLookup.js";
 
-export {notifyFriendRequest} from "./notifications.js";
+export {notifyFriendRequest, notifyTripVoteCreated} from "./notifications.js";
