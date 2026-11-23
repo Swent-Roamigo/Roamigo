@@ -192,6 +192,20 @@ class TripsViewModelTest {
   }
 
   @Test
+  fun selectNextActivityKeepsSubMillisecondPrecision() {
+    // Truncating both to milliseconds would drop this activity as already started.
+    val now = ZonedDateTime.parse("2026-10-08T10:00:00.000500Z")
+    val justAfterNow =
+        activity(
+            uid = "just-after",
+            type = ActivityType.ACCEPTED,
+            start = "2026-10-08T10:00:00.000600Z",
+        )
+
+    assertEquals(justAfterNow, selectNextActivity(listOf(justAfterNow), now))
+  }
+
+  @Test
   fun selectOtherTripsFiltersAndSortsTrips() {
     val now = ZonedDateTime.parse("2026-10-08T14:00:00Z")
 
