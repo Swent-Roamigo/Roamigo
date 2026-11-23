@@ -9,6 +9,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Timestamp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.toLocalDate
 import com.swent.roamigo.model.trip.*
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.isNotImplemented

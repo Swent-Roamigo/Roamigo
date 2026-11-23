@@ -3,9 +3,9 @@ package com.swent.roamigo.ui.trip.details
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.swent.roamigo.model.toLocalDate
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.TripRepository
-import com.swent.roamigo.model.trip.toLocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job

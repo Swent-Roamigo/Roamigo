@@ -2,7 +2,7 @@
 package com.swent.roamigo.model.friends
 
 import com.google.firebase.Timestamp
-import com.swent.roamigo.model.trip.toDomainInstant
+import com.swent.roamigo.model.toDomainInstant
 import java.security.MessageDigest
 
 private val friendshipFields =
