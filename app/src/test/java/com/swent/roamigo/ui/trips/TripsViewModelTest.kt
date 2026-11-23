@@ -812,6 +812,37 @@ class TripsViewModelTest {
   }
 
   @Test
+  fun tripsCrossingNewYearShowBothYears() = runTest {
+    val main =
+        trip(
+            "new-year",
+            "New Year",
+            "2026-12-30T10:00:00Z",
+            "2027-01-02T10:00:00Z",
+            TripStatus.PLANNED,
+        )
+    val other =
+        main.copy(
+            uid = "second-new-year",
+            startDate = timestamp("2026-12-31T10:00:00Z"),
+            endDate = timestamp("2027-01-03T10:00:00Z"),
+        )
+
+    val viewModel =
+        TripsViewModel(
+            tripRepository = FakeTripRepository(trips = listOf(main, other)),
+            userRepository = FakeUserRepository(currentUser = alex),
+            clock = Clock.fixed(Instant.parse("2026-12-01T10:00:00Z"), ZoneOffset.UTC),
+        )
+
+    advanceUntilIdle()
+
+    val state = viewModel.uiState.value
+    assertEquals("30 Dec 2026 – 2 Jan 2027", state.mainTrip?.dateRange)
+    assertEquals("31 Dec 2026 – 3 Jan 2027", state.otherTrips.single().dateRange)
+  }
+
+  @Test
   fun viewModelUsesFallbackNameWhenDisplayNameIsBlank() = runTest {
     val blankUser =
         User(

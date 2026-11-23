@@ -50,8 +50,8 @@ class TripReadyScreenTest {
   }
 
   private fun ready(trip: Trip): TripReadyState.Ready {
-    val start = trip.startDate.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
-    val end = trip.endDate.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
+    val start = trip.startDate.toLocalDate(ZoneId.systemDefault())
+    val end = trip.endDate.toLocalDate(ZoneId.systemDefault())
     return TripReadyState.Ready(
         trip,
         start,

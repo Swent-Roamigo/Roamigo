@@ -429,7 +429,7 @@ private fun Trip.toMainTripUiModel(
   return MainTripUiModel(
       id = uid,
       name = name,
-      dateRange = formatTripDateRange(start.toLocalDate(), end.toLocalDate(), Locale.ENGLISH),
+      dateRange = formatTripDateRange(start.toLocalDate(), end.toLocalDate(), TRIPS_HOME_LOCALE),
       durationDays = durationDays,
       stopCount = stopCount,
       memberInitials = memberInitials,
@@ -456,7 +456,7 @@ private fun Trip.toOtherTripUiModel(
   return OtherTripUiModel(
       id = uid,
       name = name,
-      dateRange = formatTripDateRange(start, end, Locale.ENGLISH),
+      dateRange = formatTripDateRange(start, end, TRIPS_HOME_LOCALE),
       memberCount = memberCount,
       isInProgress = status == TripStatus.ACTIVE || !start.isAfter(now.toLocalDate()),
   )
@@ -490,7 +490,7 @@ private fun Activity.toUiModel(
   val formatter =
       DateTimeFormatter.ofPattern(
           "EEE d MMM · HH:mm",
-          Locale.ENGLISH,
+          TRIPS_HOME_LOCALE,
       )
 
   return ActivityCardUiModel(
@@ -499,6 +499,12 @@ private fun Activity.toUiModel(
       subtitle = "Day $dayNumber · ${activityDateTime.format(formatter)}",
   )
 }
+
+/**
+ * Locale of the dates on the Trips home. The greeting and the "Day" label are written in English
+ * here, so the dates match them.
+ */
+private val TRIPS_HOME_LOCALE: Locale = Locale.ENGLISH
 
 /**
  * Selects the greeting displayed in the screen header for the current time of day.
