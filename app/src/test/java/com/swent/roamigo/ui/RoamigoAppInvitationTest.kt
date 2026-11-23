@@ -139,4 +139,15 @@ class RoamigoAppInvitationTest {
 
     assertSheetOpenedForTheTrip()
   }
+
+  @Test
+  fun inviteOnTheMembersScreenOpensTheInviteSheetForThatTrip() {
+    start()
+    composeRule.runOnUiThread { navController.navigate(Route.members(trip.uid)) }
+    waitForTag(C.Tag.trip_members_invite)
+
+    composeRule.onNodeWithTag(C.Tag.trip_members_invite).performClick()
+
+    assertSheetOpenedForTheTrip()
+  }
 }
