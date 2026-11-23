@@ -4,10 +4,10 @@ package com.swent.roamigo.ui.trip.history
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.swent.roamigo.model.toLocalDate
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.isCompletedOn
-import com.swent.roamigo.model.trip.toLocalDate
 import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneId

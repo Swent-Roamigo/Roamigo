@@ -1,5 +1,5 @@
 // AI assistance was used for implementation support.
-package com.swent.roamigo.model.trip
+package com.swent.roamigo.model
 
 import com.google.firebase.Timestamp
 import java.time.Instant
@@ -9,7 +9,7 @@ import java.time.ZonedDateTime
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-class TripDateMappingTest {
+class TimestampMappingTest {
   @Test
   fun conversionPreservesSecondsAndNanoseconds() {
     val instant = Instant.ofEpochSecond(1_900_000_000, 123_456_789)

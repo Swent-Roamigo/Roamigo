@@ -22,10 +22,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.toLocalDate
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.Trip
-import com.swent.roamigo.model.trip.toLocalDate
 import com.swent.roamigo.ui.theme.Spacing
 import java.time.LocalDate
 import java.time.ZoneId

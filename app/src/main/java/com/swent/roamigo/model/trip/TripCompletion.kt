@@ -1,6 +1,7 @@
 package com.swent.roamigo.model.trip
 
 import com.google.firebase.Timestamp
+import com.swent.roamigo.model.toLocalDate
 import java.time.LocalDate
 import java.time.ZoneId
 

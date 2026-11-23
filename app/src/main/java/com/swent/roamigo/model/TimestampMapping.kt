@@ -1,5 +1,5 @@
 // AI assistance was used for implementation support.
-package com.swent.roamigo.model.trip
+package com.swent.roamigo.model
 
 import com.google.firebase.Timestamp
 import java.time.Instant
@@ -7,7 +7,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 
-/** Converts a domain date to the timestamp stored by the trip repositories. */
+/** Converts a domain date to the timestamp stored in Firestore. */
 internal fun Instant.toFirebaseTimestamp(): Timestamp = Timestamp(epochSecond, nano)
 
 /**

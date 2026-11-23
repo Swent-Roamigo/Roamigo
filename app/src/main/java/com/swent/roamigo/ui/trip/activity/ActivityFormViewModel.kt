@@ -8,14 +8,14 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.atZone
+import com.swent.roamigo.model.toDomainInstant
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.activity.ActivityCreationException
 import com.swent.roamigo.model.trip.activity.ActivityDraft
 import com.swent.roamigo.model.trip.activity.ActivityDraftError
 import com.swent.roamigo.model.trip.activity.ActivityRepository
 import com.swent.roamigo.model.trip.activity.toActivity
-import com.swent.roamigo.model.trip.atZone
-import com.swent.roamigo.model.trip.toDomainInstant
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime

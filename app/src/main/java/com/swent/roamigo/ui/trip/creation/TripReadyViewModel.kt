@@ -3,9 +3,9 @@ package com.swent.roamigo.ui.trip.creation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.swent.roamigo.model.toLocalDate
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripRepository
-import com.swent.roamigo.model.trip.toLocalDate
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
