@@ -189,7 +189,9 @@ jobs:
 
   update-milestone-wiki:
     name: Point the milestone wiki page at this APK
-    if: github.event_name == 'push'
+    # A re-run keeps its original creation time, so re-running an old build would
+    # point the page back at it even when newer builds exist.
+    if: github.event_name == 'push' && github.run_attempt == 1
     needs: apk
     runs-on: ubuntu-latest
     timeout-minutes: 5
