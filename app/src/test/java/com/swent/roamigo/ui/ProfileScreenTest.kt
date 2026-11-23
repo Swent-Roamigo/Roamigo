@@ -111,7 +111,7 @@ class ProfileScreenTest {
   fun showsActionsAndFooter() {
     show()
     composeRule.onNodeWithTag(C.Tag.profile_log_out).assertIsDisplayed()
-    composeRule.onAllNodesWithTag(C.Tag.profile_action).assertCountEquals(3)
+    composeRule.onAllNodesWithTag(C.Tag.profile_action).assertCountEquals(1)
     listOf(
             C.Tag.trips_navigation_trips,
             C.Tag.trips_navigation_map,

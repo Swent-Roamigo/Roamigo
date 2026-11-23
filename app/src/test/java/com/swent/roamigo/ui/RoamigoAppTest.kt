@@ -72,7 +72,7 @@ class RoamigoAppTest {
         }
     composeRule.setContent {
       RoamigoTheme {
-        RoamigoApp(
+        TestRoamigoApp(
             friendRepository = friends,
             userRepository =
                 FakeUserRepository(User("alex", "Alex", null), listOf(User("bob", "Bob", null))),
@@ -140,12 +140,12 @@ class RoamigoAppTest {
   }
 
   @Test
-  fun unfinishedActionsShowFeedbackFromProfile() {
+  fun profileOffersNoUnfinishedActions() {
     waitForTrips()
     waitForTag(C.Tag.trips_profile_avatar)
     composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
-    composeRule.assertNotImplementedActionsShowFeedback()
     composeRule.onNodeWithTag(C.Tag.profile_title).assertIsDisplayed()
+    composeRule.onAllNodes(isNotImplemented).assertCountEquals(0)
   }
 
   @Test
