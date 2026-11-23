@@ -30,6 +30,9 @@ import com.swent.roamigo.model.location.DeviceLocation
 import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.photo.PhotoModule
+import com.swent.roamigo.model.photo.PhotoRepository
+import com.swent.roamigo.model.photo.PhotoUploadStatus
+import com.swent.roamigo.model.photo.pendingPhoto
 import com.swent.roamigo.model.photo.tripPhoto
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
@@ -104,6 +107,7 @@ class PhotosRouteTest {
   private fun show(
       activity: Activity? = null,
       locationRepository: FakeLocationRepository = FakeLocationRepository(),
+      photoRepository: PhotoRepository = repository,
   ) {
     val owner =
         object : ActivityResultRegistryOwner {
@@ -116,7 +120,7 @@ class PhotosRouteTest {
             LocalActivity provides (activity ?: composeRule.activity),
         ) {
           PhotosRoute(
-              photoRepository = repository,
+              photoRepository = photoRepository,
               connectivityRepository = connectivity,
               locationRepository = locationRepository,
               tripId = "trip",
@@ -392,5 +396,24 @@ class PhotosRouteTest {
       runCatching { composeRule.onNodeWithTag(C.Tag.photo_preview_location).assertTextEquals(text) }
           .isSuccess
     }
+  }
+
+  @Test
+  fun tellsTheUserWhenAFailedPhotoCannotBeQueuedAgain() {
+    val failed =
+        pendingPhoto("a", tripId = "trip", userId = "alex", status = PhotoUploadStatus.FAILED)
+    val base = FakePhotoRepository(repository.newPhotoFile().parentFile!!, "alex", listOf(failed))
+    val broken =
+        object : PhotoRepository by base {
+          override suspend fun retry(photoId: String) = throw java.io.IOException("disk full")
+        }
+    show(photoRepository = broken)
+
+    tap(C.Tag.photos_retry_prefix + "a")
+
+    assertEquals(
+        composeRule.activity.getString(R.string.photos_retry_failed),
+        ShadowToast.getTextOfLatestToast(),
+    )
   }
 }
