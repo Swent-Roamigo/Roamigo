@@ -61,7 +61,7 @@ class TripReadyScreenTest {
   }
 
   @Test
-  fun summaryAndUnavailableActionsAreAccessible() {
+  fun summaryAndAllActionsAreAccessible() {
     rule.setContent { RoamigoTheme { TestTripReadyScreen(ready(trip()), null) } }
     rule
         .onNodeWithTag(TripReadyTestTags.TITLE)
