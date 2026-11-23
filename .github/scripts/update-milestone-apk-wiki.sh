@@ -33,11 +33,22 @@ next_milestone() {
   fi
 }
 
+# Path of the wiki page of milestone $1.
+page_path() {
+  echo "$WIKI_DIR/Milestone-$1-—-APK.md"
+}
+
+# Prints the run number the page $1 links to, or nothing when the page does not exist yet.
+linked_run_number() {
+  [ -f "$1" ] || return 0
+  grep -o 'Build Sprint APK run #[0-9]*' "$1" | head -n 1 | grep -o '[0-9]*$' || true
+}
+
 # Writes the wiki page of milestone $1, whose deadline is the epoch $2.
 write_page() {
   local milestone=$1 deadline=$2 deadline_text
   deadline_text=$(TZ=$DEADLINE_DISPLAY_ZONE date -d "@$deadline" '+%-d %B %Y at %H:%M %Z')
-  cat > "$WIKI_DIR/Milestone-$milestone-—-APK.md" << EOF
+  cat > "$(page_path "$milestone")" << EOF
 ## Milestone $milestone — APK
 
 [Download the $milestone APK from GitHub Actions]($RUN_URL) (Build Sprint APK run #$RUN_NUMBER, built from \`main\` at commit \`$SHORT_SHA\`)
@@ -57,11 +68,18 @@ EOF
 main() {
   : "${MILESTONE_DEADLINES:?}" "${RUN_CREATED_AT:?}" "${REPO_URL:?}" "${RUN_URL:?}" "${RUN_NUMBER:?}"
   : "${SHORT_SHA:?}" "${ARTIFACT_NAME:?}" "${ARTIFACT_URL:?}" "${WIKI_DIR:?}"
-  local created next
+  local created next milestone linked
   created=$(date -u -d "$RUN_CREATED_AT" +%s)
   next=$(next_milestone "$created")
   if [ -z "$next" ]; then
     echo "::warning::No milestone deadline after this run in MILESTONE_DEADLINES; add the next one in sprint-apk.yml. Wiki left unchanged."
+    return 0
+  fi
+  milestone=${next%% *}
+  linked=$(linked_run_number "$(page_path "$milestone")")
+  # Never go back to an older build, e.g. when an old run is re-run after newer ones.
+  if [ -n "$linked" ] && ((RUN_NUMBER < linked)); then
+    echo "The $milestone page already links the newer run #$linked; wiki left unchanged."
     return 0
   fi
   # shellcheck disable=SC2086 # "$next" holds two words on purpose.
