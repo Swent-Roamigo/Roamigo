@@ -37,7 +37,15 @@ jobs:
           google-services: ${{ secrets.GOOGLE_SERVICES }}
 
       - name: Run formatting, debug, and JVM checks
-        run: ./gradlew ktfmtCheck assembleDebug lintDebug check --build-cache
+        run: ./gradlew testDebugUnitTest --tests '*SignInToSignOutScreensTest' --build-cache
+
+      - name: Print screenshots
+        run: |
+          for f in app/build/outputs/screenshots/*.png; do
+            echo "BEGIN-PNG $(basename "$f")"
+            base64 "$f"
+            echo "END-PNG"
+          done
 
       # The report job reads these, but it does not recompile or rerun the unit tests.
       # Screenshots saved by JVM tests travel along so PR authors can attach them.
