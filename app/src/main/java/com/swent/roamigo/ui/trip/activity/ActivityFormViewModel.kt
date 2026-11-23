@@ -14,6 +14,7 @@ import com.swent.roamigo.model.trip.activity.ActivityDraft
 import com.swent.roamigo.model.trip.activity.ActivityDraftError
 import com.swent.roamigo.model.trip.activity.ActivityRepository
 import com.swent.roamigo.model.trip.activity.toActivity
+import com.swent.roamigo.model.trip.atZone
 import com.swent.roamigo.model.trip.toDomainInstant
 import java.time.Duration
 import java.time.LocalDate
@@ -306,7 +307,7 @@ private fun Activity.matches(draft: ActivityDraft): Boolean =
 
 /** Shows this activity in the form; an activity without a start is shown on [fallbackDate]. */
 private fun Activity.toFields(zone: ZoneId, fallbackDate: LocalDate): ActivityFormFields {
-  val start = startTime?.let { it.toDomainInstant().atZone(zone) }
+  val start = startTime?.atZone(zone)
   return ActivityFormFields(
       name = name,
       date = if (start == null) fallbackDate else start.toLocalDate(),

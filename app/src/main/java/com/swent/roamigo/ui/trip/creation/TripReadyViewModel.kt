@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripRepository
-import com.swent.roamigo.model.trip.toDomainInstant
+import com.swent.roamigo.model.trip.toLocalDate
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
@@ -46,8 +46,8 @@ class TripReadyViewModel(private val repository: TripRepository, private val tri
       try {
         val trip = repository.getTrip(tripId)
         val zone = ZoneId.systemDefault()
-        val start = trip?.startDate?.toDomainInstant()?.atZone(zone)?.toLocalDate()
-        val end = trip?.endDate?.toDomainInstant()?.atZone(zone)?.toLocalDate()
+        val start = trip?.startDate?.toLocalDate(zone)
+        val end = trip?.endDate?.toLocalDate(zone)
         mutableState.value =
             if (
                 trip == null ||

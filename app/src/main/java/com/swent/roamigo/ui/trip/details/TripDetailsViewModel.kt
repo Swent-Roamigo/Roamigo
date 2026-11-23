@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.TripRepository
+import com.swent.roamigo.model.trip.toLocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -46,9 +47,8 @@ class TripDetailsViewModel(
                     TripDetails(
                         name = trip.name,
                         // Match the local calendar dates used by trip creation and Trips Home.
-                        startDate =
-                            trip.startDate.toDate().toInstant().atZone(zoneId).toLocalDate(),
-                        endDate = trip.endDate.toDate().toInstant().atZone(zoneId).toLocalDate(),
+                        startDate = trip.startDate.toLocalDate(zoneId),
+                        endDate = trip.endDate.toLocalDate(zoneId),
                         travelerCount = trip.travelerCount,
                         memberCount = members.map { it.userId }.distinct().size,
                         suggestedPlaceCount =
