@@ -4,16 +4,17 @@ package com.swent.roamigo.model.friends
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.FirebaseApp
-import com.google.firebase.FirebaseOptions
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
-import com.google.firebase.firestore.FirebaseFirestoreSettings
-import com.google.firebase.firestore.MemoryCacheSettings
 import com.google.firebase.firestore.Source
+import com.swent.roamigo.FirebaseEmulators
+import com.swent.roamigo.FirebaseEmulators.FIRESTORE_PORT
+import com.swent.roamigo.FirebaseEmulators.HOST
+import com.swent.roamigo.FirebaseEmulators.PROJECT_ID
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
@@ -59,7 +60,7 @@ class FriendshipRulesEmulatorTest {
     apps.forEach { it.delete() }
     val connection =
         URL(
-                "http://$HOST:$FIRESTORE_PORT/emulator/v1/projects/$PROJECT/databases/(default)/documents"
+                "http://$HOST:$FIRESTORE_PORT/emulator/v1/projects/$PROJECT_ID/databases/(default)/documents"
             )
             .openConnection() as HttpURLConnection
     try {
@@ -652,28 +653,11 @@ class FriendshipRulesEmulatorTest {
 
   private suspend fun signInUser(): User {
     val name = "friendship-rules-${UUID.randomUUID()}"
-    val options =
-        FirebaseOptions.Builder()
-            .setProjectId(PROJECT)
-            .setApplicationId("1:1234567890:android:friendship-rules")
-            .setApiKey("fake-api-key-$name")
-            .build()
     val app =
-        FirebaseApp.initializeApp(
-            InstrumentationRegistry.getInstrumentation().targetContext,
-            options,
-            name,
-        )
+        FirebaseEmulators.newApp(InstrumentationRegistry.getInstrumentation().targetContext, name)
     apps += app
-    val auth = FirebaseAuth.getInstance(app).apply { useEmulator(HOST, AUTH_PORT) }
-    val db =
-        FirebaseFirestore.getInstance(app).apply {
-          useEmulator(HOST, FIRESTORE_PORT)
-          firestoreSettings =
-              FirebaseFirestoreSettings.Builder()
-                  .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
-                  .build()
-        }
+    val auth = FirebaseEmulators.auth(app)
+    val db = FirebaseEmulators.firestore(app)
     return User(requireNotNull(auth.signInAnonymously().await().user).uid, auth, db)
   }
 
@@ -731,12 +715,5 @@ class FriendshipRulesEmulatorTest {
 
   private fun emulatorTest(action: suspend CoroutineScope.() -> Unit): Unit = runBlocking {
     withTimeout(30_000) { action() }
-  }
-
-  private companion object {
-    const val PROJECT = "demo-roamigo"
-    const val HOST = "10.0.2.2"
-    const val AUTH_PORT = 9099
-    const val FIRESTORE_PORT = 8080
   }
 }

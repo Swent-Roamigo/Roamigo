@@ -7,8 +7,8 @@ import androidx.credentials.PasswordCredential
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.FirebaseApp
-import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.FirebaseAuth
+import com.swent.roamigo.FirebaseEmulators
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.AfterClass
@@ -45,19 +45,11 @@ class AuthRepositoryFirebaseIntegrationTest {
   @Before
   fun setUp() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
-    val options =
-        FirebaseOptions.Builder()
-            .setProjectId("demo-roamigo")
-            .setApplicationId("1:1234567890:android:roamigo-auth-emulator")
-            .setApiKey("fake-api-key-for-auth-emulator")
-            .build()
-
     // Reuse the app because the SDK caches emulator configuration across test methods.
     app =
         FirebaseApp.getApps(context).firstOrNull { it.name == testAppName }
-            ?: FirebaseApp.initializeApp(context, options, testAppName)
-    auth = FirebaseAuth.getInstance(app)
-    auth.useEmulator("10.0.2.2", 9099)
+            ?: FirebaseEmulators.newApp(context, testAppName)
+    auth = FirebaseEmulators.auth(app)
     repository = AuthRepositoryFirebase(auth)
   }
 

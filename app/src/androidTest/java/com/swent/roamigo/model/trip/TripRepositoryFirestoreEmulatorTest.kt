@@ -5,14 +5,15 @@ import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.FirebaseApp
-import com.google.firebase.FirebaseOptions
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
-import com.google.firebase.firestore.FirebaseFirestoreSettings
-import com.google.firebase.firestore.MemoryCacheSettings
+import com.swent.roamigo.FirebaseEmulators
+import com.swent.roamigo.FirebaseEmulators.FIRESTORE_PORT
+import com.swent.roamigo.FirebaseEmulators.HOST
+import com.swent.roamigo.FirebaseEmulators.PROJECT_ID
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.trip.voting.Vote
 import com.swent.roamigo.model.trip.voting.VoteBallot
@@ -634,26 +635,10 @@ class TripRepositoryFirestoreEmulatorTest {
 
   private suspend fun signInUser(): User {
     val appName = "trip-test-${UUID.randomUUID()}"
-    val options =
-        FirebaseOptions.Builder()
-            .setProjectId(PROJECT_ID)
-            .setApplicationId("1:1234567890:android:roamigo-trip-emulator")
-            // Firebase Auth keeps emulator settings per API key, which must not point to the
-            // app of a previous test once it is deleted.
-            .setApiKey("fake-api-key-$appName")
-            .build()
-    val app = FirebaseApp.initializeApp(context, options, appName)
+    val app = FirebaseEmulators.newApp(context, appName)
     apps += app
-    val auth = FirebaseAuth.getInstance(app).apply { useEmulator(EMULATOR_HOST, AUTH_PORT) }
-    val db =
-        FirebaseFirestore.getInstance(app).apply {
-          useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
-          // A local cache could answer reads that the rules would deny.
-          firestoreSettings =
-              FirebaseFirestoreSettings.Builder()
-                  .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
-                  .build()
-        }
+    val auth = FirebaseEmulators.auth(app)
+    val db = FirebaseEmulators.firestore(app)
     val userId = auth.signInAnonymously().await().user!!.uid
     return User(userId, db, TripRepositoryFirestore(db) { auth.currentUser?.uid }, auth)
   }
@@ -720,7 +705,7 @@ class TripRepositoryFirestoreEmulatorTest {
     val body = JSONObject().put("writes", JSONArray().put(write)).toString()
     val connection =
         URL(
-                "http://$EMULATOR_HOST:$FIRESTORE_PORT/v1/projects/$PROJECT_ID/databases/(default)/documents:commit"
+                "http://$HOST:$FIRESTORE_PORT/v1/projects/$PROJECT_ID/databases/(default)/documents:commit"
             )
             .openConnection() as HttpURLConnection
     try {
@@ -792,7 +777,7 @@ class TripRepositoryFirestoreEmulatorTest {
   private fun clearFirestore() {
     val url =
         URL(
-            "http://$EMULATOR_HOST:$FIRESTORE_PORT/emulator/v1/projects/$PROJECT_ID" +
+            "http://$HOST:$FIRESTORE_PORT/emulator/v1/projects/$PROJECT_ID" +
                 "/databases/(default)/documents"
         )
     val connection = url.openConnection() as HttpURLConnection
@@ -804,12 +789,5 @@ class TripRepositoryFirestoreEmulatorTest {
     } finally {
       connection.disconnect()
     }
-  }
-
-  private companion object {
-    const val PROJECT_ID = "demo-roamigo"
-    const val EMULATOR_HOST = "10.0.2.2"
-    const val AUTH_PORT = 9099
-    const val FIRESTORE_PORT = 8080
   }
 }
