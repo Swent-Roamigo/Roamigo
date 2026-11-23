@@ -13,6 +13,7 @@ import com.swent.roamigo.model.trip.activity.ActivityCreationException
 import com.swent.roamigo.model.trip.activity.ActivityDraft
 import com.swent.roamigo.model.trip.activity.ActivityDraftError
 import com.swent.roamigo.model.trip.activity.ActivityRepository
+import com.swent.roamigo.model.trip.activity.toActivity
 import com.swent.roamigo.model.trip.toDomainInstant
 import java.time.Duration
 import java.time.LocalDate
@@ -282,10 +283,7 @@ private fun ActivityFormFields.draftAt(
       } else {
         time?.let { date.atTime(it).atZone(zone).toInstant() }
       }
-  val length =
-      edited?.endTime?.let { end ->
-        editedStart?.let { Duration.between(it, end.toDomainInstant()) }
-      }
+  val length = edited?.length()
   return ActivityDraft(
       name = name.trim(),
       description = description.trim().ifEmpty { null },
@@ -295,19 +293,23 @@ private fun ActivityFormFields.draftAt(
   )
 }
 
+/** How long this activity lasts, or `null` without both a start and an end. */
+private fun Activity.length(): Duration? {
+  val start = startTime ?: return null
+  val end = endTime ?: return null
+  return Duration.between(start.toDomainInstant(), end.toDomainInstant())
+}
+
+// The stored activity matches when it is exactly what the repository would create from [draft].
 private fun Activity.matches(draft: ActivityDraft): Boolean =
-    name == draft.name &&
-        description == draft.description &&
-        location == draft.location &&
-        startTime?.toDomainInstant() == draft.startTime &&
-        endTime?.toDomainInstant() == draft.endTime
+    this == draft.toActivity(uid, tripId, createdByUserId, creationTime)
 
 /** Shows this activity in the form; an activity without a start is shown on [fallbackDate]. */
 private fun Activity.toFields(zone: ZoneId, fallbackDate: LocalDate): ActivityFormFields {
-  val start = startTime?.toDomainInstant()?.atZone(zone)
+  val start = startTime?.let { it.toDomainInstant().atZone(zone) }
   return ActivityFormFields(
       name = name,
-      date = start?.toLocalDate() ?: fallbackDate,
+      date = if (start == null) fallbackDate else start.toLocalDate(),
       time = start?.toLocalTime(),
       place = location,
       description = description.orEmpty(),

@@ -4,6 +4,7 @@ package com.swent.roamigo.ui.trips
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.Timestamp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthRepository
@@ -243,9 +244,10 @@ class TripsViewModel(
                     now = now,
                 ),
             nextActivity =
-                if (mainTrip != null && nextActivity != null) {
+                if (mainTrip != null && nextActivity?.startTime != null) {
                   nextActivity.toUiModel(
                       trip = mainTrip,
+                      start = nextActivity.startTime,
                       zoneId = now.zone,
                   )
                 } else {
@@ -346,9 +348,11 @@ internal fun selectNextActivity(
     now: ZonedDateTime,
 ): Activity? =
     activities
-        .filter { activity -> activity.activityType == ActivityType.ACCEPTED }
         .mapNotNull { activity -> activity.startTime?.let { start -> activity to start } }
-        .filter { (_, start) -> !start.toDate().toInstant().isBefore(now.toInstant()) }
+        .filter { (activity, start) ->
+          activity.activityType == ActivityType.ACCEPTED &&
+              !start.toDate().toInstant().isBefore(now.toInstant())
+        }
         .minByOrNull { (_, start) -> start }
         ?.first
 
@@ -469,15 +473,17 @@ private fun Trip.toOtherTripUiModel(
  * Converts an activity into the presentation model used by the "Next up" section.
  *
  * @param trip the trip used to derive the activity's trip-day number.
+ * @param start when the activity starts; only scheduled activities are shown as next.
  * @param zoneId the time zone used when formatting the activity date and time.
- * @return the presentation model for the activity, or `null` when it has no start time to show.
+ * @return the presentation model for the activity.
  * @receiver the activity being converted.
  */
 private fun Activity.toUiModel(
     trip: Trip,
+    start: Timestamp,
     zoneId: ZoneId,
-): ActivityCardUiModel? {
-  val activityDateTime = startTime?.toDate()?.toInstant()?.atZone(zoneId) ?: return null
+): ActivityCardUiModel {
+  val activityDateTime = start.toDate().toInstant().atZone(zoneId)
 
   val tripStartDate = trip.startDate.toDate().toInstant().atZone(zoneId).toLocalDate()
 
