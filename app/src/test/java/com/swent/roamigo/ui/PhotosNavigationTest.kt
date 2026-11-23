@@ -56,7 +56,7 @@ class PhotosNavigationTest {
     composeRule.setContent {
       navController = rememberNavController()
       RoamigoTheme {
-        RoamigoApp(
+        RoamigoAppWithFakes(
             friendRepository = FakeFriendRepository("member"),
             userRepository = FakeUserRepository(User("member", "Member", null)),
             voteRepository = InMemoryVoteRepository(emptyList()),

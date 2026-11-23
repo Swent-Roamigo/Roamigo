@@ -41,7 +41,7 @@ class RoamigoAppNewIntentTest {
     composeRule.setContent {
       navController = rememberNavController()
       RoamigoTheme {
-        RoamigoApp(
+        RoamigoAppWithFakes(
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
             friendRepository = FakeFriendRepository("alex"),

@@ -72,7 +72,7 @@ class RoamigoAppTest {
         }
     composeRule.setContent {
       RoamigoTheme {
-        RoamigoApp(
+        RoamigoAppWithFakes(
             friendRepository = friends,
             userRepository =
                 FakeUserRepository(User("alex", "Alex", null), listOf(User("bob", "Bob", null))),

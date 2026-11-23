@@ -116,7 +116,7 @@ class VotingEndToEndTest {
   fun createdVotePersistsAndChangingBallotUpdatesCountsWithoutDuplicates() {
     composeRule.setContent {
       RoamigoTheme {
-        RoamigoApp(
+        RoamigoAppWithFakes(
             friendRepository = FakeFriendRepository(ownerId),
             voteRepository = VoteRepositoryFirestore(db),
             destinationRepository = FakeDestinationRepository(),

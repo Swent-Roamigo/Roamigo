@@ -30,7 +30,7 @@ class RoamigoAppRoutesTest {
     composeRule.setContent {
       navController = rememberNavController()
       RoamigoTheme {
-        RoamigoApp(
+        RoamigoAppWithFakes(
             friendRepository = FakeFriendRepository("alex"),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),

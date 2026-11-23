@@ -67,7 +67,7 @@ class RoamigoAppRestorationTest {
             }
           }
       RoamigoTheme {
-        RoamigoApp(
+        RoamigoAppWithFakes(
             friendRepository = FakeFriendRepository("alex"),
             destinationRepository = sampleDestinationRepository(),
             authRepository = authRepository,
@@ -115,7 +115,7 @@ class RoamigoAppRestorationTest {
         FakeAuthRepository(AuthenticatedUser("alex", "Alex", null, null), initiallySignedIn = true)
     restoration.setContent {
       RoamigoTheme {
-        RoamigoApp(
+        RoamigoAppWithFakes(
             friendRepository = FakeFriendRepository("alex"),
             destinationRepository = sampleDestinationRepository(),
             authRepository = authRepository,
@@ -143,7 +143,7 @@ class RoamigoAppRestorationTest {
         FakeAuthRepository(AuthenticatedUser("alex", "Alex", null, null), initiallySignedIn = true)
     restoration.setContent {
       RoamigoTheme {
-        RoamigoApp(
+        RoamigoAppWithFakes(
             friendRepository = FakeFriendRepository("alex"),
             destinationRepository = sampleDestinationRepository(),
             authRepository = authRepository,

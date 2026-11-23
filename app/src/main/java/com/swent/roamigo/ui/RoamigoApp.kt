@@ -36,19 +36,14 @@ import com.swent.roamigo.model.connectivity.ConnectivityRepository
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.friends.FriendRepository
 import com.swent.roamigo.model.location.LocationRepository
-import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.photo.PhotoRepository
 import com.swent.roamigo.model.place.PlaceRepository
-import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.activity.ActivityRepository
-import com.swent.roamigo.model.trip.activity.FakeActivityRepository
 import com.swent.roamigo.model.trip.inviting.InvitationLinks
 import com.swent.roamigo.model.trip.inviting.TripInvitationService
 import com.swent.roamigo.model.trip.inviting.UnavailableTripInvitationService
 import com.swent.roamigo.model.trip.voting.VoteRepository
-import com.swent.roamigo.model.users.FakeUserRepository
-import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.ui.authentication.AuthenticationRoute
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
@@ -85,8 +80,8 @@ import kotlinx.coroutines.launch
 /**
  * New sign-ins continue through the permissions explainer to trips; existing sessions open trips.
  *
- * Repository defaults provide placeholders for previews and tests; MainActivity supplies real
- * trips, activities, and votes.
+ * The repositories are required, so the app can never fall back to fakes. MainActivity supplies the
+ * real ones; tests and previews pass their own.
  *
  * @param activityRepository Provides live activity and suggestion updates for the trip map, and
  *   stores the activities created with the activity form.
@@ -104,14 +99,14 @@ import kotlinx.coroutines.launch
 fun RoamigoApp(
     voteRepository: VoteRepository,
     friendRepository: FriendRepository,
-    tripRepository: TripRepository = remember { FakeTripRepository() },
-    activityRepository: ActivityRepository = remember { FakeActivityRepository() },
-    userRepository: UserRepository = remember { FakeUserRepository(User("alex", "Alex", null)) },
+    tripRepository: TripRepository,
+    activityRepository: ActivityRepository,
+    userRepository: UserRepository,
     navController: NavHostController = rememberNavController(),
     authRepository: AuthRepository = remember { AuthRepositoryFirebase() },
     credentialManager: CredentialManager? = null,
     destinationRepository: DestinationRepository,
-    photoRepository: PhotoRepository = remember { FakePhotoRepository() },
+    photoRepository: PhotoRepository,
     connectivityRepository: ConnectivityRepository? = null,
     locationRepository: LocationRepository? = null,
     placeRepository: PlaceRepository? = null,

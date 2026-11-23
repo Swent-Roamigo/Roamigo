@@ -33,7 +33,7 @@ import com.swent.roamigo.model.destination.FakeDestinationRepository
 import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.resources.C
-import com.swent.roamigo.ui.RoamigoApp
+import com.swent.roamigo.ui.RoamigoAppWithFakes
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
@@ -56,7 +56,7 @@ class AuthenticationFlowTest {
     credentialManager = TestCredentialManager(composeRule.activity)
     composeRule.setContent {
       RoamigoTheme {
-        RoamigoApp(
+        RoamigoAppWithFakes(
             friendRepository = FakeFriendRepository(user.uid),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = FakeDestinationRepository(),

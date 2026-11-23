@@ -36,7 +36,7 @@ import com.swent.roamigo.model.destination.FakeDestinationRepository
 import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.resources.C
-import com.swent.roamigo.ui.RoamigoApp
+import com.swent.roamigo.ui.RoamigoAppWithFakes
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import kotlinx.coroutines.CompletableDeferred
@@ -94,7 +94,7 @@ class AuthenticationRotationTest {
             }
           }
       RoamigoTheme {
-        RoamigoApp(
+        RoamigoAppWithFakes(
             friendRepository = FakeFriendRepository(user.uid),
             destinationRepository = FakeDestinationRepository(),
             voteRepository = votes,

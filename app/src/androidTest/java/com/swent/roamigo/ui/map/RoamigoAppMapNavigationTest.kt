@@ -35,7 +35,7 @@ import com.swent.roamigo.model.trip.activity.ActivityRepository
 import com.swent.roamigo.model.trip.activity.FakeActivityRepository
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.resources.C
-import com.swent.roamigo.ui.RoamigoApp
+import com.swent.roamigo.ui.RoamigoAppWithFakes
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.TripReadyTestTags
@@ -125,7 +125,7 @@ class RoamigoAppMapNavigationTest {
     composeRule.setContent {
       navController = rememberNavController()
       RoamigoTheme {
-        RoamigoApp(
+        RoamigoAppWithFakes(
             friendRepository = FakeFriendRepository("alex"),
             voteRepository = InMemoryVoteRepository(),
             tripRepository = tripRepository,

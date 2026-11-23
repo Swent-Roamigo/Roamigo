@@ -105,7 +105,7 @@ class TripCreationEndToEndTest {
     val zone = ZoneId.systemDefault()
     composeRule.setContent {
       RoamigoTheme {
-        RoamigoApp(
+        RoamigoAppWithFakes(
             friendRepository = FakeFriendRepository(ownerId),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
