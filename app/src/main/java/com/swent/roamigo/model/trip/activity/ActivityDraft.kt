@@ -47,14 +47,23 @@ data class ActivityDraft(
    * @param startRequired whether a missing [startTime] is an error.
    * @return the problems found in this draft, or an empty list when it is valid.
    */
-  fun validate(startRequired: Boolean): List<ActivityDraftError> = buildList {
+  fun validate(startRequired: Boolean): List<ActivityDraftError> =
+      textErrors() + locationErrors() + scheduleErrors(startRequired)
+
+  private fun textErrors(): List<ActivityDraftError> = buildList {
     if (name.isBlank()) add(ActivityDraftError.BlankName)
     if (name.length > MAX_ACTIVITY_NAME_LENGTH) add(ActivityDraftError.NameTooLong)
     if (description != null && description.length > MAX_ACTIVITY_DESCRIPTION_LENGTH) {
       add(ActivityDraftError.DescriptionTooLong)
     }
+  }
+
+  private fun locationErrors(): List<ActivityDraftError> = buildList {
     if (location.name.isBlank()) add(ActivityDraftError.BlankLocationName)
     if (!location.hasValidCoordinates()) add(ActivityDraftError.InvalidLocationCoordinates)
+  }
+
+  private fun scheduleErrors(startRequired: Boolean): List<ActivityDraftError> = buildList {
     if (startTime == null) {
       if (startRequired) add(ActivityDraftError.MissingStartTime)
       if (endTime != null) add(ActivityDraftError.EndWithoutStart)
