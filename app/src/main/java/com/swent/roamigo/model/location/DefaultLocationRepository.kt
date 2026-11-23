@@ -105,7 +105,8 @@ class DefaultLocationRepository(
   private val sharingMutex = Mutex()
 
   // Newest fix produced by getCurrentLocation(), including the ones taken by the trip map and by
-  // sharing updates, so that callers that cannot wait for a new fix can still use it.
+  // sharing updates, so that callers that cannot wait for a new fix can still use it. Kept when the
+  // fine permission is revoked so it is usable again once the permission is granted back.
   private val latestFix = AtomicReference<Location?>(null)
 
   override fun hasLocationPermission(): Boolean = LOCATION_PERMISSIONS.any {
@@ -128,7 +129,12 @@ class DefaultLocationRepository(
     if (!hasLocationPermission()) return null
     val oldestAllowed = clock() - maxAge.inWholeMilliseconds
     val systemFixes = usableProviders().mapNotNull { locationManager.getLastKnownLocation(it) }
-    return (systemFixes + listOfNotNull(latestFix.get()))
+    // A GPS fix remembered under the fine permission must not outlive a switch to approximate.
+    val rememberedFix =
+        latestFix.get()?.takeIf {
+          it.provider != LocationManager.GPS_PROVIDER || hasFinePermission()
+        }
+    return (systemFixes + listOfNotNull(rememberedFix))
         .filter { it.time >= oldestAllowed }
         .maxByOrNull { it.time }
         ?.toDeviceLocation()
@@ -477,14 +483,16 @@ class DefaultLocationRepository(
 
   // GPS requires the fine permission; a coarse-only caller would get a SecurityException.
   private fun usableProviders(): List<String> {
-    val hasFinePermission =
-        ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_FINE_LOCATION) ==
-            PackageManager.PERMISSION_GRANTED
+    val hasFinePermission = hasFinePermission()
     return PREFERRED_PROVIDERS.filter {
       (it != LocationManager.GPS_PROVIDER || hasFinePermission) &&
           locationManager.isProviderEnabled(it)
     }
   }
+
+  private fun hasFinePermission(): Boolean =
+      ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_FINE_LOCATION) ==
+          PackageManager.PERMISSION_GRANTED
 
   // The permission is checked in getCurrentLocation(); Android kills the process when it is
   // revoked, so it cannot disappear between the check and this call.
