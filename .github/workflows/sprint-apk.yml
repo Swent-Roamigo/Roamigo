@@ -195,6 +195,8 @@ jobs:
     needs: apk
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # The APK and the release are already published; a wiki failure only warns.
+    continue-on-error: true
     permissions:
       # actions: read to get this run's creation time, contents: write to push to the wiki.
       actions: read
@@ -237,5 +239,5 @@ jobs:
             git -C "$WIKI_DIR" push -q && exit 0
             git -C "$WIKI_DIR" pull -q --rebase
           done
-          echo "::error::Could not push the wiki page after 3 attempts."
+          echo "::warning::Could not push the milestone wiki page after 3 attempts."
           exit 1
