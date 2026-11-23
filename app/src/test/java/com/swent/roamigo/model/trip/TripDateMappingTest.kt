@@ -3,6 +3,9 @@ package com.swent.roamigo.model.trip
 
 import com.google.firebase.Timestamp
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -26,5 +29,28 @@ class TripDateMappingTest {
     val timestamp = Timestamp(1_900_000_000, 123_456_789)
 
     assertEquals(Instant.ofEpochSecond(1_900_000_000, 123_456_789), timestamp.toDomainInstant())
+  }
+
+  @Test
+  fun localDateFollowsTheZoneNotUtc() {
+    // 23:30 UTC on 31 December is already 1 January in Zurich.
+    val timestamp = Instant.parse("2026-12-31T23:30:00Z").toFirebaseTimestamp()
+
+    assertEquals(LocalDate.of(2027, 1, 1), timestamp.toLocalDate(ZURICH))
+    assertEquals(LocalDate.of(2026, 12, 31), timestamp.toLocalDate(ZoneId.of("UTC")))
+  }
+
+  @Test
+  fun atZoneKeepsTheInstantWithSubMillisecondPrecision() {
+    val timestamp = Timestamp(1_900_000_000, 123_456_789)
+
+    assertEquals(
+        ZonedDateTime.ofInstant(Instant.ofEpochSecond(1_900_000_000, 123_456_789), ZURICH),
+        timestamp.atZone(ZURICH),
+    )
+  }
+
+  private companion object {
+    val ZURICH: ZoneId = ZoneId.of("Europe/Zurich")
   }
 }
