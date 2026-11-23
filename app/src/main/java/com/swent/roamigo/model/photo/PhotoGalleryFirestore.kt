@@ -1,6 +1,7 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.model.photo
 
+import android.util.Log
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
@@ -58,7 +59,8 @@ class PhotoGalleryFirestore(
   private fun DocumentSnapshot.toTripPhotoOrNull(): TripPhoto? =
       try {
         toTripPhoto()
-      } catch (_: RuntimeException) {
+      } catch (e: RuntimeException) {
+        Log.w(TAG, "Skipping malformed photo document $id", e)
         null
       }
 
@@ -67,19 +69,23 @@ class PhotoGalleryFirestore(
     val image = getBlob(PhotoUploaderFirestore.IMAGE)?.toBytes() ?: return null
     val latitude = getDouble(PhotoUploaderFirestore.LATITUDE)
     val longitude = getDouble(PhotoUploaderFirestore.LONGITUDE)
-    // The position is one value: both coordinates, or none.
-    val hasPosition = latitude != null && longitude != null
+    // The position is one valid value: both coordinates, or none.
+    val position =
+        if (latitude != null && longitude != null) PhotoCoordinates.orNull(latitude, longitude)
+        else null
     return TripPhoto(
         id = id,
         uploadedBy = getString(PhotoUploaderFirestore.UPLOADED_BY) ?: return null,
         takenAtMillis = getLong(PhotoUploaderFirestore.TAKEN_AT) ?: return null,
-        latitude = if (hasPosition) latitude else null,
-        longitude = if (hasPosition) longitude else null,
+        latitude = position?.latitude,
+        longitude = position?.longitude,
         image = image,
     )
   }
 
   companion object {
+    private const val TAG = "PhotoGalleryFirestore"
+
     /** Enough for a trip's worth of photos at a glance, and a bounded download. */
     const val LIMIT = 50L
   }
