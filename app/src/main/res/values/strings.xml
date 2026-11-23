@@ -214,7 +214,6 @@
     <string name="trip_history_completed">Completed</string>
     <string name="trip_history_empty">No completed trips yet</string>
     <string name="trip_history_unknown_destination">Destination unavailable</string>
-    <string name="trip_history_world_map">Open explored world map</string>
     <string name="trip_history_back">Back</string>
 
     <plurals name="trip_history_count">
@@ -397,8 +396,6 @@
     </plurals>
     <!-- Trip Votes tab -->
     <string name="votes_title">Votes</string>
-    <string name="trip_tab_overview">Overview</string>
-    <string name="trip_tab_itinerary">Itinerary</string>
     <string name="votes_trip_summary">%1$s · %2$s</string>
     <plurals name="votes_open_count">
         <item quantity="one">%d open</item>
