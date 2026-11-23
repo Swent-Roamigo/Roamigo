@@ -31,6 +31,9 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Test milestone wiki script
+        run: bash .github/scripts/update-milestone-apk-wiki.test.sh
+
       - name: Set up Android build
         uses: ./.github/actions/setup-android-build
         with:
