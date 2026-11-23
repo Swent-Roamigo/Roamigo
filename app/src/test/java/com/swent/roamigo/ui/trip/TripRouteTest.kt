@@ -15,6 +15,9 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -136,7 +139,9 @@ class TripRouteTest {
       }
     }
 
-    composeRule.onNodeWithText("Unable to load trip details.").assertIsDisplayed()
+    composeRule
+        .onNodeWithText("We couldn't load the plan. Check your connection and try again.")
+        .assertIsDisplayed()
     composeRule.onNodeWithText("Votes").performClick()
     composeRule.onNodeWithText("New vote").assertDoesNotExist()
     composeRule.onNodeWithText("Photos").performClick()
@@ -493,7 +498,9 @@ class TripRouteTest {
       }
     }
 
-    composeRule.onNodeWithText("Unable to load trip details.").assertIsDisplayed()
+    composeRule
+        .onNodeWithText("We couldn't load the plan. Check your connection and try again.")
+        .assertIsDisplayed()
     composeRule.runOnUiThread { failLoads = false }
     composeRule.onNodeWithText("Retry").performClick()
     composeRule.onNodeWithText(trip.name).assertIsDisplayed()
@@ -635,7 +642,7 @@ class TripRouteTest {
     showRoute(fromHistory = false, onCreateVote = { createVoteClicks++ })
 
     composeRule.onNodeWithTag(C.Tag.trip_add_button).performClick()
-    composeRule.onNodeWithText("Add an activity").assertIsDisplayed()
+    addActivityInSheet().assertIsDisplayed()
     composeRule.onNodeWithText("Suggest a place").assertIsDisplayed()
     composeRule.onNodeWithText("Start a vote").performClick()
 
@@ -648,7 +655,7 @@ class TripRouteTest {
     showRoute(fromHistory = false, onCreateActivity = { opened += it })
 
     composeRule.onNodeWithTag(C.Tag.trip_add_button).performClick()
-    composeRule.onNodeWithText("Add an activity").performClick()
+    addActivityInSheet().performClick()
 
     val today = LocalDate.now(ZoneId.systemDefault())
     composeRule.runOnIdle {
@@ -703,4 +710,10 @@ class TripRouteTest {
         createdAt = Timestamp(Instant.EPOCH.epochSecond, 0),
     )
   }
+
+  // The empty plan offers the same action, so only the add sheet's option is targeted.
+  private fun addActivityInSheet() =
+      composeRule.onNode(
+          hasText("Add an activity") and hasAnyAncestor(hasTestTag(C.Tag.trip_add_sheet))
+      )
 }

@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -168,12 +169,10 @@ class RoamigoAppMapNavigationTest {
   }
 
   @Test
-  fun mapCardOpensThatTripsMapAndBackReturnsToTrips() {
+  fun mapTabOpensThatTripsMapAndBackReturnsToTrips() {
     openMainTripDetails()
 
-    composeRule
-        .onNodeWithText(composeRule.activity.getString(R.string.trip_details_map))
-        .performClick()
+    openTripMapTab()
 
     waitForRoute(Route.TRIP_DETAILS)
     composeRule.runOnIdle {
@@ -196,9 +195,7 @@ class RoamigoAppMapNavigationTest {
   @Test
   fun tripMapDisplaysLiveActivitiesFromTheInjectedRepository() {
     openMainTripDetails()
-    composeRule
-        .onNodeWithText(composeRule.activity.getString(R.string.trip_details_map))
-        .performClick()
+    openTripMapTab()
     waitForTag(C.Tag.trip_map_map)
     composeRule.loadLocalMapStyle()
     val activity =
@@ -231,9 +228,7 @@ class RoamigoAppMapNavigationTest {
     openMainTripDetails()
     composeRule.runOnIdle { authRepository.signOut() }
 
-    composeRule
-        .onNodeWithText(composeRule.activity.getString(R.string.trip_details_map))
-        .performClick()
+    openTripMapTab()
 
     waitForRoute(Route.AUTHENTICATION)
     composeRule.onNodeWithTag(C.Tag.trip_map_sharing_banner).assertDoesNotExist()
@@ -263,9 +258,7 @@ class RoamigoAppMapNavigationTest {
   @Test
   fun sharingCanBePausedAfterSwitchingFromMapToVotes() {
     openMainTripDetails()
-    composeRule
-        .onNodeWithText(composeRule.activity.getString(R.string.trip_details_map))
-        .performClick()
+    openTripMapTab()
     waitForTag(C.Tag.trip_map_sharing_banner)
     val pause = composeRule.activity.getString(R.string.trip_map_pause_sharing)
     composeRule.runOnIdle { locationRepository.sharing.value = true }
@@ -407,6 +400,13 @@ class RoamigoAppMapNavigationTest {
     composeRule.onNodeWithTag(C.Tag.trips_main_trip_card).performClick()
     waitForRoute(Route.TRIP_DETAILS)
     composeRule.onNodeWithText(mainTrip.name).assertIsDisplayed()
+  }
+
+  // The trip's Map tab comes before the global Map destination of the bottom bar.
+  private fun openTripMapTab() {
+    composeRule
+        .onAllNodesWithText(composeRule.activity.getString(R.string.trips_nav_map))[0]
+        .performClick()
   }
 
   private fun openMap() {

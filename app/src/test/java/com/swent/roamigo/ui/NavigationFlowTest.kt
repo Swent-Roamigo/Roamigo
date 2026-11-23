@@ -94,7 +94,7 @@ class NavigationFlowTest {
   @Test
   fun backFromEveryTripTabReturnsToTripsHomeNotThePreviousTab() {
     composeRule.onNodeWithTag(C.Tag.trips_main_trip_card).performClick()
-    waitForTag("trip_details_screen")
+    waitForTag("itinerary_screen")
     composeRule.onNodeWithText("Votes").performClick()
     composeRule.onNodeWithText("Photos").performClick()
 
@@ -106,7 +106,7 @@ class NavigationFlowTest {
   @Test
   fun tripsStaysHighlightedInsideATrip() {
     composeRule.onNodeWithTag(C.Tag.trips_main_trip_card).performClick()
-    waitForTag("trip_details_screen")
+    waitForTag("itinerary_screen")
 
     composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).assertIsSelected()
   }
@@ -139,7 +139,7 @@ class NavigationFlowTest {
 
     // A trip.
     composeRule.onNodeWithTag(C.Tag.trips_main_trip_card).performClick()
-    waitForTag("trip_details_screen")
+    waitForTag("itinerary_screen")
     pressBack()
     assertOnTripsHome()
 

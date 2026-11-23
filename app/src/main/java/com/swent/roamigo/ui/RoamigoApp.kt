@@ -395,7 +395,6 @@ fun RoamigoApp(
           onCreateVote = { navController.navigate(Route.newVote(tripId)) },
           onCreateActivity = { trip -> navController.navigate(Route.newActivity(tripId, trip)) },
           onMembersClick = { navController.navigate(Route.members(tripId)) },
-          onInviteClick = { inviteTripId = tripId },
           onTripsClick = onTripsClick,
           onMapClick = onMapClick,
           onFriendsClick = onFriendsClick,

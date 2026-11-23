@@ -6,7 +6,6 @@ import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.trip.voting.*
-import com.swent.roamigo.ui.trip.details.detailsTestTrip
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -61,7 +60,7 @@ class TieResolutionViewModelTest {
       readOnly: Boolean = false,
   ): TieResolutionViewModel {
     `when`(trips.getTrip("trip"))
-        .thenReturn(detailsTestTrip().copy(memberIds = listOf("alex", "creator", "member")))
+        .thenReturn(votingTestTrip().copy(memberIds = listOf("alex", "creator", "member")))
     return TieResolutionViewModel(repository, trips, "trip", user, readOnly, clock)
   }
 
@@ -78,7 +77,7 @@ class TieResolutionViewModelTest {
 
   @Test
   fun initialLoadingThenBackgroundRefreshPreservesReadyActionsAndOwnerSelection() = runTest {
-    val trip = detailsTestTrip()
+    val trip = votingTestTrip()
     val controlled = ControlledTrips(trips, trip)
     controlled.response = CompletableDeferred()
     val vm = TieResolutionViewModel(repository, controlled, "trip", "alex", false, clock)
@@ -113,7 +112,7 @@ class TieResolutionViewModelTest {
 
   @Test
   fun revoteCreationAwaitsSharedRefreshAndRetainsDraftAfterFailureUntilRetry() = runTest {
-    val trip = detailsTestTrip()
+    val trip = votingTestTrip()
     val controlled = ControlledTrips(trips, trip)
     val vm = TieResolutionViewModel(repository, controlled, "trip", "alex", false, clock)
     advanceUntilIdle()
@@ -168,7 +167,7 @@ class TieResolutionViewModelTest {
   @Test
   fun ownerConfirmationAwaitsRefreshAndUsesFreshOwnershipMembershipAndCalendarEligibility() =
       runTest {
-        val trip = detailsTestTrip()
+        val trip = votingTestTrip()
         val cases =
             listOf(
                 Triple(trip.copy(ownerId = "other"), true, false),
@@ -205,7 +204,7 @@ class TieResolutionViewModelTest {
 
   @Test
   fun cancellingAValidationDoesNotCancelSharedRefreshAndCancelledLoadsClearRefreshing() = runTest {
-    val trip = detailsTestTrip()
+    val trip = votingTestTrip()
     val controlled = ControlledTrips(trips, trip)
     val vm = TieResolutionViewModel(repository, controlled, "trip", "alex", false, clock)
     advanceUntilIdle()
@@ -313,7 +312,7 @@ class TieResolutionViewModelTest {
     val end = LocalDate.of(2026, 10, 25).atStartOfDay(zone).toInstant()
     `when`(trips.getTrip("trip"))
         .thenReturn(
-            detailsTestTrip()
+            votingTestTrip()
                 .copy(
                     endDate = Timestamp(end.epochSecond, 0),
                     status = TripStatus.COMPLETED,
@@ -436,7 +435,7 @@ class TieResolutionViewModelTest {
           override suspend fun getTrip(tripId: String): Trip {
             reads++
             gate.await()
-            return detailsTestTrip()
+            return votingTestTrip()
           }
         }
     val loading = TieResolutionViewModel(repository, loadingTrips, "trip", "alex", false, clock)
@@ -449,7 +448,7 @@ class TieResolutionViewModelTest {
     gate.complete(Unit)
     advanceUntilIdle()
     assertTrue(loading.state.value.canResolve)
-    doReturn(detailsTestTrip()).`when`(trips).getTrip("trip")
+    doReturn(votingTestTrip()).`when`(trips).getTrip("trip")
     vm.refreshEligibility()
     advanceUntilIdle()
     assertTrue(vm.state.value.canResolve)
@@ -465,15 +464,15 @@ class TieResolutionViewModelTest {
     vm.selectOwnerOption("a")
     for (trip in
         listOf(
-            detailsTestTrip().copy(ownerId = "other"),
-            detailsTestTrip().copy(memberIds = emptyList()),
+            votingTestTrip().copy(ownerId = "other"),
+            votingTestTrip().copy(memberIds = emptyList()),
         )) {
       `when`(trips.getTrip("trip")).thenReturn(trip)
       vm.confirmOwnerDecision(closed)
       advanceUntilIdle()
       verifyNoInteractions(repository)
       assertFalse(vm.state.value.submitting)
-      doReturn(detailsTestTrip()).`when`(trips).getTrip("trip")
+      doReturn(votingTestTrip()).`when`(trips).getTrip("trip")
       vm.refreshEligibility()
       advanceUntilIdle()
     }
@@ -500,7 +499,7 @@ class TieResolutionViewModelTest {
         }
     `when`(trips.getTrip("trip"))
         .thenReturn(
-            detailsTestTrip()
+            votingTestTrip()
                 .copy(
                     endDate =
                         Timestamp(
@@ -533,7 +532,7 @@ class TieResolutionViewModelTest {
     val cancelled = TieResolutionViewModel(repository, trips, "trip", "alex", false, clock)
     advanceUntilIdle()
     assertFalse(cancelled.state.value.failed)
-    doReturn(detailsTestTrip()).`when`(trips).getTrip("trip")
+    doReturn(votingTestTrip()).`when`(trips).getTrip("trip")
     cancelled.refreshEligibility()
     advanceUntilIdle()
     cancelled.startOwnerDecision(closed)

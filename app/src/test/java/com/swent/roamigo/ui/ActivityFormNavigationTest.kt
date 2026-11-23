@@ -3,6 +3,9 @@ package com.swent.roamigo.ui
 
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -84,7 +87,10 @@ class ActivityFormNavigationTest {
 
   private fun chooseAddAnActivity() {
     composeRule.onNodeWithTag(C.Tag.trip_add_button).performClick()
-    composeRule.onNodeWithText("Add an activity").performClick()
+    // The empty plan offers the same action, so only the add sheet's option is targeted.
+    composeRule
+        .onNode(hasText("Add an activity") and hasAnyAncestor(hasTestTag(C.Tag.trip_add_sheet)))
+        .performClick()
   }
 
   private fun openActivityForm() {

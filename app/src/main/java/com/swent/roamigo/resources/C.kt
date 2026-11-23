@@ -1,6 +1,8 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.resources
 
+import java.time.LocalDate
+
 // Like R, but C
 object C {
   object Tag {
@@ -120,13 +122,20 @@ object C {
     const val trips_join_button = "trips_join_button"
     const val invite_sheet = "invite_sheet"
     const val invite_code = "invite_code"
-    const val trip_details_screen = "trip_details_screen"
     const val weather_card = "weather_card"
     const val weather_day_prefix = "weather_day_"
     const val weather_loading = "weather_loading"
     const val weather_retry = "weather_retry"
     const val weather_stale_notice = "weather_stale_notice"
-    const val trip_details_invite = "trip_details_invite"
+    const val itinerary_screen = "itinerary_screen"
+    const val itinerary_list = "itinerary_list"
+    const val itinerary_retry = "itinerary_retry"
+    const val itinerary_add_activity = "itinerary_add_activity"
+
+    fun itineraryDay(day: LocalDate) = "itinerary_day_" + day
+
+    fun itineraryActivity(activityId: String) = "itinerary_activity_" + activityId
+
     const val invite_description = "invite_description"
     const val invite_share = "invite_share"
     const val invite_copy = "invite_copy"

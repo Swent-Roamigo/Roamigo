@@ -50,6 +50,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
+import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.weather.DailyForecast
 import com.swent.roamigo.model.weather.ForecastWindow
 import com.swent.roamigo.model.weather.WeatherCondition
@@ -79,23 +80,25 @@ class TripForecastUi(
 )
 
 /**
- * The forecast card state of [details], or null when there is nothing to look up. It lives in the
- * Route, so the Screen only renders it, and it is refreshed whenever the screen comes back.
+ * The forecast card state at [destination] from [startDate] to [endDate], or null when there is
+ * nothing to look up yet. It lives in the Route, so the Screen only renders it, and it is refreshed
+ * whenever the screen comes back.
  */
 @Composable
 internal fun rememberTripForecast(
-    details: TripDetails?,
+    destination: TripLocation?,
+    startDate: LocalDate?,
+    endDate: LocalDate?,
     repository: WeatherRepository?,
 ): TripForecastUi? {
-  val destination = details?.destination
-  if (details == null || destination == null || repository == null) return null
+  if (destination == null || startDate == null || endDate == null || repository == null) {
+    return null
+  }
   val model =
       viewModel(
-          key =
-              "forecast-${destination.latitude},${destination.longitude}" +
-                  "-${details.startDate}-${details.endDate}"
+          key = "forecast-${destination.latitude},${destination.longitude}" + "-$startDate-$endDate"
       ) {
-        TripForecastViewModel(destination, details.startDate, details.endDate, repository)
+        TripForecastViewModel(destination, startDate, endDate, repository)
       }
   LifecycleResumeEffect(model) {
     model.refresh()

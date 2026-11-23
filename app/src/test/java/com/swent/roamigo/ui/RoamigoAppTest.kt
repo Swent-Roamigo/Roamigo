@@ -288,7 +288,7 @@ class RoamigoAppTest {
         .performClick()
     waitForTag("trip_ready")
     composeRule.onNodeWithText("Open trip detail").performScrollTo().performClick()
-    waitForTag("trip_details_screen")
+    waitForTag("itinerary_screen")
     composeRule.onAllNodesWithTag(DatesTravelersScreenTestTags.SCREEN).assertCountEquals(0)
     pressBack()
     waitForTag(C.Tag.trips_main_trip_card)
@@ -378,7 +378,7 @@ class RoamigoAppTest {
 
     composeRule.onNodeWithTag(cardTag).performClick()
 
-    waitForTag("trip_details_screen")
+    waitForTag("itinerary_screen")
     composeRule.waitUntil(5_000) {
       composeRule.onAllNodesWithText("Summer in Italy").fetchSemanticsNodes().isNotEmpty()
     }
