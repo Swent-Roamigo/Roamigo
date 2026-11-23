@@ -708,6 +708,23 @@ class ActivityFormViewModelTest {
   }
 
   @Test
+  fun editingAnActivityWithoutStartOpensOnTheFirstTripDayAndRequiresATime() {
+    val unscheduled = storedActivity().copy(startTime = null)
+    val form = editForm(unscheduled)
+
+    assertEquals(trip.startDate, form.uiState.value.fields.date)
+    assertNull(form.uiState.value.fields.time)
+    form.save()
+    assertEquals(listOf(ActivityFormError.MISSING_TIME), form.uiState.value.errors)
+
+    form.updateTime(LocalTime.of(10, 0))
+    val draft = form.uiState.value.fields.toDraft(zone, unscheduled)!!
+    assertEquals(Instant.parse("2026-10-10T10:00:00Z"), draft.startTime)
+    assertNull(draft.endTime)
+    assertTrue(form.uiState.value.errors.isEmpty())
+  }
+
+  @Test
   fun movingTheStartOfAnEditedActivityPastItsOldEndIsValid() {
     val form = editForm(storedActivity(end = Instant.parse("2026-10-13T21:30:00Z")))
     form.updateTime(LocalTime.of(23, 0))
