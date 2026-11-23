@@ -5,17 +5,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
@@ -104,24 +104,24 @@ fun TripMembersScreen(
         }
       }
     }
-    Column(
-        modifier =
-            Modifier.fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(Spacing.screenPadding),
+    LazyColumn(
+        modifier = Modifier.fillMaxWidth().testTag(C.Tag.trip_members_list),
+        contentPadding = PaddingValues(Spacing.screenPadding),
         verticalArrangement = Arrangement.spacedBy(Spacing.medium),
     ) {
       when (state) {
-        TripMembersUiState.Loading -> CircularProgressIndicator()
+        TripMembersUiState.Loading -> item { CircularProgressIndicator() }
         TripMembersUiState.Error -> {
-          Text(
-              stringResource(R.string.trip_members_load_error),
-              color = MaterialTheme.colorScheme.error,
-          )
-          TextButton(onClick = onRetry) { Text(stringResource(R.string.trip_map_retry)) }
+          item {
+            Text(
+                stringResource(R.string.trip_members_load_error),
+                color = MaterialTheme.colorScheme.error,
+            )
+          }
+          item { TextButton(onClick = onRetry) { Text(stringResource(R.string.trip_map_retry)) } }
         }
         is TripMembersUiState.Loaded ->
-            state.members.forEach { MemberRow(it, isYou = it.userId == currentUserId) }
+            items(state.members) { MemberRow(it, isYou = it.userId == currentUserId) }
       }
     }
   }

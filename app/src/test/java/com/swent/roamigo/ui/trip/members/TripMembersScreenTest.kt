@@ -2,10 +2,12 @@
 package com.swent.roamigo.ui.trip.members
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
@@ -62,6 +64,20 @@ class TripMembersScreenTest {
     composeRule.onNodeWithText("Sam").assertIsDisplayed()
     composeRule.onNodeWithText("Unknown traveler").assertIsDisplayed()
     composeRule.onNodeWithText("3 members").assertIsDisplayed()
+  }
+
+  @Test
+  fun onlyBuildsTheRowsNearTheVisibleOnes() {
+    val members = List(300) { TripMemberUiModel("m$it", "Member $it", isOrganiser = it == 0) }
+    show(TripMembersUiState.Loaded(members))
+
+    composeRule.onNodeWithTag(C.Tag.trip_members_row_prefix + "m0").assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_members_row_prefix + "m299").assertDoesNotExist()
+
+    composeRule
+        .onNodeWithTag(C.Tag.trip_members_list)
+        .performScrollToNode(hasTestTag(C.Tag.trip_members_row_prefix + "m299"))
+    composeRule.onNodeWithTag(C.Tag.trip_members_row_prefix + "m299").assertIsDisplayed()
   }
 
   @Test
