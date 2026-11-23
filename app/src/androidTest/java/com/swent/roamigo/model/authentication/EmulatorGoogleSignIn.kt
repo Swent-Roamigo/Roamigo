@@ -3,12 +3,7 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.model.authentication
 
-import android.content.Context
 import android.util.Base64
-import androidx.credentials.ClearCredentialStateRequest
-import androidx.credentials.CredentialManager
-import androidx.credentials.GetCredentialRequest
-import androidx.credentials.GetCredentialResponse
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import org.json.JSONObject
 
@@ -34,25 +29,6 @@ fun emulatorGoogleCredential(
   val header = encodeJwtSegment("""{"alg":"RS256","typ":"JWT"}""")
   val idToken = listOf(header, encodeJwtSegment(payload), PLACEHOLDER_SIGNATURE).joinToString(".")
   return GoogleIdTokenCredential.Builder().setId(email).setIdToken(idToken).build()
-}
-
-/**
- * Answers every sign-in with [credential] instead of opening Google's account picker, and counts
- * the requests to clear credential state made on sign-out.
- */
-class FixedCredentialManager(context: Context, private val credential: GoogleIdTokenCredential) :
-    CredentialManager by CredentialManager.create(context) {
-  var clearRequests = 0
-    private set
-
-  override suspend fun getCredential(
-      context: Context,
-      request: GetCredentialRequest,
-  ): GetCredentialResponse = GetCredentialResponse(credential)
-
-  override suspend fun clearCredentialState(request: ClearCredentialStateRequest) {
-    clearRequests++
-  }
 }
 
 /** "signature" in Base64; the emulator only needs the third JWT segment to exist. */
