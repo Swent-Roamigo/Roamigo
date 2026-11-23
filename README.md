@@ -28,6 +28,8 @@ The **Build Sprint APK** workflow (`.github/workflows/sprint-apk.yml`) builds a 
 
 The APK of each commit is also available as the `roamigo-<commit>.apk` artifact on its **[Build Sprint APK](https://github.com/Swent-Roamigo/Roamigo/actions/workflows/sprint-apk.yml)** run for 90 days. Downloading artifacts requires being signed in to GitHub, and the APK must be extracted from the downloaded ZIP.
 
+The same workflow keeps the wiki page of the next milestone (for example **Milestone M3 — APK**) pointing at the last successful `main` build that started before that milestone's deadline. Builds started after the deadline leave the page unchanged. The deadlines are listed in `MILESTONE_DEADLINES` at the top of `sprint-apk.yml`; add the next milestone there when its deadline is announced.
+
 To install the APK on an Android device (Android 9 or later):
 1. Open the latest release page on the device and download `roamigo-<commit>.apk`.
 2. Open the downloaded file. If Android asks, allow your browser or file manager to install unknown apps.
