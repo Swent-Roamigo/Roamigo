@@ -16,12 +16,10 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.FirebaseApp
-import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.FirebaseFirestoreSettings
-import com.google.firebase.firestore.MemoryCacheSettings
 import com.google.firebase.firestore.Source
+import com.swent.roamigo.FirebaseEmulators
 import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthRepositoryFirebase
@@ -77,24 +75,9 @@ class TripCreationEndToEndTest {
   @Before
   fun setUp() = runBlocking {
     withTimeout(30_000.milliseconds) {
-      val name = "trip-e2e-${UUID.randomUUID()}"
-      val options =
-          FirebaseOptions.Builder()
-              .setProjectId("demo-roamigo")
-              .setApplicationId("1:1234567890:android:roamigo-trip-e2e")
-              .setApiKey("fake-api-key-$name")
-              .build()
-      check(options.projectId == "demo-roamigo")
-      app = FirebaseApp.initializeApp(composeRule.activity, options, name)
-      auth = FirebaseAuth.getInstance(app).apply { useEmulator("10.0.2.2", 9099) }
-      db =
-          FirebaseFirestore.getInstance(app).apply {
-            useEmulator("10.0.2.2", 8080)
-            firestoreSettings =
-                FirebaseFirestoreSettings.Builder()
-                    .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
-                    .build()
-          }
+      app = FirebaseEmulators.newApp(composeRule.activity, "trip-e2e-${UUID.randomUUID()}")
+      auth = FirebaseEmulators.auth(app)
+      db = FirebaseEmulators.firestore(app)
       authRepository = AuthRepositoryFirebase(auth)
       repository = TripRepositoryFirestore(db) { authRepository.getCurrentUser()?.uid }
       // Google's account picker is outside this test; the emulator accepts the unsigned token.

@@ -12,9 +12,11 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.FirebaseApp
-import com.google.firebase.FirebaseOptions
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
+import com.swent.roamigo.FirebaseEmulators
+import com.swent.roamigo.FirebaseEmulators.DATABASE_PORT
+import com.swent.roamigo.FirebaseEmulators.HOST
+import com.swent.roamigo.FirebaseEmulators.PROJECT_ID
 import com.swent.roamigo.MainActivity
 import java.net.HttpURLConnection
 import java.net.URL
@@ -144,20 +146,13 @@ class DefaultLocationRepositoryEmulatorTest {
 
   private suspend fun signInMember(): Member {
     val appName = "location-test-${UUID.randomUUID()}"
-    val options =
-        FirebaseOptions.Builder()
-            .setProjectId(PROJECT_ID)
-            .setApplicationId("1:1234567890:android:roamigo-location-emulator")
-            // Firebase Auth keeps emulator settings per API key, which must not point to the
-            // app of a previous test once it is deleted.
-            .setApiKey("fake-api-key-$appName")
-            .setDatabaseUrl("https://$NAMESPACE.firebaseio.com")
-            .build()
-    val app = FirebaseApp.initializeApp(context, options, appName)
+    val app =
+        FirebaseEmulators.newApp(context, appName) {
+          setDatabaseUrl("https://$NAMESPACE.firebaseio.com")
+        }
     apps += app
-    val auth = FirebaseAuth.getInstance(app).apply { useEmulator(EMULATOR_HOST, AUTH_PORT) }
-    val database =
-        FirebaseDatabase.getInstance(app).apply { useEmulator(EMULATOR_HOST, DATABASE_PORT) }
+    val auth = FirebaseEmulators.auth(app)
+    val database = FirebaseDatabase.getInstance(app).apply { useEmulator(HOST, DATABASE_PORT) }
     val userId = auth.signInAnonymously().await().user!!.uid
     val repository =
         DefaultLocationRepository(
@@ -189,7 +184,7 @@ class DefaultLocationRepositoryEmulatorTest {
   }
 
   private fun adminRequest(method: String, path: String, body: String? = null) {
-    val url = URL("http://$EMULATOR_HOST:$DATABASE_PORT/$path.json?ns=$NAMESPACE")
+    val url = URL("http://$HOST:$DATABASE_PORT/$path.json?ns=$NAMESPACE")
     val connection = url.openConnection() as HttpURLConnection
     try {
       connection.requestMethod = method
@@ -256,11 +251,7 @@ class DefaultLocationRepositoryEmulatorTest {
   }
 
   private companion object {
-    const val PROJECT_ID = "demo-roamigo"
     const val NAMESPACE = "$PROJECT_ID-default-rtdb"
-    const val EMULATOR_HOST = "10.0.2.2"
-    const val AUTH_PORT = 9099
-    const val DATABASE_PORT = 9000
     const val LATITUDE = 46.5191
     const val LONGITUDE = 6.5668
     val UPDATE_INTERVAL = 1.seconds
