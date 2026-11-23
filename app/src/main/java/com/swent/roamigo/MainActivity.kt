@@ -19,6 +19,7 @@ import com.swent.roamigo.model.country.DataStoreCountryCodeCache
 import com.swent.roamigo.model.country.GeoNamesCountryCodeLookup
 import com.swent.roamigo.model.country.VisitedCountryRepository
 import com.swent.roamigo.model.friends.FriendRepositoryFirestore
+import com.swent.roamigo.model.notification.NotificationRepositoryFirestore
 import com.swent.roamigo.model.trip.TripRepositoryFirestore
 import com.swent.roamigo.model.trip.activity.ActivityRepositoryFirestore
 import com.swent.roamigo.model.trip.inviting.TripInvitationServiceFunctions
@@ -84,6 +85,13 @@ class MainActivity : ComponentActivity() {
 
           RoamigoApp(
               friendRepository = friendRepository,
+              notificationRepository =
+                  remember {
+                    NotificationRepositoryFirestore(
+                        FirebaseFirestore.getInstance(),
+                        FirebaseAuth.getInstance(),
+                    )
+                  },
               tripRepository = tripRepository,
               activityRepository = activityRepository,
               authRepository = authRepository,

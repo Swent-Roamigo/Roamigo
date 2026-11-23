@@ -39,6 +39,7 @@ import com.swent.roamigo.model.connectivity.ConnectivityRepository
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.friends.FriendRepository
 import com.swent.roamigo.model.location.LocationRepository
+import com.swent.roamigo.model.notification.NotificationRepository
 import com.swent.roamigo.model.photo.PhotoRepository
 import com.swent.roamigo.model.place.PlaceRepository
 import com.swent.roamigo.model.trip.TripRepository
@@ -49,6 +50,7 @@ import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.ui.authentication.AuthenticationRoute
 import com.swent.roamigo.ui.components.LocalHasPendingFriendRequests
+import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.friends.FriendsRoute
 import com.swent.roamigo.ui.friends.FriendsSearchRoute
 import com.swent.roamigo.ui.heatmap.ExploredWorldRoute
@@ -61,6 +63,7 @@ import com.swent.roamigo.ui.navigation.opensMap
 import com.swent.roamigo.ui.navigation.token
 import com.swent.roamigo.ui.navigation.tripId
 import com.swent.roamigo.ui.navigation.voteId
+import com.swent.roamigo.ui.notifications.NotificationsRoute
 import com.swent.roamigo.ui.permissions.PermissionsScreen
 import com.swent.roamigo.ui.profile.ProfileRoute
 import com.swent.roamigo.ui.trip.TripRoute
@@ -121,6 +124,7 @@ fun RoamigoApp(
     placeRepository: PlaceRepository? = null,
     countryCounts: VisitedCountryCounts,
     invitationService: TripInvitationService,
+    notificationRepository: NotificationRepository,
 ) {
   val context = LocalContext.current
   val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }
@@ -318,6 +322,11 @@ fun RoamigoApp(
     composable(Route.PROFILE) {
       ProfileRoute(
           authRepository = authRepository,
+          notificationRepository = notificationRepository,
+          onNotificationsClick =
+              dropUnlessResumed {
+                navController.navigate(Route.NOTIFICATIONS) { launchSingleTop = true }
+              },
           onSignedOut = {
             pendingJoinToken = null
             scope.launch {
@@ -337,6 +346,19 @@ fun RoamigoApp(
           onMapClick = onMapClick,
           onFriendsClick = onFriendsClick,
       )
+    }
+
+    composable(Route.NOTIFICATIONS) {
+      SignedIn(authRepository, navController) { userId ->
+        NotificationsRoute(
+            notificationRepository = notificationRepository,
+            authRepository = authRepository,
+            currentUserId = userId,
+            onBack = dropUnlessResumed { navController.popBackStack() },
+            onSessionEnded = { redirectToAuthentication(navController) },
+            onOpenNotification = rememberNotImplementedAction(),
+        )
+      }
     }
 
     composable(Route.TRIP_HISTORY) { entry ->

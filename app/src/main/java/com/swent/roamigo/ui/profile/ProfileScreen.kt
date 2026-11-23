@@ -2,21 +2,27 @@
 package com.swent.roamigo.ui.profile
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -29,16 +35,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.swent.roamigo.R
 import com.swent.roamigo.model.authentication.AuthRepository
+import com.swent.roamigo.model.notification.NotificationRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.InfoRow
@@ -63,9 +76,12 @@ fun ProfileRoute(
     onMapClick: () -> Unit = {},
     onEditNameClick: (() -> Unit)? = null,
     onChangePictureClick: (() -> Unit)? = null,
+    notificationRepository: NotificationRepository? = null,
+    onNotificationsClick: (() -> Unit)? = null,
 ) {
-  val viewModel = viewModel { ProfileViewModel(authRepository) }
+  val viewModel = viewModel { ProfileViewModel(authRepository, notificationRepository) }
   val state by viewModel.uiState.collectAsStateWithLifecycle()
+  val unreadCount by viewModel.unreadCount.collectAsStateWithLifecycle()
   LaunchedEffect(state.signedOut) { if (state.signedOut) onSignedOut() }
   ProfileScreen(
       state = state,
@@ -76,6 +92,8 @@ fun ProfileRoute(
       onMapClick = onMapClick,
       onEditNameClick = onEditNameClick,
       onChangePictureClick = onChangePictureClick,
+      unreadCount = unreadCount,
+      onNotificationsClick = onNotificationsClick,
   )
 }
 
@@ -93,6 +111,8 @@ fun ProfileScreen(
     onMapClick: () -> Unit = {},
     onEditNameClick: (() -> Unit)? = null,
     onChangePictureClick: (() -> Unit)? = null,
+    unreadCount: Int = 0,
+    onNotificationsClick: (() -> Unit)? = null,
 ) {
   var confirmingLogOut by rememberSaveable { mutableStateOf(false) }
   Scaffold(
@@ -176,6 +196,9 @@ fun ProfileScreen(
             stringResource(R.string.profile_picture_description),
             action = onChangePictureClick?.let { rowAction(R.string.profile_change, it) },
         )
+        if (onNotificationsClick != null && !state.signedOut) {
+          ProfileNotificationsRow(unreadCount, onNotificationsClick)
+        }
         InfoRow(
             R.drawable.ic_users,
             stringResource(R.string.profile_friends),
@@ -236,6 +259,60 @@ fun ProfileScreen(
 /** Wraps [RowAction] as the trailing content of an [InfoRow]. */
 private fun rowAction(@StringRes label: Int, onClick: () -> Unit): @Composable () -> Unit = {
   RowAction(stringResource(label), onClick)
+}
+
+@Composable
+private fun ProfileNotificationsRow(unreadCount: Int, onClick: () -> Unit) {
+  val unreadDescription =
+      pluralStringResource(R.plurals.notifications_unread_count, unreadCount, unreadCount)
+  val chevron =
+      if (LocalLayoutDirection.current == LayoutDirection.Ltr) R.drawable.ic_c2_chevron_right
+      else R.drawable.ic_c2_chevron_left
+  Surface(
+      onClick = onClick,
+      modifier =
+          Modifier.fillMaxWidth().testTag(C.Tag.profile_notifications_row).semantics {
+            if (unreadCount > 0) stateDescription = unreadDescription
+          },
+      shape = MaterialTheme.shapes.medium,
+      border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+  ) {
+    Row(
+        modifier =
+            Modifier.heightIn(min = 64.dp)
+                .padding(horizontal = Spacing.cardPadding + 1.dp, vertical = Spacing.medium),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Icon(
+          painterResource(R.drawable.ic_bell),
+          contentDescription = null,
+          modifier = Modifier.size(20.dp),
+          tint = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)) {
+        Text(
+            stringResource(R.string.notifications_title),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+            stringResource(R.string.notifications_profile_description),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+      if (unreadCount > 0) {
+        Badge(Modifier.clearAndSetSemantics {}) {
+          Text(stringResource(R.string.notifications_badge_number, unreadCount))
+        }
+      }
+      Icon(
+          painterResource(chevron),
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+  }
 }
 
 @Composable

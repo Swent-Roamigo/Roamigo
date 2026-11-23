@@ -410,6 +410,12 @@
     </plurals>
     <!-- In-app notifications -->
     <string name="notifications_title">Notifications</string>
+    <string name="notifications_profile_description">Trip votes</string>
+    <string name="notifications_badge_number">%1$d</string>
+    <plurals name="notifications_unread_count">
+        <item quantity="one">%1$d unread notification</item>
+        <item quantity="other">%1$d unread notifications</item>
+    </plurals>
     <string name="notifications_back">Back</string>
     <string name="notifications_loading">Loading notifications</string>
     <string name="notifications_empty">No notifications yet</string>
