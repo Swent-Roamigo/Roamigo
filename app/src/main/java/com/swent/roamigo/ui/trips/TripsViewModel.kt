@@ -138,8 +138,10 @@ class TripsViewModel(
               .searchDestinations(key.location.name)
               .filter {
                 (key.location.countryCode == null || it.countryCode == key.location.countryCode) &&
-                    kotlin.math.abs(it.latitude - key.location.latitude) < 0.02 &&
-                    kotlin.math.abs(it.longitude - key.location.longitude) < 0.02
+                    kotlin.math.abs(it.latitude - key.location.latitude) <
+                        PHOTO_MATCH_TOLERANCE_DEGREES &&
+                    kotlin.math.abs(it.longitude - key.location.longitude) <
+                        PHOTO_MATCH_TOLERANCE_DEGREES
               }
               .minByOrNull {
                 kotlin.math.abs(it.latitude - key.location.latitude) +
@@ -507,6 +509,12 @@ private fun Activity.toUiModel(
  * here, so the dates match them.
  */
 private val TRIPS_HOME_LOCALE: Locale = Locale.ENGLISH
+
+/**
+ * How far, in degrees of latitude and of longitude, a searched destination may be from the main
+ * trip's location for its photo to be shown (about 2 km).
+ */
+private const val PHOTO_MATCH_TOLERANCE_DEGREES = 0.02
 
 /**
  * Selects the greeting displayed in the screen header for the current time of day.
