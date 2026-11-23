@@ -61,7 +61,7 @@ class TripReadyScreenTest {
   }
 
   @Test
-  fun summaryAndUnavailableActionsAreAccessible() {
+  fun summaryAndAllActionsAreAccessible() {
     rule.setContent { RoamigoTheme { TestTripReadyScreen(ready(trip()), null) } }
     rule
         .onNodeWithTag(TripReadyTestTags.TITLE)
@@ -122,6 +122,26 @@ class TripReadyScreenTest {
         .assert(isNotImplemented.not())
         .performClick()
     assertTrue(invited)
+  }
+
+  @Test
+  fun actionsWithoutCallbackAreHidden() {
+    rule.setContent {
+      RoamigoTheme {
+        TripReadyScreen(
+            state = ready(trip()),
+            photo = null,
+            onRetry = {},
+            onInviteClick = {},
+            onShareLocationClick = {},
+            onOpenItineraryClick = {},
+        )
+      }
+    }
+
+    rule.onNodeWithTag(TripReadyTestTags.INVITE_CARD).performScrollTo().assertIsDisplayed()
+    rule.onNodeWithTag(TripReadyTestTags.SUGGEST_CARD).assertDoesNotExist()
+    rule.onNodeWithTag(TripReadyTestTags.SHARE).assertDoesNotExist()
   }
 
   @Test
@@ -228,14 +248,14 @@ class TripReadyScreenTest {
   ) {
     val actions = rememberTripReadyTestActions()
     TripReadyScreen(
-        state,
-        photo,
-        onRetry,
-        actions.onInviteClick,
-        actions.onSuggestClick,
-        actions.onShareLocationClick,
-        actions.onOpenItineraryClick,
-        actions.onShareTripClick,
+        state = state,
+        photo = photo,
+        onRetry = onRetry,
+        onInviteClick = actions.onInviteClick,
+        onSuggestClick = actions.onSuggestClick,
+        onShareLocationClick = actions.onShareLocationClick,
+        onOpenItineraryClick = actions.onOpenItineraryClick,
+        onShareTripClick = actions.onShareTripClick,
     )
   }
 

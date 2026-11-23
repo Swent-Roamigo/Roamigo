@@ -378,10 +378,8 @@
     <string name="profile_title">Profile</string>
     <string name="profile_description">The account you signed in with</string>
     <string name="profile_display_name">Display name</string>
-    <string name="profile_edit">Edit</string>
     <string name="profile_picture">Profile picture</string>
     <string name="profile_picture_description">Shown to your trip members</string>
-    <string name="profile_change">Change</string>
     <string name="profile_friends">Friends</string>
     <string name="profile_view">View</string>
     <string name="create_trip_discard_title">Discard this trip?</string>

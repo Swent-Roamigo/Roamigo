@@ -59,7 +59,7 @@ class FriendsSearchNavigationTest {
       nav = rememberNavController()
 
       RoamigoTheme {
-        RoamigoApp(
+        TestRoamigoApp(
             friendRepository = alice,
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),

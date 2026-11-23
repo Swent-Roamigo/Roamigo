@@ -60,23 +60,6 @@ interface TripInvitationService {
   suspend fun revokeLinks(tripId: String)
 }
 
-/**
- * The service when no backend is provided, for previews and tests that do not exercise invitations:
- * every call fails, and nothing reaches the network. Production passes
- * [TripInvitationServiceFunctions] explicitly.
- */
-internal object UnavailableTripInvitationService : TripInvitationService {
-  override suspend fun createLink(tripId: String): InvitationLink =
-      throw InvitationException.Unavailable()
-
-  override suspend fun preview(token: String): InvitationPreview =
-      throw InvitationException.Unavailable()
-
-  override suspend fun accept(token: String): String = throw InvitationException.Unavailable()
-
-  override suspend fun revokeLinks(tripId: String): Unit = throw InvitationException.Unavailable()
-}
-
 /** Calls a Cloud Function by name and returns the data it answered with. */
 internal fun interface CallableInvoker {
   suspend fun call(name: String, arguments: Map<String, String>): Any?
