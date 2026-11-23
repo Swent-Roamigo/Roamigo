@@ -44,9 +44,6 @@ import com.swent.roamigo.ui.components.TripActionButton
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.Spacing
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 /** Standalone repository-backed entry point; the caller owns navigation and feature actions. */
 @Composable
@@ -273,14 +270,4 @@ private fun TripDetailsBadge(text: String) {
             ),
     )
   }
-}
-
-/** Compact Figma date ranges retain both months or years when the trip crosses a boundary. */
-internal fun formatTripDetailsDates(start: LocalDate, end: LocalDate, locale: Locale): String {
-  val pattern = if (start.year == end.year) "d MMM" else "d MMM yyyy"
-  val formatter = DateTimeFormatter.ofPattern(pattern, locale)
-  val startText =
-      if (start.year == end.year && start.month == end.month) start.dayOfMonth.toString()
-      else start.format(formatter)
-  return "$startText – ${end.format(formatter)}"
 }

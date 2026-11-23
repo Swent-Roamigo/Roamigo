@@ -25,6 +25,7 @@ import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.Trip
+import com.swent.roamigo.model.trip.toLocalDate
 import com.swent.roamigo.ui.theme.Spacing
 import java.time.LocalDate
 import java.time.ZoneId
@@ -90,8 +91,8 @@ fun TripLocation.toTripMarkerUiState(
         latitude = this.latitude,
         longitude = this.longitude,
         snippet = this.name,
-        startDate = trip.startDate.toDate().toInstant().atZone(zone).toLocalDate(),
-        endDate = trip.endDate.toDate().toInstant().atZone(zone).toLocalDate(),
+        startDate = trip.startDate.toLocalDate(zone),
+        endDate = trip.endDate.toLocalDate(zone),
     )
 
 /**
