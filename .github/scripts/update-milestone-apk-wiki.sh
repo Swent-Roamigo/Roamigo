@@ -7,7 +7,7 @@
 # Required environment:
 #   MILESTONE_DEADLINES  space-separated MILESTONE=ISO-8601 pairs, e.g. "M3=2026-12-11T08:45:00+01:00"
 #   RUN_CREATED_AT       ISO-8601 time the run was created (when the merge reached main)
-#   REPO_URL, RUN_URL, RUN_NUMBER, COMMIT_SHA, ARTIFACT_NAME, ARTIFACT_URL
+#   REPO_URL, RUN_URL, RUN_NUMBER, SHORT_SHA, ARTIFACT_NAME, ARTIFACT_URL
 #   WIKI_DIR             local clone of the wiki repository
 set -euo pipefail
 
@@ -35,12 +35,12 @@ next_milestone() {
 
 # Writes the wiki page of milestone $1, whose deadline is the epoch $2.
 write_page() {
-  local milestone=$1 deadline=$2 short_sha=${COMMIT_SHA::7} deadline_text
+  local milestone=$1 deadline=$2 deadline_text
   deadline_text=$(TZ=$DEADLINE_DISPLAY_ZONE date -d "@$deadline" '+%-d %B %Y at %H:%M %Z')
   cat > "$WIKI_DIR/Milestone-$milestone-—-APK.md" << EOF
 ## Milestone $milestone — APK
 
-[Download the $milestone APK from GitHub Actions]($RUN_URL) (Build Sprint APK run #$RUN_NUMBER, built from \`main\` at commit \`$short_sha\`)
+[Download the $milestone APK from GitHub Actions]($RUN_URL) (Build Sprint APK run #$RUN_NUMBER, built from \`main\` at commit \`$SHORT_SHA\`)
 
 Open the run, scroll to **Artifacts**, download
 **$ARTIFACT_NAME** ([direct artifact link]($ARTIFACT_URL)), unzip it and install the APK.
@@ -51,12 +51,12 @@ the $milestone deadline ($deadline_text), so it links the last build before the 
 
 The APK of the latest commit on \`main\` is also on the [latest release]($REPO_URL/releases/tag/latest) page.
 EOF
-  echo "Updated the $milestone page to run #$RUN_NUMBER ($short_sha)."
+  echo "Updated the $milestone page to run #$RUN_NUMBER ($SHORT_SHA)."
 }
 
 main() {
   : "${MILESTONE_DEADLINES:?}" "${RUN_CREATED_AT:?}" "${REPO_URL:?}" "${RUN_URL:?}" "${RUN_NUMBER:?}"
-  : "${COMMIT_SHA:?}" "${ARTIFACT_NAME:?}" "${ARTIFACT_URL:?}" "${WIKI_DIR:?}"
+  : "${SHORT_SHA:?}" "${ARTIFACT_NAME:?}" "${ARTIFACT_URL:?}" "${WIKI_DIR:?}"
   local created next
   created=$(date -u -d "$RUN_CREATED_AT" +%s)
   next=$(next_milestone "$created")
