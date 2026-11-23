@@ -664,7 +664,7 @@
     <string name="activity_form_date">Date</string>
     <string name="activity_form_outside_trip">This date is outside the trip (%1$s – %2$s). You can still save it.</string>
     <string name="activity_form_time">Time</string>
-    <string name="activity_form_time_placeholder">Add a time (optional)</string>
+    <string name="activity_form_time_placeholder">Add a start time</string>
     <string name="activity_form_time_clear">Remove time</string>
     <string name="activity_form_time_dialog_title">Choose a time</string>
     <string name="activity_form_time_use_keyboard">Type the time</string>
@@ -686,6 +686,7 @@
     <string name="activity_form_error_description_too_long">This description is too long. Shorten it.</string>
     <string name="activity_form_error_place_missing">Choose a place for the activity.</string>
     <string name="activity_form_error_place_invalid">This place has no usable location. Choose another place.</string>
+    <string name="activity_form_error_time_missing">Choose when this activity starts.</string>
     <string name="activity_form_error_end_before_start">This activity would end before it starts. Choose an earlier time.</string>
     <string name="activity_form_failure_not_signed_in">Sign in again to save this activity.</string>
     <string name="activity_form_failure_permission">You cannot add activities to this trip.</string>

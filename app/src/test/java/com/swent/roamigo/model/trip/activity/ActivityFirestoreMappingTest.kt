@@ -9,7 +9,9 @@ import com.swent.roamigo.model.trip.activityFromFirestore
 import com.swent.roamigo.model.trip.toFirestoreData
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ActivityFirestoreMappingTest {
@@ -88,5 +90,40 @@ class ActivityFirestoreMappingTest {
     assertThrows(IllegalArgumentException::class.java) {
       activityFromFirestore("a", "t", data - "startTime")
     }
+  }
+
+  @Test
+  fun suggestionWithoutProposedTimeRoundTripsWithAnExplicitNullStart() {
+    val unscheduled =
+        activity.copy(activityType = ActivityType.SUGGESTION, startTime = null, endTime = null)
+
+    val data = unscheduled.toFirestoreData()
+
+    assertTrue("startTime" in data)
+    assertNull(data["startTime"])
+    assertEquals(unscheduled, activityFromFirestore(unscheduled.uid, unscheduled.tripId, data))
+  }
+
+  @Test
+  fun unscheduledAcceptedActivityIsRejected() {
+    val data = activity.toFirestoreData() + mapOf("startTime" to null, "endTime" to null)
+
+    assertThrows(IllegalArgumentException::class.java) { activityFromFirestore("a", "t", data) }
+  }
+
+  @Test
+  fun endWithoutStartIsRejectedEvenForASuggestion() {
+    val data =
+        activity.toFirestoreData() +
+            mapOf("activityType" to ActivityType.SUGGESTION.name, "startTime" to null)
+
+    assertThrows(IllegalArgumentException::class.java) { activityFromFirestore("a", "t", data) }
+  }
+
+  @Test
+  fun startTimeOfAnotherTypeIsRejected() {
+    val data = activity.toFirestoreData() + ("startTime" to "2026-10-13T19:30:00Z")
+
+    assertThrows(IllegalArgumentException::class.java) { activityFromFirestore("a", "t", data) }
   }
 }

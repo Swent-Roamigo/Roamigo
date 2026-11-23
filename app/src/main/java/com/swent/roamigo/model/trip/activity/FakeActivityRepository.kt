@@ -36,7 +36,7 @@ class FakeActivityRepository(
   ): Activity {
     failure?.let { throw it as? ActivityCreationException ?: ActivityCreationException.Unknown(it) }
     val authorId = currentUserId ?: throw ActivityCreationException.NotAuthenticated()
-    val errors = draft.validate()
+    val errors = draft.validate(startRequired = true)
     if (errors.isNotEmpty()) throw ActivityCreationException.Validation(errors)
     validDocumentId(tripId)
     validDocumentId(activityId)

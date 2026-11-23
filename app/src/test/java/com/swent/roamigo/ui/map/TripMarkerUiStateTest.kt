@@ -98,6 +98,18 @@ class TripMarkerUiStateTest {
   }
 
   @Test
+  fun toTripMarkerUiState_keepsUnscheduledSuggestionAtItsLocation() {
+    val suggestion =
+        activity().copy(activityType = ActivityType.SUGGESTION, startTime = null, endTime = null)
+
+    val marker = suggestion.toTripMarkerUiState()
+
+    assertEquals(TripMarkerKind.SUGGESTION, marker.kind)
+    assertEquals(38.7223, marker.latitude, 0.0001)
+    assertEquals(-9.1393, marker.longitude, 0.0001)
+  }
+
+  @Test
   fun toTripMarkerUiState_usesCustomActivityMarkerId() {
     val marker = activity().toTripMarkerUiState(id = "custom_marker")
 
