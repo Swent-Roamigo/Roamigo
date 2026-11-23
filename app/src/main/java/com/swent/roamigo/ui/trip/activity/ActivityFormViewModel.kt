@@ -13,6 +13,7 @@ import com.swent.roamigo.model.trip.activity.ActivityCreationException
 import com.swent.roamigo.model.trip.activity.ActivityDraft
 import com.swent.roamigo.model.trip.activity.ActivityDraftError
 import com.swent.roamigo.model.trip.activity.ActivityRepository
+import com.swent.roamigo.model.trip.atZone
 import com.swent.roamigo.model.trip.toDomainInstant
 import java.time.Duration
 import java.time.LocalDate
@@ -288,7 +289,7 @@ private fun Activity.matches(draft: ActivityDraft): Boolean =
         endTime?.toDomainInstant() == draft.endTime
 
 private fun Activity.toFields(zone: ZoneId): ActivityFormFields {
-  val start = startTime.toDomainInstant().atZone(zone)
+  val start = startTime.atZone(zone)
   return ActivityFormFields(
       name = name,
       date = start.toLocalDate(),

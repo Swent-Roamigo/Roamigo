@@ -14,11 +14,13 @@ import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
+import com.swent.roamigo.model.trip.atZone
 import com.swent.roamigo.model.trip.isCompletedOn
+import com.swent.roamigo.model.trip.toLocalDate
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
+import com.swent.roamigo.ui.trip.formatTripDateRange
 import java.time.Clock
-import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -323,7 +325,7 @@ internal fun selectMainTrip(
 
   return eligibleTrips
       .filter { trip ->
-        val tripStartDate = trip.startDate.toDate().toInstant().atZone(now.zone).toLocalDate()
+        val tripStartDate = trip.startDate.toLocalDate(now.zone)
 
         tripStartDate.isBefore(now.toLocalDate())
       }
@@ -347,7 +349,7 @@ internal fun selectNextActivity(
     activities
         .filter { activity ->
           activity.activityType == ActivityType.ACCEPTED &&
-              !activity.startTime.toDate().toInstant().atZone(now.zone).isBefore(now)
+              !activity.startTime.atZone(now.zone).isBefore(now)
         }
         .minByOrNull { activity -> activity.startTime.seconds }
 
@@ -386,9 +388,9 @@ private fun Trip.toMainTripUiModel(
     memberInitials: List<String>,
     now: ZonedDateTime,
 ): MainTripUiModel {
-  val start = startDate.toDate().toInstant().atZone(now.zone)
+  val start = startDate.atZone(now.zone)
 
-  val end = endDate.toDate().toInstant().atZone(now.zone)
+  val end = endDate.atZone(now.zone)
 
   // Both the first and last calendar day belong to the trip.
   val durationDays =
@@ -423,11 +425,7 @@ private fun Trip.toMainTripUiModel(
   return MainTripUiModel(
       id = uid,
       name = name,
-      dateRange =
-          formatTripDates(
-              start = start.toLocalDate(),
-              end = end.toLocalDate(),
-          ),
+      dateRange = formatTripDateRange(start.toLocalDate(), end.toLocalDate(), Locale.ENGLISH),
       durationDays = durationDays,
       stopCount = stopCount,
       memberInitials = memberInitials,
@@ -447,18 +445,14 @@ private fun Trip.toOtherTripUiModel(
     memberCount: Int,
     now: ZonedDateTime,
 ): OtherTripUiModel {
-  val start = startDate.toDate().toInstant().atZone(now.zone).toLocalDate()
+  val start = startDate.toLocalDate(now.zone)
 
-  val end = endDate.toDate().toInstant().atZone(now.zone).toLocalDate()
+  val end = endDate.toLocalDate(now.zone)
 
   return OtherTripUiModel(
       id = uid,
       name = name,
-      dateRange =
-          formatTripDates(
-              start = start,
-              end = end,
-          ),
+      dateRange = formatTripDateRange(start, end, Locale.ENGLISH),
       memberCount = memberCount,
       isInProgress = status == TripStatus.ACTIVE || !start.isAfter(now.toLocalDate()),
   )
@@ -476,9 +470,9 @@ private fun Activity.toUiModel(
     trip: Trip,
     zoneId: ZoneId,
 ): ActivityCardUiModel {
-  val activityDateTime = startTime.toDate().toInstant().atZone(zoneId)
+  val activityDateTime = startTime.atZone(zoneId)
 
-  val tripStartDate = trip.startDate.toDate().toInstant().atZone(zoneId).toLocalDate()
+  val tripStartDate = trip.startDate.toLocalDate(zoneId)
 
   val dayNumber =
       ChronoUnit.DAYS.between(
@@ -498,38 +492,6 @@ private fun Activity.toUiModel(
       name = name,
       subtitle = "Day $dayNumber · ${activityDateTime.format(formatter)}",
   )
-}
-
-/**
- * Formats a trip's start and end dates for display.
- *
- * @param start the first calendar day of the trip.
- * @param end the last calendar day of the trip.
- * @return the compact formatted date interval.
- */
-private fun formatTripDates(
-    start: LocalDate,
-    end: LocalDate,
-): String {
-  if (start.month == end.month && start.year == end.year) {
-    val month =
-        end.format(
-            DateTimeFormatter.ofPattern(
-                "MMM",
-                Locale.ENGLISH,
-            )
-        )
-
-    return "${start.dayOfMonth} – ${end.dayOfMonth} $month"
-  }
-
-  val formatter =
-      DateTimeFormatter.ofPattern(
-          "d MMM",
-          Locale.ENGLISH,
-      )
-
-  return "${start.format(formatter)} – ${end.format(formatter)}"
 }
 
 /**
