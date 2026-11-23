@@ -19,13 +19,12 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.credentials.ClearCredentialStateRequest
-import androidx.credentials.CredentialManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
+import com.swent.roamigo.model.authentication.FakeCredentialManager
 import com.swent.roamigo.model.destination.sampleDestination
 import com.swent.roamigo.model.destination.sampleDestinationRepository
 import com.swent.roamigo.model.friends.FakeFriendRepository
@@ -66,10 +65,7 @@ class RoamigoAppTest {
 
   @Before
   fun setUp() {
-    val credentialManager =
-        object : CredentialManager by CredentialManager.create(composeRule.activity) {
-          override suspend fun clearCredentialState(request: ClearCredentialStateRequest) {}
-        }
+    val credentialManager = FakeCredentialManager(composeRule.activity)
     composeRule.setContent {
       RoamigoTheme {
         TestRoamigoApp(

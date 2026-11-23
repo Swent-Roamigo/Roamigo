@@ -23,7 +23,7 @@ import com.swent.roamigo.FirebaseEmulators
 import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthRepositoryFirebase
-import com.swent.roamigo.model.authentication.FixedCredentialManager
+import com.swent.roamigo.model.authentication.FakeCredentialManager
 import com.swent.roamigo.model.authentication.emulatorGoogleCredential
 import com.swent.roamigo.model.destination.sampleDestination
 import com.swent.roamigo.model.destination.sampleDestinationRepository
@@ -68,7 +68,7 @@ class TripCreationEndToEndTest {
   private lateinit var db: FirebaseFirestore
   private lateinit var authRepository: AuthRepositoryFirebase
   private lateinit var repository: TripRepositoryFirestore
-  private lateinit var credentialManager: FixedCredentialManager
+  private lateinit var credentialManager: FakeCredentialManager
   private val ownerName = "Trip Owner"
   private val ownerEmail = "trip-owner-${UUID.randomUUID()}@example.test"
 
@@ -82,7 +82,7 @@ class TripCreationEndToEndTest {
       repository = TripRepositoryFirestore(db) { authRepository.getCurrentUser()?.uid }
       // Google's account picker is outside this test; the emulator accepts the unsigned token.
       credentialManager =
-          FixedCredentialManager(
+          FakeCredentialManager(
               composeRule.activity,
               emulatorGoogleCredential(UUID.randomUUID().toString(), ownerEmail, ownerName),
           )
