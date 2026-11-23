@@ -71,7 +71,7 @@ class RoamigoAppInvitationTest {
     composeRule.setContent {
       navController = rememberNavController()
       RoamigoTheme {
-        RoamigoApp(
+        TestRoamigoApp(
             voteRepository = InMemoryVoteRepository(),
             tripRepository =
                 FakeTripRepository(
