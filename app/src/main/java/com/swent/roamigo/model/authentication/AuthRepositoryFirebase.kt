@@ -3,7 +3,6 @@ package com.swent.roamigo.model.authentication
 
 import androidx.credentials.Credential
 import androidx.credentials.CustomCredential
-import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.Companion.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
 import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
 import com.google.firebase.Firebase
@@ -34,9 +33,6 @@ class AuthRepositoryFirebase(
     private val auth: FirebaseAuth = Firebase.auth,
     private val helper: GoogleSignInHelper = DefaultGoogleSignInHelper(),
 ) : AuthRepository {
-
-  fun getGoogleSignInOption(serverClientId: String) =
-      GetSignInWithGoogleOption.Builder(serverClientId = serverClientId).build()
 
   override suspend fun signInWithGoogle(credential: Credential): Result<AuthenticatedUser> {
     return try {
