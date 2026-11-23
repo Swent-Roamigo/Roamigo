@@ -48,6 +48,7 @@ class FakePhotoRepository(
       takenAtMillis: Long,
       coordinates: PhotoCoordinates?,
   ) {
+    check(file.length() > 0) { "The photo is empty" }
     photos.value +=
         PendingPhoto(
             files.idOf(file),
