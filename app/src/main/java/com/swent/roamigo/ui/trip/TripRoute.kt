@@ -6,6 +6,9 @@ package com.swent.roamigo.ui.trip
 import android.content.Context
 import android.util.Log
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -16,6 +19,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -47,6 +52,7 @@ import com.swent.roamigo.ui.trip.voting.VoteCloseDialog
 import com.swent.roamigo.ui.trip.voting.VoteDialog
 import com.swent.roamigo.ui.trip.voting.VoteViewModel
 import com.swent.roamigo.ui.trip.voting.VotesRoute
+import com.swent.roamigo.ui.trip.voting.components.VoteErrorContent
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -79,10 +85,17 @@ internal fun TripRoute(
     onMapClick: () -> Unit,
     onFriendsClick: () -> Unit,
     onInviteClick: () -> Unit = rememberNotImplementedAction(),
+    highlightedVoteId: String? = null,
 ) {
   val context = LocalContext.current
   var tab by rememberSaveable {
-    mutableStateOf(if (openMap) TripSection.Map else TripSection.Detail)
+    mutableStateOf(
+        when {
+          highlightedVoteId != null -> TripSection.Votes
+          openMap -> TripSection.Map
+          else -> TripSection.Detail
+        }
+    )
   }
   val notImplemented = rememberNotImplementedAction()
   var showAdd by rememberSaveable { mutableStateOf(false) }
@@ -185,6 +198,16 @@ internal fun TripRoute(
       onFriendsClick = onFriendsClick,
   ) {
     tabState.SaveableStateProvider(tab.name) {
+      if (highlightedVoteId != null && loaded == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+          if (tripState is TripMapUiState.Error) {
+            VoteErrorContent(R.string.trip_details_not_found, tripModel::retryTrip)
+          } else {
+            Text(stringResource(R.string.trip_details_loading))
+          }
+        }
+        return@SaveableStateProvider
+      }
       when (tab) {
         TripSection.Detail ->
             TripDetailsRoute(
@@ -218,6 +241,7 @@ internal fun TripRoute(
                 onAuthenticationRequired,
                 onOpenVote,
                 onCreateVote,
+                highlightedVoteId,
             )
         TripSection.Photos -> {
           val connectivity =
@@ -277,6 +301,7 @@ private fun TripVotes(
     onAuthenticationRequired: () -> Unit,
     onOpenVote: (String, Boolean) -> Unit,
     onCreateVote: () -> Unit,
+    highlightedVoteId: String?,
 ) {
   var selectedVoteId by rememberSaveable { mutableStateOf<String?>(null) }
   var confirmClose by rememberSaveable { mutableStateOf(false) }
@@ -312,7 +337,8 @@ private fun TripVotes(
               },
       onCreateVote = { if (!readOnly) onCreateVote() },
       readOnly = readOnly,
-      showHint = !hintSeen,
+      highlightedVoteId = highlightedVoteId,
+      showHint = !hintSeen && highlightedVoteId == null,
       onDismissHint = {
         hintSeen = true
         markVotesHintSeen(context)

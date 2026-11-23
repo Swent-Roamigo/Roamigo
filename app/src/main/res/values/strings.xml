@@ -438,6 +438,7 @@
     </plurals>
     <string name="votes_decided">Decided</string>
     <string name="votes_live_vote">Live vote</string>
+    <string name="vote_from_notification">Vote from notification</string>
     <string name="votes_unresolved">Unresolved</string>
     <string name="votes_loading">Loading votes…</string>
     <string name="votes_empty_title">No votes yet</string>

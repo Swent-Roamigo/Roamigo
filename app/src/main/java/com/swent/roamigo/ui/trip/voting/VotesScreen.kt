@@ -73,6 +73,7 @@ fun VotesRoute(
             currentUserId,
             readOnly,
         ),
+    highlightedVoteId: String? = null,
 ) {
   val scopeKey = "$tripId-$currentUserId-$readOnly"
   val viewModel: VotesViewModel =
@@ -148,6 +149,7 @@ fun VotesRoute(
       onDismissHint = onDismissHint,
       modifier = modifier,
       listState = listState,
+      highlightedVoteId = highlightedVoteId,
       eligibility = resolutionState.eligibility,
       onRetryEligibility = resolution::refreshEligibility,
   )
@@ -171,6 +173,7 @@ fun VotesScreen(
     listState: LazyListState = rememberLazyListState(),
     eligibility: ResolutionEligibility? = null,
     onRetryEligibility: () -> Unit = {},
+    highlightedVoteId: String? = null,
 ) {
   Scaffold(
       modifier = modifier,
@@ -206,20 +209,24 @@ fun VotesScreen(
                 Text(stringResource(R.string.votes_loading))
               }
           VotesUiState.Empty ->
-              Column(
-                  horizontalAlignment = Alignment.CenterHorizontally,
-                  verticalArrangement = Arrangement.spacedBy(Spacing.small),
-              ) {
-                Text(
-                    stringResource(R.string.votes_empty_title),
-                    style = MaterialTheme.typography.titleLarge,
-                )
-                Text(
-                    stringResource(R.string.votes_empty_description),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+              if (highlightedVoteId != null) {
+                VoteErrorContent(R.string.vote_not_found)
+              } else {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(Spacing.small),
+                ) {
+                  Text(
+                      stringResource(R.string.votes_empty_title),
+                      style = MaterialTheme.typography.titleLarge,
+                  )
+                  Text(
+                      stringResource(R.string.votes_empty_description),
+                      style = MaterialTheme.typography.bodyMedium,
+                      textAlign = TextAlign.Center,
+                      color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                }
               }
           VotesUiState.Error -> VoteErrorContent(R.string.votes_load_error, onRetry)
           is VotesUiState.Ready ->
@@ -231,6 +238,7 @@ fun VotesScreen(
                   onRevote = onRevote.takeUnless { readOnly },
                   onOwnerDecides = onOwnerDecides.takeUnless { readOnly },
                   listState = listState,
+                  highlightedVoteId = highlightedVoteId,
               )
         }
       }

@@ -26,6 +26,7 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.ClearCredentialException
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -38,6 +39,7 @@ import com.swent.roamigo.model.connectivity.ConnectivityRepository
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.friends.FriendRepository
 import com.swent.roamigo.model.location.LocationRepository
+import com.swent.roamigo.model.notification.NotificationEvent
 import com.swent.roamigo.model.notification.NotificationRepository
 import com.swent.roamigo.model.photo.PhotoRepository
 import com.swent.roamigo.model.place.PlaceRepository
@@ -49,7 +51,6 @@ import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.ui.authentication.AuthenticationRoute
 import com.swent.roamigo.ui.components.LocalHasPendingFriendRequests
-import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.friends.FriendsRoute
 import com.swent.roamigo.ui.friends.FriendsSearchRoute
 import com.swent.roamigo.ui.heatmap.ExploredWorldRoute
@@ -57,6 +58,7 @@ import com.swent.roamigo.ui.heatmap.VisitedCountryCounts
 import com.swent.roamigo.ui.map.TripOverviewMapRoute
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.navigation.activityFormTrip
+import com.swent.roamigo.ui.navigation.highlightedVoteId
 import com.swent.roamigo.ui.navigation.isReadOnly
 import com.swent.roamigo.ui.navigation.opensMap
 import com.swent.roamigo.ui.navigation.token
@@ -350,7 +352,17 @@ fun RoamigoApp(
             currentUserId = userId,
             onBack = dropUnlessResumed { navController.popBackStack() },
             onSessionEnded = { redirectToAuthentication(navController) },
-            onOpenNotification = rememberNotImplementedAction(),
+            onOpenNotification = { notification ->
+              if (
+                  authRepository.getCurrentUser()?.uid == userId &&
+                      navController.currentDestination?.route == Route.NOTIFICATIONS
+              ) {
+                when (val event = notification.event) {
+                  is NotificationEvent.TripVoteCreated ->
+                      navController.navigate(Route.tripDetailsForVote(event.tripId, event.voteId))
+                }
+              }
+            },
         )
       }
     }
@@ -384,13 +396,15 @@ fun RoamigoApp(
       )
     }
 
-    composable(Route.TRIP_DETAILS) { entry ->
+    @Composable
+    fun TripDetailsDestination(entry: NavBackStackEntry) {
       val tripId = entry.tripId()
       val fromHistory = entry.isReadOnly()
       TripRoute(
           tripId = tripId,
           fromHistory = fromHistory,
           openMap = entry.opensMap(),
+          highlightedVoteId = entry.highlightedVoteId(),
           authRepository = authRepository,
           tripRepository = tripRepository,
           activityRepository = activityRepository,
@@ -416,6 +430,8 @@ fun RoamigoApp(
           onFriendsClick = onFriendsClick,
       )
     }
+    composable(Route.TRIP_DETAILS) { TripDetailsDestination(it) }
+    composable(Route.TRIP_DETAILS_FOR_VOTE) { TripDetailsDestination(it) }
 
     composable(Route.TRIP_READY) { entry ->
       val id = entry.tripId()

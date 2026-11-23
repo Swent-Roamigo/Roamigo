@@ -23,6 +23,7 @@ object Route {
   const val TRIP_HISTORY = "trip_history"
   const val EXPLORED_WORLD = "explored_world"
   const val TRIP_DETAILS = "trip/{tripId}/details?readOnly={readOnly}&initialTab={initialTab}"
+  const val TRIP_DETAILS_FOR_VOTE = "trip/{tripId}/details/votes/{highlightedVoteId}"
   const val VOTE = "trip/{tripId}/vote/{voteId}?readOnly={readOnly}"
   const val NEW_VOTE = "trip/{tripId}/new_vote"
   const val NEW_ACTIVITY =
@@ -35,6 +36,9 @@ object Route {
 
   fun tripDetails(tripId: String, readOnly: Boolean = false, openMap: Boolean = false): String =
       "trip/${Uri.encode(tripId)}/details?readOnly=$readOnly&initialTab=${if (openMap) "map" else "detail"}"
+
+  internal fun tripDetailsForVote(tripId: String, voteId: String): String =
+      "trip/${Uri.encode(tripId)}/details/votes/${Uri.encode(voteId)}"
 
   fun vote(tripId: String, voteId: String, readOnly: Boolean = false): String =
       "trip/${Uri.encode(tripId)}/vote/${Uri.encode(voteId)}?readOnly=$readOnly"
@@ -76,3 +80,6 @@ internal fun NavBackStackEntry.isReadOnly(): Boolean = arguments?.getString("rea
 
 /** Whether a trip should open on its Map tab. */
 internal fun NavBackStackEntry.opensMap(): Boolean = arguments?.getString("initialTab") == "map"
+
+internal fun NavBackStackEntry.highlightedVoteId(): String? =
+    arguments?.getString("highlightedVoteId")
