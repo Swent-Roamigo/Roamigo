@@ -7,7 +7,6 @@ import androidx.credentials.CredentialManager
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import com.swent.roamigo.model.authentication.AuthRepository
-import com.swent.roamigo.model.authentication.AuthRepositoryFirebase
 import com.swent.roamigo.model.connectivity.ConnectivityRepository
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.friends.FriendRepository
@@ -30,17 +29,18 @@ import com.swent.roamigo.ui.heatmap.VisitedCountryCounts
 /**
  * [RoamigoApp] with in-memory data sources, so a test only passes the ones it is about. The fakes
  * live here, not in [RoamigoApp], so the production app can never fall back to sample data.
+ * [authRepository] has no default so that no test can reach the real Firebase Authentication.
  */
 @Composable
 internal fun TestRoamigoApp(
     voteRepository: VoteRepository,
     friendRepository: FriendRepository,
     destinationRepository: DestinationRepository,
+    authRepository: AuthRepository,
     tripRepository: TripRepository = remember { FakeTripRepository() },
     activityRepository: ActivityRepository = remember { FakeActivityRepository() },
     userRepository: UserRepository = remember { FakeUserRepository(User("alex", "Alex", null)) },
     navController: NavHostController = rememberNavController(),
-    authRepository: AuthRepository = remember { AuthRepositoryFirebase() },
     credentialManager: CredentialManager? = null,
     photoRepository: PhotoRepository = remember { FakePhotoRepository() },
     connectivityRepository: ConnectivityRepository? = null,
