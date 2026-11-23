@@ -1,6 +1,7 @@
 // Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui.profile
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,7 +47,12 @@ import com.swent.roamigo.ui.theme.Ochre
 import com.swent.roamigo.ui.theme.Paper
 import com.swent.roamigo.ui.theme.Spacing
 
-/** Connects [authRepository] to [ProfileScreen] and forwards successful sign-out. */
+/**
+ * Connects [authRepository] to [ProfileScreen] and forwards successful sign-out.
+ *
+ * @param onEditNameClick Edits the display name; its button is hidden while it is null.
+ * @param onChangePictureClick Changes the profile picture; its button is hidden while it is null.
+ */
 @Composable
 fun ProfileRoute(
     authRepository: AuthRepository,
@@ -55,6 +61,8 @@ fun ProfileRoute(
     onTripsClick: () -> Unit = rememberNotImplementedAction(),
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
     onMapClick: () -> Unit = {},
+    onEditNameClick: (() -> Unit)? = null,
+    onChangePictureClick: (() -> Unit)? = null,
 ) {
   val viewModel = viewModel { ProfileViewModel(authRepository) }
   val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -66,9 +74,15 @@ fun ProfileRoute(
       onFriendsClick = onFriendsClick,
       onSignOutClick = viewModel::signOut,
       onMapClick = onMapClick,
+      onEditNameClick = onEditNameClick,
+      onChangePictureClick = onChangePictureClick,
   )
 }
 
+/**
+ * Shows the signed-in account. A null [onEditNameClick] or [onChangePictureClick] hides its button,
+ * so the screen never offers an action that does nothing.
+ */
 @Composable
 fun ProfileScreen(
     state: ProfileUiState,
@@ -77,6 +91,8 @@ fun ProfileScreen(
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
     onSignOutClick: () -> Unit = {},
     onMapClick: () -> Unit = {},
+    onEditNameClick: (() -> Unit)? = null,
+    onChangePictureClick: (() -> Unit)? = null,
 ) {
   var confirmingLogOut by rememberSaveable { mutableStateOf(false) }
   Scaffold(
@@ -152,11 +168,13 @@ fun ProfileScreen(
             R.drawable.ic_user,
             stringResource(R.string.profile_display_name),
             state.user.displayName,
+            action = onEditNameClick?.let { rowAction(R.string.profile_edit, it) },
         )
         InfoRow(
             R.drawable.ic_camera,
             stringResource(R.string.profile_picture),
             stringResource(R.string.profile_picture_description),
+            action = onChangePictureClick?.let { rowAction(R.string.profile_change, it) },
         )
         InfoRow(
             R.drawable.ic_users,
@@ -213,6 +231,11 @@ fun ProfileScreen(
         },
     )
   }
+}
+
+/** Wraps [RowAction] as the trailing content of an [InfoRow]. */
+private fun rowAction(@StringRes label: Int, onClick: () -> Unit): @Composable () -> Unit = {
+  RowAction(stringResource(label), onClick)
 }
 
 @Composable
