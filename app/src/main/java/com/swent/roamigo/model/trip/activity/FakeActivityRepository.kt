@@ -56,8 +56,6 @@ class FakeActivityRepository(
       else -> throw ActivityCreationException.Unknown(failure)
     }
     val authorId = currentUserId ?: throw ActivityCreationException.NotAuthenticated()
-    val errors = draft.validate(startRequired = type == ActivityType.ACCEPTED)
-    if (errors.isNotEmpty()) throw ActivityCreationException.Validation(errors)
     validDocumentId(tripId)
     validDocumentId(activityId)
 
@@ -67,6 +65,8 @@ class FakeActivityRepository(
           ?.let {
             return it.requireCreationMatch(authorId, type)
           }
+      val errors = draft.validate(startRequired = type == ActivityType.ACCEPTED)
+      if (errors.isNotEmpty()) throw ActivityCreationException.Validation(errors)
       val created = draft.toActivity(activityId, tripId, authorId, Timestamp.now(), type)
       stored.value = stored.value + created
       return created

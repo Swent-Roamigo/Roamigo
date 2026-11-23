@@ -48,25 +48,26 @@ class ActivityRepositoryFirestore(
       type: ActivityType,
   ): Activity {
     val authorId = currentUserId() ?: throw ActivityCreationException.NotAuthenticated()
-    val errors = draft.validate(startRequired = type == ActivityType.ACCEPTED)
-    if (errors.isNotEmpty()) throw ActivityCreationException.Validation(errors)
     // A malformed ID is a caller bug, so it is thrown as is instead of as an unknown failure.
     val document = activities(tripId).document(validDocumentId(activityId))
 
-    val activity =
+    val outcome =
         try {
           // A transaction makes the existence check and the write atomic, so a retry after an
           // ambiguous failure cannot overwrite the first attempt.
           db.runTransaction { transaction ->
                 val existing = transaction.get(document)
                 if (existing.exists()) {
-                  activityFromFirestore(existing.id, tripId, existing.requireData())
-                } else {
-                  val created =
-                      draft.toActivity(activityId, tripId, authorId, Timestamp.now(), type)
-                  transaction.set(document, created.toFirestoreData())
-                  created
+                  return@runTransaction CreationOutcome.Stored(
+                      activityFromFirestore(existing.id, tripId, existing.requireData())
+                  )
                 }
+                val errors = draft.validate(startRequired = type == ActivityType.ACCEPTED)
+                if (errors.isNotEmpty()) return@runTransaction CreationOutcome.InvalidDraft(errors)
+
+                val created = draft.toActivity(activityId, tripId, authorId, Timestamp.now(), type)
+                transaction.set(document, created.toFirestoreData())
+                CreationOutcome.Stored(created)
               }
               .await()
         } catch (error: CancellationException) {
@@ -79,7 +80,10 @@ class ActivityRepositoryFirestore(
 
     // Deciding outside the transaction keeps the exception types independent of how Firestore
     // reports failures thrown from inside a transaction function.
-    return activity.requireCreationMatch(authorId, type)
+    return when (outcome) {
+      is CreationOutcome.Stored -> outcome.activity.requireCreationMatch(authorId, type)
+      is CreationOutcome.InvalidDraft -> throw ActivityCreationException.Validation(outcome.errors)
+    }
   }
 
   override fun observeActivities(tripId: String): Flow<List<Activity>> = callbackFlow {
@@ -105,6 +109,12 @@ class ActivityRepositoryFirestore(
 
   private fun activities(tripId: String): CollectionReference =
       db.collection("trips").document(validDocumentId(tripId)).collection("activities")
+}
+
+private sealed interface CreationOutcome {
+  data class Stored(val activity: Activity) : CreationOutcome
+
+  data class InvalidDraft(val errors: List<ActivityDraftError>) : CreationOutcome
 }
 
 private fun FirebaseFirestoreException.toActivityCreationException(): ActivityCreationException =
