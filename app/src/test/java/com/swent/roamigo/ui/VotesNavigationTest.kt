@@ -37,6 +37,7 @@ import com.swent.roamigo.model.notification.NotificationEvent
 import com.swent.roamigo.model.notification.NotificationRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.Trip
+import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.model.trip.voting.Vote
@@ -49,6 +50,7 @@ import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import java.time.Instant
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -103,7 +105,7 @@ class VotesNavigationTest {
         }
       }
 
-  private fun showApp(trips: List<Trip>) {
+  private fun showApp(tripRepository: TripRepository) {
     composeRule.setContent {
       navController = rememberNavController()
       RoamigoTheme {
@@ -112,7 +114,7 @@ class VotesNavigationTest {
             userRepository = FakeUserRepository(User("member", "Member", null)),
             voteRepository = repository,
             destinationRepository = sampleDestinationRepository(),
-            tripRepository = FakeTripRepository(trips = trips),
+            tripRepository = tripRepository,
             notificationRepository = inboxRepository,
             authRepository = auth,
             navController = navController,
@@ -133,7 +135,7 @@ class VotesNavigationTest {
             endDate = Timestamp(now + 172800, 0),
             status = TripStatus.PLANNED,
         )
-    showApp(listOf(trip, otherTrip))
+    showApp(FakeTripRepository(trips = listOf(trip, otherTrip)))
     if (historical) {
       composeRule.onNodeWithTag(C.Tag.trips_history_button).performClick()
       val cardTag = C.Tag.trip_history_card_prefix + tripId
@@ -203,20 +205,57 @@ class VotesNavigationTest {
     composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
   }
 
+  @Test
+  fun notificationShowsTripLoadingUntilTheVoteCanBeOpened() {
+    val trips = listOf(navigationTestTrip(tripId, tripName))
+    val allowTripLookup = CompletableDeferred<Unit>()
+    val holdTripLookup = MutableStateFlow(false)
+    val tripRepository =
+        object : TripRepository by FakeTripRepository(trips = trips) {
+          override suspend fun getTrips(): List<Trip> {
+            if (holdTripLookup.value) allowTripLookup.await()
+            return trips
+          }
+        }
+    openInboxWithVote(vote.uid, tripRepository)
+    composeRule.runOnIdle { holdTripLookup.value = true }
+    openInboxEntry()
+
+    composeRule.onNodeWithText(label(R.string.trip_details_loading)).assertIsDisplayed()
+    composeRule.onNodeWithText(vote.question).assertDoesNotExist()
+
+    allowTripLookup.complete(Unit)
+    composeRule
+        .onNode(hasText(vote.question) and hasAnyAncestor(highlightedVote()))
+        .assertIsDisplayed()
+  }
+
   private fun openVoteFromInbox(voteId: String, tripAvailable: Boolean = true) {
-    val entry =
-        Notification(
-            "vote-entry",
-            "member",
-            NotificationEvent.TripVoteCreated(tripId, voteId),
-            Instant.EPOCH,
-            false,
+    val trips = if (tripAvailable) listOf(navigationTestTrip(tripId, tripName)) else emptyList()
+    openInboxWithVote(voteId, FakeTripRepository(trips = trips))
+    openInboxEntry()
+  }
+
+  private fun openInboxWithVote(voteId: String, tripRepository: TripRepository) {
+    notifications.value =
+        listOf(
+            Notification(
+                "vote-entry",
+                "member",
+                NotificationEvent.TripVoteCreated(tripId, voteId),
+                Instant.EPOCH,
+                false,
+            )
         )
-    notifications.value = listOf(entry)
-    showApp(if (tripAvailable) listOf(navigationTestTrip(tripId, tripName)) else emptyList())
+    showApp(tripRepository)
     composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
     composeRule.onNodeWithTag(C.Tag.profile_notifications_row).performScrollTo().performClick()
-    composeRule.onNodeWithTag(C.Tag.notifications_row_prefix + entry.uid).performClick()
+  }
+
+  private fun openInboxEntry() {
+    composeRule
+        .onNodeWithTag(C.Tag.notifications_row_prefix + notifications.value.single().uid)
+        .performClick()
   }
 
   private fun highlightedVote() =
