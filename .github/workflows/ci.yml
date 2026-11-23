@@ -40,12 +40,14 @@ jobs:
         run: ./gradlew ktfmtCheck assembleDebug lintDebug check --build-cache
 
       # The report job reads these, but it does not recompile or rerun the unit tests.
+      # Screenshots saved by JVM tests travel along so PR authors can attach them.
       - name: Collect unit test coverage inputs
         if: always()
         run: |
           tar czf checks-outputs.tgz --ignore-failed-read \
             app/build/outputs/unit_test_code_coverage \
             app/build/test-results/testDebugUnitTest \
+            app/build/outputs/screenshots \
             app/build/reports/lint-results-debug.xml \
             app/build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes \
             app/build/tmp/kotlin-classes/debug
