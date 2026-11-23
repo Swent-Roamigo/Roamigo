@@ -6,10 +6,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -40,16 +42,16 @@ class NotificationsScreenTest {
   private val context
     get() = ApplicationProvider.getApplicationContext<Context>()
 
-  private val request =
+  private val olderVote =
       Notification(
-          uid = "request",
+          uid = "older-vote",
           recipientUserId = "recipient",
-          event = NotificationEvent.FriendRequestReceived("request-id", "sender"),
+          event = NotificationEvent.TripVoteCreated("trip-id", "older-vote-id"),
           createdAt = Instant.parse("2026-11-22T09:00:00Z"),
           isRead = true,
       )
   private val vote =
-      request.copy(
+      olderVote.copy(
           uid = "vote",
           event = NotificationEvent.TripVoteCreated("trip-id", "vote-id"),
           createdAt = Instant.parse("2026-11-22T10:00:00Z"),
@@ -76,11 +78,11 @@ class NotificationsScreenTest {
   }
 
   @Test
-  fun entriesDisplayEventTypesTimestampsAndAccessibleReadStatesInOrder() {
-    show { ready(vote, request) }
+  fun entriesDisplayTimestampsAndAccessibleReadStatesInOrder() {
+    show { ready(vote, olderVote) }
 
     val first = row(vote)
-    val second = row(request)
+    val second = row(olderVote)
     first
         .assertIsDisplayed()
         .assert(
@@ -101,18 +103,15 @@ class NotificationsScreenTest {
         first.fetchSemanticsNode().boundsInRoot.top < second.fetchSemanticsNode().boundsInRoot.top
     )
     composeRule
-        .onNodeWithText(context.getString(R.string.notifications_trip_vote))
-        .assertIsDisplayed()
-    composeRule
-        .onNodeWithText(context.getString(R.string.notifications_friend_request))
-        .assertIsDisplayed()
+        .onAllNodesWithText(context.getString(R.string.notifications_trip_vote))
+        .assertCountEquals(2)
     val timestamp =
         DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
             .withLocale(context.resources.configuration.locales[0])
             .withZone(ZoneId.systemDefault())
             .format(vote.createdAt)
     composeRule.onNodeWithText(timestamp).assertIsDisplayed()
-    markRead(request).assertDoesNotExist()
+    markRead(olderVote).assertDoesNotExist()
   }
 
   @Test
@@ -145,7 +144,7 @@ class NotificationsScreenTest {
   @Test
   fun pendingAndFailedReadUpdatesShowFeedbackForTheAffectedEntries() {
     val pending = vote.copy(uid = "pending")
-    val failed = request.copy(isRead = false)
+    val failed = olderVote.copy(isRead = false)
     val marked = mutableListOf<String>()
     show(onMarkRead = { marked += it }) {
       ready(pending, failed)

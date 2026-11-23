@@ -316,7 +316,7 @@ class NotificationsViewModelTest {
       Notification(
           uid = id,
           recipientUserId = account.uid,
-          event = NotificationEvent.FriendRequestReceived("request-$id", "sender"),
+          event = NotificationEvent.TripVoteCreated("trip", "vote-$id"),
           createdAt = Instant.ofEpochSecond(second),
           isRead = false,
       )

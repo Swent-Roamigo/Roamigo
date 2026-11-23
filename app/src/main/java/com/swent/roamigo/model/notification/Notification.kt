@@ -12,11 +12,6 @@ data class Notification(
 )
 
 sealed interface NotificationEvent {
-  data class FriendRequestReceived(
-      val requestId: String,
-      val senderUserId: String,
-  ) : NotificationEvent
-
   data class TripVoteCreated(
       val tripId: String,
       val voteId: String,

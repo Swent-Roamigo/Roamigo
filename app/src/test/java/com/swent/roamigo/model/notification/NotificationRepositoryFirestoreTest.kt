@@ -67,7 +67,7 @@ class NotificationRepositoryFirestoreTest {
     `when`(db.collection("users")).thenReturn(profiles)
     `when`(profiles.document("recipient")).thenReturn(profile)
     `when`(profile.collection("notifications")).thenReturn(inbox)
-    `when`(inbox.document("request")).thenReturn(reference)
+    `when`(inbox.document("older-vote")).thenReturn(reference)
     `when`(inbox.orderBy("createdAt", Query.Direction.DESCENDING)).thenReturn(orderedQuery)
     `when`(orderedQuery.limit(50)).thenReturn(query)
     doAnswer {
@@ -85,13 +85,17 @@ class NotificationRepositoryFirestoreTest {
   }
 
   @Test
-  fun inboxStartsEmptyAndEmitsBothEventTypesNewestFirst() = runTest {
+  fun inboxKeepsVoteOrderAndSkipsLegacyFriendRequests() = runTest {
     val states = mutableListOf<List<Notification>>()
     val collection = launch { repository().observeNotifications().take(2).toList(states) }
     runCurrent()
     emit()
     runCurrent()
-    emit(document("vote", voteFields), document("request", requestFields))
+    emit(
+        document("vote", voteFields),
+        document("legacy-request", legacyRequestFields),
+        document("older-vote", olderVoteFields),
+    )
     collection.join()
 
     assertEquals(emptyList<Notification>(), states.first())
@@ -105,9 +109,9 @@ class NotificationRepositoryFirestoreTest {
                 true,
             ),
             Notification(
-                "request",
+                "older-vote",
                 "recipient",
-                NotificationEvent.FriendRequestReceived("request-id", "sender"),
+                NotificationEvent.TripVoteCreated("trip-id", "older-vote-id"),
                 Instant.ofEpochSecond(1, 123),
                 false,
             ),
@@ -121,19 +125,19 @@ class NotificationRepositoryFirestoreTest {
   }
 
   @Test
-  fun unreadCountChangesAfterAnAcknowledgedRead() = runTest {
+  fun unreadCountIgnoresLegacyRequestsAndWaitsForAcknowledgedReads() = runTest {
     val counts = mutableListOf<Int>()
     val collection = launch { repository().observeUnreadCount().take(2).toList(counts) }
     runCurrent()
-    emit(document("request", requestFields))
+    emit(document("older-vote", olderVoteFields), document("legacy-request", legacyRequestFields))
     runCurrent()
 
-    val read = document("request", requestFields + ("isRead" to true))
+    val read = document("older-vote", olderVoteFields + ("isRead" to true))
     emit(read, pending = true)
     runCurrent()
     assertEquals(listOf(1), counts)
 
-    emit(read)
+    emit(read, document("legacy-request", legacyRequestFields))
     collection.join()
     assertEquals(listOf(1, 0), counts)
     verify(orderedQuery).limit(50)
@@ -147,7 +151,7 @@ class NotificationRepositoryFirestoreTest {
     accountListener.onAuthStateChanged(auth)
     emit()
     runCurrent()
-    emit(document("request", requestFields))
+    emit(document("older-vote", olderVoteFields))
     currentUser = mock(FirebaseUser::class.java)
     accountListener.onAuthStateChanged(auth)
     emit(document("vote", voteFields))
@@ -187,8 +191,8 @@ class NotificationRepositoryFirestoreTest {
 
     val retry = async { flow.first() }
     runCurrent()
-    emit(document("request", requestFields))
-    assertEquals("request", retry.await().single().uid)
+    emit(document("older-vote", olderVoteFields))
+    assertEquals("older-vote", retry.await().single().uid)
     verify(registration, times(2)).remove()
   }
 
@@ -209,22 +213,22 @@ class NotificationRepositoryFirestoreTest {
     val malformedEntries =
         listOf(
             null,
-            requestFields - "recipientUserId",
-            requestFields + ("recipientUserId" to 123),
-            requestFields + ("type" to "UNKNOWN"),
-            requestFields + ("requestId" to "nested/request"),
-            requestFields - "createdAt",
-            requestFields + ("isRead" to "false"),
+            olderVoteFields - "recipientUserId",
+            olderVoteFields + ("recipientUserId" to 123),
+            olderVoteFields + ("type" to "UNKNOWN"),
+            olderVoteFields + ("voteId" to "nested/vote"),
+            olderVoteFields - "createdAt",
+            olderVoteFields + ("isRead" to "false"),
             voteFields - "tripId",
         )
     val documents =
         listOf(document("vote", voteFields)) +
             malformedEntries.mapIndexed { index, fields -> document("malformed-$index", fields) } +
-            document("request", requestFields)
+            document("older-vote", olderVoteFields)
     val inbox = async { repository.observeNotifications().first() }
     runCurrent()
     emit(*documents.toTypedArray())
-    assertEquals(listOf("vote", "request"), inbox.await().map { it.uid })
+    assertEquals(listOf("vote", "older-vote"), inbox.await().map { it.uid })
 
     val unread = async { repository.observeUnreadCount().first() }
     runCurrent()
@@ -238,8 +242,11 @@ class NotificationRepositoryFirestoreTest {
     val result = async { runCatching { repository().observeNotifications().first() } }
     runCurrent()
     emit(
-        document("request", requestFields),
-        document("other", requestFields + mapOf("type" to "UNKNOWN", "recipientUserId" to "other")),
+        document("older-vote", olderVoteFields),
+        document(
+            "other",
+            olderVoteFields + mapOf("type" to "UNKNOWN", "recipientUserId" to "other"),
+        ),
     )
 
     val error = result.await().exceptionOrNull()
@@ -257,9 +264,9 @@ class NotificationRepositoryFirestoreTest {
     val successfulWrite = writeTask()
     `when`(reference.update("isRead", true)).thenReturn(failedWrite, successfulWrite)
 
-    assertSame(error, runCatching { repository.markAsRead("request") }.exceptionOrNull())
-    repository.markAsRead("request")
-    repository.markAsRead("request")
+    assertSame(error, runCatching { repository.markAsRead("older-vote") }.exceptionOrNull())
+    repository.markAsRead("older-vote")
+    repository.markAsRead("older-vote")
 
     verify(reference, times(3)).update("isRead", true)
   }
@@ -268,7 +275,7 @@ class NotificationRepositoryFirestoreTest {
   fun acknowledgedMarkReadReturnsNormallyAfterAnAccountChange() = runTest {
     val completion = TaskCompletionSource<Void>()
     `when`(reference.update("isRead", true)).thenReturn(completion.task)
-    val pendingWrite = async { repository().markAsRead("request") }
+    val pendingWrite = async { repository().markAsRead("older-vote") }
     runCurrent()
     verify(reference).update("isRead", true)
     assertFalse(pendingWrite.isCompleted)
@@ -283,7 +290,7 @@ class NotificationRepositoryFirestoreTest {
     val repository = repository()
     val pending =
         async(start = CoroutineStart.UNDISPATCHED) {
-          runCatching { repository.markAsRead("request") }
+          runCatching { repository.markAsRead("older-vote") }
         }
     currentUser = mock(FirebaseUser::class.java)
 
@@ -303,7 +310,8 @@ class NotificationRepositoryFirestoreTest {
 
     currentUser = null
     assertTrue(
-        runCatching { repository.markAsRead("request") }.exceptionOrNull() is IllegalStateException
+        runCatching { repository.markAsRead("older-vote") }.exceptionOrNull()
+            is IllegalStateException
     )
     assertTrue(
         runCatching { repository.observeNotifications().first() }.exceptionOrNull()
@@ -337,7 +345,17 @@ class NotificationRepositoryFirestoreTest {
         `when`(it.exception).thenReturn(error)
       }
 
-  private val requestFields =
+  private val olderVoteFields =
+      mapOf(
+          "recipientUserId" to "recipient",
+          "type" to "TRIP_VOTE_CREATED",
+          "tripId" to "trip-id",
+          "voteId" to "older-vote-id",
+          "createdAt" to Timestamp(1, 123),
+          "isRead" to false,
+      )
+
+  private val legacyRequestFields =
       mapOf(
           "recipientUserId" to "recipient",
           "type" to "FRIEND_REQUEST_RECEIVED",

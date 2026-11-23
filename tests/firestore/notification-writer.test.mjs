@@ -15,12 +15,12 @@ const {getFirestore, Timestamp} = require('firebase-admin/firestore');
 const {createNotification} = require('./lib/notifications.js');
 const db = getFirestore(initializeApp({projectId: project}));
 
-const requestEvent = {
-  type: 'FRIEND_REQUEST_RECEIVED',
-  requestId: 'request-id',
-  senderUserId: 'sender',
+const voteEvent = {
+  type: 'TRIP_VOTE_CREATED',
+  tripId: 'trip-id',
+  voteId: 'vote-id',
 };
-const sourceIds = ['friendship-id', requestEvent.requestId];
+const sourceIds = [voteEvent.tripId, voteEvent.voteId];
 const inbox = recipient => db.collection(`users/${recipient}/notifications`);
 
 test('concurrent creation and replay preserve the original notification', async () => {
@@ -36,8 +36,8 @@ test('concurrent creation and replay preserve the original notification', async 
   const {localId: recipient, idToken} = await signUp.json();
 
   await Promise.all([
-    createNotification(db, recipient, sourceIds, requestEvent),
-    createNotification(db, recipient, sourceIds, requestEvent),
+    createNotification(db, recipient, sourceIds, voteEvent),
+    createNotification(db, recipient, sourceIds, voteEvent),
   ]);
   const created = await inbox(recipient).get();
   assert.equal(created.size, 1);
@@ -45,7 +45,7 @@ test('concurrent creation and replay preserve the original notification', async 
   const original = entry.data();
   assert.ok(original.createdAt instanceof Timestamp);
   assert.deepEqual(original, {
-    ...requestEvent, recipientUserId: recipient, createdAt: original.createdAt, isRead: false,
+    ...voteEvent, recipientUserId: recipient, createdAt: original.createdAt, isRead: false,
   });
 
   const markRead = await fetch(
@@ -58,27 +58,29 @@ test('concurrent creation and replay preserve the original notification', async 
   );
   assert.equal(markRead.status, 200, await markRead.text());
 
-  await createNotification(db, recipient, sourceIds, requestEvent);
+  await createNotification(db, recipient, sourceIds, voteEvent);
   const replayed = await inbox(recipient).get();
   assert.equal(replayed.size, 1);
   assert.equal(replayed.docs[0].id, entry.id);
   assert.deepEqual(replayed.docs[0].data(), {...original, isRead: true});
 });
 
-test('event identity distinguishes request attempts, source documents, and recipient inboxes', async () => {
+test('event identity distinguishes different votes, trips, and recipient inboxes', async () => {
   const recipient = randomUUID();
   const other = randomUUID();
-  const newRequest = {...requestEvent, requestId: 'new-request-id'};
+  const newVote = {...voteEvent, voteId: 'new-vote-id'};
   await Promise.all([
-    createNotification(db, recipient, sourceIds, requestEvent),
-    createNotification(db, recipient, [sourceIds[0], newRequest.requestId], newRequest),
-    createNotification(db, recipient, ['other-friendship', requestEvent.requestId], requestEvent),
-    createNotification(db, other, sourceIds, requestEvent),
+    createNotification(db, recipient, sourceIds, voteEvent),
+    createNotification(db, recipient, [sourceIds[0], newVote.voteId], newVote),
+    createNotification(db, recipient, ['other-trip', voteEvent.voteId], {...voteEvent, tripId: 'other-trip'}),
+    createNotification(db, other, sourceIds, voteEvent),
   ]);
 
   const notifications = await inbox(recipient).get();
-  assert.deepEqual(notifications.docs.map(entry => entry.get('requestId')).sort(), [
-    newRequest.requestId, requestEvent.requestId, requestEvent.requestId,
+  assert.deepEqual(notifications.docs.map(entry => `${entry.get('tripId')}/${entry.get('voteId')}`).sort(), [
+    `other-trip/${voteEvent.voteId}`,
+    `${voteEvent.tripId}/${newVote.voteId}`,
+    `${voteEvent.tripId}/${voteEvent.voteId}`,
   ]);
   const otherInbox = await inbox(other).get();
   assert.equal(otherInbox.size, 1);
@@ -89,7 +91,7 @@ test('a write failure other than an existing document propagates to the caller',
   const unavailable = Object.assign(new Error('Firestore unavailable'), {code: 14});
   const failingDb = {doc: () => ({create: async () => { throw unavailable; }})};
   await assert.rejects(
-    createNotification(failingDb, 'recipient', sourceIds, requestEvent),
+    createNotification(failingDb, 'recipient', sourceIds, voteEvent),
     error => error === unavailable,
   );
 });

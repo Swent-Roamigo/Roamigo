@@ -65,4 +65,4 @@ export {
   listIncomingDirectTripInvitations,
   listSentDirectTripInvitations,
 } from "./directTripInvitations.js";
-export {notifyFriendRequest, notifyTripVoteCreated} from "./notifications.js";
+export {notifyTripVoteCreated} from "./notifications.js";
