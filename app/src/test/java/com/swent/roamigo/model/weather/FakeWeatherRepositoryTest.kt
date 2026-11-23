@@ -14,7 +14,8 @@ class FakeWeatherRepositoryTest {
 
   @Test
   fun answersWithTheDaysInsideTheRequestedRangeAndRemembersTheRequest() = runTest {
-    val repository = FakeWeatherRepository(listOf(day("2026-11-27"), day("2026-11-28")))
+    val repository =
+        FakeWeatherRepository(listOf(day("2026-11-27"), day("2026-11-28"), day("2026-11-29")))
     val from = LocalDate.parse("2026-11-28")
 
     val forecast = repository.forecast(1.0, 2.0, from, from)

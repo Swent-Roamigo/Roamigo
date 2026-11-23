@@ -38,7 +38,7 @@ class OpenMeteoWeatherRepositoryTest {
       """{"daily":{"time":$times,"weather_code":$codes,"temperature_2m_max":$highs,"temperature_2m_min":$lows,"precipitation_probability_max":$rain}}"""
 
   private fun repository(
-      json: String,
+      json: String?,
       status: Int = 200,
       onRequest: (Request) -> Unit = {},
   ) = OpenMeteoWeatherRepository(client = stubClient(json, status, onRequest), clock = clock)
@@ -97,6 +97,14 @@ class OpenMeteoWeatherRepositoryTest {
             63 to WeatherCondition.RAIN,
             81 to WeatherCondition.RAIN,
             95 to WeatherCondition.RAIN,
+            51 to WeatherCondition.RAIN,
+            67 to WeatherCondition.RAIN,
+            80 to WeatherCondition.RAIN,
+            82 to WeatherCondition.RAIN,
+            99 to WeatherCondition.RAIN,
+            71 to WeatherCondition.SNOW,
+            77 to WeatherCondition.SNOW,
+            85 to WeatherCondition.SNOW,
             73 to WeatherCondition.SNOW,
             86 to WeatherCondition.SNOW,
         )
@@ -212,7 +220,86 @@ class OpenMeteoWeatherRepositoryTest {
     }
   }
 
-  private fun stubClient(json: String, status: Int, onRequest: (Request) -> Unit): OkHttpClient =
+  @Test
+  fun skipsADayWhoseWeatherCodeIsUnknown() = runTest {
+    val json = daily(codes = "[4,3]")
+
+    val forecast = repository(json).trip()
+
+    assertEquals(listOf(LocalDate.of(2026, 11, 29)), forecast.days.map { it.date })
+  }
+
+  @Test
+  fun skipsADayWhoseLowIsMissingAndKeepsTheOthers() = runTest {
+    val json = daily(lows = "[null,9.0]")
+
+    val forecast = repository(json).trip()
+
+    assertEquals(listOf(LocalDate.of(2026, 11, 29)), forecast.days.map { it.date })
+  }
+
+  @Test
+  fun keepsADayWhoseRainChanceIsNullAndClampsOneOutOfRange() = runTest {
+    val forecast = repository(daily(rain = "[null,180]")).trip()
+
+    assertNull(forecast.days[0].rainChancePercent)
+    assertEquals(100, forecast.days[1].rainChancePercent)
+  }
+
+  @Test
+  fun reportsAnAnswerThatLacksOneOfTheRequiredLists() = runTest {
+    val full =
+        mapOf(
+            "time" to """["2026-11-28"]""",
+            "weather_code" to "[0]",
+            "temperature_2m_max" to "[16]",
+            "temperature_2m_min" to "[10]",
+        )
+    full.keys.forEach { missing ->
+      val body =
+          full
+              .filterKeys { it != missing }
+              .entries
+              .joinToString(",", prefix = """{"daily":{""", postfix = "}}") {
+                "\"${it.key}\":${it.value}"
+              }
+      assertThrows(WeatherUnavailableException::class.java) {
+        kotlinx.coroutines.runBlocking { repository(body).trip() }
+      }
+    }
+  }
+
+  @Test
+  fun reportsAnErrorThatComesWithoutAReason() = runTest {
+    listOf("<html>Bad gateway</html>", """{"error":true}""").forEach { body ->
+      val error =
+          assertThrows(WeatherUnavailableException::class.java) {
+            kotlinx.coroutines.runBlocking { repository(body, status = 502).trip() }
+          }
+      assertTrue("$body -> ${error.message}", error.message.orEmpty().contains("502"))
+      assertTrue("$body -> ${error.message}", error.message.orEmpty().contains("no reason given"))
+    }
+  }
+
+  @Test
+  fun refusesEachCoordinateThatIsNotOnEarth() = runTest {
+    listOf(-91.0 to 0.0, 0.0 to 181.0, 0.0 to -181.0, Double.NaN to 0.0).forEach { (lat, lon) ->
+      assertThrows(IllegalArgumentException::class.java) {
+        kotlinx.coroutines.runBlocking { repository(daily()).forecast(lat, lon, today, today) }
+      }
+    }
+  }
+
+  @Test
+  fun canBeCreatedWithItsDefaultClientAndClock() {
+    OpenMeteoWeatherRepository()
+  }
+
+  private fun stubClient(
+      json: String?,
+      status: Int,
+      onRequest: (Request) -> Unit,
+  ): OkHttpClient =
       OkHttpClient.Builder()
           .addInterceptor { chain ->
             onRequest(chain.request())
@@ -221,7 +308,7 @@ class OpenMeteoWeatherRepositoryTest {
                 .protocol(Protocol.HTTP_1_1)
                 .code(status)
                 .message("Test response")
-                .body(json.toResponseBody("application/json".toMediaType()))
+                .apply { json?.let { body(it.toResponseBody("application/json".toMediaType())) } }
                 .build()
           }
           .build()
