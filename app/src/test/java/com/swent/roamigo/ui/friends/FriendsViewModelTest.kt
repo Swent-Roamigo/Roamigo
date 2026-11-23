@@ -287,6 +287,135 @@ class FriendsViewModelTest {
       }
 
   @Test
+  fun cancellationUpdatesOutgoingRequestsForBothUsers() =
+      runTest(dispatcher) {
+        val request = alice.sendFriendRequest("bob")
+        val model = viewModel()
+        advanceUntilIdle()
+
+        model.cancelRequest(request.uid)
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.outgoingRequests.isEmpty())
+        assertTrue(bob.getIncomingRequests().isEmpty())
+        assertEquals("bob" to request.uid, repository.lastTarget)
+        assertEquals(1, repository.actionCount)
+        assertTrue(model.uiState.value.processingIds.isEmpty())
+      }
+
+  @Test
+  fun duplicateCancellationOnlyStartsOneOperation() =
+      runTest(dispatcher) {
+        val request = alice.sendFriendRequest("bob")
+        val model = viewModel()
+        advanceUntilIdle()
+
+        val gate = CompletableDeferred<Unit>()
+        repository.gate = gate
+
+        model.cancelRequest(request.uid)
+        model.cancelRequest(request.uid)
+        runCurrent()
+
+        assertEquals(1, repository.actionCount)
+        assertEquals(
+            setOf(request.uid),
+            model.uiState.value.processingIds,
+        )
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.outgoingRequests.isEmpty())
+        assertTrue(model.uiState.value.processingIds.isEmpty())
+      }
+
+  @Test
+  fun cancellationErrorsKeepRequestVisibleAndAreCategorized() =
+      runTest(dispatcher) {
+        val request = alice.sendFriendRequest("bob")
+        val model = viewModel()
+        advanceUntilIdle()
+
+        val cases =
+            listOf(
+                FriendRepositoryException.Network() to FriendsActionFailureReason.NETWORK,
+                FriendRepositoryException.Conflict() to FriendsActionFailureReason.CONFLICT,
+                FriendRepositoryException.PermissionDenied() to
+                    FriendsActionFailureReason.PERMISSION,
+                FriendRepositoryException.Unknown() to FriendsActionFailureReason.OTHER,
+            )
+
+        for ((error, reason) in cases) {
+          repository.actionFailure = error
+
+          model.cancelRequest(request.uid)
+          advanceUntilIdle()
+
+          assertEquals(
+              FriendsActionFailure(
+                  request.uid,
+                  FriendsAction.CANCEL,
+                  reason,
+              ),
+              model.uiState.value.actionFailure,
+          )
+
+          assertEquals(
+              listOf(request),
+              model.uiState.value.outgoingRequests,
+          )
+          assertTrue(model.uiState.value.processingIds.isEmpty())
+        }
+
+        repository.actionFailure = null
+        model.cancelRequest(request.uid)
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.outgoingRequests.isEmpty())
+        assertNull(model.uiState.value.actionFailure)
+      }
+
+  @Test
+  fun acceptedAndUnknownRequestsCannotBeCancelledFromViewModel() =
+      runTest(dispatcher) {
+        val request = alice.sendFriendRequest("bob")
+        bob.acceptFriendRequest("alice", request.uid)
+
+        val model = viewModel()
+        advanceUntilIdle()
+
+        model.cancelRequest(request.uid)
+        model.cancelRequest("unknown")
+        advanceUntilIdle()
+
+        assertEquals(0, repository.actionCount)
+        assertEquals(1, model.uiState.value.friends.size)
+      }
+
+  @Test
+  fun signOutDuringCancellationClearsPrivateState() =
+      runTest(dispatcher) {
+        val request = alice.sendFriendRequest("bob")
+        val model = viewModel()
+        advanceUntilIdle()
+
+        repository.gate = CompletableDeferred()
+        model.cancelRequest(request.uid)
+        runCurrent()
+
+        auth.signOut()
+        advanceUntilIdle()
+
+        assertEquals(
+            FriendsLoadError.SESSION,
+            model.uiState.value.loadError,
+        )
+        assertTrue(model.uiState.value.outgoingRequests.isEmpty())
+        assertTrue(model.uiState.value.processingIds.isEmpty())
+      }
+
+  @Test
   fun removalClearsFriendshipForBothParticipants() =
       runTest(dispatcher) {
         val request = alice.sendFriendRequest("bob")
@@ -1178,6 +1307,14 @@ class FriendsViewModelTest {
     override suspend fun declineFriendRequest(otherUserId: String, requestId: String) {
       beforeAction(otherUserId, requestId)
       delegate.declineFriendRequest(otherUserId, requestId)
+    }
+
+    override suspend fun cancelFriendRequest(
+        otherUserId: String,
+        requestId: String,
+    ) {
+      beforeAction(otherUserId, requestId)
+      delegate.cancelFriendRequest(otherUserId, requestId)
     }
 
     override suspend fun removeFriend(otherUserId: String, friendshipId: String) {

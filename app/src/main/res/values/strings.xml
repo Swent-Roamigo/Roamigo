@@ -299,6 +299,20 @@
         <item quantity="one">%d trip together</item>
         <item quantity="other">%d trips together</item>
     </plurals>
+
+    <string name="friends_cancel_request">Cancel request</string>
+    <string name="friends_cancel_request_accessibility">Cancel friend request to %1$s</string>
+
+    <string name="friends_remove_confirm_title">Remove friend?</string>
+    <string name="friends_remove_confirm_message">Remove %1$s from your friends?</string>
+    <string name="friends_remove_unknown_message">Remove this traveler from your friends?</string>
+    <string name="friends_remove_confirm_cancel">Keep</string>
+
+    <string name="friends_cancel_request_failed">Could not cancel the request. Please try again.</string>
+    <string name="friends_cancel_request_network">Couldn\'t cancel the request. Check your connection and try again.</string>
+    <string name="friends_cancel_request_conflict">This request has changed. Refresh to see its current status.</string>
+    <string name="friends_cancel_request_permission">You cannot cancel this request.</string>
+
     <!-- Find travelers -->
     <string name="friends_search_title">Find travelers</string>
     <string name="friends_search_back">Back to Friends</string>

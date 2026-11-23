@@ -49,6 +49,8 @@ data class OutgoingFriendRequestUiModel(
     val displayName: String,
     val countriesVisited: Int? = null,
     val profilePictureUrl: String? = null,
+    val requestId: String? = null,
+    val isProcessing: Boolean = false,
 )
 
 /**
@@ -101,6 +103,8 @@ internal fun FriendsState.toUiState(
                   userId = request.recipientUserId,
                   displayName = profile.displayNameOr(unknownTraveler),
                   profilePictureUrl = profile?.profilePictureUrl,
+                  requestId = request.uid,
+                  isProcessing = request.uid in processingIds,
               )
             },
         isLoading = isLoading,

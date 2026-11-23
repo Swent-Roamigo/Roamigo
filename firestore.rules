@@ -402,8 +402,15 @@ service cloud.firestore {
                   && request.resource.data.requestId != resource.data.requestId
                   && request.resource.data.participantIds.toSet()
                       == resource.data.participantIds.toSet()));
-      allow delete: if signedIn() && request.auth.uid in resource.data.participantIds
-          && resource.data.status == 'ACCEPTED';
+      allow delete: if signedIn()
+          && request.auth.uid in resource.data.participantIds
+          && (
+              resource.data.status == 'ACCEPTED'
+              || (
+                  resource.data.status == 'PENDING'
+                  && resource.data.senderUserId == request.auth.uid
+              )
+          );
     }
 
     match /trips/{tripId} {
