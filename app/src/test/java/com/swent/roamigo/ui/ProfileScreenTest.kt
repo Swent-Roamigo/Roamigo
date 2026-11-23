@@ -121,6 +121,27 @@ class ProfileScreenTest {
   }
 
   @Test
+  fun showsEditAndChangeOnlyWhenTheirActionsAreProvided() {
+    var edits = 0
+    var changes = 0
+    composeRule.setContent {
+      RoamigoTheme {
+        ProfileScreen(
+            state,
+            onEditNameClick = { edits++ },
+            onChangePictureClick = { changes++ },
+        )
+      }
+    }
+
+    composeRule.onAllNodesWithTag(C.Tag.profile_action).assertCountEquals(3)
+    composeRule.onNodeWithText("Edit").performClick()
+    composeRule.onNodeWithText("Change").performClick()
+    assertEquals(1, edits)
+    assertEquals(1, changes)
+  }
+
+  @Test
   fun worksWithDefaultCallbacksAndModifier() {
     composeRule.setContent { RoamigoTheme { ProfileScreen(state) } }
 
