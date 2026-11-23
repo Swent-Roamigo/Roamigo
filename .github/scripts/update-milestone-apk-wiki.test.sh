@@ -52,7 +52,7 @@ export REPO_URL=https://github.com/o/r RUN_URL=https://github.com/o/r/actions/ru
 export SHORT_SHA=abcdef1 ARTIFACT_NAME=roamigo-abcdef1.apk ARTIFACT_URL=https://github.com/o/r/a/9
 
 RUN_CREATED_AT=2030-01-17T20:00:00Z bash "$script" > /dev/null
-page="$WIKI_DIR/Milestone-TEST1-—-APK.md"
+page=$(page_path TEST1)
 check "page links the run" "1" "$(grep -c "(https://github.com/o/r/actions/runs/7) (Build Sprint APK run #30" "$page")"
 check "page links the artifact" "1" "$(grep -c "\*\*roamigo-abcdef1.apk\*\* (\[direct artifact link\](https://github.com/o/r/a/9))" "$page")"
 check "page shows the deadline in Lausanne time" "1" "$(grep -c "17 January 2030 at 23:59 CET" "$page")"
@@ -60,6 +60,13 @@ check "page shows the deadline in Lausanne time" "1" "$(grep -c "17 January 2030
 before=$(cat "$page")
 RUN_CREATED_AT=2030-01-18T09:00:00Z RUN_NUMBER=31 bash "$script" > /dev/null
 check "build after the deadline leaves the page unchanged" "$before" "$(cat "$page")"
+
+RUN_CREATED_AT=2030-01-17T21:00:00Z RUN_NUMBER=32 bash "$script" > /dev/null
+check "newer build before the deadline replaces the link" "32" "$(linked_run_number "$page")"
+RUN_CREATED_AT=2030-01-17T20:00:00Z RUN_NUMBER=30 bash "$script" > /dev/null
+check "re-run of an older build leaves the newer link" "32" "$(linked_run_number "$page")"
+RUN_CREATED_AT=2030-01-17T21:00:00Z RUN_NUMBER=32 ARTIFACT_URL=https://github.com/o/r/a/10 bash "$script" > /dev/null
+check "re-run of the linked build updates its artifact link" "1" "$(grep -c "(https://github.com/o/r/a/10)" "$page")"
 
 if ((failures > 0)); then
   echo "$failures test(s) failed."
