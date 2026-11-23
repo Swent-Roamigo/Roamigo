@@ -150,6 +150,45 @@ class ActivityRepositoryFirestoreEmulatorTest {
   }
 
   @Test
+  fun anotherMemberCannotReuseAnExistingSuggestionId() = runBlocking {
+    val original = alice.repository.createSuggestion(tripId, "suggestion", draft)
+    addBobToTrip()
+
+    val error = runCatching {
+      bob.repository.createSuggestion(tripId, original.uid, draft.copy(name = "Other"))
+    }
+
+    assertTrue(error.exceptionOrNull() is ActivityCreationException.PermissionDenied)
+    val stored = bob.tripRepository.getActivitiesForTrip(tripId).single()
+    assertEquals(alice.userId, stored.createdByUserId)
+    assertEquals(original, stored)
+  }
+
+  @Test
+  fun createActivityCannotReuseASuggestionId() = runBlocking {
+    val original = alice.repository.createSuggestion(tripId, "suggestion", draft)
+
+    val error = runCatching { alice.repository.createActivity(tripId, original.uid, draft) }
+
+    val conflict = error.exceptionOrNull() as ActivityCreationException.TypeConflict
+    assertEquals(ActivityType.ACCEPTED, conflict.requested)
+    assertEquals(ActivityType.SUGGESTION, conflict.existing)
+    assertEquals(listOf(original), alice.tripRepository.getActivitiesForTrip(tripId))
+  }
+
+  @Test
+  fun createSuggestionCannotReuseAnAcceptedActivityId() = runBlocking {
+    val original = alice.repository.createActivity(tripId, "activity", draft)
+
+    val error = runCatching { alice.repository.createSuggestion(tripId, original.uid, draft) }
+
+    val conflict = error.exceptionOrNull() as ActivityCreationException.TypeConflict
+    assertEquals(ActivityType.SUGGESTION, conflict.requested)
+    assertEquals(ActivityType.ACCEPTED, conflict.existing)
+    assertEquals(listOf(original), alice.tripRepository.getActivitiesForTrip(tripId))
+  }
+
+  @Test
   fun rawSuggestionWritesAndReadsRequireAuthenticationAndMembership() = runBlocking {
     val proposal = activityData(alice, ActivityType.SUGGESTION)
     val stored = activityDocument(alice, "suggestion")

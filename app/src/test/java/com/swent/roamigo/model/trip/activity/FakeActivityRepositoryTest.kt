@@ -73,12 +73,26 @@ class FakeActivityRepositoryTest {
   }
 
   @Test
+  fun invalidSuggestionDraftIsIgnoredOnlyWhenRetryingAnExistingSuggestion() = runBlocking {
+    val repository = FakeActivityRepository()
+    val original = repository.createSuggestion("trip-1", "id", draft)
+    val invalid = draft.copy(name = " ")
+
+    assertEquals(original, repository.createSuggestion("trip-1", "id", invalid))
+
+    val error = runCatching { repository.createSuggestion("trip-1", "new", invalid) }
+    val validation = error.exceptionOrNull() as ActivityCreationException.Validation
+    assertEquals(listOf(ActivityDraftError.BlankName), validation.errors)
+    assertEquals(listOf(original), repository.observeActivities("trip-1").first())
+  }
+
+  @Test
   fun anotherAuthorCannotReuseASuggestionId() = runBlocking {
     val original =
         FakeActivityRepository(currentUserId = "alice").createSuggestion("trip-1", "id", draft)
     val repository = FakeActivityRepository(listOf(original), currentUserId = "bob")
 
-    val error = runCatching { repository.createSuggestion("trip-1", "id", draft) }
+    val error = runCatching { repository.createSuggestion("trip-1", "id", draft.copy(name = " ")) }
 
     assertTrue(error.exceptionOrNull() is ActivityCreationException.PermissionDenied)
     assertEquals(listOf(original), repository.observeActivities("trip-1").first())
@@ -90,7 +104,7 @@ class FakeActivityRepositoryTest {
         FakeActivityRepository().createSuggestion("trip-1", "id", draft.copy(startTime = null))
     val repository = FakeActivityRepository(listOf(suggestion))
 
-    val error = runCatching { repository.createActivity("trip-1", "id", draft) }
+    val error = runCatching { repository.createActivity("trip-1", "id", draft.copy(name = " ")) }
 
     assertTrue(error.exceptionOrNull() is ActivityCreationException.TypeConflict)
     assertEquals(listOf(suggestion), repository.observeActivities("trip-1").first())
@@ -101,7 +115,7 @@ class FakeActivityRepositoryTest {
     val repository = FakeActivityRepository()
     val itinerary = repository.createActivity("trip-1", "id", draft)
 
-    val error = runCatching { repository.createSuggestion("trip-1", "id", draft) }
+    val error = runCatching { repository.createSuggestion("trip-1", "id", draft.copy(name = " ")) }
 
     assertTrue(error.exceptionOrNull() is ActivityCreationException.TypeConflict)
     assertEquals(listOf(itinerary), repository.observeActivities("trip-1").first())
@@ -162,7 +176,11 @@ class FakeActivityRepositoryTest {
     val second = repository.createActivity("trip-1", "activity-1", draft.copy(name = "Changed"))
 
     assertEquals(first, second)
-    assertEquals(1, repository.observeActivities("trip-1").first().size)
+    assertEquals(
+        first,
+        repository.createActivity("trip-1", "activity-1", draft.copy(startTime = null)),
+    )
+    assertEquals(listOf(first), repository.observeActivities("trip-1").first())
   }
 
   @Test

@@ -37,6 +37,7 @@ import org.mockito.ArgumentMatchers.anyMap
 import org.mockito.Mockito.doAnswer
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
+import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 
@@ -144,8 +145,11 @@ class ActivityRepositoryFirestoreTest {
         repository.createSuggestion("trip-1", "activity-1", draft.copy(name = "Changed")),
     )
 
+    val invalid = draft.copy(name = " ")
+    assertEquals(first, repository.createSuggestion("trip-1", "activity-1", invalid))
+
     userId = "bob"
-    val error = runCatching { repository.createSuggestion("trip-1", "activity-1", draft) }
+    val error = runCatching { repository.createSuggestion("trip-1", "activity-1", invalid) }
     assertTrue(error.exceptionOrNull() is ActivityCreationException.PermissionDenied)
     assertEquals(first.toFirestoreData(), writes.single())
   }
@@ -157,7 +161,9 @@ class ActivityRepositoryFirestoreTest {
             .copy(startTime = null, endTime = null)
             .toActivity("activity-1", "trip-1", "alice", Timestamp(900, 0), ActivityType.SUGGESTION)
 
-    val error = runCatching { repository.createActivity("trip-1", "activity-1", draft) }
+    val error = runCatching {
+      repository.createActivity("trip-1", "activity-1", draft.copy(name = " "))
+    }
 
     val conflict = error.exceptionOrNull() as ActivityCreationException.TypeConflict
     assertEquals(ActivityType.ACCEPTED, conflict.requested)
@@ -169,7 +175,9 @@ class ActivityRepositoryFirestoreTest {
   fun createSuggestion_rejectsAnExistingAcceptedActivityByTheSameAuthor() = runTest {
     stored = draft.toActivity("activity-1", "trip-1", "alice", Timestamp(900, 0))
 
-    val error = runCatching { repository.createSuggestion("trip-1", "activity-1", draft) }
+    val error = runCatching {
+      repository.createSuggestion("trip-1", "activity-1", draft.copy(name = " "))
+    }
 
     val conflict = error.exceptionOrNull() as ActivityCreationException.TypeConflict
     assertEquals(ActivityType.SUGGESTION, conflict.requested)
@@ -178,7 +186,7 @@ class ActivityRepositoryFirestoreTest {
   }
 
   @Test
-  fun createSuggestion_validatesBeforeStartingATransaction() = runTest {
+  fun createSuggestion_validatesMissingDocumentsWithoutWriting() = runTest {
     val invalid =
         listOf(
             draft.copy(startTime = null) to ActivityDraftError.EndWithoutStart,
@@ -196,7 +204,8 @@ class ActivityRepositoryFirestoreTest {
           (result.exceptionOrNull() as ActivityCreationException.Validation).errors,
       )
     }
-    verify(db, never()).runTransaction(any<Transaction.Function<Any?>>())
+    verify(transaction, times(invalid.size)).get(document)
+    assertTrue(writes.isEmpty())
   }
 
   @Test
@@ -217,6 +226,10 @@ class ActivityRepositoryFirestoreTest {
     val result = repository.createActivity("trip-1", "activity-1", draft.copy(name = "Other"))
 
     assertEquals(existing, result)
+    assertEquals(
+        existing,
+        repository.createActivity("trip-1", "activity-1", draft.copy(startTime = null)),
+    )
     assertTrue(writes.isEmpty())
   }
 
@@ -241,18 +254,19 @@ class ActivityRepositoryFirestoreTest {
   }
 
   @Test
-  fun create_withAnInvalidDraftFailsBeforeAnyRequest() = runTest {
+  fun create_withAnInvalidDraftAndNewIdFailsWithoutWriting() = runTest {
     val error = runCatching {
       repository.createActivity("trip-1", "activity-1", draft.copy(name = " "))
     }
 
     val validation = error.exceptionOrNull() as ActivityCreationException.Validation
     assertEquals(listOf(ActivityDraftError.BlankName), validation.errors)
-    verify(db, never()).runTransaction(any<Transaction.Function<Any?>>())
+    verify(transaction).get(document)
+    assertTrue(writes.isEmpty())
   }
 
   @Test
-  fun create_withoutStartTimeFailsBeforeAnyRequest() = runTest {
+  fun create_withANewIdButNoStartTimeFailsWithoutWriting() = runTest {
     val error = runCatching {
       repository.createActivity(
           "trip-1",
@@ -263,7 +277,8 @@ class ActivityRepositoryFirestoreTest {
 
     val validation = error.exceptionOrNull() as ActivityCreationException.Validation
     assertEquals(listOf(ActivityDraftError.MissingStartTime), validation.errors)
-    verify(db, never()).runTransaction(any<Transaction.Function<Any?>>())
+    verify(transaction).get(document)
+    assertTrue(writes.isEmpty())
   }
 
   @Test
