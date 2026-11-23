@@ -2,6 +2,8 @@
 package com.swent.roamigo.ui.trip.voting
 
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.SharedPreferences
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertFalse
@@ -28,5 +30,28 @@ class PreferencesVotesHintStoreTest {
   fun neverShowsTheHintForTheNoHintStore() {
     assertTrue(NoVotesHint.isSeen())
     NoVotesHint.markSeen()
+  }
+
+  /** A context whose storage cannot be opened, e.g. a full or unreadable disk. */
+  private val brokenStorage =
+      object : ContextWrapper(context) {
+        override fun getApplicationContext(): Context = this
+
+        override fun getSharedPreferences(name: String?, mode: Int): SharedPreferences =
+            throw IllegalStateException("storage unavailable")
+      }
+
+  @Test
+  fun showsTheHintAgainWhenTheStorageCannotBeRead() {
+    assertFalse(PreferencesVotesHintStore(brokenStorage).isSeen())
+  }
+
+  @Test
+  fun doesNotCrashWhenTheStorageCannotBeWritten() {
+    val store = PreferencesVotesHintStore(brokenStorage)
+
+    store.markSeen()
+
+    assertFalse(store.isSeen())
   }
 }
