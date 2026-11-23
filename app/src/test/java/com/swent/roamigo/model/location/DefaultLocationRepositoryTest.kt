@@ -436,6 +436,33 @@ class DefaultLocationRepositoryTest {
   }
 
   @Test
+  fun lastKnownLocation_ignoresRememberedGpsFixAfterDowngradeToCoarse() = runTest {
+    application.grantPermissions(
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.ACCESS_COARSE_LOCATION,
+    )
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    repository.getCurrentLocation()
+    // Only the fix remembered by the repository is left.
+    locationManager.setLastKnownLocation(LocationManager.GPS_PROVIDER, null)
+
+    application.denyPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+
+    assertNull(repository.lastKnownLocation(5.minutes))
+  }
+
+  @Test
+  fun lastKnownLocation_returnsRememberedNetworkFixWithCoarsePermissionOnly() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_COARSE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.NETWORK_PROVIDER))
+    repository.getCurrentLocation()
+    // Only the fix remembered by the repository is left.
+    locationManager.setLastKnownLocation(LocationManager.NETWORK_PROVIDER, null)
+
+    assertEquals(46.5191, repository.lastKnownLocation(5.minutes)!!.latitude, 0.0)
+  }
+
+  @Test
   fun lastKnownLocation_returnsNewerOfRememberedAndSystemFixes() = runTest {
     application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
     locationManager.simulateLocation(
