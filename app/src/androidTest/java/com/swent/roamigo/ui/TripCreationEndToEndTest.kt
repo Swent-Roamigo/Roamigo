@@ -1,10 +1,11 @@
 // Author : Constantin Dunoyer de Segonzac
-// Co-author : ChatGPT-Codex
+// Co-author : ChatGPT-Codex, Claude (Anthropic)
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui
 
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasText
@@ -21,15 +22,19 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.firestore.MemoryCacheSettings
 import com.google.firebase.firestore.Source
+import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.authentication.AuthRepositoryFirebase
+import com.swent.roamigo.model.authentication.FixedCredentialManager
+import com.swent.roamigo.model.authentication.emulatorGoogleCredential
 import com.swent.roamigo.model.destination.sampleDestination
 import com.swent.roamigo.model.destination.sampleDestinationRepository
-import com.swent.roamigo.model.friends.FakeFriendRepository
+import com.swent.roamigo.model.friends.FriendRepositoryFirestore
 import com.swent.roamigo.model.trip.TripMemberRole
 import com.swent.roamigo.model.trip.TripRepositoryFirestore
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.authentication.AuthenticationScreenTestTags
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.creation.TripReadyTestTags
 import com.swent.roamigo.ui.trip.creation.components.CreateTripScaffoldTestTags
@@ -45,21 +50,29 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Requires Auth and Firestore emulators for demo-roamigo; never uses the default Firebase app. */
+/**
+ * Follows one user from the sign-in screen through trip creation and the profile to sign-out.
+ * Requires Auth and Firestore emulators for demo-roamigo; never uses the default Firebase app.
+ */
 @RunWith(AndroidJUnit4::class)
 class TripCreationEndToEndTest {
   @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
   private lateinit var app: FirebaseApp
+  private lateinit var auth: FirebaseAuth
   private lateinit var db: FirebaseFirestore
   private lateinit var authRepository: AuthRepositoryFirebase
   private lateinit var repository: TripRepositoryFirestore
-  private lateinit var ownerId: String
+  private lateinit var credentialManager: FixedCredentialManager
+  private val ownerName = "Trip Owner"
+  private val ownerEmail = "trip-owner-${UUID.randomUUID()}@example.test"
 
   @Before
   fun setUp() = runBlocking {
@@ -73,7 +86,7 @@ class TripCreationEndToEndTest {
               .build()
       check(options.projectId == "demo-roamigo")
       app = FirebaseApp.initializeApp(composeRule.activity, options, name)
-      val auth = FirebaseAuth.getInstance(app).apply { useEmulator("10.0.2.2", 9099) }
+      auth = FirebaseAuth.getInstance(app).apply { useEmulator("10.0.2.2", 9099) }
       db =
           FirebaseFirestore.getInstance(app).apply {
             useEmulator("10.0.2.2", 8080)
@@ -82,10 +95,14 @@ class TripCreationEndToEndTest {
                     .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
                     .build()
           }
-      // Establish a real emulator session; the external Google account picker is outside this test.
-      ownerId = requireNotNull(auth.signInAnonymously().await().user).uid
       authRepository = AuthRepositoryFirebase(auth)
       repository = TripRepositoryFirestore(db) { authRepository.getCurrentUser()?.uid }
+      // Google's account picker is outside this test; the emulator accepts the unsigned token.
+      credentialManager =
+          FixedCredentialManager(
+              composeRule.activity,
+              emulatorGoogleCredential(UUID.randomUUID().toString(), ownerEmail, ownerName),
+          )
     }
   }
 
@@ -99,21 +116,34 @@ class TripCreationEndToEndTest {
   }
 
   @Test
-  fun selectedTripIsSavedByAuthenticatedOwnerAndShownOnTrips() {
+  fun userSignsInCreatesTripChecksProfileAndSignsOut() {
     val start = YearMonth.now().plusMonths(1).atDay(10)
     val end = start.plusDays(2)
     val zone = ZoneId.systemDefault()
     composeRule.setContent {
       RoamigoTheme {
         RoamigoApp(
-            friendRepository = FakeFriendRepository(ownerId),
+            friendRepository = FriendRepositoryFirestore(db, auth),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
             tripRepository = repository,
             authRepository = authRepository,
+            credentialManager = credentialManager,
         )
       }
     }
+    waitFor(AuthenticationScreenTestTags.signInButton)
+    composeRule
+        .onNodeWithTag(AuthenticationScreenTestTags.signInButton)
+        .performScrollTo()
+        .performClick()
+    waitFor(C.Tag.permissions_continue)
+    val owner = requireNotNull(auth.currentUser)
+    assertEquals(ownerEmail, owner.email)
+    assertFalse(owner.isAnonymous)
+    val ownerId = owner.uid
+    composeRule.onNodeWithTag(C.Tag.permissions_continue).performClick()
+
     waitFor(C.Tag.trips_new_trip_button)
     composeRule.onNodeWithTag(C.Tag.trips_new_trip_button).performClick()
     composeRule.searchSampleDestinations()
@@ -138,6 +168,7 @@ class TripCreationEndToEndTest {
         .onNodeWithTag(C.Tag.trips_main_trip_card, useUnmergedTree = true)
         .assert(hasAnyDescendant(hasText("Lisbon → Porto", substring = true)))
 
+    // Firestore rules only let a signed-in member read the trip, so check it before signing out.
     runBlocking {
       withTimeout(30_000.milliseconds) {
         val saved =
@@ -189,6 +220,21 @@ class TripCreationEndToEndTest {
         assertEquals(TripMemberRole.OWNER, repository.getMembersForTrip(saved.id).single().role)
       }
     }
+
+    composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
+    waitFor(C.Tag.profile_name)
+    composeRule.onNodeWithTag(C.Tag.profile_name).assertTextEquals(ownerName)
+    composeRule
+        .onNodeWithTag(C.Tag.profile_email)
+        .assertTextEquals(composeRule.activity.getString(R.string.profile_email, ownerEmail))
+    composeRule.onNodeWithTag(C.Tag.profile_log_out).performClick()
+    composeRule.onNodeWithTag(C.Tag.profile_log_out_confirm).performClick()
+
+    waitFor(AuthenticationScreenTestTags.heading)
+    composeRule.onAllNodesWithTag(C.Tag.profile_title).assertCountEquals(0)
+    composeRule.onAllNodesWithTag(C.Tag.trips_screen).assertCountEquals(0)
+    assertNull(auth.currentUser)
+    assertEquals(1, credentialManager.clearRequests)
   }
 
   private fun waitFor(tag: String) {
