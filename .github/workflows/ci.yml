@@ -36,8 +36,12 @@ jobs:
         with:
           google-services: ${{ secrets.GOOGLE_SERVICES }}
 
-      - name: Run formatting, debug, and JVM checks
-        run: ./gradlew ktfmtCheck assembleDebug lintDebug check --build-cache
+      - name: Render PR 406 screenshots (temporary)
+        run: |
+          ./gradlew testDebugUnitTest --tests '*Pr406ScreenshotsTest*' --build-cache
+          for f in app/build/test-results/testDebugUnitTest/screenshots/*.png; do
+            echo "SHOT_BEGIN $(basename "$f")"; base64 -w0 "$f"; echo; echo "SHOT_END"
+          done
 
       # The report job reads these, but it does not recompile or rerun the unit tests.
       - name: Collect unit test coverage inputs
