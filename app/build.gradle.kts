@@ -155,7 +155,6 @@ sonar {
                 "**/com/swent/roamigo/model/trip/Activity.kt",
                 "**/com/swent/roamigo/model/trip/Trip.kt",
                 "**/com/swent/roamigo/model/trip/TripMember.kt",
-                "**/com/swent/roamigo/model/trip/inviting/TripInvitation.kt",
                 "**/com/swent/roamigo/model/trip/voting/Vote.kt",
                 "**/com/swent/roamigo/model/trip/voting/VoteBallot.kt",
                 "**/com/swent/roamigo/model/trip/voting/VoteOption.kt",
