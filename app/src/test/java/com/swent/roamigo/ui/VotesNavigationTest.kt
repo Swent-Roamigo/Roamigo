@@ -233,7 +233,7 @@ class VotesNavigationTest {
 
     composeRule.onNodeWithText("Plan").performClick()
 
-    composeRule.onNodeWithTag("trip_details_screen").assertIsDisplayed()
+    composeRule.onNodeWithTag("itinerary_screen").assertIsDisplayed()
     composeRule.onNodeWithText(tripName).assertIsDisplayed()
     composeRule.onNodeWithText("Plan").assertIsSelected()
     composeRule.runOnIdle {
@@ -292,19 +292,14 @@ class VotesNavigationTest {
   }
 
   @Test
-  fun membersOpensFromTheHeaderAndFromThePlanAndBackReturnsToTheTrip() {
+  fun membersOpensFromTheHeaderAndBackReturnsToThePlan() {
     openVotes()
 
     composeRule.onNodeWithText("Plan").performClick()
     composeRule.onNodeWithTag(C.Tag.trip_member_avatars).performClick()
     composeRule.onNodeWithTag(C.Tag.trip_members_screen).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.trip_members_back).performClick()
-    composeRule.onNodeWithTag("trip_details_screen").assertIsDisplayed()
-
-    composeRule.onNodeWithText("Members").performScrollTo().performClick()
-    composeRule.onNodeWithTag(C.Tag.trip_members_screen).assertIsDisplayed()
-    composeRule.onNodeWithTag(C.Tag.trip_members_back).performClick()
-    composeRule.onNodeWithTag("trip_details_screen").assertIsDisplayed()
+    composeRule.onNodeWithTag("itinerary_screen").assertIsDisplayed()
   }
 
   @Test

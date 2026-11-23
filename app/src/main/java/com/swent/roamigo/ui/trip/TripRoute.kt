@@ -42,7 +42,8 @@ import com.swent.roamigo.ui.map.TripMapViewModel
 import com.swent.roamigo.ui.photos.PhotosRoute
 import com.swent.roamigo.ui.trip.activity.ActivityFormTrip
 import com.swent.roamigo.ui.trip.components.AddToTripSheet
-import com.swent.roamigo.ui.trip.details.TripDetailsRoute
+import com.swent.roamigo.ui.trip.details.rememberTripForecast
+import com.swent.roamigo.ui.trip.itinerary.ItineraryRoute
 import com.swent.roamigo.ui.trip.voting.PreferencesVotesHintStore
 import com.swent.roamigo.ui.trip.voting.VoteCloseDialog
 import com.swent.roamigo.ui.trip.voting.VoteDialog
@@ -80,7 +81,6 @@ internal fun TripRoute(
     onTripsClick: () -> Unit,
     onMapClick: () -> Unit,
     onFriendsClick: () -> Unit,
-    onInviteClick: () -> Unit = rememberNotImplementedAction(),
 ) {
   val context = LocalContext.current
   var tab by rememberSaveable {
@@ -155,13 +155,14 @@ internal fun TripRoute(
       }
   val tabState = rememberSaveableStateHolder()
   BackHandler(onBack = onBack)
+  // The form shows the trip's name and dates; Add is only offered once the trip has loaded.
+  val openActivityForm: () -> Unit = {
+    header?.let { onCreateActivity(ActivityFormTrip(it.name, it.startDate, it.endDate)) }
+  }
   if (showAdd) {
     AddToTripSheet(
         onDismiss = { showAdd = false },
-        // The form shows the trip's name and dates; Add is only offered once the trip has loaded.
-        onActivity = {
-          header?.let { onCreateActivity(ActivityFormTrip(it.name, it.startDate, it.endDate)) }
-        },
+        onActivity = openActivityForm,
         onSuggestion = notImplemented,
         onVote = onCreateVote,
     )
@@ -189,17 +190,21 @@ internal fun TripRoute(
     tabState.SaveableStateProvider(tab.name) {
       when (tab) {
         TripSection.Detail ->
-            TripDetailsRoute(
+            ItineraryRoute(
                 tripId = tripId,
-                tripRepository = tripRepository,
-                onBack = onBack,
+                activityRepository = activityRepository,
+                tripStartDate = header?.startDate,
+                tripEndDate = header?.endDate,
+                onAddActivity = if (readOnly) null else openActivityForm,
+                tripFailed = tripState is TripMapUiState.Error,
                 onRetryTrip = tripModel::retryTrip,
-                onVotesClick = { tab = TripSection.Votes },
-                onTripMapClick = showMapTab,
-                onPhotosClick = { tab = TripSection.Photos },
-                onMembersClick = onMembersClick,
-                onInviteClick = onInviteClick,
-                weatherRepository = weatherRepository,
+                forecast =
+                    rememberTripForecast(
+                        loaded?.trip?.destinations?.firstOrNull(),
+                        header?.startDate,
+                        header?.endDate,
+                        weatherRepository,
+                    ),
             )
         // Keep the map and its camera state when trip loading changes action availability.
         TripSection.Map ->

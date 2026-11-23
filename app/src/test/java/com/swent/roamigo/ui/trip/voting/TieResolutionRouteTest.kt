@@ -14,7 +14,6 @@ import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.voting.*
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
-import com.swent.roamigo.ui.trip.details.detailsTestTrip
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -50,7 +49,7 @@ class TieResolutionRouteTest {
         runBlocking {
           `when`(it.getTrip("trip"))
               .thenReturn(
-                  detailsTestTrip()
+                  votingTestTrip()
                       .copy(
                           endDate = Timestamp(4102444800L, 0),
                           memberIds = listOf("alex", "member"),
@@ -111,7 +110,7 @@ class TieResolutionRouteTest {
 
   @Test
   fun routineRefreshKeepsTieActionsVisibleWithoutCheckingText() {
-    val trip = detailsTestTrip().copy(endDate = Timestamp(4102444800L, 0))
+    val trip = votingTestTrip().copy(endDate = Timestamp(4102444800L, 0))
     val gate = CompletableDeferred<Trip?>()
     var refreshing = false
     val repository =
@@ -192,7 +191,7 @@ class TieResolutionRouteTest {
     composeRule.onNode(hasText("Market") and isSelectable()).assertIsSelected()
     composeRule.runOnIdle {
       runBlocking {
-        doReturn(detailsTestTrip().copy(endDate = Timestamp(4102444800L, 0)))
+        doReturn(votingTestTrip().copy(endDate = Timestamp(4102444800L, 0)))
             .`when`(trips)
             .getTrip("trip")
       }
@@ -251,7 +250,7 @@ class TieResolutionRouteTest {
         .assertIsDisplayed()
     composeRule.runOnIdle {
       runBlocking {
-        doReturn(detailsTestTrip().copy(endDate = Timestamp(4102444800L, 0)))
+        doReturn(votingTestTrip().copy(endDate = Timestamp(4102444800L, 0)))
             .`when`(trips)
             .getTrip("trip")
       }
@@ -330,7 +329,7 @@ class TieResolutionRouteTest {
     runBlocking {
       `when`(trips.getTrip("trip"))
           .thenReturn(
-              detailsTestTrip().copy(endDate = endDate, memberIds = listOf("alex", "member"))
+              votingTestTrip().copy(endDate = endDate, memberIds = listOf("alex", "member"))
           )
     }
     composeRule.setContent {

@@ -15,7 +15,6 @@ import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.model.trip.voting.VoteStatus
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
-import com.swent.roamigo.ui.trip.details.detailsTestTrip
 import java.io.IOException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -38,7 +37,7 @@ class VotesRouteTest {
         runBlocking {
           `when`(it.getTrip(live.tripId))
               .thenReturn(
-                  detailsTestTrip()
+                  votingTestTrip()
                       .copy(
                           endDate = Timestamp(4102444800L, 0),
                           memberIds = listOf(live.createdByUserId),

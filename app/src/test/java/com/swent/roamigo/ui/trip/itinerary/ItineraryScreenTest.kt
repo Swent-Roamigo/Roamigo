@@ -1,0 +1,141 @@
+// AI assistance was used for implementation support.
+package com.swent.roamigo.ui.trip.itinerary
+
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.theme.RoamigoTheme
+import java.time.LocalDate
+import java.time.LocalTime
+import org.junit.Assert.assertEquals
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
+
+@RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "en-rUS-w390dp-h844dp")
+class ItineraryScreenTest {
+  @get:Rule val composeRule = createComposeRule()
+
+  private val sat = LocalDate.of(2026, 10, 10)
+  private val sun = sat.plusDays(1)
+  private val belem = ItineraryActivity("belem", "Belém Tower", "Belém", LocalTime.of(9, 30))
+  private val lx = ItineraryActivity("lx", "LX Factory", "Alcântara", LocalTime.of(14, 0))
+
+  private fun ready(
+      activities: List<ItineraryActivity> = listOf(belem, lx),
+      hasActivities: Boolean = true,
+      refreshFailed: Boolean = false,
+  ) = ItineraryUiState.Ready(listOf(sat, sun), sun, activities, hasActivities, refreshFailed)
+
+  private fun show(
+      state: ItineraryUiState,
+      onSelectDay: (LocalDate) -> Unit = {},
+      onRetry: () -> Unit = {},
+      onAddActivity: (() -> Unit)? = {},
+  ) {
+    composeRule.setContent {
+      RoamigoTheme { ItineraryScreen(state, onSelectDay, onRetry, onAddActivity) }
+    }
+  }
+
+  @Test
+  fun showsDayChipsAndTheSelectedDaysActivitiesInOrder() {
+    val selected = mutableListOf<LocalDate>()
+    show(ready(), onSelectDay = { selected += it })
+
+    composeRule.onNodeWithTag(C.Tag.itineraryDay(sun)).assertIsSelected()
+    composeRule.onNodeWithTag(C.Tag.itineraryDay(sat)).assertIsNotSelected().performClick()
+    composeRule.onNodeWithText("Sat 10").assertIsDisplayed()
+    composeRule.onNodeWithText("Belém Tower").assertIsDisplayed()
+    composeRule.onNodeWithText("Alcântara").assertIsDisplayed()
+    // Some JDKs put a narrow no-break space before AM.
+    composeRule.onNodeWithText("9:30", substring = true).assertIsDisplayed()
+    composeRule.runOnIdle { assertEquals(listOf(sat), selected) }
+  }
+
+  @Test
+  fun dayChipsAnnounceTheFullDate() {
+    show(ready())
+
+    composeRule.onNodeWithContentDescription("Sunday, October 11, 2026").assertIsDisplayed()
+  }
+
+  @Test
+  fun anEmptyTripInvitesToAddTheFirstActivity() {
+    var adds = 0
+    show(ready(emptyList(), hasActivities = false), onAddActivity = { adds++ })
+
+    composeRule
+        .onNodeWithText("Nothing planned yet. Add the first activity for the group.")
+        .assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.itinerary_add_activity).performClick()
+    composeRule.runOnIdle { assertEquals(1, adds) }
+  }
+
+  @Test
+  fun anEmptyDayOfAPlannedTripSaysSo() {
+    show(ready(emptyList(), hasActivities = true))
+
+    composeRule.onNodeWithText("Nothing planned this day.").assertIsDisplayed()
+  }
+
+  @Test
+  fun aReadOnlyTripOffersNoAddAction() {
+    show(ready(emptyList(), hasActivities = false), onAddActivity = null)
+
+    composeRule.onNodeWithTag(C.Tag.itinerary_add_activity).assertDoesNotExist()
+  }
+
+  @Test
+  fun loadingThenErrorThenRetry() {
+    val state = mutableStateOf<ItineraryUiState>(ItineraryUiState.Loading)
+    var retries = 0
+    composeRule.setContent {
+      RoamigoTheme { ItineraryScreen(state.value, {}, { retries++ }, null) }
+    }
+    composeRule.onNodeWithText("Loading the plan…").assertIsDisplayed()
+
+    composeRule.runOnIdle { state.value = ItineraryUiState.Error }
+    composeRule
+        .onNodeWithText("We couldn't load the plan. Check your connection and try again.")
+        .assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.itinerary_retry).performClick()
+    composeRule.runOnIdle { assertEquals(1, retries) }
+  }
+
+  @Test
+  fun aFailedRefreshKeepsThePlanAndOffersRetry() {
+    var retries = 0
+    show(ready(refreshFailed = true), onRetry = { retries++ })
+
+    composeRule.onNodeWithText("The plan may be out of date.").assertIsDisplayed()
+    composeRule.onNodeWithText("Belém Tower").assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.itinerary_retry).performClick()
+    composeRule.runOnIdle { assertEquals(1, retries) }
+  }
+
+  @Test
+  @Config(qualifiers = "en-rUS-w640dp-h320dp")
+  fun everyRowIsReachableInLandscape() {
+    val many =
+        (0 until 8).map { ItineraryActivity("a$it", "Stop $it", "Lisbon", LocalTime.of(8 + it, 0)) }
+    show(ready(many))
+
+    composeRule
+        .onNodeWithTag(C.Tag.itinerary_list)
+        .performScrollToNode(hasTestTag(C.Tag.itineraryActivity("a7")))
+    composeRule.onNodeWithText("Stop 7").assertIsDisplayed()
+  }
+}
