@@ -343,6 +343,36 @@ class FriendshipRulesEmulatorTest {
         bob.id,
         newRequestId,
     )
+
+    assertFalse(document(alice).get(Source.SERVER).await().exists())
+    assertFalse(document(bob).get(Source.SERVER).await().exists())
+  }
+
+  @Test
+  fun nonParticipantCannotDeletePendingFriendRequest() = emulatorTest {
+    val requestId = createPending()
+
+    // Charlie is neither the sender nor the recipient.
+    denied { document(charlie).delete().await() }
+
+    val snapshot = document(alice).get(Source.SERVER).await()
+    assertTrue(snapshot.exists())
+    assertEquals(requestId, snapshot.getString("requestId"))
+    assertEquals("PENDING", snapshot.getString("status"))
+  }
+
+  @Test
+  fun senderCannotDeleteDeclinedFriendRequest() = emulatorTest {
+    val requestId = createPending()
+    respond(bob, "DECLINED")
+
+    // Cancellation is allowed only while the request is PENDING.
+    denied { document(alice).delete().await() }
+
+    val snapshot = document(alice).get(Source.SERVER).await()
+    assertTrue(snapshot.exists())
+    assertEquals(requestId, snapshot.getString("requestId"))
+    assertEquals("DECLINED", snapshot.getString("status"))
   }
 
   @Test

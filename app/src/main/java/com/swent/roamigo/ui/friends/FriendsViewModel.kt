@@ -45,6 +45,12 @@ enum class FriendsActionFailureReason {
   OTHER,
 }
 
+/**
+ * Describes a failed friendship action for the UI.
+ *
+ * [reason] is currently classified only for [FriendsAction.CANCEL]. Other actions use
+ * [FriendsActionFailureReason.OTHER].
+ */
 data class FriendsActionFailure(
     val relationshipId: String,
     val action: FriendsAction,

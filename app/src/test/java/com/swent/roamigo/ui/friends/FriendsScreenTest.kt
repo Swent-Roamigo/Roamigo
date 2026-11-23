@@ -313,12 +313,13 @@ class FriendsScreenTest {
         .onNodeWithTag(C.Tag.friends_cancel_request_prefix + "request-bob")
         .performScrollTo()
         .assertIsNotEnabled()
+        .assertContentDescriptionEquals(resources.string(R.string.friends_updating))
 
     assertEquals(0, cancelCalls)
   }
 
   @Test
-  fun removingFriendRequiresConfirmationAndCancelDoesNothing() {
+  fun removingFriendRequiresConfirmationAndKeepingDoesNothing() {
     var removedId: String? = null
     var removalCount = 0
 
@@ -363,6 +364,10 @@ class FriendsScreenTest {
         .assertIsDisplayed()
 
     assertEquals(0, removalCount)
+
+    composeRule
+        .onNodeWithText(resources.string(R.string.friends_remove_confirm_cancel))
+        .assertIsDisplayed()
 
     composeRule.onNodeWithTag(C.Tag.friends_remove_dismiss_action).performClick()
 
@@ -639,7 +644,7 @@ class FriendsScreenTest {
   }
 
   @Test
-  fun removalConfirmationIdentifiesTravelerWithoutDisplayName() {
+  fun removalConfirmationDoesNotExposeUnknownTravelerUid() {
     var removedId: String? = null
 
     composeRule.setContent {
@@ -667,8 +672,11 @@ class FriendsScreenTest {
         .performClick()
 
     composeRule
-        .onNodeWithText(resources.string(R.string.friends_remove_unknown_message, "bob-id"))
+        .onNodeWithText(resources.string(R.string.friends_remove_unknown_message))
         .assertIsDisplayed()
+
+    // No internal Firebase UID should appear in the dialog.
+    composeRule.onNodeWithText("bob-id", substring = true).assertDoesNotExist()
 
     composeRule.onNodeWithTag(C.Tag.friends_remove_confirm_action).performClick()
 

@@ -49,9 +49,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -163,17 +167,15 @@ fun FriendsScreen(
           val unknown = stringResource(R.string.friends_unknown_traveler)
 
           Text(
-              if (confirmableFriend.displayName == unknown) {
-                stringResource(
-                    R.string.friends_remove_unknown_message,
-                    confirmableFriend.userId,
-                )
-              } else {
-                stringResource(
-                    R.string.friends_remove_confirm_message,
-                    confirmableFriend.displayName,
-                )
-              }
+              text =
+                  if (confirmableFriend.displayName == unknown) {
+                    stringResource(R.string.friends_remove_unknown_message)
+                  } else {
+                    stringResource(
+                        R.string.friends_remove_confirm_message,
+                        confirmableFriend.displayName,
+                    )
+                  }
           )
         },
         confirmButton = {
@@ -690,6 +692,7 @@ private fun OutgoingRequestRow(
                 R.string.friends_cancel_request_accessibility,
                 request.displayName,
             )
+        val updatingDescription = stringResource(R.string.friends_updating)
 
         TextButton(
             onClick = onCancel,
@@ -697,7 +700,12 @@ private fun OutgoingRequestRow(
             modifier =
                 Modifier.align(Alignment.End)
                     .testTag(C.Tag.friends_cancel_request_prefix + request.requestId)
-                    .semantics { contentDescription = cancelDescription },
+                    .clearAndSetSemantics {
+                      contentDescription =
+                          if (request.isProcessing) updatingDescription else cancelDescription
+                      role = Role.Button
+                      if (request.isProcessing) disabled()
+                    },
         ) {
           Text(
               stringResource(
