@@ -1,7 +1,9 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.ui.trip.members
 
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -78,6 +80,16 @@ class TripMembersScreenTest {
         .onNodeWithTag(C.Tag.trip_members_list)
         .performScrollToNode(hasTestTag(C.Tag.trip_members_row_prefix + "m299"))
     composeRule.onNodeWithTag(C.Tag.trip_members_row_prefix + "m299").assertIsDisplayed()
+  }
+
+  @Test
+  fun showsAProgressIndicatorWhileTheMembersLoad() {
+    show(TripMembersUiState.Loading)
+
+    composeRule
+        .onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate))
+        .assertIsDisplayed()
+    composeRule.onNodeWithText("Retry").assertDoesNotExist()
   }
 
   @Test
