@@ -171,7 +171,7 @@ class VotesViewModel(
         repository: VoteRepository,
         tripId: String,
         userId: String,
-        hintStore: VotesHintStore = NoVotesHint,
+        hintStore: VotesHintStore,
     ) = viewModelFactory { initializer { VotesViewModel(repository, tripId, userId, hintStore) } }
   }
 }
