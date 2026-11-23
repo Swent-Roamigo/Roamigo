@@ -55,6 +55,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -704,7 +705,15 @@ private fun OutgoingRequestRow(
                       contentDescription =
                           if (request.isProcessing) updatingDescription else cancelDescription
                       role = Role.Button
-                      if (request.isProcessing) disabled()
+
+                      if (request.isProcessing) {
+                        disabled()
+                      } else {
+                        onClick {
+                          onCancel()
+                          true
+                        }
+                      }
                     },
         ) {
           Text(
