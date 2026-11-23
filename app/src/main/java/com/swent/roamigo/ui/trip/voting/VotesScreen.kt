@@ -60,11 +60,10 @@ fun VotesRoute(
     modifier: Modifier = Modifier,
     onCloseVote: ((String) -> Unit)? = null,
     readOnly: Boolean = false,
-    showHint: Boolean = false,
-    onDismissHint: () -> Unit = {},
+    hintStore: VotesHintStore = NoVotesHint,
     tripRepository: TripRepository,
     votesViewModelFactory: ViewModelProvider.Factory =
-        VotesViewModel.factory(voteRepository, tripId, currentUserId),
+        VotesViewModel.factory(voteRepository, tripId, currentUserId, hintStore),
     resolutionViewModelFactory: ViewModelProvider.Factory =
         TieResolutionViewModel.factory(
             voteRepository,
@@ -81,6 +80,7 @@ fun VotesRoute(
           factory = votesViewModelFactory,
       )
   val state by viewModel.uiState.collectAsStateWithLifecycle()
+  val hintVisible by viewModel.hintVisible.collectAsStateWithLifecycle()
   val resolution: TieResolutionViewModel =
       viewModel(
           key = "resolution-$scopeKey",
@@ -144,8 +144,8 @@ fun VotesRoute(
           else null,
       onCloseVote = onCloseVote,
       readOnly = readOnly,
-      showHint = showHint,
-      onDismissHint = onDismissHint,
+      showHint = hintVisible,
+      onDismissHint = viewModel::dismissHint,
       modifier = modifier,
       listState = listState,
       eligibility = resolutionState.eligibility,

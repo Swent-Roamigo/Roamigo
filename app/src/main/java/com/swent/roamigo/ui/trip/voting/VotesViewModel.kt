@@ -30,9 +30,14 @@ class VotesViewModel(
     private val voteRepository: VoteRepository,
     val tripId: String,
     private val userId: String,
+    private val hintStore: VotesHintStore = NoVotesHint,
 ) : ViewModel() {
   private val _uiState = MutableStateFlow<VotesUiState>(VotesUiState.Loading)
   val uiState: StateFlow<VotesUiState> = _uiState.asStateFlow()
+  private val _hintVisible = MutableStateFlow(!hintStore.isSeen())
+
+  /** Whether to explain how votes work: until the user dismisses the hint once. */
+  val hintVisible: StateFlow<Boolean> = _hintVisible.asStateFlow()
   private var observationJob: Job? = null
 
   init {
@@ -48,6 +53,11 @@ class VotesViewModel(
     ) {
       observeVotes()
     }
+  }
+
+  fun dismissHint() {
+    _hintVisible.value = false
+    hintStore.markSeen()
   }
 
   /** Returns a displayed vote's ID for navigation, ignoring stale or unknown selections. */
@@ -157,9 +167,11 @@ class VotesViewModel(
   }
 
   companion object {
-    internal fun factory(repository: VoteRepository, tripId: String, userId: String) =
-        viewModelFactory {
-          initializer { VotesViewModel(repository, tripId, userId) }
-        }
+    internal fun factory(
+        repository: VoteRepository,
+        tripId: String,
+        userId: String,
+        hintStore: VotesHintStore = NoVotesHint,
+    ) = viewModelFactory { initializer { VotesViewModel(repository, tripId, userId, hintStore) } }
   }
 }
