@@ -52,6 +52,7 @@ import com.swent.roamigo.ui.components.PhotoCreditsDialog
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.trips.MainTripBadge
 import com.swent.roamigo.ui.trips.MainTripUiModel
+import com.swent.roamigo.ui.trips.WeatherChipUiModel
 
 /** Displays the featured trip, its details, and invite action. */
 @Composable
@@ -63,6 +64,7 @@ internal fun MainTripCard(
     onOpenTrip: () -> Unit,
     photoAttempt: Int = 0,
     onPhotoLoadError: (DestinationPhoto) -> Unit = {},
+    weather: WeatherChipUiModel? = null,
 ) {
   var imageLoaded by remember(photo?.imageUrl, photoAttempt) { mutableStateOf(false) }
   var showCredits by remember(photo?.imageUrl) { mutableStateOf(false) }
@@ -211,6 +213,8 @@ internal fun MainTripCard(
         }
       }
     }
+    // The empty corner next to the avatars, so the chip hides nothing.
+    weather?.let { WeatherChip(it, Modifier.align(Alignment.BottomEnd).padding(18.dp)) }
   }
   if (showCredits && photo != null && imageLoaded) {
     PhotoCreditsDialog(

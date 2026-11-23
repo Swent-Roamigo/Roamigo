@@ -215,6 +215,7 @@ fun RoamigoApp(
           userRepository = userRepository,
           destinationRepository = destinationRepository,
           authRepository = authRepository,
+          weatherRepository = weatherRepository,
           onInviteTrip = { tripId -> inviteTripId = tripId },
           onJoinClick = { joinCodeOpen = true },
           onNewTripClick = { navController.navigate(Route.NEW_TRIP) },

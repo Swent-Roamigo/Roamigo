@@ -21,8 +21,11 @@ import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.trip.isCompletedOn
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
+import com.swent.roamigo.model.weather.ForecastWindow
+import com.swent.roamigo.model.weather.WeatherRepository
 import com.swent.roamigo.ui.trip.formatTripDateRange
 import java.time.Clock
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -30,6 +33,8 @@ import java.time.temporal.ChronoUnit
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,6 +50,7 @@ import kotlinx.coroutines.launch
  * @property tripRepository the repository providing trips, activities, and trip members.
  * @property userRepository the repository providing the current user and member profiles.
  * @property clock the clock used for time-dependent trip selection and presentation.
+ * @property weatherRepository the forecast shown on the main trip card; no chip without one.
  */
 class TripsViewModel(
     private val tripRepository: TripRepository,
@@ -52,6 +58,7 @@ class TripsViewModel(
     private val clock: Clock = Clock.systemDefaultZone(),
     private val destinationRepository: DestinationRepository? = null,
     private val authRepository: AuthRepository? = null,
+    private val weatherRepository: WeatherRepository? = null,
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow(TripsUiState())
@@ -100,9 +107,15 @@ class TripsViewModel(
                 currentUserInitial = firstName.take(1).uppercase(),
                 currentUserPhotoUrl = currentUser.profilePictureUrl?.takeIf { it.isNotBlank() },
             )
-        val (state, location) = loadTripsState(now)
+        val (state, location, days) = loadTripsState(now)
         hasLoadedTrips = true
-        loadFeaturedPhoto(state, location)
+        coroutineScope {
+          // The forecast is fetched while the photo is looked up, and shown once the photo step has
+          // published its state, which would otherwise overwrite it.
+          val chip = async { lookUpWeather(state.mainTrip?.id, location, days, now) }
+          loadFeaturedPhoto(state, location)
+          applyWeather(chip.await(), state.mainTrip?.id)
+        }
       } catch (exception: CancellationException) {
         throw exception
       } catch (exception: Exception) {
@@ -122,6 +135,64 @@ class TripsViewModel(
   /** Marks a failed image as eligible for lookup on the next refresh. */
   fun onPhotoLoadError(photo: DestinationPhoto) {
     if (cachedPhoto?.second == photo) cachedPhoto = null
+  }
+
+  /** What to do with the weather chip once the forecast has been looked up. */
+  private sealed interface ChipResult {
+    /** There is nothing to show for this trip. */
+    data object Clear : ChipResult
+
+    /** The forecast could not be loaded; keep the chip of the same trip, if any. */
+    data object Keep : ChipResult
+
+    data class Show(val chip: WeatherChipUiModel) : ChipResult
+  }
+
+  private var weatherTripId: String? = null
+
+  /** The forecast of today, or of the first trip day, for the main trip. */
+  private suspend fun lookUpWeather(
+      tripId: String?,
+      location: TripLocation?,
+      days: ClosedRange<LocalDate>?,
+      now: ZonedDateTime,
+  ): ChipResult {
+    val today = now.toLocalDate()
+    if (
+        weatherRepository == null ||
+            tripId == null ||
+            location == null ||
+            days == null ||
+            days.endInclusive.isBefore(today) ||
+            !ForecastWindow.isAvailable(days.start, today)
+    ) {
+      return ChipResult.Clear
+    }
+    val day = maxOf(days.start, today)
+    return try {
+      val forecast = weatherRepository.forecast(location.latitude, location.longitude, day, day)
+      forecast.days
+          .firstOrNull { it.date == day }
+          ?.let {
+            ChipResult.Show(WeatherChipUiModel(day, day == today, it.condition, it.highCelsius))
+          } ?: ChipResult.Clear
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (_: Exception) {
+      // The chip is optional and must not prevent the trip from being displayed.
+      ChipResult.Keep
+    }
+  }
+
+  private fun applyWeather(result: ChipResult, tripId: String?) {
+    val chip =
+        when (result) {
+          is ChipResult.Show -> result.chip.also { weatherTripId = tripId }
+          ChipResult.Keep -> _uiState.value.mainTripWeather?.takeIf { weatherTripId == tripId }
+          ChipResult.Clear -> null
+        }
+    if (chip == null) weatherTripId = null
+    _uiState.value = _uiState.value.copy(mainTripWeather = chip)
   }
 
   private suspend fun loadFeaturedPhoto(state: TripsUiState, location: TripLocation?) {
@@ -178,7 +249,9 @@ class TripsViewModel(
    * @return the fully prepared state for the Trips Home screen.
    * @throws Exception if one of the repository operations fails.
    */
-  private suspend fun loadTripsState(now: ZonedDateTime): Pair<TripsUiState, TripLocation?> {
+  private suspend fun loadTripsState(
+      now: ZonedDateTime
+  ): Triple<TripsUiState, TripLocation?, ClosedRange<LocalDate>?> {
     val trips = tripRepository.getTrips()
 
     val mainTrip =
@@ -260,7 +333,10 @@ class TripsViewModel(
                 },
             otherTrips = otherTripUiModels,
         )
-    return state to mainTrip?.destinations?.firstOrNull()
+    val days = mainTrip?.let {
+      it.startDate.toLocalDate(now.zone)..it.endDate.toLocalDate(now.zone)
+    }
+    return Triple(state, mainTrip?.destinations?.firstOrNull(), days)
   }
 
   companion object {
@@ -282,6 +358,7 @@ class TripsViewModel(
         clock: Clock = Clock.systemDefaultZone(),
         destinationRepository: DestinationRepository? = null,
         authRepository: AuthRepository? = null,
+        weatherRepository: WeatherRepository? = null,
     ): ViewModelProvider.Factory =
         object : ViewModelProvider.Factory {
 
@@ -294,6 +371,7 @@ class TripsViewModel(
                   clock = clock,
                   destinationRepository = destinationRepository,
                   authRepository = authRepository,
+                  weatherRepository = weatherRepository,
               )
                   as T
             }
