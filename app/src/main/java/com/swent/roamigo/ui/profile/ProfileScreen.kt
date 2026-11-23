@@ -168,7 +168,7 @@ fun ProfileScreen(
             ),
             Modifier.testTag(C.Tag.profile_friends_row),
         ) {
-          EditAction(
+          RowAction(
               label = stringResource(R.string.profile_view),
               onClick = onFriendsClick,
           )
@@ -216,7 +216,7 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun EditAction(
+private fun RowAction(
     label: String,
     onClick: () -> Unit,
 ) {

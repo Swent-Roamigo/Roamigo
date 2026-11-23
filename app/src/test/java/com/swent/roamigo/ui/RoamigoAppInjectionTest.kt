@@ -149,6 +149,9 @@ class RoamigoAppInjectionTest {
     composeRule.waitUntil(5_000) {
       composeRule.onAllNodesWithTag("trip_ready").fetchSemanticsNodes().isNotEmpty()
     }
+    // Suggest a place and Share trip are not built yet, so the app must not offer them.
+    composeRule.onNodeWithTag(TripReadyTestTags.SUGGEST_CARD).assertDoesNotExist()
+    composeRule.onNodeWithTag(TripReadyTestTags.SHARE).assertDoesNotExist()
     composeRule.runOnUiThread {
       navController.currentBackStackEntry!!.savedStateHandle["ready_photo"] =
           Bundle().apply {
