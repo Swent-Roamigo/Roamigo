@@ -18,8 +18,8 @@ permissions:
 env:
   # Each milestone wiki page follows main until its deadline, so it always
   # links the last build that started before the deadline. Add the next
-  # milestone here as soon as its deadline is announced.
-  MILESTONE_DEADLINES: M3=2026-12-17T23:59:00+01:00
+  # milestone here as soon as its deadline is announced (SwEnt public README).
+  MILESTONE_DEADLINES: M3=2026-12-11T08:45:00+01:00
 
 # Push runs share one group so a newer merge cancels the outdated build;
 # manual runs get their own group so a merge never cancels a milestone build.
