@@ -5,7 +5,7 @@
 # links the last successful main build that started before the milestone deadline.
 #
 # Required environment:
-#   MILESTONE_DEADLINES  space-separated MILESTONE=ISO-8601 pairs, e.g. "M3=2026-12-17T23:59:00+01:00"
+#   MILESTONE_DEADLINES  space-separated MILESTONE=ISO-8601 pairs, e.g. "M3=2026-12-11T08:45:00+01:00"
 #   RUN_CREATED_AT       ISO-8601 time the run was created (when the merge reached main)
 #   REPO_URL, RUN_URL, RUN_NUMBER, COMMIT_SHA, ARTIFACT_NAME, ARTIFACT_URL
 #   WIKI_DIR             local clone of the wiki repository
