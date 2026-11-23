@@ -97,8 +97,8 @@ service cloud.firestore {
                   || (activity.endTime is timestamp && activity.endTime >= activity.startTime)));
     }
 
-    // Only ACCEPTED activities can be created for now; roles are not enforced yet, so any member
-    // may create one. The author is the requester, and the ID and trip come from the path.
+    // Any trip member can create either type.
+    // The author is the requester, and the ID and trip come from the path.
     function isValidNewActivity(activity) {
       return activity.keys().hasAll([
             'activityType', 'name', 'description', 'location', 'startTime', 'endTime',
@@ -108,7 +108,7 @@ service cloud.firestore {
             'activityType', 'name', 'description', 'location', 'startTime', 'endTime',
             'createdByUserId', 'creationTime'
           ])
-          && activity.activityType == 'ACCEPTED'
+          && activity.activityType in ['ACCEPTED', 'SUGGESTION']
           && activity.name is string
           && activity.name.trim().size() > 0
           // Mirrors MAX_ACTIVITY_NAME_LENGTH and MAX_ACTIVITY_DESCRIPTION_LENGTH in
@@ -117,7 +117,7 @@ service cloud.firestore {
           && (activity.description == null
               || (activity.description is string && activity.description.size() <= 2000))
           && isValidDestination(activity.location)
-          && hasValidSchedule(activity, true)
+          && hasValidSchedule(activity, activity.activityType == 'ACCEPTED')
           && activity.createdByUserId == request.auth.uid
           && activity.creationTime is timestamp;
     }

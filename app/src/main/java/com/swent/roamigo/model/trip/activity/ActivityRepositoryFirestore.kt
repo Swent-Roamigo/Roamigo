@@ -33,9 +33,22 @@ class ActivityRepositoryFirestore(
       tripId: String,
       activityId: String,
       draft: ActivityDraft,
+  ): Activity = create(tripId, activityId, draft, ActivityType.ACCEPTED)
+
+  override suspend fun createSuggestion(
+      tripId: String,
+      suggestionId: String,
+      draft: ActivityDraft,
+  ): Activity = create(tripId, suggestionId, draft, ActivityType.SUGGESTION)
+
+  private suspend fun create(
+      tripId: String,
+      activityId: String,
+      draft: ActivityDraft,
+      type: ActivityType,
   ): Activity {
     val authorId = currentUserId() ?: throw ActivityCreationException.NotAuthenticated()
-    val errors = draft.validate(startRequired = true)
+    val errors = draft.validate(startRequired = type == ActivityType.ACCEPTED)
     if (errors.isNotEmpty()) throw ActivityCreationException.Validation(errors)
     // A malformed ID is a caller bug, so it is thrown as is instead of as an unknown failure.
     val document = activities(tripId).document(validDocumentId(activityId))
@@ -49,7 +62,8 @@ class ActivityRepositoryFirestore(
                 if (existing.exists()) {
                   activityFromFirestore(existing.id, tripId, existing.requireData())
                 } else {
-                  val created = draft.toActivity(activityId, tripId, authorId, Timestamp.now())
+                  val created =
+                      draft.toActivity(activityId, tripId, authorId, Timestamp.now(), type)
                   transaction.set(document, created.toFirestoreData())
                   created
                 }
@@ -65,8 +79,7 @@ class ActivityRepositoryFirestore(
 
     // Deciding outside the transaction keeps the exception types independent of how Firestore
     // reports failures thrown from inside a transaction function.
-    if (activity.createdByUserId != authorId) throw ActivityCreationException.PermissionDenied()
-    return activity
+    return activity.requireCreationMatch(authorId, type)
   }
 
   override fun observeActivities(tripId: String): Flow<List<Activity>> = callbackFlow {
@@ -108,11 +121,12 @@ internal fun ActivityDraft.toActivity(
     tripId: String,
     authorId: String,
     createdAt: Timestamp,
+    type: ActivityType = ActivityType.ACCEPTED,
 ): Activity =
     Activity(
         uid = activityId,
         tripId = tripId,
-        activityType = ActivityType.ACCEPTED,
+        activityType = type,
         name = name,
         description = description,
         location = location,
