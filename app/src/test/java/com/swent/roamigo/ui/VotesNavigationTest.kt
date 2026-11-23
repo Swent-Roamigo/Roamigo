@@ -343,6 +343,29 @@ class VotesNavigationTest {
   }
 
   @Test
+  fun backFromTheExploredWorldReturnsToTheHistory() {
+    openVotes()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
+    composeRule.onNodeWithTag(C.Tag.trips_history_button).performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_history_world_map).performClick()
+    composeRule.onNodeWithTag(C.Tag.heatmap_back).performClick()
+
+    composeRule.onNodeWithTag(C.Tag.trip_history_screen).assertIsDisplayed()
+    composeRule.runOnIdle {
+      assertEquals(Route.TRIP_HISTORY, navController.currentBackStackEntry?.destination?.route)
+    }
+  }
+
+  @Test
+  fun backFromAPastTripReturnsToTheHistory() {
+    openVotes(historical = true)
+
+    composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+
+    composeRule.onNodeWithTag(C.Tag.trip_history_screen).assertIsDisplayed()
+  }
+
+  @Test
   fun inlineVoteUpdatesCardAndReopeningRestoresChoiceWithoutRefresh() {
     openVotes()
     composeRule.onNodeWithText(vote.question).assertIsDisplayed()
