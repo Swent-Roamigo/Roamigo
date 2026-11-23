@@ -24,6 +24,9 @@ import com.swent.roamigo.model.trip.activity.ActivityRepositoryFirestore
 import com.swent.roamigo.model.trip.inviting.TripInvitationServiceFunctions
 import com.swent.roamigo.model.trip.voting.VoteRepositoryFirestore
 import com.swent.roamigo.model.users.UserRepositoryFirestore
+import com.swent.roamigo.model.weather.CachingWeatherRepository
+import com.swent.roamigo.model.weather.DataStoreWeatherCache
+import com.swent.roamigo.model.weather.OpenMeteoWeatherRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.RoamigoApp
 import com.swent.roamigo.ui.heatmap.VisitedCountryCounts
@@ -94,6 +97,13 @@ class MainActivity : ComponentActivity() {
                   remember { (application as RoamigoApplication).locationRepository },
               placeRepository = remember { (application as RoamigoApplication).placeRepository },
               countryCounts = countryCounts,
+              weatherRepository =
+                  remember {
+                    CachingWeatherRepository(
+                        OpenMeteoWeatherRepository(),
+                        DataStoreWeatherCache(applicationContext),
+                    )
+                  },
               userRepository = userRepository,
               invitationService = remember { TripInvitationServiceFunctions() },
           )

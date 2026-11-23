@@ -39,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.TripRepository
+import com.swent.roamigo.model.weather.WeatherRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.TripActionButton
 import com.swent.roamigo.ui.components.markNotImplemented
@@ -57,6 +58,7 @@ fun TripDetailsRoute(
     onTripMapClick: () -> Unit,
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
     onInviteClick: () -> Unit = rememberNotImplementedAction(),
+    weatherRepository: WeatherRepository? = null,
 ) {
   val model = viewModel(key = tripId) { TripDetailsViewModel(tripId, tripRepository) }
   val state by model.uiState.collectAsStateWithLifecycle()
@@ -72,6 +74,7 @@ fun TripDetailsRoute(
       onTripMapClick = onTripMapClick,
       onPhotosClick = onPhotosClick,
       onInviteClick = onInviteClick,
+      weatherRepository = weatherRepository,
   )
 }
 
@@ -86,6 +89,7 @@ fun TripDetailsScreen(
     onTripMapClick: () -> Unit = rememberNotImplementedAction(),
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
     onInviteClick: () -> Unit = rememberNotImplementedAction(),
+    weatherRepository: WeatherRepository? = null,
 ) {
   Scaffold(modifier = Modifier.testTag(C.Tag.trip_details_screen)) { padding ->
     when {
@@ -120,6 +124,7 @@ fun TripDetailsScreen(
               onTripMapClick = onTripMapClick,
               onPhotosClick = onPhotosClick,
               onInviteClick = onInviteClick,
+              weatherRepository = weatherRepository,
           )
     }
   }
@@ -135,6 +140,7 @@ private fun TripDetailsContent(
     onTripMapClick: () -> Unit,
     onPhotosClick: () -> Unit,
     onInviteClick: () -> Unit,
+    weatherRepository: WeatherRepository?,
 ) {
   Column(
       modifier.padding(
@@ -149,6 +155,7 @@ private fun TripDetailsContent(
         Modifier.weight(1f).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(Spacing.large),
     ) {
+      if (weatherRepository != null) TripForecast(details, weatherRepository)
       val unfinished = rememberNotImplementedAction()
       TextButton(onClick = unfinished, modifier = Modifier.markNotImplemented(unfinished)) {
         Text(stringResource(R.string.trip_details_itinerary))
