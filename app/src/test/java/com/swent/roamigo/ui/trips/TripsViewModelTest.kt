@@ -562,6 +562,134 @@ class TripsViewModelTest {
     assertEquals(16, vm.uiState.value.mainTripWeather?.highCelsius)
   }
 
+  private class SwitchableTrips(var trips: List<Trip>) : TripRepository by FakeTripRepository() {
+    override suspend fun getTrips() = trips
+  }
+
+  @Test
+  fun noChipAndNoRequestWithoutAMainTrip() = runTest {
+    val weather = FakeWeatherRepository(listOf(forecastDay("2026-10-12")))
+    val vm =
+        TripsViewModel(
+            FakeTripRepository(),
+            FakeUserRepository(currentUser = alex),
+            Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+            weatherRepository = weather,
+        )
+
+    advanceUntilIdle()
+
+    assertNull(vm.uiState.value.mainTripWeather)
+    assertTrue(weather.requests.isEmpty())
+  }
+
+  @Test
+  fun noChipAndNoRequestForATripWithoutADestination() = runTest {
+    val weather = FakeWeatherRepository(listOf(forecastDay("2026-10-12")))
+    val bare =
+        trip("lisbon", "Lisbon", "2026-10-12T00:00:00Z", "2026-10-19T00:00:00Z", TripStatus.PLANNED)
+            .copy(destinations = emptyList())
+    val vm =
+        TripsViewModel(
+            FakeTripRepository(trips = listOf(bare)),
+            FakeUserRepository(currentUser = alex),
+            Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+            weatherRepository = weather,
+        )
+
+    advanceUntilIdle()
+
+    assertEquals("lisbon", vm.uiState.value.mainTrip?.id)
+    assertNull(vm.uiState.value.mainTripWeather)
+    assertTrue(weather.requests.isEmpty())
+  }
+
+  @Test
+  fun noChipWhenTheProviderHasNoForecastForThatDay() = runTest {
+    val weather = FakeWeatherRepository(listOf(forecastDay("2026-10-13")))
+    val vm = chipViewModel("2026-10-12T00:00:00Z", "2026-10-19T00:00:00Z", weather)
+
+    advanceUntilIdle()
+
+    assertNull(vm.uiState.value.mainTripWeather)
+    assertEquals("lisbon", vm.uiState.value.mainTrip?.id)
+  }
+
+  @Test
+  fun theChipOfAnotherTripIsNotKeptWhenTheRefreshFails() = runTest {
+    val weather = FakeWeatherRepository(listOf(forecastDay("2026-10-12")))
+    val first =
+        trip("a", "First", "2026-10-12T00:00:00Z", "2026-10-19T00:00:00Z", TripStatus.PLANNED)
+    val second = first.copy(uid = "b", name = "Second")
+    val trips = SwitchableTrips(listOf(first))
+    val vm =
+        TripsViewModel(
+            trips,
+            FakeUserRepository(currentUser = alex),
+            Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+            weatherRepository = weather,
+        )
+    advanceUntilIdle()
+    assertEquals(16, vm.uiState.value.mainTripWeather?.highCelsius)
+
+    trips.trips = listOf(second)
+    weather.failure = WeatherUnavailableException("offline")
+    vm.refresh()
+    advanceUntilIdle()
+
+    assertEquals("b", vm.uiState.value.mainTrip?.id)
+    assertNull(vm.uiState.value.mainTripWeather)
+  }
+
+  @Test
+  fun aRefreshThatReplacesOneWaitingForTheForecastStillEndsWithOneChip() = runTest {
+    val gate = CompletableDeferred<Unit>()
+    var calls = 0
+    val weather =
+        object : com.swent.roamigo.model.weather.WeatherRepository {
+          override suspend fun forecast(
+              latitude: Double,
+              longitude: Double,
+              from: LocalDate,
+              to: LocalDate,
+          ): com.swent.roamigo.model.weather.Forecast {
+            calls++
+            gate.await()
+            return com.swent.roamigo.model.weather.Forecast(
+                listOf(forecastDay("2026-10-12")),
+                Instant.parse("2026-10-08T10:00:00Z"),
+            )
+          }
+        }
+    val vm =
+        TripsViewModel(
+            FakeTripRepository(
+                trips =
+                    listOf(
+                        trip(
+                            "lisbon",
+                            "Lisbon",
+                            "2026-10-12T00:00:00Z",
+                            "2026-10-19T00:00:00Z",
+                            TripStatus.PLANNED,
+                        )
+                    )
+            ),
+            FakeUserRepository(currentUser = alex),
+            Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+            weatherRepository = weather,
+        )
+    runCurrent()
+    vm.refresh()
+    runCurrent()
+
+    gate.complete(Unit)
+    advanceUntilIdle()
+
+    assertEquals(2, calls)
+    assertEquals(16, vm.uiState.value.mainTripWeather?.highCelsius)
+  }
+
   @Test
   fun photoLookupUsesNearestMatchingDestinationAndSkipsDistantNamesakes() = runTest {
     val main =

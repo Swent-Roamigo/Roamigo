@@ -163,7 +163,6 @@ class TripsViewModel(
             tripId == null ||
             location == null ||
             days == null ||
-            days.endInclusive.isBefore(today) ||
             !ForecastWindow.isAvailable(days.start, today)
     ) {
       return ChipResult.Clear

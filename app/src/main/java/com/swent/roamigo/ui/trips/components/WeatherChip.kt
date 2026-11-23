@@ -32,7 +32,7 @@ import java.time.format.DateTimeFormatter
 
 /** One day's weather on the main trip card: its icon, the day it is for, and the high. */
 @Composable
-internal fun WeatherChip(weather: WeatherChipUiModel, modifier: Modifier = Modifier) {
+internal fun WeatherChip(weather: WeatherChipUiModel, modifier: Modifier) {
   val locale = LocalConfiguration.current.locales[0]
   val today = stringResource(R.string.weather_chip_today)
   val shortDay =
