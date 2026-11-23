@@ -207,6 +207,21 @@ class ActivityRepositoryFirestoreEmulatorTest {
   }
 
   @Test
+  fun rulesRejectAcceptedActivitiesWithoutStartTime() = runBlocking {
+    val data = activityData(alice)
+    val invalid =
+        listOf(
+            data + mapOf("startTime" to null, "endTime" to null),
+            data + ("startTime" to null),
+            data - "startTime",
+        )
+
+    invalid.forEach { fields ->
+      assertPermissionDenied { activityDocument(alice).set(fields).await() }
+    }
+  }
+
+  @Test
   fun rulesAcceptEqualStartAndEndAndNullOptionalFields() =
       runBlocking<Unit> {
         val start = Timestamp(1_900_000_000, 0)

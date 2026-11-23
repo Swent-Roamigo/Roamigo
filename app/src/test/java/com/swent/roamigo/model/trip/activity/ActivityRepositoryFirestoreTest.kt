@@ -153,6 +153,21 @@ class ActivityRepositoryFirestoreTest {
   }
 
   @Test
+  fun create_withoutStartTimeFailsBeforeAnyRequest() = runTest {
+    val error = runCatching {
+      repository.createActivity(
+          "trip-1",
+          "activity-1",
+          draft.copy(startTime = null, endTime = null),
+      )
+    }
+
+    val validation = error.exceptionOrNull() as ActivityCreationException.Validation
+    assertEquals(listOf(ActivityDraftError.MissingStartTime), validation.errors)
+    verify(db, never()).runTransaction(any<Transaction.Function<Any?>>())
+  }
+
+  @Test
   fun create_mapsFirestoreFailuresToCreationExceptions() = runTest {
     val expected =
         mapOf(

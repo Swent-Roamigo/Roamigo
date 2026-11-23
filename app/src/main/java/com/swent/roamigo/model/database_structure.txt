@@ -40,8 +40,8 @@ trips/{tripId}
         name: string               // not blank, at most 100 characters
         description: string | null  // at most 2000 characters
         location: {name, latitude, longitude, countryCode?}  // same rules as a destination
-        startTime: timestamp
-        endTime: timestamp | null  // >= startTime
+        startTime: timestamp | null  // required for "ACCEPTED"; null = suggestion with no proposed time
+        endTime: timestamp | null  // only with a startTime, >= startTime
         createdByUserId: string    // auth uid of the creator
         creationTime: timestamp
         // The ID and trip come from the path. Any member can create; no updates or deletes yet.

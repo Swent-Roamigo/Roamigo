@@ -88,6 +88,15 @@ service cloud.firestore {
           && trip.createdAt is timestamp;
     }
 
+    // Mirrors ActivityDraft.validate: only a suggestion may omit its start (startRequired false),
+    // an end needs a start, and an end never precedes its start.
+    function hasValidSchedule(activity, startRequired) {
+      return (activity.startTime == null && !startRequired && activity.endTime == null)
+          || (activity.startTime is timestamp
+              && (activity.endTime == null
+                  || (activity.endTime is timestamp && activity.endTime >= activity.startTime)));
+    }
+
     // Only ACCEPTED activities can be created for now; roles are not enforced yet, so any member
     // may create one. The author is the requester, and the ID and trip come from the path.
     function isValidNewActivity(activity) {
@@ -108,9 +117,7 @@ service cloud.firestore {
           && (activity.description == null
               || (activity.description is string && activity.description.size() <= 2000))
           && isValidDestination(activity.location)
-          && activity.startTime is timestamp
-          && (activity.endTime == null
-              || (activity.endTime is timestamp && activity.endTime >= activity.startTime))
+          && hasValidSchedule(activity, true)
           && activity.createdByUserId == request.auth.uid
           && activity.creationTime is timestamp;
     }
