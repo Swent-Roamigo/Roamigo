@@ -257,6 +257,7 @@
     <string name="friends_retry">Retry</string>
     <string name="friends_unknown_traveler">Unknown traveler</string>
     <string name="friends_incoming_title">Incoming requests</string>
+    <string name="friends_pending_requests_indicator">Pending friend requests</string>
     <string name="friends_established_title">Your friends</string>
     <string name="friends_outgoing_title">Outgoing requests</string>
     <string name="friends_accept">Accept</string>
