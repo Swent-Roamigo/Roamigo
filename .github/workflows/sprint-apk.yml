@@ -223,8 +223,13 @@ jobs:
           # The run's creation time is when the merge reached main, not when the build ended.
           RUN_CREATED_AT=$(gh api "repos/$GH_REPO/actions/runs/$GITHUB_RUN_ID" --jq .created_at)
           export RUN_CREATED_AT
-          git clone --depth 1 \
-            "https://x-access-token:$GH_TOKEN@github.com/$GH_REPO.wiki.git" "$WIKI_DIR"
+          # Pass the token as a header for this job only, so it is never stored in the clone.
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="http.https://github.com/.extraheader"
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
+          git clone --depth 1 "https://github.com/$GH_REPO.wiki.git" "$WIKI_DIR"
           git -C "$WIKI_DIR" config user.name "github-actions[bot]"
           git -C "$WIKI_DIR" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           bash .github/scripts/update-milestone-apk-wiki.sh
@@ -235,7 +240,7 @@ jobs:
           git -C "$WIKI_DIR" add -A
           git -C "$WIKI_DIR" commit -qm "Link milestone APK to run #$RUN_NUMBER (${COMMIT_SHA::7})"
           # Retry in case someone edits the wiki at the same time.
-          for attempt in 1 2 3; do
+          for _ in 1 2 3; do
             git -C "$WIKI_DIR" push -q && exit 0
             git -C "$WIKI_DIR" pull -q --rebase
           done
