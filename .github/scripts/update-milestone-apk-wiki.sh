@@ -61,7 +61,7 @@ main() {
   created=$(date -u -d "$RUN_CREATED_AT" +%s)
   next=$(next_milestone "$created")
   if [ -z "$next" ]; then
-    echo "Run started after every milestone deadline; wiki left unchanged."
+    echo "::warning::No milestone deadline after this run in MILESTONE_DEADLINES; add the next one in sprint-apk.yml. Wiki left unchanged."
     return 0
   fi
   # shellcheck disable=SC2086 # "$next" holds two words on purpose.
