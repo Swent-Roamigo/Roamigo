@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.io.File
 import java.time.Instant
@@ -102,5 +103,55 @@ class DataStoreWeatherCacheTest {
     store.edit { it[stringPreferencesKey(key.name)] = "{not json" }
 
     assertNull(cache.get(38.72, -9.14))
+  }
+
+  private suspend fun saveRaw(latitude: Double, longitude: Double, text: String) {
+    cache.put(latitude, longitude, forecast())
+    val key = store.data.first().asMap().keys.first { it.name.contains("%.2f".format(latitude)) }
+    store.edit { it[stringPreferencesKey(key.name)] = text }
+  }
+
+  @Test
+  fun anEntryWithAnUnknownConditionIsTreatedAsMissing() = runTest {
+    saveRaw(
+        38.72,
+        -9.14,
+        """{"t":1,"d":[{"d":"2026-11-28","c":"FOG","h":15,"l":9}]}""",
+    )
+
+    assertNull(cache.get(38.72, -9.14))
+  }
+
+  @Test
+  fun anEntryWithAnInvalidDateIsTreatedAsMissing() = runTest {
+    saveRaw(
+        38.72,
+        -9.14,
+        """{"t":1,"d":[{"d":"yesterday","c":"SUNNY","h":15,"l":9}]}""",
+    )
+
+    assertNull(cache.get(38.72, -9.14))
+  }
+
+  @Test
+  fun anUnreadableEntryIsTheFirstToGoWhenThereAreTooManyPlaces() = runTest {
+    saveRaw(60.0, 10.0, "{not json")
+    repeat(DataStoreWeatherCache.MAX_PLACES) { index ->
+      cache.put(index.toDouble(), 0.0, forecast("2026-11-%02dT10:00:00Z".format(index + 1)))
+    }
+
+    assertNotNull(cache.get(0.0, 0.0))
+    assertNotNull(cache.get((DataStoreWeatherCache.MAX_PLACES - 1).toDouble(), 0.0))
+    assertEquals(DataStoreWeatherCache.MAX_PLACES, store.data.first().asMap().size)
+  }
+
+  @Test
+  fun keepsAForecastInTheAppsOwnStoreWhenCreatedFromAContext() = runTest {
+    val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+    val appCache = DataStoreWeatherCache(context)
+
+    appCache.put(12.34, 56.78, forecast())
+
+    assertEquals(forecast(), appCache.get(12.34, 56.78))
   }
 }

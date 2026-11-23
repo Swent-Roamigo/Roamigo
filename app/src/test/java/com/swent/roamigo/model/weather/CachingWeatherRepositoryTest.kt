@@ -3,6 +3,7 @@ package com.swent.roamigo.model.weather
 
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -127,6 +128,22 @@ class CachingWeatherRepositoryTest {
 
     assertThrows(IllegalArgumentException::class.java) {
       kotlinx.coroutines.runBlocking { repository.trip() }
+    }
+  }
+
+  @Test
+  fun neverSwallowsACancellationFromTheCache() = runTest {
+    val offline = online(failure = WeatherUnavailableException("offline"))
+    val readCancelled = MemoryCache().apply { getFailure = CancellationException("stopped") }
+    assertThrows(CancellationException::class.java) {
+      kotlinx.coroutines.runBlocking { CachingWeatherRepository(offline, readCancelled).trip() }
+    }
+
+    val writeCancelled = MemoryCache().apply { putFailure = CancellationException("stopped") }
+    assertThrows(CancellationException::class.java) {
+      kotlinx.coroutines.runBlocking {
+        CachingWeatherRepository(online(day(saturday)), writeCancelled).trip()
+      }
     }
   }
 }
