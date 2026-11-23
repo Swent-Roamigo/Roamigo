@@ -38,10 +38,7 @@ object C {
 
     fun voteResult(optionId: String) = "vote_result_${optionId}"
 
-    const val greeting_robo = "second_screen_greeting"
-
     const val main_screen_container = "main_screen_container"
-    const val second_screen_container = "second_screen_container"
 
     const val permissions_title = "permissions_screen_title"
     const val permissions_row = "permissions_screen_row"
