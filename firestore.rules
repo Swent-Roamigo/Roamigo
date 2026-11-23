@@ -16,6 +16,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // True when the document has every one of the fields and no other, so each list of allowed
+    // fields is written once.
+    function hasExactly(data, fields) {
+      return data.keys().hasAll(fields) && data.keys().hasOnly(fields);
+    }
+
     function isMember(tripId) {
       return signedIn()
           && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds;
@@ -64,11 +70,7 @@ service cloud.firestore {
     }
 
     function isValidNewTrip(trip) {
-      return trip.keys().hasAll([
-            'name', 'description', 'destinations', 'startDate', 'endDate', 'flexibleDates',
-            'travelMode', 'travelerCount', 'ownerId', 'memberIds', 'status', 'createdAt'
-          ])
-          && trip.keys().hasOnly([
+      return hasExactly(trip, [
             'name', 'description', 'destinations', 'startDate', 'endDate', 'flexibleDates',
             'travelMode', 'travelerCount', 'ownerId', 'memberIds', 'status', 'createdAt'
           ])
@@ -91,11 +93,7 @@ service cloud.firestore {
     // Only ACCEPTED activities can be created for now; roles are not enforced yet, so any member
     // may create one. The author is the requester, and the ID and trip come from the path.
     function isValidNewActivity(activity) {
-      return activity.keys().hasAll([
-            'activityType', 'name', 'description', 'location', 'startTime', 'endTime',
-            'createdByUserId', 'creationTime'
-          ])
-          && activity.keys().hasOnly([
+      return hasExactly(activity, [
             'activityType', 'name', 'description', 'location', 'startTime', 'endTime',
             'createdByUserId', 'creationTime'
           ])
@@ -117,8 +115,7 @@ service cloud.firestore {
 
     function isValidVoteOption(option) {
       return option is map
-          && option.keys().hasAll(['uid', 'name'])
-          && option.keys().hasOnly(['uid', 'name'])
+          && hasExactly(option, ['uid', 'name'])
           && option.uid is string
           && option.uid.trim().size() > 0
           && option.name is string
@@ -192,8 +189,7 @@ service cloud.firestore {
     }
 
     function isValidBallot(ballot) {
-      return ballot.keys().hasAll(['userId', 'optionId', 'updatedAt'])
-          && ballot.keys().hasOnly(['userId', 'optionId', 'updatedAt'])
+      return hasExactly(ballot, ['userId', 'optionId', 'updatedAt'])
           && ballot.userId == request.auth.uid
           && ballot.optionId is string
           && ballot.optionId.trim().size() > 0
@@ -244,11 +240,7 @@ service cloud.firestore {
     }
 
     function isValidFriendship(friendship, documentId) {
-      return friendship.keys().hasAll([
-            'requestId', 'senderUserId', 'recipientUserId', 'participantIds',
-            'status', 'createdAt', 'respondedAt'
-          ])
-          && friendship.keys().hasOnly([
+      return hasExactly(friendship, [
             'requestId', 'senderUserId', 'recipientUserId', 'participantIds',
             'status', 'createdAt', 'respondedAt'
           ])
@@ -283,10 +275,7 @@ service cloud.firestore {
         // Public profiles contain no raw email address.
         match /users/{userId} {
           function validProfile(data) {
-            return data.keys().hasAll([
-                  'uid', 'displayName', 'nameKey', 'photoUrl', 'updatedAt'
-                ])
-                && data.keys().hasOnly([
+            return hasExactly(data, [
                   'uid', 'displayName', 'nameKey', 'photoUrl', 'updatedAt'
                 ])
                 && data.uid == userId
@@ -357,8 +346,7 @@ service cloud.firestore {
           }
 
           function validLookup(data) {
-            return data.keys().hasAll(['uid'])
-                && data.keys().hasOnly(['uid'])
+            return hasExactly(data, ['uid'])
                 && data.uid == request.auth.uid;
           }
 
