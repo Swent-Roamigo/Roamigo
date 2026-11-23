@@ -17,6 +17,7 @@ import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.trip.atZone
 import com.swent.roamigo.model.trip.isCompletedOn
+import com.swent.roamigo.model.trip.toDomainInstant
 import com.swent.roamigo.model.trip.toLocalDate
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
@@ -352,7 +353,8 @@ internal fun selectNextActivity(
     activities
         .mapNotNull { activity -> activity.startTime?.let { start -> activity to start } }
         .filter { (activity, start) ->
-          activity.activityType == ActivityType.ACCEPTED && !start.atZone(now.zone).isBefore(now)
+          activity.activityType == ActivityType.ACCEPTED &&
+              !start.toDomainInstant().isBefore(now.toInstant())
         }
         .minByOrNull { (_, start) -> start }
         ?.first
