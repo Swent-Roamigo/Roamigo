@@ -49,7 +49,7 @@ WIKI_DIR=$(mktemp -d)
 trap 'rm -rf "$WIKI_DIR"' EXIT
 export WIKI_DIR MILESTONE_DEADLINES="TEST1=2030-01-17T23:59:00+01:00"
 export REPO_URL=https://github.com/o/r RUN_URL=https://github.com/o/r/actions/runs/7 RUN_NUMBER=30
-export COMMIT_SHA=abcdef1234567 ARTIFACT_NAME=roamigo-abcdef1.apk ARTIFACT_URL=https://github.com/o/r/a/9
+export SHORT_SHA=abcdef1 ARTIFACT_NAME=roamigo-abcdef1.apk ARTIFACT_URL=https://github.com/o/r/a/9
 
 RUN_CREATED_AT=2030-01-17T20:00:00Z bash "$script" > /dev/null
 page="$WIKI_DIR/Milestone-TEST1-—-APK.md"
