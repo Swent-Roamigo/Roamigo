@@ -27,6 +27,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -108,6 +110,103 @@ class ActivityRepositoryFirestoreTest {
     assertEquals("ACCEPTED", writes.single()["activityType"])
     assertEquals("alice", writes.single()["createdByUserId"])
     assertEquals("Visit EPFL", writes.single()["name"])
+  }
+
+  @Test
+  fun createSuggestion_writesAnUnscheduledSuggestionWithRepositoryMetadata() = runTest {
+    val before = Timestamp.now()
+    val created =
+        repository.createSuggestion(
+            "trip-1",
+            "activity-1",
+            draft.copy(description = null, startTime = null, endTime = null),
+        )
+
+    assertEquals("activity-1", created.uid)
+    assertEquals("trip-1", created.tripId)
+    assertEquals(ActivityType.SUGGESTION, created.activityType)
+    assertEquals("alice", created.createdByUserId)
+    assertTrue(created.creationTime >= before && created.creationTime <= Timestamp.now())
+    assertNull(created.startTime)
+    assertNull(created.endTime)
+    assertNull(created.description)
+    assertEquals(created.toFirestoreData(), writes.single())
+  }
+
+  @Test
+  fun createSuggestion_retriesReturnTheOriginalAndRejectAnotherAuthor() = runTest {
+    val first = repository.createSuggestion("trip-1", "activity-1", draft)
+    stored = first
+
+    assertEquals(first, repository.createSuggestion("trip-1", "activity-1", draft))
+    assertEquals(
+        first,
+        repository.createSuggestion("trip-1", "activity-1", draft.copy(name = "Changed")),
+    )
+
+    userId = "bob"
+    val error = runCatching { repository.createSuggestion("trip-1", "activity-1", draft) }
+    assertTrue(error.exceptionOrNull() is ActivityCreationException.PermissionDenied)
+    assertEquals(first.toFirestoreData(), writes.single())
+  }
+
+  @Test
+  fun createActivity_rejectsAnExistingSuggestionByTheSameAuthor() = runTest {
+    stored =
+        draft
+            .copy(startTime = null, endTime = null)
+            .toActivity("activity-1", "trip-1", "alice", Timestamp(900, 0), ActivityType.SUGGESTION)
+
+    val error = runCatching { repository.createActivity("trip-1", "activity-1", draft) }
+
+    val conflict = error.exceptionOrNull() as ActivityCreationException.TypeConflict
+    assertEquals(ActivityType.ACCEPTED, conflict.requested)
+    assertEquals(ActivityType.SUGGESTION, conflict.existing)
+    assertTrue(writes.isEmpty())
+  }
+
+  @Test
+  fun createSuggestion_rejectsAnExistingAcceptedActivityByTheSameAuthor() = runTest {
+    stored = draft.toActivity("activity-1", "trip-1", "alice", Timestamp(900, 0))
+
+    val error = runCatching { repository.createSuggestion("trip-1", "activity-1", draft) }
+
+    val conflict = error.exceptionOrNull() as ActivityCreationException.TypeConflict
+    assertEquals(ActivityType.SUGGESTION, conflict.requested)
+    assertEquals(ActivityType.ACCEPTED, conflict.existing)
+    assertTrue(writes.isEmpty())
+  }
+
+  @Test
+  fun createSuggestion_validatesBeforeStartingATransaction() = runTest {
+    val invalid =
+        listOf(
+            draft.copy(startTime = null) to ActivityDraftError.EndWithoutStart,
+            draft.copy(endTime = draft.startTime!!.minusSeconds(1)) to
+                ActivityDraftError.EndBeforeStart,
+            draft.copy(name = " ") to ActivityDraftError.BlankName,
+            draft.copy(location = draft.location.copy(latitude = 91.0)) to
+                ActivityDraftError.InvalidLocationCoordinates,
+        )
+
+    invalid.forEach { (invalidDraft, expected) ->
+      val result = runCatching { repository.createSuggestion("trip-1", "activity-1", invalidDraft) }
+      assertEquals(
+          listOf(expected),
+          (result.exceptionOrNull() as ActivityCreationException.Validation).errors,
+      )
+    }
+    verify(db, never()).runTransaction(any<Transaction.Function<Any?>>())
+  }
+
+  @Test
+  fun createSuggestion_propagatesCancellation() = runTest {
+    val cancellation = CancellationException("cancelled")
+    transactionFailure = cancellation
+
+    val error = runCatching { repository.createSuggestion("trip-1", "activity-1", draft) }
+
+    assertSame(cancellation, error.exceptionOrNull())
   }
 
   @Test
@@ -220,6 +319,10 @@ class ActivityRepositoryFirestoreTest {
   @Test
   fun observe_emitsEveryListSnapshotMappedFromItsDocuments() = runTest {
     val activity = draft.toActivity("activity-1", "trip-1", "alice", Timestamp(900, 0))
+    val suggestion =
+        repository
+            .createSuggestion("trip-1", "activity-1", draft.copy(startTime = null, endTime = null))
+            .copy(uid = "suggestion-1")
     val emitted = mutableListOf<List<Activity>>()
     val job =
         launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -227,9 +330,10 @@ class ActivityRepositoryFirestoreTest {
         }
 
     listener!!.onEvent(querySnapshotOf(listOf(activity)), null)
+    listener!!.onEvent(querySnapshotOf(listOf(activity, suggestion)), null)
     listener!!.onEvent(querySnapshotOf(emptyList()), null)
 
-    assertEquals(listOf(listOf(activity), emptyList()), emitted)
+    assertEquals(listOf(listOf(activity), listOf(activity, suggestion), emptyList()), emitted)
     job.cancel()
     verify(registration).remove()
   }
