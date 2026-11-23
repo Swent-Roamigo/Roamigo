@@ -2,12 +2,10 @@
 package com.swent.roamigo.model.authentication
 
 import android.os.Bundle
-import android.util.Base64
 import androidx.credentials.CustomCredential
 import androidx.credentials.PasswordCredential
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.FirebaseAuth
@@ -43,15 +41,6 @@ class AuthRepositoryFirebaseIntegrationTest {
   private val testEmail = "auth-emulator@example.test"
   private val testName = "Roamigo Emulator User"
   private val testPhotoUrl = "https://example.test/profile.png"
-  private val googleIdToken =
-      listOf(
-              encodeJwtSegment("""{"alg":"RS256","typ":"JWT"}"""),
-              encodeJwtSegment(
-                  """{"iss":"https://accounts.google.com","sub":"roamigo-emulator-user","email":"$testEmail","email_verified":true,"name":"$testName","picture":"$testPhotoUrl"}"""
-              ),
-              "c2lnbmF0dXJl",
-          )
-          .joinToString(".")
 
   @Before
   fun setUp() {
@@ -110,11 +99,5 @@ class AuthRepositoryFirebaseIntegrationTest {
   }
 
   private fun googleCredential() =
-      GoogleIdTokenCredential.Builder().setId(testEmail).setIdToken(googleIdToken).build()
-
-  private fun encodeJwtSegment(value: String) =
-      Base64.encodeToString(
-          value.toByteArray(Charsets.UTF_8),
-          Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP,
-      )
+      emulatorGoogleCredential("roamigo-emulator-user", testEmail, testName, testPhotoUrl)
 }
