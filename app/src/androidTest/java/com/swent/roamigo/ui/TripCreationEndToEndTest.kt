@@ -122,7 +122,7 @@ class TripCreationEndToEndTest {
     val zone = ZoneId.systemDefault()
     composeRule.setContent {
       RoamigoTheme {
-        RoamigoApp(
+        TestRoamigoApp(
             friendRepository = FriendRepositoryFirestore(db, auth),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),

@@ -41,7 +41,6 @@ import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.InfoRow
-import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.Ochre
 import com.swent.roamigo.ui.theme.Paper
@@ -153,16 +152,12 @@ fun ProfileScreen(
             R.drawable.ic_user,
             stringResource(R.string.profile_display_name),
             state.user.displayName,
-        ) {
-          EditAction(stringResource(R.string.profile_edit))
-        }
+        )
         InfoRow(
             R.drawable.ic_camera,
             stringResource(R.string.profile_picture),
             stringResource(R.string.profile_picture_description),
-        ) {
-          EditAction(stringResource(R.string.profile_change))
-        }
+        )
         InfoRow(
             R.drawable.ic_users,
             stringResource(R.string.profile_friends),
@@ -223,11 +218,11 @@ fun ProfileScreen(
 @Composable
 private fun EditAction(
     label: String,
-    onClick: () -> Unit = rememberNotImplementedAction(),
+    onClick: () -> Unit,
 ) {
   TextButton(
       onClick = onClick,
-      modifier = Modifier.markNotImplemented(onClick).testTag(C.Tag.profile_action),
+      modifier = Modifier.testTag(C.Tag.profile_action),
   ) {
     Text(label)
   }
