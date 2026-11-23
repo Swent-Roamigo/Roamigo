@@ -492,6 +492,7 @@
     <string name="trip_add_vote">Start a vote</string>
     <string name="trip_add_vote_hint">Ask the group to decide between options</string>
     <string name="trip_members_title">Members</string>
+    <string name="trip_members_invite">Invite</string>
     <string name="trip_members_you">%1$s (you)</string>
     <string name="trip_members_organiser">Organiser</string>
     <string name="trip_members_member">Member</string>

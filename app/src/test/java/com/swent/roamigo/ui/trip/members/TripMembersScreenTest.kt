@@ -2,6 +2,7 @@
 package com.swent.roamigo.ui.trip.members
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -19,6 +20,7 @@ class TripMembersScreenTest {
   @get:Rule val composeRule = createComposeRule()
   private var backs = 0
   private var retries = 0
+  private var invites = 0
 
   private fun show(state: TripMembersUiState) {
     composeRule.setContent {
@@ -28,6 +30,7 @@ class TripMembersScreenTest {
             currentUserId = "alex",
             onBack = { backs++ },
             onRetry = { retries++ },
+            onInviteClick = { invites++ },
         )
       }
     }
@@ -76,5 +79,14 @@ class TripMembersScreenTest {
       assertEquals(1, retries)
       assertEquals(1, backs)
     }
+  }
+
+  @Test
+  fun inviteIsOfferedWhileMembersLoadAndIsForwardedToTheCaller() {
+    show(TripMembersUiState.Loading)
+
+    composeRule.onNodeWithTag(C.Tag.trip_members_invite).assertTextEquals("Invite").performClick()
+
+    composeRule.runOnIdle { assertEquals(1, invites) }
   }
 }
