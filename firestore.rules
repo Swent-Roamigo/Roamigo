@@ -101,6 +101,7 @@ service cloud.firestore {
 
     // Any trip member can create either type.
     // The author is the requester, and the ID and trip come from the path.
+    // The field list mirrors Activity.toFirestoreData() in model/trip/TripRepositoryFirestore.kt.
     function isValidNewActivity(activity) {
       return hasExactly(activity, [
             'activityType', 'name', 'description', 'location', 'startTime', 'endTime',
@@ -331,12 +332,7 @@ service cloud.firestore {
 
           allow create, update: if signedIn()
               && request.auth.uid == userId
-              && request.resource.data.keys().hasAll([
-                  'emailHash', 'updatedAt'
-              ])
-              && request.resource.data.keys().hasOnly([
-                  'emailHash', 'updatedAt'
-              ])
+              && hasExactly(request.resource.data, ['emailHash', 'updatedAt'])
               && request.resource.data.emailHash == verifiedEmailHash()
               && request.resource.data.updatedAt == request.time;
 
@@ -412,8 +408,7 @@ service cloud.firestore {
       match /members/{userId} {
         allow create: if signedIn()
             && userId == request.auth.uid
-            && request.resource.data.keys().hasAll(['userId', 'role', 'joinTime'])
-            && request.resource.data.keys().hasOnly(['userId', 'role', 'joinTime'])
+            && hasExactly(request.resource.data, ['userId', 'role', 'joinTime'])
             && request.resource.data.userId == userId
             && request.resource.data.role == 'OWNER'
             && request.resource.data.joinTime is timestamp
