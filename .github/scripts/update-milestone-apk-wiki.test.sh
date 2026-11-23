@@ -4,6 +4,12 @@
 # Tests for update-milestone-apk-wiki.sh. Run with: bash .github/scripts/update-milestone-apk-wiki.test.sh
 set -euo pipefail
 
+# The script runs on the Ubuntu CI runner and relies on GNU date (`date -d`).
+if ! date -d @0 > /dev/null 2>&1; then
+  echo "These tests need GNU date: run them on Linux or in CI (macOS ships BSD date)."
+  exit 1
+fi
+
 script="$(dirname "$0")/update-milestone-apk-wiki.sh"
 # shellcheck source=update-milestone-apk-wiki.sh
 source "$script"
