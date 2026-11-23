@@ -1,6 +1,7 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui
 
+import android.content.Context
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assert
@@ -17,7 +18,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.swent.roamigo.R
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.profile.ProfileScreen
@@ -38,6 +41,8 @@ class ProfileScreenTest {
       modifier: Modifier = Modifier,
       onTripsClick: () -> Unit = {},
       onFriendsClick: () -> Unit = {},
+      onEditNameClick: (() -> Unit)? = null,
+      onChangePictureClick: (() -> Unit)? = null,
   ) {
     composeRule.setContent {
       RoamigoTheme {
@@ -46,6 +51,8 @@ class ProfileScreenTest {
             onTripsClick = onTripsClick,
             onFriendsClick = onFriendsClick,
             modifier = modifier,
+            onEditNameClick = onEditNameClick,
+            onChangePictureClick = onChangePictureClick,
         )
       }
     }
@@ -124,19 +131,12 @@ class ProfileScreenTest {
   fun showsEditAndChangeOnlyWhenTheirActionsAreProvided() {
     var edits = 0
     var changes = 0
-    composeRule.setContent {
-      RoamigoTheme {
-        ProfileScreen(
-            state,
-            onEditNameClick = { edits++ },
-            onChangePictureClick = { changes++ },
-        )
-      }
-    }
+    show(onEditNameClick = { edits++ }, onChangePictureClick = { changes++ })
+    val context = ApplicationProvider.getApplicationContext<Context>()
 
     composeRule.onAllNodesWithTag(C.Tag.profile_action).assertCountEquals(3)
-    composeRule.onNodeWithText("Edit").performClick()
-    composeRule.onNodeWithText("Change").performClick()
+    composeRule.onNodeWithText(context.getString(R.string.profile_edit)).performClick()
+    composeRule.onNodeWithText(context.getString(R.string.profile_change)).performClick()
     assertEquals(1, edits)
     assertEquals(1, changes)
   }
