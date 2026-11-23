@@ -2,6 +2,7 @@
 package com.swent.roamigo.ui.trip.activity
 
 import androidx.lifecycle.SavedStateHandle
+import com.google.firebase.Timestamp
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
@@ -83,6 +84,7 @@ class ActivityFormViewModelTest {
 
   private fun ActivityFormViewModel.fillValid() {
     updateName("Dinner")
+    updateTime(LocalTime.NOON)
     updatePlace(place)
   }
 
@@ -118,7 +120,7 @@ class ActivityFormViewModelTest {
     assertEquals("Dinner", created.name)
     assertEquals("Book a table", created.description)
     assertEquals(place, created.location)
-    assertEquals(Instant.parse("2026-10-13T19:30:00Z").epochSecond, created.startTime.seconds)
+    assertEquals(Instant.parse("2026-10-13T19:30:00Z").epochSecond, created.startTime?.seconds)
     assertNull(created.endTime)
     assertEquals(ActivityType.ACCEPTED, created.activityType)
     assertTrue(form.uiState.value.isSaved)
@@ -128,15 +130,36 @@ class ActivityFormViewModelTest {
   }
 
   @Test
-  fun activityWithoutTimeStartsAtTheBeginningOfItsDayInTheGivenZone() = runTest {
+  fun savingWithoutTimeShowsTheMissingTimeErrorAndStoresNothing() = runTest {
     val repository = FakeActivityRepository()
     val form = createForm(repository, zone = ZoneId.of("Europe/Lisbon"))
     form.fillValid()
+    form.updateTime(null)
     form.save()
     advanceUntilIdle()
 
-    val start = repository.stored().single().startTime.seconds
-    assertEquals(Instant.parse("2026-10-12T23:00:00Z").epochSecond, start)
+    assertEquals(listOf(ActivityFormError.MISSING_TIME), form.uiState.value.errors)
+    assertEquals(ActivityFormField.TIME, ActivityFormError.MISSING_TIME.field)
+    assertTrue(repository.stored().isEmpty())
+    assertNull(form.consumeResult())
+    assertTrue(form.uiState.value.canSave)
+  }
+
+  @Test
+  fun choosingATimeAfterTheMissingTimeErrorClearsItAndSaves() = runTest {
+    val repository = FakeActivityRepository()
+    val form = createForm(repository, zone = ZoneId.of("Europe/Lisbon"))
+    form.fillValid()
+    form.updateTime(null)
+    form.save()
+    form.updateTime(LocalTime.of(9, 0))
+    assertTrue(form.uiState.value.errors.isEmpty())
+    form.save()
+    advanceUntilIdle()
+
+    // Lisbon is on UTC+1 in October, so 09:00 local time is 08:00 UTC.
+    val start = repository.stored().single().startTime?.seconds
+    assertEquals(Instant.parse("2026-10-13T08:00:00Z").epochSecond, start)
   }
 
   @Test
@@ -156,8 +179,9 @@ class ActivityFormViewModelTest {
       form.save()
       advanceUntilIdle()
 
-      val start = repository.stored().single().startTime.seconds
-      assertEquals(Instant.parse("2026-10-12T15:00:00Z").epochSecond, start)
+      // Noon in Tokyo (UTC+9).
+      val start = repository.stored().single().startTime?.seconds
+      assertEquals(Instant.parse("2026-10-13T03:00:00Z").epochSecond, start)
     } finally {
       TimeZone.setDefault(deviceZone)
     }
@@ -181,6 +205,7 @@ class ActivityFormViewModelTest {
     val repository = FakeActivityRepository()
     val form = createForm(repository)
     form.updateName("   ")
+    form.updateTime(LocalTime.NOON)
     form.updatePlace(place)
     form.save()
     advanceUntilIdle()
@@ -199,6 +224,7 @@ class ActivityFormViewModelTest {
     val repository = FakeActivityRepository()
     val form = createForm(repository)
     form.updateName("Dinner")
+    form.updateTime(LocalTime.NOON)
     form.save()
     advanceUntilIdle()
 
@@ -217,6 +243,7 @@ class ActivityFormViewModelTest {
             ActivityFormError.NAME_TOO_LONG,
             ActivityFormError.DESCRIPTION_TOO_LONG,
             ActivityFormError.MISSING_PLACE,
+            ActivityFormError.MISSING_TIME,
         ),
         form.uiState.value.errors,
     )
@@ -230,6 +257,7 @@ class ActivityFormViewModelTest {
   fun invalidPlaceIsReportedAsInvalidNotMissing() {
     val form = createForm()
     form.updateName("Dinner")
+    form.updateTime(LocalTime.NOON)
     form.updatePlace(TripLocation(120.0, 0.0, "Nowhere"))
     form.save()
     assertEquals(listOf(ActivityFormError.INVALID_PLACE), form.uiState.value.errors)
@@ -238,6 +266,7 @@ class ActivityFormViewModelTest {
   @Test
   fun errorsAreHiddenUntilTheFirstSaveAttemptThenFollowChanges() {
     val form = createForm()
+    form.updateTime(LocalTime.NOON)
     form.updateName("")
     assertTrue(form.uiState.value.errors.isEmpty())
 
@@ -632,7 +661,7 @@ class ActivityFormViewModelTest {
     val draft = fields.toDraft(zone, activity)!!
     assertEquals(Instant.parse("2026-10-14T22:00:00Z"), draft.startTime)
     assertEquals(Instant.parse("2026-10-15T00:00:00Z"), draft.endTime)
-    assertTrue(draft.validate().isEmpty())
+    assertTrue(draft.validate(startRequired = true).isEmpty())
   }
 
   @Test
@@ -640,6 +669,42 @@ class ActivityFormViewModelTest {
     val draft =
         ActivityFormFields(name = "x", date = day, place = place).toDraft(zone, storedActivity())
     assertNull(draft!!.endTime)
+  }
+
+  @Test
+  fun formWithoutTimeHasADraftWithoutStartInsteadOfMidnight() {
+    val draft = ActivityFormFields(name = "x", date = day, place = place).toDraft(zone, null)!!
+    assertNull(draft.startTime)
+    assertNull(draft.endTime)
+  }
+
+  @Test
+  fun unchangedStartInADaylightSavingOverlapIsNotMovedToTheOtherOffset() {
+    val zurich = ZoneId.of("Europe/Zurich")
+    // 02:30 happens twice in Zurich on 25 October 2026; this is the second time, in winter time.
+    val start = Instant.parse("2026-10-25T01:30:00Z")
+    val activity = storedActivity().copy(startTime = Timestamp(start.epochSecond, 0))
+    val form =
+        ActivityFormViewModel(
+            FakeActivityRepository(listOf(activity)),
+            ActivityFormMode.Edit(TRIP_ID, activity),
+            trip,
+            SavedStateHandle(),
+            zurich,
+        )
+    val fields = form.uiState.value.fields
+
+    assertEquals(LocalTime.of(2, 30), fields.time)
+    assertEquals(start, fields.toDraft(zurich, activity)!!.startTime)
+  }
+
+  @Test
+  fun clearingTheTimeOfAnEditedActivityShowsTheMissingTimeError() {
+    val form = editForm()
+    form.updateTime(null)
+    form.save()
+    assertEquals(listOf(ActivityFormError.MISSING_TIME), form.uiState.value.errors)
+    assertNull(form.consumeResult())
   }
 
   @Test

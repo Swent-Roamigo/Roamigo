@@ -180,6 +180,18 @@ class TripsViewModelTest {
   }
 
   @Test
+  fun selectNextActivityIgnoresActivitiesWithoutStartTime() {
+    val now = ZonedDateTime.parse("2026-10-08T10:00:00Z")
+    val unscheduledSuggestion =
+        activity(uid = "unscheduled", type = ActivityType.SUGGESTION, start = null)
+    val accepted =
+        activity(uid = "accepted", type = ActivityType.ACCEPTED, start = "2026-10-09T09:00:00Z")
+
+    assertNull(selectNextActivity(listOf(unscheduledSuggestion), now))
+    assertEquals(accepted, selectNextActivity(listOf(unscheduledSuggestion, accepted), now))
+  }
+
+  @Test
   fun selectOtherTripsFiltersAndSortsTrips() {
     val now = ZonedDateTime.parse("2026-10-08T14:00:00Z")
 
@@ -1067,7 +1079,7 @@ class TripsViewModelTest {
       tripId: String = "trip",
       name: String = uid,
       type: ActivityType,
-      start: String,
+      start: String?,
   ): Activity =
       Activity(
           uid = uid,
@@ -1076,7 +1088,7 @@ class TripsViewModelTest {
           name = name,
           description = null,
           location = location,
-          startTime = timestamp(start),
+          startTime = start?.let(::timestamp),
           endTime = null,
           createdByUserId = alex.uid,
           creationTime = timestamp("2026-10-01T10:00:00Z"),

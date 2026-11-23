@@ -28,6 +28,7 @@ import com.swent.roamigo.ui.placepicker.PlacePickerTestTags
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.activity.ActivityFormTestTags
 import com.swent.roamigo.ui.trip.activity.ActivityFormTrip
+import com.swent.roamigo.ui.trip.activity.pickNoon
 import com.swent.roamigo.ui.trip.activity.pickPlace
 import com.swent.roamigo.ui.trip.activity.waitForTag
 import java.time.LocalDate
@@ -106,6 +107,7 @@ class ActivityFormNavigationTest {
   fun savedActivityIsStoredInTheTripAndTheTripIsShownAgain() {
     openActivityForm()
     composeRule.onNodeWithTag(ActivityFormTestTags.NAME).performTextInput("Dinner")
+    composeRule.pickNoon()
     composeRule.pickPlace(candidate)
     composeRule.onNodeWithTag(ActivityFormTestTags.SUBMIT).performClick()
 

@@ -35,7 +35,20 @@ class FakeActivityRepositoryTest {
     assertEquals(ActivityType.ACCEPTED, created.activityType)
     assertEquals("user-1", created.createdByUserId)
     assertEquals(draft.name, created.name)
-    assertEquals(draft.startTime.epochSecond, created.startTime.seconds)
+    assertEquals(draft.startTime?.epochSecond, created.startTime?.seconds)
+  }
+
+  @Test
+  fun activityWithoutStartTimeIsRejectedAndNotStored() = runBlocking {
+    val repository = FakeActivityRepository()
+
+    val error = runCatching {
+      repository.createActivity("trip-1", "activity-1", draft.copy(startTime = null))
+    }
+
+    val validation = error.exceptionOrNull() as ActivityCreationException.Validation
+    assertEquals(listOf(ActivityDraftError.MissingStartTime), validation.errors)
+    assertTrue(repository.observeActivities("trip-1").first().isEmpty())
   }
 
   @Test

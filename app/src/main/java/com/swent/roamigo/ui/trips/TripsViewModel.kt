@@ -334,7 +334,8 @@ internal fun selectMainTrip(
 /**
  * Selects the closest accepted activity that has not started yet.
  *
- * Suggested activities and accepted activities in the past are excluded.
+ * Suggested activities, activities without a start time, and accepted activities in the past are
+ * excluded.
  *
  * @param activities the activities belonging to the highlighted trip.
  * @param now the current date and time used to determine whether an activity is upcoming.
@@ -345,11 +346,11 @@ internal fun selectNextActivity(
     now: ZonedDateTime,
 ): Activity? =
     activities
-        .filter { activity ->
-          activity.activityType == ActivityType.ACCEPTED &&
-              !activity.startTime.toDate().toInstant().atZone(now.zone).isBefore(now)
-        }
-        .minByOrNull { activity -> activity.startTime.seconds }
+        .filter { activity -> activity.activityType == ActivityType.ACCEPTED }
+        .mapNotNull { activity -> activity.startTime?.let { start -> activity to start } }
+        .filter { (_, start) -> !start.toDate().toInstant().isBefore(now.toInstant()) }
+        .minByOrNull { (_, start) -> start }
+        ?.first
 
 /**
  * Selects the remaining ongoing and upcoming trips that are not currently highlighted.
@@ -469,14 +470,14 @@ private fun Trip.toOtherTripUiModel(
  *
  * @param trip the trip used to derive the activity's trip-day number.
  * @param zoneId the time zone used when formatting the activity date and time.
- * @return the presentation model for the activity.
+ * @return the presentation model for the activity, or `null` when it has no start time to show.
  * @receiver the activity being converted.
  */
 private fun Activity.toUiModel(
     trip: Trip,
     zoneId: ZoneId,
-): ActivityCardUiModel {
-  val activityDateTime = startTime.toDate().toInstant().atZone(zoneId)
+): ActivityCardUiModel? {
+  val activityDateTime = startTime?.toDate()?.toInstant()?.atZone(zoneId) ?: return null
 
   val tripStartDate = trip.startDate.toDate().toInstant().atZone(zoneId).toLocalDate()
 
