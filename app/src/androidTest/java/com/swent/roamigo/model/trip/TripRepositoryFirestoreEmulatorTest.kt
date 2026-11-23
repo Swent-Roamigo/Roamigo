@@ -270,6 +270,35 @@ class TripRepositoryFirestoreEmulatorTest {
   }
 
   @Test
+  fun directWriteWithAnUnknownOrMissingFieldIsDenied() = runBlocking {
+    val data = tripOwnedBy(alice).toFirestoreData()
+
+    listOf(data + ("extra" to true), data - "description").forEach { fields ->
+      assertPermissionDenied { alice.db.collection("trips").document(tripId).set(fields).await() }
+    }
+  }
+
+  @Test
+  fun ownerMemberWithAnUnknownOrMissingFieldIsDenied() = runBlocking {
+    val member = ownerMemberData(alice.userId)
+
+    listOf(member + ("extra" to true), member - "joinTime").forEach { fields ->
+      assertPermissionDenied {
+        alice.db
+            .batch()
+            .set(
+                alice.db.collection("trips").document(tripId),
+                tripOwnedBy(alice).toFirestoreData(),
+            )
+            .set(memberDocument(alice, tripId), fields)
+            .commit()
+            .await()
+      }
+    }
+    assertTrue(alice.repository.getTrips().none { it.uid == tripId })
+  }
+
+  @Test
   fun memberCannotBeWrittenWithoutItsTrip() = runBlocking {
     assertPermissionDenied {
       memberDocument(alice, tripId).set(ownerMemberData(alice.userId)).await()
