@@ -6,6 +6,7 @@ import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.Transaction
 import com.swent.roamigo.model.toFirebaseTimestamp
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
@@ -77,7 +78,7 @@ class ActivityRepositoryFirestore(
       suggestionId: String,
       draft: ActivityDraft,
   ): SuggestionWithVote {
-    validateSuggestionDocumentId(tripId)
+    validateFirestoreDocumentId(tripId)
     val voteId = initialSuggestionVoteId(suggestionId)
     val authorId = currentUserId() ?: throw ActivityCreationException.NotAuthenticated()
     val trip = db.collection("trips").document(tripId)
@@ -110,32 +111,38 @@ class ActivityRepositoryFirestore(
             }
             .await()
       } catch (error: FirebaseFirestoreException) {
-        if (
-            error.code != FirebaseFirestoreException.Code.PERMISSION_DENIED ||
-                !stagedPair.get() ||
-                currentUserId() != authorId
-        )
-            throw error
-
-        // The Android SDK can get a rules denial instead of a retryable conflict when another
-        // request creates the pair after both reads. A read-only transaction verifies the stored
-        // versions against the server without writing or accepting cached/pending local data.
-        val recovered =
-            try {
-              db.runTransaction { transaction ->
-                    readPair(transaction.get(activityRef), transaction.get(voteRef))
-                  }
-                  .await()
-                  .result
-                  .getOrNull()
-            } catch (_: FirebaseFirestoreException) {
-              throw error
-            }
-        if (recovered == null || currentUserId() != authorId) throw error
-        PairCreationOutcome(Result.success(recovered))
+        recoverPairAfterDenial(error, stagedPair.get(), authorId) { transaction ->
+          readPair(transaction.get(activityRef), transaction.get(voteRef))
+        }
       }
     }
     return outcome.result.getOrThrow()
+  }
+
+  private suspend fun recoverPairAfterDenial(
+      error: FirebaseFirestoreException,
+      stagedPair: Boolean,
+      authorId: String,
+      readPair: Transaction.Function<PairCreationOutcome>,
+  ): PairCreationOutcome {
+    if (
+        error.code != FirebaseFirestoreException.Code.PERMISSION_DENIED ||
+            !stagedPair ||
+            currentUserId() != authorId
+    ) {
+      throw error
+    }
+
+    // A stale optimistic commit can fail rules after another request creates the pair.
+    // A read-only transaction verifies both server versions without using pending local writes.
+    val recovered =
+        try {
+          db.runTransaction(readPair).await().result.getOrNull()
+        } catch (_: FirebaseFirestoreException) {
+          throw error
+        }
+    if (recovered == null || currentUserId() != authorId) throw error
+    return PairCreationOutcome(Result.success(recovered))
   }
 
   private fun readStoredPair(
@@ -153,6 +160,7 @@ class ActivityRepositoryFirestore(
             else null
         val storedVote =
             if (vote.exists()) {
+              // toVote uses the snapshot ID and caller's trip ID, so check the stored fields.
               val data = vote.requireData()
               if (data["uid"] != voteId || data["tripId"] != tripId) {
                 throw ActivityCreationException.PairConflict()

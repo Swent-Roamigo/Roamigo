@@ -38,11 +38,9 @@ private val suggestionOptions = listOf(VoteOption("YES", "Yes"), VoteOption("NO"
 
 /** The initial vote ID is the literal prefix `suggestion-` followed by the activity document ID. */
 fun initialSuggestionVoteId(suggestionId: String): String =
-    validateSuggestionDocumentId(
-        SUGGESTION_VOTE_PREFIX + validateSuggestionDocumentId(suggestionId)
-    )
+    validateFirestoreDocumentId(SUGGESTION_VOTE_PREFIX + validateFirestoreDocumentId(suggestionId))
 
-internal fun validateSuggestionDocumentId(id: String): String {
+internal fun validateFirestoreDocumentId(id: String): String {
   validDocumentId(id)
   require(
       id.toByteArray(Charsets.UTF_8).size <= 1500 && !(id.startsWith("__") && id.endsWith("__"))
@@ -101,27 +99,29 @@ internal fun storedSuggestionPair(
     throw ActivityCreationException.PermissionDenied()
   }
   activity?.requireCreationMatch(authorId, ActivityType.SUGGESTION)
-  if (
-      activity == null ||
-          vote == null ||
-          activity.uid != suggestionId ||
-          activity.tripId != tripId ||
-          activity.linkedVoteId != voteId ||
-          vote.uid != voteId ||
-          vote.tripId != tripId ||
-          vote.suggestionId != suggestionId ||
-          vote.parentVoteId != null ||
-          vote.round != 1 ||
-          vote.question != activity.name ||
-          vote.options != suggestionOptions ||
-          vote.creationTime != activity.creationTime ||
-          (vote.status == VoteStatus.OPEN &&
-              (vote.closingTime != null ||
-                  vote.winningOptionId != null ||
-                  vote.nextRoundVoteId != null ||
-                  vote.resolvedOptionId != null ||
-                  vote.resolvedByUserId != null))
-  ) {
+  if (activity == null || vote == null) throw ActivityCreationException.PairConflict()
+
+  val linksMatch =
+      activity.uid == suggestionId &&
+          activity.tripId == tripId &&
+          activity.linkedVoteId == voteId &&
+          vote.uid == voteId &&
+          vote.tripId == tripId &&
+          vote.suggestionId == suggestionId
+  val initialVoteMatches =
+      vote.parentVoteId == null &&
+          vote.round == 1 &&
+          vote.question == activity.name &&
+          vote.options == suggestionOptions &&
+          vote.creationTime == activity.creationTime
+  val openVoteHasNoOutcome =
+      vote.status != VoteStatus.OPEN ||
+          (vote.closingTime == null &&
+              vote.winningOptionId == null &&
+              vote.nextRoundVoteId == null &&
+              vote.resolvedOptionId == null &&
+              vote.resolvedByUserId == null)
+  if (!linksMatch || !initialVoteMatches || !openVoteHasNoOutcome) {
     throw ActivityCreationException.PairConflict()
   }
   val storedDraft =
