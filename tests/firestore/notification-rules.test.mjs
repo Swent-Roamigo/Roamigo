@@ -86,6 +86,38 @@ test('recipient can list their newest notifications, retrieve one, and mark it r
   assert.deepEqual(afterRead.fields, {...fields, ...markRead});
 });
 
+test('a bounded inbox query returns only the newest 50 entries', async () => {
+  const reader = await account();
+  const parent = `users/${reader.uid}`;
+  const limit = 50;
+  await Promise.all(Array.from({length: limit + 1}, (_, index) =>
+    expectStatus(200, 'PATCH', `${parent}/notifications/entry-${index}`, 'owner', {
+      ...fields,
+      recipientUserId: {stringValue: reader.uid},
+      createdAt: {timestampValue: new Date(Date.UTC(2026, 10, 22, 0, 0, index)).toISOString()},
+    }),
+  ));
+
+  const response = await fetch(`${documents}/${parent}:runQuery`, {
+    method: 'POST',
+    headers: {Authorization: `Bearer ${reader.token}`, 'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{collectionId: 'notifications'}],
+        orderBy: [{field: {fieldPath: 'createdAt'}, direction: 'DESCENDING'}],
+        limit,
+      },
+    }),
+  });
+  const body = await response.text();
+  assert.equal(response.status, 200, body);
+  const rows = JSON.parse(body);
+  assert.deepEqual(
+    rows.map(row => row.document.name.split('/').at(-1)),
+    Array.from({length: limit}, (_, index) => `entry-${limit - index}`),
+  );
+});
+
 test('another user and a signed-out client cannot read or mark an entry', async () => {
   for (const token of [other.token, undefined]) {
     await expectStatus(403, 'GET', entry, token);

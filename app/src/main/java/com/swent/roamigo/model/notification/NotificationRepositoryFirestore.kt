@@ -1,6 +1,7 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.model.notification
 
+import android.util.Log
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
@@ -27,6 +28,9 @@ import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
+private const val INBOX_LIMIT = 50L
+private const val TAG = "NotificationRepository"
+
 /** Reads the inbox and updates read status using the signed-in Firebase session. */
 class NotificationRepositoryFirestore(
     private val db: FirebaseFirestore,
@@ -50,7 +54,9 @@ class NotificationRepositoryFirestore(
     val user = authenticatedUser()
     emitAll(
         snapshots(user)
-            .map { snapshot -> project(snapshot.documents.map { it.toNotification(user.uid) }) }
+            .map { snapshot ->
+              project(snapshot.documents.mapNotNull { it.toNotificationOrNull(user.uid) })
+            }
             .flowOn(dispatcher)
             .takeWhile { auth.currentUser === user }
             .distinctUntilChanged()
@@ -67,18 +73,18 @@ class NotificationRepositoryFirestore(
         return@callbackFlow
       }
       registration =
-          inbox(user.uid).orderBy("createdAt", Query.Direction.DESCENDING).addSnapshotListener(
-              MetadataChanges.INCLUDE
-          ) { snapshot, error ->
-            when {
-              auth.currentUser !== user -> close()
-              error != null -> close(error)
-              snapshot == null -> close(IllegalStateException("Missing notification snapshot"))
-              // A local mark-read may be rejected. Wait for acknowledgment even if only metadata
-              // changes.
-              !snapshot.metadata.hasPendingWrites() -> trySend(snapshot)
-            }
-          }
+          inbox(user.uid)
+              .orderBy("createdAt", Query.Direction.DESCENDING)
+              .limit(INBOX_LIMIT)
+              .addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
+                when {
+                  auth.currentUser !== user -> close()
+                  error != null -> close(error)
+                  snapshot == null -> close(IllegalStateException("Missing notification snapshot"))
+                  // Wait for acknowledgment because a local mark-read may be rejected.
+                  !snapshot.metadata.hasPendingWrites() -> trySend(snapshot)
+                }
+              }
       awaitClose {}
     } finally {
       registration?.remove()
@@ -94,30 +100,44 @@ class NotificationRepositoryFirestore(
       db.collection("users").document(userId).collection("notifications")
 }
 
-private fun DocumentSnapshot.toNotification(userId: String): Notification {
-  val fields = requireNotNull(data) { "Missing notification fields" }
-  require(fields["recipientUserId"] == userId) { "Notification recipient does not match the inbox" }
+private fun DocumentSnapshot.toNotificationOrNull(userId: String): Notification? {
+  val fields = data
+  val recipient = fields?.get("recipientUserId") as? String
+  require(recipient == null || recipient == userId) {
+    "Notification recipient does not match the inbox"
+  }
+  return try {
+    requireNotNull(fields) { "Missing notification fields" }
+    requireNotNull(recipient) { "Missing or invalid notification recipient" }
+    fields.toNotification(id, recipient)
+  } catch (error: IllegalArgumentException) {
+    Log.w(TAG, "Skipping unreadable notification", error)
+    null
+  }
+}
+
+private fun Map<String, Any?>.toNotification(id: String, recipient: String): Notification {
   val event =
-      when (fields["type"]) {
+      when (this["type"]) {
         "FRIEND_REQUEST_RECEIVED" ->
             NotificationEvent.FriendRequestReceived(
-                fields.requiredIdentifier("requestId"),
-                fields.requiredIdentifier("senderUserId"),
+                requiredIdentifier("requestId"),
+                requiredIdentifier("senderUserId"),
             )
         "TRIP_VOTE_CREATED" ->
             NotificationEvent.TripVoteCreated(
-                fields.requiredIdentifier("tripId"),
-                fields.requiredIdentifier("voteId"),
+                requiredIdentifier("tripId"),
+                requiredIdentifier("voteId"),
             )
         else -> throw IllegalArgumentException("Unsupported notification type")
       }
-  val createdAt = requireNotNull(fields["createdAt"] as? Timestamp) { "Invalid creation timestamp" }
+  val createdAt = requireNotNull(this["createdAt"] as? Timestamp) { "Invalid creation timestamp" }
   return Notification(
       uid = validIdentifier(id),
-      recipientUserId = userId,
+      recipientUserId = recipient,
       event = event,
       createdAt = Instant.ofEpochSecond(createdAt.seconds, createdAt.nanoseconds.toLong()),
-      isRead = requireNotNull(fields["isRead"] as? Boolean) { "Invalid notification read status" },
+      isRead = requireNotNull(this["isRead"] as? Boolean) { "Invalid notification read status" },
   )
 }
 

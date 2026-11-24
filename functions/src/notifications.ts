@@ -10,7 +10,10 @@ type NotificationEvent =
 
 const ALREADY_EXISTS = 6; // gRPC status for a document that already exists.
 
-/** Creates one inbox entry for a recipient and event, preserving existing entries on replay. */
+/**
+ * Creates one inbox entry per recipient and event. A deterministic ID and a create-only write
+ * preserve existing entries when a trigger retries after partial delivery.
+ */
 export async function createNotification(
   db: Firestore,
   recipientUserId: string,
