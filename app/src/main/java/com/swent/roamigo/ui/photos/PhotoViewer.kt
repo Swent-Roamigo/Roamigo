@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
@@ -111,7 +112,21 @@ fun PhotoViewer(
       DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, locale)
           .format(Date(photo.takenAtMillis))
 
-  Box(modifier.fillMaxSize().background(Color.Black).testTag(C.Tag.photo_viewer)) {
+  Box(
+      modifier
+          .fillMaxSize()
+          .background(Color.Black)
+          // Callers may draw the viewer over a map; without this, gestures on the photo pass
+          // through to the map and move it.
+          .pointerInput(Unit) {
+            awaitPointerEventScope {
+              while (true) {
+                awaitPointerEvent().changes.forEach { it.consume() }
+              }
+            }
+          }
+          .testTag(C.Tag.photo_viewer)
+  ) {
     TripPhotoImage(
         photo = photo,
         contentDescription = stringResource(R.string.photo_viewer_image_description, dateTime),
