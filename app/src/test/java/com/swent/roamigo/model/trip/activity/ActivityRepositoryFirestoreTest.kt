@@ -60,9 +60,11 @@ class ActivityRepositoryFirestoreTest {
   private var stored: Activity? = null
   private var storedVote: Vote? = null
   private var transactionFailure: Exception? = null
+  private var afterRecoveryRead: (() -> Unit)? = null
   private var commitFailure: (() -> Exception)? = null
   private var listener: EventListener<QuerySnapshot>? = null
-  private val writes = mutableListOf<Map<String, Any?>>()
+  // Recorded set calls are staged mutations, even when the mock commit fails.
+  private val stagedWrites = mutableListOf<Map<String, Any?>>()
 
   private val draft =
       ActivityDraft(
@@ -93,7 +95,7 @@ class ActivityRepositoryFirestoreTest {
     }
     `when`(transaction.get(document)).thenAnswer { snapshot(stored) }
     doAnswer {
-          writes += it.getArgument<Map<String, Any?>>(1)
+          stagedWrites += it.getArgument<Map<String, Any?>>(1)
           transaction
         }
         .`when`(transaction)
@@ -115,6 +117,7 @@ class ActivityRepositoryFirestoreTest {
             commitFailure = null
             return@doAnswer failedTask<Any?>(failCommit())
           }
+          afterRecoveryRead?.invoke()
           successfulTask(result)
         }
         .`when`(db)
@@ -129,10 +132,10 @@ class ActivityRepositoryFirestoreTest {
     assertEquals("trip-1", created.tripId)
     assertEquals(ActivityType.ACCEPTED, created.activityType)
     assertEquals("alice", created.createdByUserId)
-    assertEquals(1, writes.size)
-    assertEquals("ACCEPTED", writes.single()["activityType"])
-    assertEquals("alice", writes.single()["createdByUserId"])
-    assertEquals("Visit EPFL", writes.single()["name"])
+    assertEquals(1, stagedWrites.size)
+    assertEquals("ACCEPTED", stagedWrites.single()["activityType"])
+    assertEquals("alice", stagedWrites.single()["createdByUserId"])
+    assertEquals("Visit EPFL", stagedWrites.single()["name"])
   }
 
   @Test
@@ -169,7 +172,7 @@ class ActivityRepositoryFirestoreTest {
     assertNull(vote.winningOptionId)
     assertNull(vote.resolvedOptionId)
     assertNull(vote.resolvedByUserId)
-    assertEquals(listOf(activity.toFirestoreData(), vote.toVoteFirestoreData()), writes)
+    assertEquals(listOf(activity.toFirestoreData(), vote.toVoteFirestoreData()), stagedWrites)
     val order = org.mockito.Mockito.inOrder(transaction)
     order.verify(transaction).get(document)
     order.verify(transaction).get(voteDocument)
@@ -195,29 +198,43 @@ class ActivityRepositoryFirestoreTest {
     userId = "bob"
     val error = runCatching { repository.createSuggestionWithVote("trip-1", "activity-1", invalid) }
     assertTrue(error.exceptionOrNull() is ActivityCreationException.PermissionDenied)
-    assertEquals(listOf(first.activity.toFirestoreData(), first.vote.toVoteFirestoreData()), writes)
+    assertEquals(
+        listOf(first.activity.toFirestoreData(), first.vote.toVoteFirestoreData()),
+        stagedWrites,
+    )
   }
 
   @Test
   fun createSuggestion_returnsTheStoredClosedVoteEvenAfterARevote() = runTest {
-    val pair = repository.createSuggestionWithVote("trip-1", "activity-1", draft)
+    val timedDraft =
+        draft.copy(
+            startTime = draft.startTime!!.plusNanos(123_456_789),
+            endTime = draft.endTime!!.plusNanos(987_654_321),
+        )
+    val pair = repository.createSuggestionWithVote("trip-1", "activity-1", timedDraft)
     val closed = pair.vote.copy(status = VoteStatus.CLOSED, nextRoundVoteId = "round-2")
     stored = pair.activity
     storedVote = closed
 
-    assertEquals(draft.startTime?.epochSecond, pair.activity.startTime?.seconds)
-    assertEquals(draft.endTime?.epochSecond, pair.activity.endTime?.seconds)
+    assertEquals(
+        Timestamp(timedDraft.startTime!!.epochSecond, 123_456_000),
+        stagedWrites[0]["startTime"],
+    )
+    assertEquals(
+        Timestamp(timedDraft.endTime!!.epochSecond, 987_654_000),
+        stagedWrites[0]["endTime"],
+    )
     assertEquals(
         pair.copy(vote = closed),
         repository.createSuggestionWithVote("trip-1", "activity-1", draft.copy(name = "")),
     )
-    assertEquals(2, writes.size)
+    assertEquals(2, stagedWrites.size)
   }
 
   @Test
   fun createSuggestion_rejectsPartialPairsAndIncompatibleLinkageWithoutWriting() = runTest {
     val pair = repository.createSuggestionWithVote("trip-1", "activity-1", draft)
-    writes.clear()
+    stagedWrites.clear()
     val invalidPairs =
         listOf(
             pair.activity to null,
@@ -246,7 +263,7 @@ class ActivityRepositoryFirestoreTest {
       repository.createSuggestionWithVote("trip-1", "activity-1", draft)
     }
     assertTrue(ownership.exceptionOrNull() is ActivityCreationException.PermissionDenied)
-    assertTrue(writes.isEmpty())
+    assertTrue(stagedWrites.isEmpty())
   }
 
   @Test
@@ -267,7 +284,7 @@ class ActivityRepositoryFirestoreTest {
         repository.createSuggestionWithVote("trip-1", "activity-1", draft),
     )
     verify(db, times(2)).runTransaction(any<Transaction.Function<Any?>>())
-    assertEquals(2, writes.size)
+    assertEquals(2, stagedWrites.size)
   }
 
   @Test
@@ -282,6 +299,10 @@ class ActivityRepositoryFirestoreTest {
                 winner.vote.copy(createdByUserId = "bob"),
             winner.activity.copy(linkedVoteId = "other") to winner.vote,
             winner.activity to winner.vote.copy(winningOptionId = "YES"),
+            winner.activity to winner.vote.copy(closingTime = winner.vote.creationTime),
+            winner.activity to winner.vote.copy(nextRoundVoteId = "round-2"),
+            winner.activity to winner.vote.copy(resolvedOptionId = "YES"),
+            winner.activity to winner.vote.copy(resolvedByUserId = "owner"),
             winner.activity to winner.vote.copy(creationTime = Timestamp(100, 0)),
             winner.activity.copy(name = " ") to winner.vote.copy(question = " "),
         )
@@ -289,7 +310,7 @@ class ActivityRepositoryFirestoreTest {
     for ((activity, vote) in invalidPairs) {
       stored = null
       storedVote = null
-      writes.clear()
+      stagedWrites.clear()
       commitFailure = {
         stored = activity
         storedVote = vote
@@ -301,7 +322,7 @@ class ActivityRepositoryFirestoreTest {
           .exceptionOrNull()
       assertTrue(error is ActivityCreationException.PermissionDenied)
       assertSame(denial, error?.cause)
-      assertEquals(2, writes.size)
+      assertEquals(2, stagedWrites.size)
     }
   }
 
@@ -312,7 +333,110 @@ class ActivityRepositoryFirestoreTest {
 
     assertTrue(error.exceptionOrNull() is ActivityCreationException.PermissionDenied)
     verify(db).runTransaction(any<Transaction.Function<Any?>>())
-    assertTrue(writes.isEmpty())
+    assertTrue(stagedWrites.isEmpty())
+  }
+
+  @Test
+  fun createSuggestion_doesNotRecoverWhenASdkRetryIsDeniedBeforeStagingWrites() = runTest {
+    val denial = FirebaseFirestoreException("read denied after SDK retry", Code.PERMISSION_DENIED)
+    val retry = mock(Transaction::class.java)
+    doAnswer { throw denial }.`when`(retry).get(document)
+    doAnswer {
+          val callback = it.getArgument<Transaction.Function<Any?>>(0)
+          callback.apply(transaction) // First attempt stages both writes, then conflicts at commit.
+          val retryFailure = runCatching { callback.apply(retry) }.exceptionOrNull()
+          failedTask<Any?>(requireNotNull(retryFailure as? Exception))
+        }
+        .`when`(db)
+        .runTransaction(any<Transaction.Function<Any?>>())
+
+    val failure = runCatching {
+      repository.createSuggestionWithVote("trip-1", "activity-1", draft)
+    }
+        .exceptionOrNull()
+
+    assertTrue(failure is ActivityCreationException.PermissionDenied)
+    assertSame(denial, failure?.cause)
+    verify(db).runTransaction(any<Transaction.Function<Any?>>())
+    verify(retry).get(document)
+    assertEquals(2, stagedWrites.size)
+  }
+
+  @Test
+  fun createSuggestion_preservesCommitDenialWhenTheServerCannotCompleteRecovery() = runTest {
+    val denial = FirebaseFirestoreException("stale commit", Code.PERMISSION_DENIED)
+    commitFailure = {
+      transactionFailure = FirebaseFirestoreException("offline during recovery", Code.UNAVAILABLE)
+      denial
+    }
+
+    val failure = runCatching {
+      repository.createSuggestionWithVote("trip-1", "activity-1", draft)
+    }
+        .exceptionOrNull()
+
+    assertTrue(failure is ActivityCreationException.PermissionDenied)
+    assertSame(denial, failure?.cause)
+    verify(db, times(2)).runTransaction(any<Transaction.Function<Any?>>())
+    assertEquals(2, stagedWrites.size)
+  }
+
+  @Test
+  fun createSuggestion_doesNotStartRecoveryAfterTheAuthorSignsOut() = runTest {
+    val denial = FirebaseFirestoreException("stale commit", Code.PERMISSION_DENIED)
+    commitFailure = {
+      userId = null
+      denial
+    }
+
+    val failure = runCatching {
+      repository.createSuggestionWithVote("trip-1", "activity-1", draft)
+    }
+        .exceptionOrNull()
+
+    assertTrue(failure is ActivityCreationException.PermissionDenied)
+    assertSame(denial, failure?.cause)
+    verify(db).runTransaction(any<Transaction.Function<Any?>>())
+  }
+
+  @Test
+  fun createSuggestion_doesNotReturnAValidPairAfterAnAccountSwitchDuringRecovery() = runTest {
+    val winner = draft.newSuggestionPair("trip-1", "activity-1", "suggestion-activity-1", "alice")
+    val denial = FirebaseFirestoreException("stale commit", Code.PERMISSION_DENIED)
+    commitFailure = {
+      stored = winner.activity
+      storedVote = winner.vote
+      // Change accounts after the recovery callback reads valid snapshots.
+      afterRecoveryRead = { userId = "bob" }
+      denial
+    }
+
+    val failure = runCatching {
+      repository.createSuggestionWithVote("trip-1", "activity-1", draft)
+    }
+        .exceptionOrNull()
+
+    assertTrue(failure is ActivityCreationException.PermissionDenied)
+    assertSame(denial, failure?.cause)
+    verify(db, times(2)).runTransaction(any<Transaction.Function<Any?>>())
+    assertEquals(2, stagedWrites.size)
+  }
+
+  @Test
+  fun createSuggestion_reportsAnUnreadableStoredActivityAsAPairConflict() = runTest {
+    val pair = draft.newSuggestionPair("trip-1", "activity-1", "suggestion-activity-1", "alice")
+    storedVote = pair.vote
+    val unreadable = snapshot(pair.activity, pair.activity.toFirestoreData() - "location")
+    `when`(transaction.get(document)).thenReturn(unreadable)
+
+    val failure = runCatching {
+      repository.createSuggestionWithVote("trip-1", "activity-1", draft)
+    }
+        .exceptionOrNull()
+
+    assertTrue(failure is ActivityCreationException.PairConflict)
+    assertTrue(failure?.cause is IllegalArgumentException)
+    assertTrue(stagedWrites.isEmpty())
   }
 
   @Test
@@ -354,7 +478,7 @@ class ActivityRepositoryFirestoreTest {
     val conflict = error.exceptionOrNull() as ActivityCreationException.TypeConflict
     assertEquals(ActivityType.ACCEPTED, conflict.requested)
     assertEquals(ActivityType.SUGGESTION, conflict.existing)
-    assertTrue(writes.isEmpty())
+    assertTrue(stagedWrites.isEmpty())
   }
 
   @Test
@@ -368,7 +492,7 @@ class ActivityRepositoryFirestoreTest {
     val conflict = error.exceptionOrNull() as ActivityCreationException.TypeConflict
     assertEquals(ActivityType.SUGGESTION, conflict.requested)
     assertEquals(ActivityType.ACCEPTED, conflict.existing)
-    assertTrue(writes.isEmpty())
+    assertTrue(stagedWrites.isEmpty())
   }
 
   @Test
@@ -393,7 +517,7 @@ class ActivityRepositoryFirestoreTest {
       )
     }
     verify(transaction, times(invalid.size)).get(document)
-    assertTrue(writes.isEmpty())
+    assertTrue(stagedWrites.isEmpty())
   }
 
   @Test
@@ -418,7 +542,7 @@ class ActivityRepositoryFirestoreTest {
         existing,
         repository.createActivity("trip-1", "activity-1", draft.copy(startTime = null)),
     )
-    assertTrue(writes.isEmpty())
+    assertTrue(stagedWrites.isEmpty())
   }
 
   @Test
@@ -428,7 +552,7 @@ class ActivityRepositoryFirestoreTest {
     val error = runCatching { repository.createActivity("trip-1", "activity-1", draft) }
 
     assertTrue(error.exceptionOrNull() is ActivityCreationException.PermissionDenied)
-    assertTrue(writes.isEmpty())
+    assertTrue(stagedWrites.isEmpty())
   }
 
   @Test
@@ -450,7 +574,7 @@ class ActivityRepositoryFirestoreTest {
     val validation = error.exceptionOrNull() as ActivityCreationException.Validation
     assertEquals(listOf(ActivityDraftError.BlankName), validation.errors)
     verify(transaction).get(document)
-    assertTrue(writes.isEmpty())
+    assertTrue(stagedWrites.isEmpty())
   }
 
   @Test
@@ -466,7 +590,7 @@ class ActivityRepositoryFirestoreTest {
     val validation = error.exceptionOrNull() as ActivityCreationException.Validation
     assertEquals(listOf(ActivityDraftError.MissingStartTime), validation.errors)
     verify(transaction).get(document)
-    assertTrue(writes.isEmpty())
+    assertTrue(stagedWrites.isEmpty())
   }
 
   @Test
