@@ -56,7 +56,8 @@ class TripDetailsViewModelTest {
             "Tower",
             null,
             location,
-            trip.startDate,
+            // An unscheduled suggestion still counts, since its place is known.
+            null,
             null,
             "alex",
             trip.createdAt,
@@ -70,7 +71,11 @@ class TripDetailsViewModelTest {
                     trip.uid to
                         listOf(
                             suggestion,
-                            suggestion.copy(uid = "planned", activityType = ActivityType.ACCEPTED),
+                            suggestion.copy(
+                                uid = "planned",
+                                activityType = ActivityType.ACCEPTED,
+                                startTime = trip.startDate,
+                            ),
                         )
                 ),
         )
