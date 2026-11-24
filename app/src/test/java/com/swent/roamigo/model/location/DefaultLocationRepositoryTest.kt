@@ -1231,6 +1231,32 @@ class DefaultLocationRepositoryTest {
   }
 
   @Test
+  fun restoreSharing_removesThePositionWhenSharingFailsAfterTheCallerIsCancelled() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    val pendingUpdates = mutableListOf<CompletionListener>()
+    doAnswer { invocation -> pendingUpdates += invocation.getArgument<CompletionListener>(1) }
+        .`when`(ownLocation)
+        .setValue(any(), any(CompletionListener::class.java))
+    val repository = createRepository(backgroundScope)
+    val restore = launch { repository.restoreSharing() }
+    runCurrent()
+
+    // The app UI closes while the first update is pending, and the update then fails.
+    restore.cancel()
+    pendingUpdates
+        .single()
+        .onComplete(DatabaseError.fromCode(DatabaseError.UNAVAILABLE), ownLocation)
+    runCurrent()
+
+    verifyRemovals(ownLocation, 1)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
   fun restoreSharing_twiceDoesNotStartASecondUpdateLoop() = runTest {
     application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
     locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
