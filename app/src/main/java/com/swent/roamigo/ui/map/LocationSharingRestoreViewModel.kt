@@ -7,7 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.location.LocationRepository
 import com.swent.roamigo.model.location.LocationSharingRestorer
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 
 /**
  * Resumes the location sharing left on by a previous app process, once a user is signed in.
@@ -28,9 +29,10 @@ class LocationSharingRestoreViewModel(
   init {
     // The restore is launched on its own coroutine, so the auth events never wait for it.
     val restorer = LocationSharingRestorer(locationRepository, viewModelScope)
-    viewModelScope.launch {
-      authRepository.observeCurrentUser().collect { restorer.onUserChanged(it?.uid) }
-    }
+    authRepository
+        .observeCurrentUser()
+        .onEach { restorer.onUserChanged(it?.uid) }
+        .launchIn(viewModelScope)
   }
 
   companion object {

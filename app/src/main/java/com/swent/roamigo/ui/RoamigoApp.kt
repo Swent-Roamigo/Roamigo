@@ -90,8 +90,8 @@ import kotlinx.coroutines.launch
  * @param connectivityRepository Tells whether the device is online; the device's own by default.
  * @param invitationService Creates, previews and accepts the links that invite people to a trip.
  * @param locationRepository Shares the user's location on a trip map, and resumes at startup the
- *   sharing left on by a previous process; the app-wide instance of [RoamigoApplication] by
- *   default, since sharing must go through a single instance.
+ *   sharing left on by a previous process. It must be the app-wide instance, since sharing must go
+ *   through a single instance.
  * @param placeRepository Searches places for the activity form; the app-wide instance of
  *   [RoamigoApplication] by default, since Search Box keeps one provider session.
  */
@@ -108,7 +108,7 @@ fun RoamigoApp(
     destinationRepository: DestinationRepository,
     photoRepository: PhotoRepository,
     connectivityRepository: ConnectivityRepository? = null,
-    locationRepository: LocationRepository? = null,
+    locationRepository: LocationRepository,
     placeRepository: PlaceRepository? = null,
     countryCounts: VisitedCountryCounts,
     invitationService: TripInvitationService,
@@ -121,11 +121,7 @@ fun RoamigoApp(
   viewModel<LocationSharingRestoreViewModel>(
       factory =
           LocationSharingRestoreViewModel.factory(
-              locationRepository =
-                  locationRepository
-                      ?: remember(context) {
-                        (context.applicationContext as RoamigoApplication).locationRepository
-                      },
+              locationRepository = locationRepository,
               authRepository = authRepository,
           )
   )
