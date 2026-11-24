@@ -1,6 +1,8 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui.trip.details
 
+import android.icu.text.ListFormatter
+import android.os.Build
 import android.text.format.DateFormat
 import android.text.format.DateUtils
 import androidx.annotation.DrawableRes
@@ -33,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -141,6 +144,7 @@ fun TripForecastCard(
         ForecastUiState.Loading -> LoadingBody()
         is ForecastUiState.TooFar -> TooFarBody(state.availableFrom)
         ForecastUiState.Failed -> FailedBody(onRetry)
+        ForecastUiState.Busy -> FailedBody(onRetry, busy = true)
         is ForecastUiState.Ready -> ReadyBody(state, now)
         ForecastUiState.Hidden -> Unit
       }
@@ -316,7 +320,7 @@ private fun TooFarBody(availableFrom: LocalDate) {
 }
 
 @Composable
-private fun FailedBody(onRetry: () -> Unit) {
+private fun FailedBody(onRetry: () -> Unit, busy: Boolean = false) {
   Message(
       icon = {
         Icon(
@@ -326,8 +330,9 @@ private fun FailedBody(onRetry: () -> Unit) {
             tint = Warning,
         )
       },
-      title = stringResource(R.string.weather_failed_title),
-      body = stringResource(R.string.weather_failed_body),
+      title =
+          stringResource(if (busy) R.string.weather_busy_title else R.string.weather_failed_title),
+      body = stringResource(if (busy) R.string.weather_busy_body else R.string.weather_failed_body),
   ) {
     TripActionButton(
         onClick = onRetry,
@@ -373,16 +378,25 @@ private fun summaryOf(days: List<DailyForecast>): String {
   val locale = LocalConfiguration.current.locales[0]
   val rainy = days.filter { it.isRainLikely }
   if (rainy.isEmpty()) return stringResource(R.string.weather_summary_dry)
-  val names = rainy.map { formatted(it.date, "EEEE", locale) }
-  val list =
-      if (names.size == 1) names.single()
-      else
-          stringResource(
-              R.string.weather_list_and,
-              names.dropLast(1).joinToString(", "),
-              names.last(),
-          )
-  return stringResource(R.string.weather_summary_wet, list)
+  // A week's names repeat on a longer trip, so the date says which Monday.
+  val skeleton = if (days.size > DAYS_IN_A_WEEK) "EEEdMMM" else "EEEE"
+  val list = joinedForLocale(rainy.map { formatted(it.date, skeleton, locale) }, locale)
+  return pluralStringResource(R.plurals.weather_summary_wet, rainy.size, list)
+}
+
+/** "A", "A and B" or "A, B and C", the way the [locale] writes a list. */
+@Composable
+private fun joinedForLocale(items: List<String>, locale: Locale): String {
+  if (items.size == 1) return items.single()
+  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+    return ListFormatter.getInstance(locale).format(items)
+  }
+  // Older phones have no list formatter, so the English shape is used.
+  return stringResource(
+      R.string.weather_list_and,
+      items.dropLast(1).joinToString(", "),
+      items.last(),
+  )
 }
 
 @Composable
@@ -424,6 +438,7 @@ private fun formatted(date: LocalDate, skeleton: String, locale: Locale): String
         .format(date)
 
 private const val MAX_FITTING_DAYS = 5
+private const val DAYS_IN_A_WEEK = 7
 private const val NARROW_SCREEN_DP = 360
 private const val MAX_FONT_SCALE_THAT_FITS = 1.15f
 private const val NOW_REFRESH_MILLIS = 60_000L

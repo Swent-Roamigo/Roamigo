@@ -709,7 +709,10 @@
     <!-- Weather forecast on the trip screen -->
     <string name="weather_title">Weather in %1$s</string>
     <string name="weather_summary_dry">No rain expected.</string>
-    <string name="weather_summary_wet">Rain likely on %1$s.</string>
+    <plurals name="weather_summary_wet">
+        <item quantity="one">Rain likely on %1$s.</item>
+        <item quantity="other">Rain likely on %1$s.</item>
+    </plurals>
     <string name="weather_list_and">%1$s and %2$s</string>
     <string name="weather_condition_sunny">Sunny</string>
     <string name="weather_condition_partly_cloudy">Partly cloudy</string>
@@ -728,5 +731,7 @@
     <string name="weather_too_far_body">Check back on %1$s. Until then, weather this far ahead would only be a guess.</string>
     <string name="weather_failed_title">The weather can\'t be loaded.</string>
     <string name="weather_failed_body">No forecast is saved on this phone yet. Try again in a moment.</string>
+    <string name="weather_busy_title">The weather service is busy.</string>
+    <string name="weather_busy_body">It was asked too often for now. Try again in a minute.</string>
     <string name="weather_retry">Retry</string>
 </resources>

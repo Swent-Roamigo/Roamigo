@@ -7,6 +7,7 @@ import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.weather.DailyForecast
 import com.swent.roamigo.model.weather.ForecastWindow
 import com.swent.roamigo.model.weather.WeatherRepository
+import com.swent.roamigo.model.weather.WeatherUnavailableException
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -30,6 +31,9 @@ sealed interface ForecastUiState {
 
   /** The forecast could not be loaded and none is saved. */
   data object Failed : ForecastUiState
+
+  /** The service refuses for now because it was asked too often, and none is saved. */
+  data object Busy : ForecastUiState
 
   /**
    * @param fetchedAt when the forecast was produced.
@@ -62,7 +66,7 @@ class TripForecastViewModel(
 
   /** Tries again after a failure. */
   fun retry() {
-    if (_state.value == ForecastUiState.Failed) load()
+    if (_state.value.isFailure()) load()
   }
 
   /**
@@ -75,7 +79,8 @@ class TripForecastViewModel(
     val stale = Duration.between(loadedAt, now) >= REFRESH_AFTER
     when (_state.value) {
       ForecastUiState.Loading -> Unit
-      ForecastUiState.Failed -> load()
+      ForecastUiState.Failed,
+      ForecastUiState.Busy -> load()
       else -> if (dayChanged || stale) load(keepWhileLoading = true)
     }
   }
@@ -96,7 +101,7 @@ class TripForecastViewModel(
             else -> fetch()
           }
       // A refresh that fails must not replace a forecast that is still worth showing.
-      _state.value = if (keepWhileLoading && next == ForecastUiState.Failed) before else next
+      _state.value = if (keepWhileLoading && next.isFailure()) before else next
     }
   }
 
@@ -108,6 +113,8 @@ class TripForecastViewModel(
         else ForecastUiState.Ready(forecast.days, forecast.fetchedAt, forecast.fromCache)
       } catch (cancelled: CancellationException) {
         throw cancelled
+      } catch (unavailable: WeatherUnavailableException) {
+        if (unavailable.rateLimited) ForecastUiState.Busy else ForecastUiState.Failed
       } catch (_: Exception) {
         ForecastUiState.Failed
       }
@@ -116,3 +123,6 @@ class TripForecastViewModel(
     val REFRESH_AFTER: Duration = Duration.ofHours(1)
   }
 }
+
+private fun ForecastUiState.isFailure() =
+    this == ForecastUiState.Failed || this == ForecastUiState.Busy

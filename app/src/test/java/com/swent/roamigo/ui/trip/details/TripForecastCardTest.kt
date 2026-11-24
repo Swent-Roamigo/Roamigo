@@ -184,4 +184,40 @@ class TripForecastCardTest {
     day.assert(hasText("13°", substring = true))
     day.assert(hasText("80%", substring = true))
   }
+
+  @Test
+  fun aBusyServiceSaysSoAndOffersARetry() {
+    show(ForecastUiState.Busy)
+
+    composeRule.onNodeWithText("The weather service is busy.").assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.weather_retry).performClick()
+
+    assertEquals(1, retries)
+  }
+
+  @Test
+  fun listsThreeRainyDaysTheWayTheLocaleWritesAList() {
+    val rainy = days.take(3).map { it.copy(condition = WeatherCondition.RAIN) }
+    show(ForecastUiState.Ready(rainy, fetchedAt, fromCache = false))
+
+    composeRule.onNodeWithText("Rain likely on Saturday, Sunday, and Monday.").assertIsDisplayed()
+  }
+
+  @Test
+  fun aTripOfMoreThanAWeekNamesTheRainyDaysWithTheirDates() {
+    val long =
+        (0 until 9).map {
+          val rain = it == 0 || it == 8
+          DailyForecast(
+              LocalDate.of(2026, 11, 28).plusDays(it.toLong()),
+              if (rain) WeatherCondition.RAIN else WeatherCondition.SUNNY,
+              9,
+              5,
+              if (rain) 80 else 0,
+          )
+        }
+    show(ForecastUiState.Ready(long, fetchedAt, fromCache = false))
+
+    composeRule.onNodeWithText("Rain likely on Sat, Nov 28 and Sun, Dec 6.").assertIsDisplayed()
+  }
 }

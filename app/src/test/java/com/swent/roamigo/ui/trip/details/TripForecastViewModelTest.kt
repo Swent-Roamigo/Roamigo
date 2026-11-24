@@ -265,4 +265,22 @@ class TripForecastViewModelTest {
 
     assertTrue(model.state.value is ForecastUiState.Ready)
   }
+
+  @Test
+  fun aServiceThatIsBusyIsNotAPlainFailureAndCanBeRetried() = runTest {
+    val repository =
+        FakeWeatherRepository(
+            listOf(day(saturday)),
+            WeatherUnavailableException("slow down", rateLimited = true),
+        )
+    val model = viewModel(repository)
+    advanceUntilIdle()
+    assertEquals(ForecastUiState.Busy, model.state.value)
+
+    repository.failure = null
+    model.retry()
+    advanceUntilIdle()
+
+    assertTrue(model.state.value is ForecastUiState.Ready)
+  }
 }
