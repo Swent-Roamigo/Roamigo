@@ -2,6 +2,8 @@
 package com.swent.roamigo.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -16,6 +18,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.R
 import com.swent.roamigo.model.authentication.AuthRepository
@@ -177,16 +180,43 @@ class RoamigoAppProfileTest {
     row.assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.StateDescription))
   }
 
-  private fun openProfile(auth: AuthRepository, inbox: NotificationRepository) {
+  @Test
+  fun notificationShortcutRemainsUsableInRightToLeftLayout() {
+    val auth =
+        FakeAuthRepository(AuthenticatedUser("u1", "Sam", null, null), initiallySignedIn = true)
+    val inbox = TestInbox(listOf(notification("first")))
+    openProfile(auth, inbox, LayoutDirection.Rtl)
+
+    composeRule
+        .onNodeWithTag(C.Tag.profile_notifications_row)
+        .performScrollTo()
+        .assert(unreadBadge(1))
+        .performClick()
+
+    composeRule.onNodeWithTag(C.Tag.notifications_screen).assertIsDisplayed()
+    backToProfile()
+    composeRule
+        .onNodeWithTag(C.Tag.profile_notifications_row)
+        .performScrollTo()
+        .assert(unreadBadge(1))
+  }
+
+  private fun openProfile(
+      auth: AuthRepository,
+      inbox: NotificationRepository,
+      layoutDirection: LayoutDirection = LayoutDirection.Ltr,
+  ) {
     composeRule.setContent {
       RoamigoTheme {
-        TestRoamigoApp(
-            friendRepository = FakeFriendRepository("u1"),
-            voteRepository = InMemoryVoteRepository(),
-            destinationRepository = sampleDestinationRepository(),
-            authRepository = auth,
-            notificationRepository = inbox,
-        )
+        CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
+          TestRoamigoApp(
+              friendRepository = FakeFriendRepository("u1"),
+              voteRepository = InMemoryVoteRepository(),
+              destinationRepository = sampleDestinationRepository(),
+              authRepository = auth,
+              notificationRepository = inbox,
+          )
+        }
       }
     }
     composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()

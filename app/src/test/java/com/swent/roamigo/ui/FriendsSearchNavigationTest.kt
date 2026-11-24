@@ -22,6 +22,8 @@ import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.sampleDestinationRepository
 import com.swent.roamigo.model.friends.FakeFriendRepository
+import com.swent.roamigo.model.friends.FriendRepository
+import com.swent.roamigo.model.friends.FriendRequest
 import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.model.users.FakeUserRepository
@@ -29,6 +31,8 @@ import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -58,13 +62,13 @@ class FriendsSearchNavigationTest {
 
   private lateinit var nav: NavHostController
 
-  private fun show() {
+  private fun show(friendRepository: FriendRepository = alice) {
     compose.setContent {
       nav = rememberNavController()
 
       RoamigoTheme {
         TestRoamigoApp(
-            friendRepository = alice,
+            friendRepository = friendRepository,
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
             authRepository = auth,
@@ -136,6 +140,25 @@ class FriendsSearchNavigationTest {
 
     compose.runOnIdle { auth.signOut() }
     friendsTab.assert(noDot)
+  }
+
+  @Test
+  fun dotClearsIfIncomingRequestObservationFails() {
+    val request = runBlocking { bob.sendFriendRequest("alice") }
+    val snapshots = MutableStateFlow(Result.success<List<FriendRequest>>(listOf(request)))
+    val repository =
+        object : FriendRepository by alice {
+          override fun observeIncomingRequests() = snapshots.map { it.getOrThrow() }
+        }
+    show(repository)
+    waitForTag(C.Tag.trips_navigation_friends)
+    val friendsTab = compose.onNodeWithTag(C.Tag.trips_navigation_friends)
+    friendsTab.assert(pendingDot)
+
+    compose.runOnIdle { snapshots.value = Result.failure(IllegalStateException("Offline")) }
+
+    friendsTab.assert(noDot)
+    compose.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
   }
 
   @Test

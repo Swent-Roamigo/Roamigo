@@ -26,7 +26,6 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.ClearCredentialException
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
-import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -173,12 +172,7 @@ fun RoamigoApp(
       remember(authRepository) {
         if (authRepository.getCurrentUser() == null) Route.AUTHENTICATION else Route.TRIPS
       }
-  val hasPendingFriendRequests by
-      remember(authRepository, friendRepository) {
-            observePendingFriendRequests(authRepository, friendRepository)
-          }
-          .collectAsStateWithLifecycle(initialValue = false)
-  val graph: NavGraphBuilder.() -> Unit = {
+  NavHost(navController = navController, startDestination = startDestination) {
     composable(Route.PERMISSIONS) {
       PermissionsScreen(
           onContinue = {
@@ -533,9 +527,6 @@ fun RoamigoApp(
       )
     }
   }
-  CompositionLocalProvider(LocalHasPendingFriendRequests provides hasPendingFriendRequests) {
-    NavHost(navController = navController, startDestination = startDestination, builder = graph)
-  }
   inviteTripId?.let { tripId ->
     InviteRoute(tripId, invitationService, onDismiss = { inviteTripId = null })
   }
@@ -580,6 +571,24 @@ private fun navigateRoot(navController: NavHostController, route: String) {
     popUpTo(Route.TRIPS)
     launchSingleTop = true
   }
+}
+
+/** Makes the signed-in account's pending request indicator available across app destinations. */
+@Composable
+internal fun ProvidePendingFriendRequests(
+    authRepository: AuthRepository,
+    friendRepository: FriendRepository,
+    content: @Composable () -> Unit,
+) {
+  val hasPendingFriendRequests by
+      remember(authRepository, friendRepository) {
+            observePendingFriendRequests(authRepository, friendRepository)
+          }
+          .collectAsStateWithLifecycle(initialValue = false)
+  CompositionLocalProvider(
+      LocalHasPendingFriendRequests provides hasPendingFriendRequests,
+      content = content,
+  )
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)

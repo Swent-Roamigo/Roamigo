@@ -26,6 +26,7 @@ import com.swent.roamigo.model.trip.inviting.TripInvitationServiceFunctions
 import com.swent.roamigo.model.trip.voting.VoteRepositoryFirestore
 import com.swent.roamigo.model.users.UserRepositoryFirestore
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.ProvidePendingFriendRequests
 import com.swent.roamigo.ui.RoamigoApp
 import com.swent.roamigo.ui.heatmap.VisitedCountryCounts
 import com.swent.roamigo.ui.theme.RoamigoTheme
@@ -83,28 +84,31 @@ class MainActivity : ComponentActivity() {
                 VisitedCountryCounts { visitedCountryRepository.visitCounts() }
               }
 
-          RoamigoApp(
-              friendRepository = friendRepository,
-              notificationRepository =
-                  remember {
-                    NotificationRepositoryFirestore(
-                        FirebaseFirestore.getInstance(),
-                        FirebaseAuth.getInstance(),
-                    )
-                  },
-              tripRepository = tripRepository,
-              activityRepository = activityRepository,
-              authRepository = authRepository,
-              voteRepository = voteRepository,
-              destinationRepository = (application as RoamigoApplication).destinationRepository,
-              photoRepository = remember { (application as RoamigoApplication).photos.repository },
-              locationRepository =
-                  remember { (application as RoamigoApplication).locationRepository },
-              placeRepository = remember { (application as RoamigoApplication).placeRepository },
-              countryCounts = countryCounts,
-              userRepository = userRepository,
-              invitationService = remember { TripInvitationServiceFunctions() },
-          )
+          ProvidePendingFriendRequests(authRepository, friendRepository) {
+            RoamigoApp(
+                friendRepository = friendRepository,
+                notificationRepository =
+                    remember {
+                      NotificationRepositoryFirestore(
+                          FirebaseFirestore.getInstance(),
+                          FirebaseAuth.getInstance(),
+                      )
+                    },
+                tripRepository = tripRepository,
+                activityRepository = activityRepository,
+                authRepository = authRepository,
+                voteRepository = voteRepository,
+                destinationRepository = (application as RoamigoApplication).destinationRepository,
+                photoRepository =
+                    remember { (application as RoamigoApplication).photos.repository },
+                locationRepository =
+                    remember { (application as RoamigoApplication).locationRepository },
+                placeRepository = remember { (application as RoamigoApplication).placeRepository },
+                countryCounts = countryCounts,
+                userRepository = userRepository,
+                invitationService = remember { TripInvitationServiceFunctions() },
+            )
+          }
         }
       }
     }

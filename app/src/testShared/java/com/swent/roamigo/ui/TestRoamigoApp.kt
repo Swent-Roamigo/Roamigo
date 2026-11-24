@@ -55,24 +55,26 @@ internal fun TestRoamigoApp(
     invitationService: TripInvitationService = remember { FakeTripInvitationService() },
     notificationRepository: NotificationRepository = EmptyNotificationRepository,
 ) {
-  RoamigoApp(
-      voteRepository = voteRepository,
-      friendRepository = friendRepository,
-      tripRepository = tripRepository,
-      activityRepository = activityRepository,
-      userRepository = userRepository,
-      navController = navController,
-      authRepository = authRepository,
-      credentialManager = credentialManager,
-      destinationRepository = destinationRepository,
-      photoRepository = photoRepository,
-      connectivityRepository = connectivityRepository,
-      locationRepository = locationRepository,
-      placeRepository = placeRepository,
-      countryCounts = countryCounts,
-      invitationService = invitationService,
-      notificationRepository = notificationRepository,
-  )
+  ProvidePendingFriendRequests(authRepository, friendRepository) {
+    RoamigoApp(
+        voteRepository = voteRepository,
+        friendRepository = friendRepository,
+        tripRepository = tripRepository,
+        activityRepository = activityRepository,
+        userRepository = userRepository,
+        navController = navController,
+        authRepository = authRepository,
+        credentialManager = credentialManager,
+        destinationRepository = destinationRepository,
+        photoRepository = photoRepository,
+        connectivityRepository = connectivityRepository,
+        locationRepository = locationRepository,
+        placeRepository = placeRepository,
+        countryCounts = countryCounts,
+        invitationService = invitationService,
+        notificationRepository = notificationRepository,
+    )
+  }
 }
 
 private object EmptyNotificationRepository : NotificationRepository {
