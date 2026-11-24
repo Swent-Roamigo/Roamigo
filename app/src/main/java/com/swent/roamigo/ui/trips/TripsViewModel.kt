@@ -199,13 +199,20 @@ class TripsViewModel(
               days.start,
               days.endInclusive,
           )
-      // The destination's own "today" may be a day off the device's, so the first day from the
-      // wanted one on is shown, and only the device's own today is called "Today".
+      // The destination's own "today" may be a day off the device's, and it is the one the
+      // provider counts from, so it decides which day is wanted and which one is "Today".
+      val destinationToday = forecast.destinationToday ?: today
+      val wanted = maxOf(days.start, destinationToday)
       forecast.days
-          .firstOrNull { it.date >= key.day }
+          .firstOrNull { it.date >= wanted }
           ?.let {
             ChipResult.Show(
-                WeatherChipUiModel(it.date, it.date == today, it.condition, it.highCelsius)
+                WeatherChipUiModel(
+                    it.date,
+                    it.date == destinationToday,
+                    it.condition,
+                    it.highCelsius,
+                )
             )
           } ?: ChipResult.Clear
     } catch (cancelled: CancellationException) {

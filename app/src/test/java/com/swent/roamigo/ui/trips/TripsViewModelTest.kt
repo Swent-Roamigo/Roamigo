@@ -629,6 +629,24 @@ class TripsViewModelTest {
     assertEquals(false, vm.uiState.value.mainTripWeather?.isToday)
   }
 
+  @Test
+  fun theChipFollowsTheDestinationsDayWhenItIsAheadOfTheDevice() = runTest {
+    // It is the 8th on the device, but already the 9th at the destination.
+    val weather =
+        FakeWeatherRepository(listOf(forecastDay("2026-10-08"), forecastDay("2026-10-09"))).apply {
+          destinationToday = LocalDate.parse("2026-10-09")
+        }
+    val vm =
+        chipViewModel("2026-10-07T00:00:00Z", "2026-10-12T00:00:00Z", weather, TripStatus.ACTIVE)
+
+    advanceUntilIdle()
+
+    assertEquals(
+        WeatherChipUiModel(LocalDate.parse("2026-10-09"), true, WeatherCondition.SUNNY, 16),
+        vm.uiState.value.mainTripWeather,
+    )
+  }
+
   private class MemoryCache : com.swent.roamigo.model.weather.WeatherCache {
     var saved: com.swent.roamigo.model.weather.Forecast? = null
 
