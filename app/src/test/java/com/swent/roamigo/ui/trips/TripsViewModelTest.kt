@@ -480,8 +480,11 @@ class TripsViewModelTest {
         WeatherChipUiModel(LocalDate.parse("2026-10-12"), false, WeatherCondition.SUNNY, 16),
         vm.uiState.value.mainTripWeather,
     )
-    val day = LocalDate.parse("2026-10-12")
-    assertEquals(listOf(day to day), weather.requests)
+    // The whole trip is asked for, as the trip screen does, so the saved forecast is never cut.
+    assertEquals(
+        listOf(LocalDate.parse("2026-10-12") to LocalDate.parse("2026-10-19")),
+        weather.requests,
+    )
   }
 
   @Test
@@ -605,14 +608,142 @@ class TripsViewModelTest {
   }
 
   @Test
-  fun noChipWhenTheProviderHasNoForecastForThatDay() = runTest {
-    val weather = FakeWeatherRepository(listOf(forecastDay("2026-10-13")))
+  fun noChipWhenTheProviderHasNoForecastForTheTrip() = runTest {
+    val weather = FakeWeatherRepository(listOf(forecastDay("2026-10-25")))
     val vm = chipViewModel("2026-10-12T00:00:00Z", "2026-10-19T00:00:00Z", weather)
 
     advanceUntilIdle()
 
     assertNull(vm.uiState.value.mainTripWeather)
     assertEquals("lisbon", vm.uiState.value.mainTrip?.id)
+  }
+
+  @Test
+  fun theChipShowsTheNextDayWhenTheWantedOneIsMissing() = runTest {
+    val weather = FakeWeatherRepository(listOf(forecastDay("2026-10-13")))
+    val vm = chipViewModel("2026-10-12T00:00:00Z", "2026-10-19T00:00:00Z", weather)
+
+    advanceUntilIdle()
+
+    assertEquals(LocalDate.parse("2026-10-13"), vm.uiState.value.mainTripWeather?.date)
+    assertEquals(false, vm.uiState.value.mainTripWeather?.isToday)
+  }
+
+  private class MemoryCache : com.swent.roamigo.model.weather.WeatherCache {
+    var saved: com.swent.roamigo.model.weather.Forecast? = null
+
+    override suspend fun get(latitude: Double, longitude: Double) = saved
+
+    override suspend fun put(
+        latitude: Double,
+        longitude: Double,
+        forecast: com.swent.roamigo.model.weather.Forecast,
+    ) {
+      saved = forecast
+    }
+  }
+
+  @Test
+  fun theChipDoesNotCutTheForecastSavedForTheTripScreenToOneDay() = runTest {
+    val week = (12..19).map { forecastDay("2026-10-$it") }
+    val network = FakeWeatherRepository(week)
+    val cache = MemoryCache()
+    val weather =
+        com.swent.roamigo.model.weather.CachingWeatherRepository(
+            network,
+            cache,
+            Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+        )
+    val vm =
+        TripsViewModel(
+            FakeTripRepository(
+                trips =
+                    listOf(
+                        trip(
+                            "lisbon",
+                            "Lisbon",
+                            "2026-10-12T00:00:00Z",
+                            "2026-10-19T00:00:00Z",
+                            TripStatus.PLANNED,
+                        )
+                    )
+            ),
+            FakeUserRepository(currentUser = alex),
+            Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+            weatherRepository = weather,
+        )
+
+    advanceUntilIdle()
+
+    assertEquals(week.size, cache.saved?.days?.size)
+    assertEquals(16, vm.uiState.value.mainTripWeather?.highCelsius)
+  }
+
+  @Test
+  fun theChipOfThePreviousTripIsGoneWhileTheNewTripsPhotoIsStillLoading() = runTest {
+    var gate = CompletableDeferred<Unit>().apply { complete(Unit) }
+    val destinations =
+        object : DestinationRepository {
+          override suspend fun searchDestinations(query: String): List<Destination> {
+            gate.await()
+            return emptyList()
+          }
+
+          override suspend fun findPhoto(destination: Destination): DestinationPhoto? = null
+        }
+    val weather = FakeWeatherRepository(listOf(forecastDay("2026-10-12")))
+    val first =
+        trip("a", "First", "2026-10-12T00:00:00Z", "2026-10-19T00:00:00Z", TripStatus.PLANNED)
+    val trips = SwitchableTrips(listOf(first))
+    val vm =
+        TripsViewModel(
+            trips,
+            FakeUserRepository(currentUser = alex),
+            Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+            destinations,
+            weatherRepository = weather,
+        )
+    advanceUntilIdle()
+    assertEquals(16, vm.uiState.value.mainTripWeather?.highCelsius)
+
+    gate = CompletableDeferred()
+    trips.trips = listOf(first.copy(uid = "b", name = "Second"))
+    weather.failure = WeatherUnavailableException("offline")
+    vm.refresh()
+    runCurrent()
+
+    // The photo lookup is still open, and the new card must not wear the old trip's chip.
+    assertEquals("b", vm.uiState.value.mainTrip?.id)
+    assertNull(vm.uiState.value.mainTripWeather)
+    gate.complete(Unit)
+    advanceUntilIdle()
+    assertNull(vm.uiState.value.mainTripWeather)
+  }
+
+  @Test
+  fun theChipOfAnEditedTripIsNotKeptWhenTheRefreshFails() = runTest {
+    val weather =
+        FakeWeatherRepository(listOf(forecastDay("2026-10-12"), forecastDay("2026-10-14")))
+    val first =
+        trip("a", "First", "2026-10-12T00:00:00Z", "2026-10-19T00:00:00Z", TripStatus.PLANNED)
+    val trips = SwitchableTrips(listOf(first))
+    val vm =
+        TripsViewModel(
+            trips,
+            FakeUserRepository(currentUser = alex),
+            Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+            weatherRepository = weather,
+        )
+    advanceUntilIdle()
+    assertEquals(LocalDate.parse("2026-10-12"), vm.uiState.value.mainTripWeather?.date)
+
+    // The same trip, now starting later: the old day must not stay.
+    trips.trips = listOf(first.copy(startDate = timestamp("2026-10-14T00:00:00Z")))
+    weather.failure = WeatherUnavailableException("offline")
+    vm.refresh()
+    advanceUntilIdle()
+
+    assertNull(vm.uiState.value.mainTripWeather)
   }
 
   @Test

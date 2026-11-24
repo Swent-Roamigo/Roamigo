@@ -1,21 +1,24 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui.trips.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -26,32 +29,28 @@ import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.TextSecondaryAa
 import com.swent.roamigo.ui.trips.WeatherChipUiModel
+import com.swent.roamigo.ui.weather.formattedAs
 import com.swent.roamigo.ui.weather.iconRes
 import com.swent.roamigo.ui.weather.labelRes
-import java.time.format.DateTimeFormatter
 
 /** One day's weather on the main trip card: its icon, the day it is for, and the high. */
 @Composable
 internal fun WeatherChip(weather: WeatherChipUiModel, modifier: Modifier) {
   val locale = LocalConfiguration.current.locales[0]
   val today = stringResource(R.string.weather_chip_today)
-  val shortDay =
-      if (weather.isToday) today
-      else DateTimeFormatter.ofPattern("EEE", locale).format(weather.date)
-  val fullDay =
-      if (weather.isToday) today
-      else DateTimeFormatter.ofPattern("EEEE", locale).format(weather.date)
+  val shortDay = if (weather.isToday) today else weather.date.formattedAs("EEE", locale)
+  val fullDay = if (weather.isToday) today else weather.date.formattedAs("EEEE", locale)
   val description =
-      stringResource(
-          R.string.weather_chip_description,
+      pluralStringResource(
+          R.plurals.weather_chip_description,
+          weather.highCelsius,
           fullDay,
           stringResource(weather.condition.labelRes()),
           weather.highCelsius,
       )
-  Surface(
-      modifier,
-      shape = CircleShape,
-      color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+  // Not a Surface: that would swallow the taps meant for the card, which opens the trip.
+  Box(
+      modifier.clip(CircleShape).background(MaterialTheme.colorScheme.surface.copy(alpha = 0.95f))
   ) {
     // One announcement for the whole chip, so a screen reader does not read its parts one by one.
     Row(

@@ -112,9 +112,14 @@ class TripsViewModel(
         coroutineScope {
           // The forecast is fetched while the photo is looked up, and shown once the photo step has
           // published its state, which would otherwise overwrite it.
-          val chip = async { lookUpWeather(state.mainTrip?.id, location, days, now) }
-          loadFeaturedPhoto(state, location)
-          applyWeather(chip.await(), state.mainTrip?.id)
+          val key = weatherKeyOf(state.mainTrip?.id, location, days, now)
+          val chip = async { lookUpWeather(key, location, days, now.toLocalDate()) }
+          // The chip of another trip, day or place must not stay on the new card meanwhile.
+          loadFeaturedPhoto(
+              state.copy(mainTripWeather = state.mainTripWeather?.takeIf { key == weatherKey }),
+              location,
+          )
+          applyWeather(chip.await(), key)
         }
       } catch (exception: CancellationException) {
         throw exception
@@ -148,15 +153,18 @@ class TripsViewModel(
     data class Show(val chip: WeatherChipUiModel) : ChipResult
   }
 
-  private var weatherTripId: String? = null
+  /** What the chip was looked up for, so that a kept chip is never one for something else. */
+  private data class WeatherKey(val tripId: String, val location: TripLocation, val day: LocalDate)
 
-  /** The forecast of today, or of the first trip day, for the main trip. */
-  private suspend fun lookUpWeather(
+  private var weatherKey: WeatherKey? = null
+
+  /** The main trip, place and day to look the weather up for, or null if there is none. */
+  private fun weatherKeyOf(
       tripId: String?,
       location: TripLocation?,
       days: ClosedRange<LocalDate>?,
       now: ZonedDateTime,
-  ): ChipResult {
+  ): WeatherKey? {
     val today = now.toLocalDate()
     if (
         weatherRepository == null ||
@@ -165,15 +173,40 @@ class TripsViewModel(
             days == null ||
             !ForecastWindow.isAvailable(days.start, today)
     ) {
+      return null
+    }
+    return WeatherKey(tripId, location, maxOf(days.start, today))
+  }
+
+  /**
+   * The forecast of today, or of the first trip day, for the main trip. The whole trip is asked
+   * for, as the trip screen does, so that the forecast saved for offline is never cut to one day.
+   */
+  private suspend fun lookUpWeather(
+      key: WeatherKey?,
+      location: TripLocation?,
+      days: ClosedRange<LocalDate>?,
+      today: LocalDate,
+  ): ChipResult {
+    if (key == null || weatherRepository == null || location == null || days == null) {
       return ChipResult.Clear
     }
-    val day = maxOf(days.start, today)
     return try {
-      val forecast = weatherRepository.forecast(location.latitude, location.longitude, day, day)
+      val forecast =
+          weatherRepository.forecast(
+              location.latitude,
+              location.longitude,
+              days.start,
+              days.endInclusive,
+          )
+      // The destination's own "today" may be a day off the device's, so the first day from the
+      // wanted one on is shown, and only the device's own today is called "Today".
       forecast.days
-          .firstOrNull { it.date == day }
+          .firstOrNull { it.date >= key.day }
           ?.let {
-            ChipResult.Show(WeatherChipUiModel(day, day == today, it.condition, it.highCelsius))
+            ChipResult.Show(
+                WeatherChipUiModel(it.date, it.date == today, it.condition, it.highCelsius)
+            )
           } ?: ChipResult.Clear
     } catch (cancelled: CancellationException) {
       throw cancelled
@@ -183,14 +216,15 @@ class TripsViewModel(
     }
   }
 
-  private fun applyWeather(result: ChipResult, tripId: String?) {
+  private fun applyWeather(result: ChipResult, key: WeatherKey?) {
     val chip =
         when (result) {
-          is ChipResult.Show -> result.chip.also { weatherTripId = tripId }
-          ChipResult.Keep -> _uiState.value.mainTripWeather?.takeIf { weatherTripId == tripId }
+          is ChipResult.Show -> result.chip.also { weatherKey = key }
+          ChipResult.Keep ->
+              _uiState.value.mainTripWeather?.takeIf { key != null && weatherKey == key }
           ChipResult.Clear -> null
         }
-    if (chip == null) weatherTripId = null
+    if (chip == null) weatherKey = null
     _uiState.value = _uiState.value.copy(mainTripWeather = chip)
   }
 

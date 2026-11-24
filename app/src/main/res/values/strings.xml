@@ -739,5 +739,8 @@
     <string name="weather_busy_body">It was asked too often for now. Try again in a minute.</string>
     <string name="weather_retry">Retry</string>
     <string name="weather_chip_today">Today</string>
-    <string name="weather_chip_description">%1$s: %2$s, %3$d degrees</string>
+    <plurals name="weather_chip_description">
+        <item quantity="one">%1$s: %2$s, high of %3$d degree</item>
+        <item quantity="other">%1$s: %2$s, high of %3$d degrees</item>
+    </plurals>
 </resources>

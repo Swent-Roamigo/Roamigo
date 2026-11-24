@@ -3,7 +3,6 @@ package com.swent.roamigo.ui.trip.details
 
 import android.icu.text.ListFormatter
 import android.os.Build
-import android.text.format.DateFormat
 import android.text.format.DateUtils
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
@@ -50,7 +49,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
 import com.swent.roamigo.model.weather.DailyForecast
 import com.swent.roamigo.model.weather.ForecastWindow
-import com.swent.roamigo.model.weather.WeatherCondition
 import com.swent.roamigo.model.weather.WeatherRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.TripActionButton
@@ -61,12 +59,12 @@ import com.swent.roamigo.ui.theme.TextSecondaryAa
 import com.swent.roamigo.ui.theme.Warning
 import com.swent.roamigo.ui.theme.WarningBorder
 import com.swent.roamigo.ui.theme.WarningSurface
+import com.swent.roamigo.ui.weather.formattedAs
 import com.swent.roamigo.ui.weather.iconRes
 import com.swent.roamigo.ui.weather.labelRes
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.delay
 
@@ -214,7 +212,7 @@ private fun StaleNotice(age: String) {
 @Composable
 private fun DayTile(day: DailyForecast, modifier: Modifier) {
   val locale = LocalConfiguration.current.locales[0]
-  val weekday = formatted(day.date, "EEE", locale).uppercase(locale)
+  val weekday = day.date.formattedAs("EEE", locale).uppercase(locale)
   val highLow =
       stringResource(R.string.weather_high_low_description, day.highCelsius, day.lowCelsius)
   Surface(
@@ -235,7 +233,7 @@ private fun DayTile(day: DailyForecast, modifier: Modifier) {
           color = TextSecondaryAa,
       )
       Text(
-          formatted(day.date, "dMMM", locale),
+          day.date.formattedAs("dMMM", locale),
           style = MaterialTheme.typography.labelSmall,
           color = TextSecondaryAa,
       )
@@ -327,7 +325,7 @@ private fun TooFarBody(availableFrom: LocalDate) {
       body =
           stringResource(
               R.string.weather_too_far_body,
-              formatted(availableFrom, "dMMMM", locale),
+              availableFrom.formattedAs("dMMMM", locale),
           ),
   )
 }
@@ -393,7 +391,7 @@ private fun summaryOf(days: List<DailyForecast>): String {
   if (rainy.isEmpty()) return stringResource(R.string.weather_summary_dry)
   // A week's names repeat on a longer trip, so the date says which Monday.
   val skeleton = if (days.size > DAYS_IN_A_WEEK) "EEEdMMM" else "EEEE"
-  val list = joinedForLocale(rainy.map { formatted(it.date, skeleton, locale) }, locale)
+  val list = joinedForLocale(rainy.map { it.date.formattedAs(skeleton, locale) }, locale)
   return pluralStringResource(R.plurals.weather_summary_wet, rainy.size, list)
 }
 
@@ -424,11 +422,6 @@ private fun ageOf(fetchedAt: Instant, now: Instant): String =
           )
           .toString()
     }
-
-/** [date] in the pattern the [locale] writes the [skeleton] with, e.g. "EEE" or "dMMM". */
-private fun formatted(date: LocalDate, skeleton: String, locale: Locale): String =
-    DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, skeleton), locale)
-        .format(date)
 
 private const val MAX_FITTING_DAYS = 5
 private const val DAYS_IN_A_WEEK = 7
