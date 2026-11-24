@@ -50,6 +50,7 @@ class NotificationRepositoryFirestoreTest {
   private val profile = mock(DocumentReference::class.java)
   private val inbox = mock(CollectionReference::class.java)
   private val reference = mock(DocumentReference::class.java)
+  private val orderedQuery = mock(Query::class.java)
   private val query = mock(Query::class.java)
   private val registration = mock(ListenerRegistration::class.java)
   private var currentUser: FirebaseUser? = recipient
@@ -64,7 +65,8 @@ class NotificationRepositoryFirestoreTest {
     `when`(profiles.document("recipient")).thenReturn(profile)
     `when`(profile.collection("notifications")).thenReturn(inbox)
     `when`(inbox.document("request")).thenReturn(reference)
-    `when`(inbox.orderBy("createdAt", Query.Direction.DESCENDING)).thenReturn(query)
+    `when`(inbox.orderBy("createdAt", Query.Direction.DESCENDING)).thenReturn(orderedQuery)
+    `when`(orderedQuery.limit(50)).thenReturn(query)
     doAnswer {
           accountListener = it.getArgument(0)
           null
@@ -110,6 +112,7 @@ class NotificationRepositoryFirestoreTest {
         states.last(),
     )
     verify(inbox).orderBy("createdAt", Query.Direction.DESCENDING)
+    verify(orderedQuery).limit(50)
     verify(registration).remove()
     verify(auth).removeAuthStateListener(accountListener)
   }
@@ -130,6 +133,7 @@ class NotificationRepositoryFirestoreTest {
     emit(read)
     collection.join()
     assertEquals(listOf(1, 0), counts)
+    verify(orderedQuery).limit(50)
   }
 
   @Test
@@ -197,25 +201,48 @@ class NotificationRepositoryFirestoreTest {
   }
 
   @Test
-  fun invalidSnapshotFailsWithoutEmittingAPartialInbox() = runTest {
+  fun unreadableEntriesAreSkippedInBothTheInboxAndUnreadCount() = runTest {
     val repository = repository()
     val malformedEntries =
         listOf(
             null,
-            requestFields + ("recipientUserId" to "other"),
+            requestFields - "recipientUserId",
+            requestFields + ("recipientUserId" to 123),
             requestFields + ("type" to "UNKNOWN"),
             requestFields + ("requestId" to "nested/request"),
             requestFields - "createdAt",
             requestFields + ("isRead" to "false"),
             voteFields - "tripId",
         )
-    for (fields in malformedEntries) {
-      val result = async { runCatching { repository.observeNotifications().first() } }
-      runCurrent()
-      emit(document("request", requestFields), document("malformed", fields))
-      assertTrue(result.await().exceptionOrNull() is IllegalArgumentException)
-    }
-    verify(registration, times(malformedEntries.size)).remove()
+    val documents =
+        listOf(document("vote", voteFields)) +
+            malformedEntries.mapIndexed { index, fields -> document("malformed-$index", fields) } +
+            document("request", requestFields)
+    val inbox = async { repository.observeNotifications().first() }
+    runCurrent()
+    emit(*documents.toTypedArray())
+    assertEquals(listOf("vote", "request"), inbox.await().map { it.uid })
+
+    val unread = async { repository.observeUnreadCount().first() }
+    runCurrent()
+    emit(*documents.toTypedArray())
+    assertEquals(1, unread.await())
+    verify(registration, times(2)).remove()
+  }
+
+  @Test
+  fun mismatchedRecipientFailsEvenIfTheEventTypeIsUnknown() = runTest {
+    val result = async { runCatching { repository().observeNotifications().first() } }
+    runCurrent()
+    emit(
+        document("request", requestFields),
+        document("other", requestFields + mapOf("type" to "UNKNOWN", "recipientUserId" to "other")),
+    )
+
+    val error = result.await().exceptionOrNull()
+    assertTrue(error is IllegalArgumentException)
+    assertEquals("Notification recipient does not match the inbox", error?.message)
+    verify(registration).remove()
   }
 
   @Test
