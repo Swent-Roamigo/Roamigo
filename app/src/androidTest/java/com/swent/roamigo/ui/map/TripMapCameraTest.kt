@@ -51,6 +51,7 @@ import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.TripRoute
 import java.time.Instant
 import kotlin.math.abs
+import kotlin.time.Duration
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -505,6 +506,8 @@ class TripMapCameraTest {
     override fun hasLocationPermission(): Boolean = false
 
     override suspend fun getCurrentLocation(): DeviceLocation? = null
+
+    override fun lastKnownLocation(maxAge: Duration): DeviceLocation? = null
 
     override suspend fun startSharing(tripId: String) = Unit
 

@@ -82,7 +82,7 @@ class VotesNavigationTest {
     composeRule.setContent {
       navController = rememberNavController()
       RoamigoTheme {
-        RoamigoApp(
+        TestRoamigoApp(
             friendRepository = FakeFriendRepository("member"),
             userRepository = FakeUserRepository(User("member", "Member", null)),
             voteRepository = repository,

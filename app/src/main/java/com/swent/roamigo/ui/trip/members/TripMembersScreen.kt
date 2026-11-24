@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -50,6 +51,7 @@ fun TripMembersRoute(
     tripRepository: TripRepository,
     userRepository: UserRepository,
     onBack: () -> Unit,
+    onInviteClick: () -> Unit,
     currentUserName: String? = null,
 ) {
   val viewModel: TripMembersViewModel =
@@ -65,16 +67,21 @@ fun TripMembersRoute(
               ),
       )
   val state by viewModel.uiState.collectAsStateWithLifecycle()
-  TripMembersScreen(state, currentUserId, onBack, viewModel::retry)
+  TripMembersScreen(state, currentUserId, onBack, viewModel::retry, onInviteClick)
 }
 
-/** Lists the people on a trip, with the organiser marked and the current user labelled. */
+/**
+ * Lists the people on a trip, with the organiser marked and the current user labelled.
+ *
+ * @param onInviteClick opens the invitation sheet for this trip.
+ */
 @Composable
 fun TripMembersScreen(
     state: TripMembersUiState,
     currentUserId: String,
     onBack: () -> Unit,
     onRetry: () -> Unit,
+    onInviteClick: () -> Unit,
 ) {
   Column(Modifier.fillMaxSize().safeDrawingPadding().testTag(C.Tag.trip_members_screen)) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -84,7 +91,7 @@ fun TripMembersScreen(
             contentDescription = stringResource(R.string.trip_details_back),
         )
       }
-      Column {
+      Column(Modifier.weight(1f)) {
         Text(
             text = stringResource(R.string.trip_members_title),
             style = MaterialTheme.typography.headlineMedium,
@@ -102,6 +109,12 @@ fun TripMembersScreen(
               color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
         }
+      }
+      TextButton(
+          onClick = onInviteClick,
+          modifier = Modifier.padding(end = Spacing.small).testTag(C.Tag.trip_members_invite),
+      ) {
+        Text(stringResource(R.string.trip_members_invite))
       }
     }
     LazyColumn(

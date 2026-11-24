@@ -4,6 +4,7 @@ package com.swent.roamigo.model.location
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import kotlin.time.Duration
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -90,6 +91,8 @@ class LocationSharingRestorerTest {
     override fun hasLocationPermission() = true
 
     override suspend fun getCurrentLocation(): DeviceLocation? = null
+
+    override fun lastKnownLocation(maxAge: Duration): DeviceLocation? = null
 
     override suspend fun startSharing(tripId: String) = Unit
 

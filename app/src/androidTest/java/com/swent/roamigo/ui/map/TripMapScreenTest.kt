@@ -71,6 +71,7 @@ import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.theme.Spacing
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.abs
+import kotlin.time.Duration
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -1081,6 +1082,8 @@ class TripMapScreenTest {
       getCurrentLocationCalls.incrementAndGet()
       return null
     }
+
+    override fun lastKnownLocation(maxAge: Duration): DeviceLocation? = null
 
     override suspend fun startSharing(tripId: String) {
       startSharingCalls.incrementAndGet()

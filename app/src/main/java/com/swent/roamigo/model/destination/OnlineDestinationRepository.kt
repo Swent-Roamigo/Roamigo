@@ -5,23 +5,18 @@ package com.swent.roamigo.model.destination
 import android.net.Uri
 import androidx.core.text.HtmlCompat
 import com.swent.roamigo.BuildConfig
+import com.swent.roamigo.model.network.await
 import java.io.IOException
 import java.text.Normalizer
 import java.util.concurrent.TimeUnit
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import kotlin.math.abs
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import okhttp3.Call
-import okhttp3.Callback
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.Response
 import org.json.JSONObject
 
 /** Online GeoNames search and Commons/Openverse photo lookup. */
@@ -317,21 +312,6 @@ class OnlineDestinationRepository(
           JSONObject(response.body?.string() ?: throw IOException("Empty response"))
         }
       }
-
-  private suspend fun Call.await(): Response = suspendCancellableCoroutine { continuation ->
-    continuation.invokeOnCancellation { cancel() }
-    enqueue(
-        object : Callback {
-          override fun onFailure(call: Call, e: IOException) {
-            if (continuation.isActive) continuation.resumeWithException(e)
-          }
-
-          override fun onResponse(call: Call, response: Response) {
-            if (continuation.isActive) continuation.resume(response) else response.close()
-          }
-        }
-    )
-  }
 
   private fun JSONObject.plain(key: String): String? =
       optJSONObject(key)

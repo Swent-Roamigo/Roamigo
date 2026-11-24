@@ -1,6 +1,7 @@
 package com.swent.roamigo.model.trip
 
 import com.google.firebase.Timestamp
+import com.swent.roamigo.model.toLocalDate
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -11,4 +12,4 @@ internal fun Trip.isCompletedOn(
 
 /** The final local calendar day is inclusive, independently of the stored trip status. */
 internal fun Timestamp.isBeforeLocalDate(today: LocalDate, zone: ZoneId): Boolean =
-    toDate().toInstant().atZone(zone).toLocalDate().isBefore(today)
+    toLocalDate(zone).isBefore(today)

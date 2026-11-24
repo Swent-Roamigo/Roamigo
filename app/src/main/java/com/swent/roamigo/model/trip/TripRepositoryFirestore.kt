@@ -7,6 +7,7 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.toFirebaseTimestamp
 import com.swent.roamigo.model.validCountryCodeOrNull
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.tasks.await
