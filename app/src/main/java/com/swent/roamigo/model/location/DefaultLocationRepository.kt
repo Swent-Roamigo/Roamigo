@@ -256,6 +256,9 @@ class DefaultLocationRepository(
   }
 
   /**
+   * Called through [LocationSharingRestorer] by `LocationSharingRestoreViewModel`, at the root of
+   * `RoamigoApp`, so only while the app is in the foreground.
+   *
    * @throws LocationSharingException if the saved trips could not be read. Failing to resume or
    *   stop the sharing of a single trip is not reported, so that the other trips are still
    *   restored.

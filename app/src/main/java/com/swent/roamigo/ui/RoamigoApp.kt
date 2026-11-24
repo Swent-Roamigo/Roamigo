@@ -24,6 +24,7 @@ import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.ClearCredentialException
 import androidx.lifecycle.compose.dropUnlessResumed
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -49,6 +50,7 @@ import com.swent.roamigo.ui.friends.FriendsRoute
 import com.swent.roamigo.ui.friends.FriendsSearchRoute
 import com.swent.roamigo.ui.heatmap.ExploredWorldRoute
 import com.swent.roamigo.ui.heatmap.VisitedCountryCounts
+import com.swent.roamigo.ui.map.LocationSharingRestoreViewModel
 import com.swent.roamigo.ui.map.TripOverviewMapRoute
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.navigation.activityFormTrip
@@ -87,8 +89,9 @@ import kotlinx.coroutines.launch
  * @param photoRepository Takes trip photos and keeps them until they are uploaded.
  * @param connectivityRepository Tells whether the device is online; the device's own by default.
  * @param invitationService Creates, previews and accepts the links that invite people to a trip.
- * @param locationRepository Shares the user's location on a trip map; the app-wide instance of
- *   [RoamigoApplication] by default, since sharing must go through a single instance.
+ * @param locationRepository Shares the user's location on a trip map, and resumes at startup the
+ *   sharing left on by a previous process; the app-wide instance of [RoamigoApplication] by
+ *   default, since sharing must go through a single instance.
  * @param placeRepository Searches places for the activity form; the app-wide instance of
  *   [RoamigoApplication] by default, since Search Box keeps one provider session.
  */
@@ -112,6 +115,20 @@ fun RoamigoApp(
 ) {
   val context = LocalContext.current
   val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }
+  // Obtained outside the NavHost, so that it belongs to the activity: it is created once whatever
+  // the start destination and kept across rotation. It restores in the background, so nothing here
+  // waits for it.
+  viewModel<LocationSharingRestoreViewModel>(
+      factory =
+          LocationSharingRestoreViewModel.factory(
+              locationRepository =
+                  locationRepository
+                      ?: remember(context) {
+                        (context.applicationContext as RoamigoApplication).locationRepository
+                      },
+              authRepository = authRepository,
+          )
+  )
   val scope = rememberCoroutineScope()
   // MainActivity is singleTop, so a link opened while the app is running arrives as a new intent
   // on the same activity. The navigation graph only follows it when it is told about it.
