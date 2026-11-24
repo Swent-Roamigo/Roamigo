@@ -25,4 +25,12 @@ class DailyForecastTest {
   fun aDryDayWithoutARainChanceIsNotWet() {
     assertEquals(false, day(WeatherCondition.SUNNY, null).isWet)
   }
+
+  @Test
+  fun rainIsLikelyFromHalfAChanceButSnowIsNotRain() {
+    assertEquals(true, day(WeatherCondition.RAIN, null).isRainLikely)
+    assertEquals(true, day(WeatherCondition.CLOUDY, 50).isRainLikely)
+    assertEquals(false, day(WeatherCondition.CLOUDY, 49).isRainLikely)
+    assertEquals(false, day(WeatherCondition.SNOW, 90).isRainLikely)
+  }
 }

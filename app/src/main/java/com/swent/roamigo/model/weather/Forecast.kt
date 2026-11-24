@@ -33,10 +33,14 @@ data class DailyForecast(
    * not.
    */
   val isWet: Boolean
+    get() = isRainLikely || condition == WeatherCondition.SNOW
+
+  /** Whether rain, not snow, is forecast or at least as likely as not. */
+  val isRainLikely: Boolean
     get() =
-        condition == WeatherCondition.RAIN ||
-            condition == WeatherCondition.SNOW ||
-            (rainChancePercent ?: 0) >= WET_RAIN_CHANCE_PERCENT
+        condition != WeatherCondition.SNOW &&
+            (condition == WeatherCondition.RAIN ||
+                (rainChancePercent ?: 0) >= WET_RAIN_CHANCE_PERCENT)
 
   private companion object {
     const val WET_RAIN_CHANCE_PERCENT = 50

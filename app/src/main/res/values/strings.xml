@@ -722,11 +722,11 @@
     <string name="weather_source_updated">Open-Meteo · updated %1$s</string>
     <string name="weather_source_saved">Open-Meteo · saved %1$s</string>
     <string name="weather_just_now">just now</string>
-    <string name="weather_stale_notice">You\'re offline. Showing the forecast saved %1$s.</string>
+    <string name="weather_stale_notice">Couldn\'t refresh the forecast. Showing the one saved %1$s.</string>
     <string name="weather_loading">Loading the forecast…</string>
     <string name="weather_too_far_title">The forecast comes %1$d days before your trip.</string>
     <string name="weather_too_far_body">Check back on %1$s. Until then, weather this far ahead would only be a guess.</string>
     <string name="weather_failed_title">The weather can\'t be loaded.</string>
-    <string name="weather_failed_body">No forecast is saved on this phone yet. Check your connection and try again.</string>
+    <string name="weather_failed_body">No forecast is saved on this phone yet. Try again in a moment.</string>
     <string name="weather_retry">Retry</string>
 </resources>

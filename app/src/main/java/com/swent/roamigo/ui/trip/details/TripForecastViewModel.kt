@@ -8,6 +8,7 @@ import com.swent.roamigo.model.weather.DailyForecast
 import com.swent.roamigo.model.weather.ForecastWindow
 import com.swent.roamigo.model.weather.WeatherRepository
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.CancellationException
@@ -52,6 +53,7 @@ class TripForecastViewModel(
   private val _state = MutableStateFlow<ForecastUiState>(ForecastUiState.Loading)
   val state: StateFlow<ForecastUiState> = _state.asStateFlow()
   private var job: Job? = null
+  private var loadedAt: Instant = clock.instant()
 
   init {
     load()
@@ -62,18 +64,37 @@ class TripForecastViewModel(
     if (_state.value == ForecastUiState.Failed) load()
   }
 
-  private fun load() {
+  /**
+   * Brings the card up to date when the screen comes back, e.g. the next day or after a long while.
+   * What is shown stays until the new answer arrives, and a failed refresh keeps it.
+   */
+  fun refresh() {
+    val now = clock.instant()
+    val dayChanged = LocalDate.now(clock) != LocalDate.ofInstant(loadedAt, clock.zone)
+    val stale = Duration.between(loadedAt, now) >= REFRESH_AFTER
+    when (_state.value) {
+      ForecastUiState.Loading -> Unit
+      ForecastUiState.Failed -> load()
+      else -> if (dayChanged || stale) load(keepWhileLoading = true)
+    }
+  }
+
+  private fun load(keepWhileLoading: Boolean = false) {
     job?.cancel()
-    _state.value = ForecastUiState.Loading
+    val before = _state.value
+    if (!keepWhileLoading) _state.value = ForecastUiState.Loading
+    loadedAt = clock.instant()
     job = viewModelScope.launch {
       val today = LocalDate.now(clock)
-      _state.value =
+      val next =
           when {
             endDate.isBefore(today) -> ForecastUiState.Hidden
             !ForecastWindow.isAvailable(startDate, today) ->
                 ForecastUiState.TooFar(ForecastWindow.availableFrom(startDate))
             else -> fetch()
           }
+      // A refresh that fails must not replace a forecast that is still worth showing.
+      _state.value = if (keepWhileLoading && next == ForecastUiState.Failed) before else next
     }
   }
 
@@ -88,4 +109,8 @@ class TripForecastViewModel(
       } catch (_: Exception) {
         ForecastUiState.Failed
       }
+
+  private companion object {
+    val REFRESH_AFTER: Duration = Duration.ofHours(1)
+  }
 }

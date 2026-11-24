@@ -2,12 +2,15 @@
 package com.swent.roamigo.ui.trip.details
 
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.weather.DailyForecast
 import com.swent.roamigo.model.weather.WeatherCondition
@@ -52,7 +55,7 @@ class TripForecastCardTest {
     composeRule.onNodeWithText("Weather in Lisbon").assertIsDisplayed()
     val saturday = composeRule.onNodeWithTag(C.Tag.weather_day_prefix + "2026-11-28")
     saturday.assertIsDisplayed()
-    for (shown in listOf("SAT", "28 Nov", "Sunny", "16°", "10°", "5%")) {
+    for (shown in listOf("SAT", "Nov 28", "Sunny", "16°", "10°", "5%")) {
       saturday.assert(hasText(shown))
     }
     composeRule.onNodeWithText("Partly cloudy").assertIsDisplayed()
@@ -79,8 +82,8 @@ class TripForecastCardTest {
 
     composeRule.onNodeWithText("12°").assertIsDisplayed()
     composeRule.onNodeWithText("Cloudy").assertIsDisplayed()
-    composeRule.onNodeWithTag(C.Tag.weather_day_prefix + "2026-12-02")
-    assertEquals(0, composeRule.onAllNodesWithTextCount("%"))
+    composeRule.onNodeWithTag(C.Tag.weather_day_prefix + "2026-12-02").assertIsDisplayed()
+    composeRule.onAllNodesWithText("%", substring = true).assertCountEquals(0)
   }
 
   @Test
@@ -92,12 +95,12 @@ class TripForecastCardTest {
   }
 
   @Test
-  fun aSavedForecastSaysItIsOfflineAndHowOldItIs() {
+  fun aSavedForecastSaysItCouldNotBeRefreshedAndHowOldItIs() {
     show(ready(fromCache = true))
 
     composeRule.onNodeWithTag(C.Tag.weather_stale_notice).assertIsDisplayed()
     composeRule
-        .onNodeWithText("You're offline. Showing the forecast saved 2 hours ago.")
+        .onNodeWithText("Couldn't refresh the forecast. Showing the one saved 2 hours ago.")
         .assertIsDisplayed()
     composeRule.onNodeWithText("Open-Meteo · saved 2 hours ago").assertIsDisplayed()
   }
@@ -135,7 +138,7 @@ class TripForecastCardTest {
     composeRule.onNodeWithText("The forecast comes 14 days before your trip.").assertIsDisplayed()
     composeRule
         .onNodeWithText(
-            "Check back on 6 December. Until then, weather this far ahead would only be a guess."
+            "Check back on December 6. Until then, weather this far ahead would only be a guess."
         )
         .assertIsDisplayed()
   }
@@ -146,9 +149,7 @@ class TripForecastCardTest {
 
     composeRule.onNodeWithText("The weather can't be loaded.").assertIsDisplayed()
     composeRule
-        .onNodeWithText(
-            "No forecast is saved on this phone yet. Check your connection and try again."
-        )
+        .onNodeWithText("No forecast is saved on this phone yet. Try again in a moment.")
         .assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.weather_retry).performClick()
 
@@ -161,11 +162,26 @@ class TripForecastCardTest {
 
     composeRule.onNodeWithTag(C.Tag.weather_card).assertDoesNotExist()
   }
-}
 
-private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.onAllNodesWithTextCount(
-    fragment: String
-): Int =
-    onAllNodes(androidx.compose.ui.test.hasText(fragment, substring = true))
-        .fetchSemanticsNodes()
-        .size
+  @Test
+  fun aTripOfMoreThanFiveDaysScrollsAndEveryDayCanBeReached() {
+    show(ready())
+
+    composeRule
+        .onNodeWithTag(C.Tag.weather_day_prefix + "2026-12-03")
+        .performScrollTo()
+        .assertIsDisplayed()
+  }
+
+  @Test
+  fun eachDayIsOneItemForAScreenReader() {
+    show(ready())
+
+    val day = composeRule.onNodeWithTag(C.Tag.weather_day_prefix + "2026-11-30")
+
+    // The merged node carries the whole day, so it is read in one go.
+    day.assert(hasText("Rain", substring = true))
+    day.assert(hasText("13°", substring = true))
+    day.assert(hasText("80%", substring = true))
+  }
+}

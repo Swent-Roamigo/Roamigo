@@ -1,6 +1,7 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui.trip.details
 
+import android.text.format.DateFormat
 import android.text.format.DateUtils
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,10 +24,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -40,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
@@ -60,11 +62,28 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.Locale
+import kotlinx.coroutines.delay
 
-/** Loads the forecast of the trip's first destination and shows it, or nothing without one. */
+/** What the trip screen needs to draw the forecast card. */
+@Immutable
+class TripForecastUi(
+    val state: ForecastUiState,
+    val city: String,
+    val onRetry: () -> Unit,
+)
+
+/**
+ * The forecast card state of [details], or null when there is nothing to look up. It lives in the
+ * Route, so the Screen only renders it, and it is refreshed whenever the screen comes back.
+ */
 @Composable
-internal fun TripForecast(details: TripDetails, repository: WeatherRepository) {
-  val destination = details.destination ?: return
+internal fun rememberTripForecast(
+    details: TripDetails?,
+    repository: WeatherRepository?,
+): TripForecastUi? {
+  val destination = details?.destination
+  if (details == null || destination == null || repository == null) return null
   val model =
       viewModel(
           key =
@@ -73,9 +92,25 @@ internal fun TripForecast(details: TripDetails, repository: WeatherRepository) {
       ) {
         TripForecastViewModel(destination, details.startDate, details.endDate, repository)
       }
+  LifecycleResumeEffect(model) {
+    model.refresh()
+    onPauseOrDispose {}
+  }
   val state by model.state.collectAsStateWithLifecycle()
-  val now by remember { mutableStateOf(Instant.now()) }
-  TripForecastCard(state, destination.name, now, onRetry = model::retry)
+  return TripForecastUi(state, destination.name, model::retry)
+}
+
+/** The current time, renewed every minute so an "updated … ago" line never goes stale. */
+@Composable
+internal fun rememberNow(): Instant {
+  val now by
+      produceState(Instant.now()) {
+        while (true) {
+          delay(NOW_REFRESH_MILLIS)
+          value = Instant.now()
+        }
+      }
+  return now
 }
 
 /** The weather of each trip day, or why there is none yet. [now] dates the "updated" line. */
@@ -118,14 +153,23 @@ private fun ReadyBody(state: ForecastUiState.Ready, now: Instant) {
   val age = ageOf(state.fetchedAt, now)
   if (state.fromCache) StaleNotice(age)
   Text(summaryOf(state.days), style = MaterialTheme.typography.bodyMedium)
-  val scrolls = state.days.size > MAX_FITTING_DAYS
+  val configuration = LocalConfiguration.current
+  // Tiles of five days do not fit a narrow screen, nor a large font, so they scroll instead.
+  val scrolls =
+      state.days.size > MAX_FITTING_DAYS ||
+          configuration.screenWidthDp < NARROW_SCREEN_DP ||
+          configuration.fontScale > MAX_FONT_SCALE_THAT_FITS
+  val scroll = rememberScrollState()
   Row(
-      Modifier.fillMaxWidth()
-          .then(if (scrolls) Modifier.horizontalScroll(rememberScrollState()) else Modifier),
+      Modifier.fillMaxWidth().then(if (scrolls) Modifier.horizontalScroll(scroll) else Modifier),
       horizontalArrangement = Arrangement.spacedBy(6.dp),
   ) {
     state.days.forEach { day ->
-      DayTile(day, if (scrolls) Modifier.width(DAY_TILE_WIDTH) else Modifier.weight(1f))
+      DayTile(
+          day,
+          if (scrolls) Modifier.width(DAY_TILE_WIDTH * configuration.fontScale.coerceIn(1f, 2f))
+          else Modifier.weight(1f),
+      )
     }
   }
   Text(
@@ -163,7 +207,7 @@ private fun StaleNotice(age: String) {
 @Composable
 private fun DayTile(day: DailyForecast, modifier: Modifier) {
   val locale = LocalConfiguration.current.locales[0]
-  val weekday = DateTimeFormatter.ofPattern("EEE", locale).format(day.date).uppercase(locale)
+  val weekday = formatted(day.date, "EEE", locale).uppercase(locale)
   Surface(
       // One item per day, so a screen reader reads the whole day in one go.
       modifier.testTag(C.Tag.weather_day_prefix + day.date).semantics(mergeDescendants = true) {},
@@ -182,7 +226,7 @@ private fun DayTile(day: DailyForecast, modifier: Modifier) {
           color = TextSecondaryAa,
       )
       Text(
-          DateTimeFormatter.ofPattern("d MMM", locale).format(day.date),
+          formatted(day.date, "dMMM", locale),
           style = MaterialTheme.typography.labelSmall,
           color = TextSecondaryAa,
       )
@@ -235,6 +279,7 @@ private fun DayTile(day: DailyForecast, modifier: Modifier) {
 
 @Composable
 private fun LoadingBody() {
+  val fontScale = LocalConfiguration.current.fontScale.coerceIn(1f, 2f)
   Column(
       Modifier.testTag(C.Tag.weather_loading).semantics { liveRegion = LiveRegionMode.Polite },
       verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -242,7 +287,7 @@ private fun LoadingBody() {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
       repeat(MAX_FITTING_DAYS) {
         Surface(
-            Modifier.weight(1f).size(width = 58.dp, height = 112.dp),
+            Modifier.weight(1f).height(LOADING_TILE_HEIGHT * fontScale),
             shape = MaterialTheme.shapes.small,
             color = PaperSubtle,
         ) {}
@@ -265,7 +310,7 @@ private fun TooFarBody(availableFrom: LocalDate) {
       body =
           stringResource(
               R.string.weather_too_far_body,
-              DateTimeFormatter.ofPattern("d MMMM", locale).format(availableFrom),
+              formatted(availableFrom, "dMMMM", locale),
           ),
   )
 }
@@ -326,13 +371,9 @@ private fun Message(
 @Composable
 private fun summaryOf(days: List<DailyForecast>): String {
   val locale = LocalConfiguration.current.locales[0]
-  val rainy = days.filter {
-    it.condition != WeatherCondition.SNOW &&
-        (it.condition == WeatherCondition.RAIN ||
-            (it.rainChancePercent ?: 0) >= RAIN_LIKELY_PERCENT)
-  }
+  val rainy = days.filter { it.isRainLikely }
   if (rainy.isEmpty()) return stringResource(R.string.weather_summary_dry)
-  val names = rainy.map { DateTimeFormatter.ofPattern("EEEE", locale).format(it.date) }
+  val names = rainy.map { formatted(it.date, "EEEE", locale) }
   val list =
       if (names.size == 1) names.single()
       else
@@ -377,6 +418,14 @@ private fun labelOf(condition: WeatherCondition): Int =
       WeatherCondition.SNOW -> R.string.weather_condition_snow
     }
 
+/** [date] in the pattern the [locale] writes the [skeleton] with, e.g. "EEE" or "dMMM". */
+private fun formatted(date: LocalDate, skeleton: String, locale: Locale): String =
+    DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, skeleton), locale)
+        .format(date)
+
 private const val MAX_FITTING_DAYS = 5
-private const val RAIN_LIKELY_PERCENT = 50
+private const val NARROW_SCREEN_DP = 360
+private const val MAX_FONT_SCALE_THAT_FITS = 1.15f
+private const val NOW_REFRESH_MILLIS = 60_000L
 private val DAY_TILE_WIDTH = 58.dp
+private val LOADING_TILE_HEIGHT = 112.dp
