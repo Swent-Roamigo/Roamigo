@@ -411,6 +411,34 @@ class OpenMeteoWeatherRepositoryTest {
   }
 
   @Test
+  fun tellsWhichDayItIsAtTheDestination() = runTest {
+    val json =
+        """{"utc_offset_seconds":50400,"daily":{"time":["2026-11-24"],"weather_code":[0],"temperature_2m_max":[10],"temperature_2m_min":[5]}}"""
+
+    val forecast =
+        repository(json).forecast(1.0, 1.0, LocalDate.of(2026, 11, 23), LocalDate.of(2026, 11, 24))
+
+    // 10:00Z is already the 24th at UTC+14.
+    assertEquals(LocalDate.of(2026, 11, 24), forecast.destinationToday)
+    assertEquals(today, repository(daily()).trip().destinationToday)
+  }
+
+  @Test
+  fun marksARefusalForAskingTooOftenAndNothingElseAsRateLimited() = runTest {
+    val limited =
+        assertThrows(WeatherUnavailableException::class.java) {
+          kotlinx.coroutines.runBlocking { repository("{}", status = 429).trip() }
+        }
+    val broken =
+        assertThrows(WeatherUnavailableException::class.java) {
+          kotlinx.coroutines.runBlocking { repository("{}", status = 400).trip() }
+        }
+
+    assertTrue(limited.rateLimited)
+    assertEquals(false, broken.rateLimited)
+  }
+
+  @Test
   fun canBeCreatedWithItsDefaultClientAndClock() {
     OpenMeteoWeatherRepository()
   }

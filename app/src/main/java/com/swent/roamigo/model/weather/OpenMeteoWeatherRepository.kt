@@ -56,7 +56,7 @@ class OpenMeteoWeatherRepository(
     val first = maxOf(from, today.minusDays(ZONE_MARGIN_DAYS))
     val last = minOf(to, ForecastWindow.lastDay(today).plusDays(ZONE_MARGIN_DAYS))
     val fetchedAt = clock.instant()
-    if (first.isAfter(last)) return Forecast(emptyList(), fetchedAt)
+    if (first.isAfter(last)) return Forecast(emptyList(), fetchedAt, destinationToday = today)
 
     val url =
         BASE_URL.toHttpUrl()
@@ -73,7 +73,7 @@ class OpenMeteoWeatherRepository(
     val destinationToday = answer.utcOffsetSeconds?.let { dateAt(fetchedAt, it) } ?: today
     val window = maxOf(from, destinationToday)..minOf(to, ForecastWindow.lastDay(destinationToday))
     val days = answer.days.filter { it.date in window }.distinctBy { it.date }.sortedBy { it.date }
-    return Forecast(days, fetchedAt)
+    return Forecast(days, fetchedAt, destinationToday = destinationToday)
   }
 
   /** The provider needs no more than a few kilometres, and the exact spot is private. */
@@ -112,6 +112,7 @@ class OpenMeteoWeatherRepository(
               throw WeatherUnavailableException(
                   "Open-Meteo answered ${response.code}: ${reasonOf(text)}",
                   retryable = response.code >= HTTP_SERVER_ERROR,
+                  rateLimited = response.code == HTTP_TOO_MANY_REQUESTS,
               )
             }
             parse(text)
@@ -217,6 +218,7 @@ class OpenMeteoWeatherRepository(
     const val ATTEMPTS = 2
     const val RETRY_DELAY_MILLIS = 400L
     const val HTTP_SERVER_ERROR = 500
+    const val HTTP_TOO_MANY_REQUESTS = 429
     val PLAUSIBLE_CELSIUS = -90.0..60.0
     val DEFAULT_CLIENT: OkHttpClient =
         OkHttpClient.Builder().callTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS).build()

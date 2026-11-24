@@ -36,9 +36,12 @@ data class DailyForecast(
  *   days is inside the forecast window.
  * @param fetchedAt when the app asked the provider, so the screen can say how fresh it is.
  * @param fromCache whether it was saved earlier and could not be refreshed now.
+ * @param destinationToday the calendar day it was at the destination when the app asked, or null
+ *   when that is not known (a saved forecast), in which case the device's date is the best guess.
  */
 data class Forecast(
     val days: List<DailyForecast>,
     val fetchedAt: Instant,
     val fromCache: Boolean = false,
+    val destinationToday: LocalDate? = null,
 )
