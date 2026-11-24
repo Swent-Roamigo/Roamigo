@@ -55,6 +55,7 @@ import org.mockito.ArgumentMatchers.eq
 import org.mockito.Mockito.doAnswer
 import org.mockito.Mockito.inOrder
 import org.mockito.Mockito.mock
+import org.mockito.Mockito.never
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
@@ -1172,6 +1173,82 @@ class DefaultLocationRepositoryTest {
     verifyUpdates(ownLocation, 2)
     verifyUpdates(ownOtherTripLocation, 2)
     restore.cancel()
+  }
+
+  @Test
+  fun restoreSharing_removesThePositionWhenNoLocationFixIsAvailable() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    locationManager.setProviderEnabled(LocationManager.GPS_PROVIDER, false)
+    locationManager.setProviderEnabled(LocationManager.NETWORK_PROVIDER, false)
+    val repository = createRepository(backgroundScope)
+
+    repository.restoreSharing()
+    locationManager.setProviderEnabled(LocationManager.GPS_PROVIDER, true)
+    repository.restoreSharing()
+
+    // Removed once, and forgotten so that the second restore does not share again.
+    verifyRemovals(ownLocation, 1)
+    verifyUpdates(ownLocation, 1)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_handlesEachTripIndependently() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    val previousRepository = createRepository(killedProcess)
+    previousRepository.startSharing(TRIP_ID)
+    previousRepository.startSharing(OTHER_TRIP_ID)
+    killedProcess.cancel()
+    // The user was removed from the other trip meanwhile, so its updates are denied.
+    doAnswer { invocation ->
+          invocation
+              .getArgument<CompletionListener>(1)
+              .onComplete(
+                  DatabaseError.fromCode(DatabaseError.PERMISSION_DENIED),
+                  ownOtherTripLocation,
+              )
+        }
+        .`when`(ownOtherTripLocation)
+        .setValue(any(), any(CompletionListener::class.java))
+    val repository = createRepository(backgroundScope)
+
+    repository.restoreSharing()
+    advanceTimeBy(UPDATE_INTERVAL)
+    runCurrent()
+
+    assertTrue(repository.isSharing(TRIP_ID).first())
+    assertFalse(repository.isSharing(OTHER_TRIP_ID).first())
+    verifyUpdates(ownLocation, 3)
+    verifyRemovals(ownLocation, 0)
+    verifyUpdates(ownOtherTripLocation, 2)
+    verifyRemovals(ownOtherTripLocation, 1)
+  }
+
+  @Test
+  fun restoreSharing_twiceDoesNotStartASecondUpdateLoop() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    val repository = createRepository(backgroundScope)
+
+    repository.restoreSharing()
+    repository.restoreSharing()
+    advanceTimeBy(UPDATE_INTERVAL)
+    runCurrent()
+
+    // One update from the killed process, one when resuming, and one from a single update loop.
+    verifyUpdates(ownLocation, 3)
+    verifyRemovals(ownLocation, 0)
+    verify(tripLocations, never()).addValueEventListener(any())
+    assertTrue(repository.isSharing(TRIP_ID).first())
   }
 
   @Test
