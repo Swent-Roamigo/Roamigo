@@ -119,11 +119,12 @@ test('suggestions and their initial YES/NO votes require one atomic creation', a
   await expectWrite(200, `${trip}-other`, members);
 
   const documentName = path => `projects/${project}/databases/(default)/documents/${path}`;
-  async function commit(expected, writes, user, transaction) {
+  async function commit(expected, writes, user, transaction, optimistic = false) {
     const response = await fetch(`${base}:commit`, {
       method: 'POST', headers: { ...auth(user), 'Content-Type': 'application/json' },
       body: JSON.stringify({ transaction, writes: writes.map(([path, fields]) => ({
         update: { name: documentName(path), fields },
+        ...(optimistic ? { currentDocument: { exists: false } } : {}),
       })) }),
     });
     assert.equal(response.status, expected, await response.text());
@@ -177,6 +178,17 @@ test('suggestions and their initial YES/NO votes require one atomic creation', a
   }]], 'creator');
 
   const headers = { ...auth('creator'), 'Content-Type': 'application/json' };
+  // Android's optimistic transaction reads without a transaction token and commits with
+  // exists:false preconditions. Capture the losing caller's read before the winner commits.
+  const staleRead = await fetch(`${base}:batchGet`, {
+    method: 'POST', headers,
+    body: JSON.stringify({ documents: pair.map(([path]) => documentName(path)) }),
+  });
+  assert.equal(staleRead.status, 200);
+  assert.deepEqual(
+    (await staleRead.json()).map(result => result.missing).sort(),
+    pair.map(([path]) => documentName(path)).sort(),
+  );
   const begin = await fetch(`${base}:beginTransaction`, {
     method: 'POST', headers, body: '{}',
   });
@@ -192,11 +204,30 @@ test('suggestions and their initial YES/NO votes require one atomic creation', a
     pair.map(([path]) => documentName(path)).sort(),
   );
   await commit(200, pair, 'creator', transaction);
+  const alternateName = str('Different draft');
+  await commit(403, [
+    [activityPath, { ...activity, name: alternateName }],
+    [votePath, { ...linkedVote, question: alternateName }],
+  ], 'creator', undefined, true);
+  // Recovery uses the SDK's read-only transaction: read committed documents, then verify
+  // their versions together without attempting another write.
+  const recovery = await fetch(`${base}:batchGet`, {
+    method: 'POST', headers,
+    body: JSON.stringify({ documents: pair.map(([path]) => documentName(path)) }),
+  });
+  assert.equal(recovery.status, 200);
+  const recovered = (await recovery.json()).map(result => result.found);
   for (const [path, fields] of pair) {
-    const read = await fetch(`${base}/${path}`, { headers: auth('member') });
-    assert.equal(read.status, 200);
-    assert.deepEqual((await read.json()).fields, fields);
+    assert.deepEqual(recovered.find(record => record.name === documentName(path)).fields, fields);
   }
+  const verify = await fetch(`${base}:commit`, {
+    method: 'POST', headers,
+    body: JSON.stringify({ writes: recovered.map(record => ({
+      verify: record.name, currentDocument: { updateTime: record.updateTime },
+    })) }),
+  });
+  assert.equal(verify.status, 200, await verify.text());
+
   await expectWrite(403, `${votePath}/ballots/member`, ballot('member', 'a'), 'member');
   await expectWrite(200, `${votePath}/ballots/member`, ballot('member', 'YES'), 'member');
   await expectWrite(403, activityPath, { name: str('Edited after a ballot') }, 'creator', ['name']);
