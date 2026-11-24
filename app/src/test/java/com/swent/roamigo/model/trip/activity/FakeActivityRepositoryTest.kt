@@ -2,7 +2,9 @@
 package com.swent.roamigo.model.trip.activity
 
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
+import com.swent.roamigo.model.trip.voting.Vote
 import java.io.IOException
 import java.time.Instant
 import kotlinx.coroutines.CancellationException
@@ -149,6 +151,58 @@ class FakeActivityRepositoryTest {
     }
     assertEquals(1500, initialSuggestionVoteId("a".repeat(1489)).toByteArray().size)
     assertTrue(repository.observeActivities("trip-1").first().isEmpty())
+  }
+
+  @Test
+  fun suggestionCreationKeepsUnscheduledRetriesIsolatedByTrip() = runBlocking {
+    val repository = FakeActivityRepository()
+    val unscheduled = draft.copy(startTime = null)
+    val first = repository.createSuggestionWithVote("trip-1", "shared-id", unscheduled)
+    val second =
+        repository.createSuggestionWithVote(
+            "trip-2",
+            "shared-id",
+            unscheduled.copy(name = "Other trip"),
+        )
+
+    assertEquals(first.vote.uid, second.vote.uid)
+    assertEquals(first, repository.createSuggestionWithVote("trip-1", "shared-id", draft))
+    assertEquals(second, repository.createSuggestionWithVote("trip-2", "shared-id", draft))
+    assertEquals(listOf(first.activity), repository.observeActivities("trip-1").first())
+    assertEquals(listOf(second.activity), repository.observeActivities("trip-2").first())
+  }
+
+  @Test
+  fun suggestionCreationDoesNotRepairIncompleteStoredPairs() = runBlocking {
+    val original = FakeActivityRepository().createSuggestionWithVote("trip-1", "id", draft)
+    val fixtures =
+        listOf(
+            listOf(original.activity) to emptyList<Vote>(),
+            emptyList<Activity>() to listOf(original.vote),
+            listOf(original.activity) to listOf(original.vote.copy(suggestionId = "other")),
+        )
+    for ((activities, votes) in fixtures) {
+      val repository = FakeActivityRepository(activities, votes = votes)
+      val failure = runCatching {
+        repository.createSuggestionWithVote("trip-1", "id", draft)
+      }
+          .exceptionOrNull()
+
+      assertTrue(failure is ActivityCreationException.PairConflict)
+      assertEquals(activities, repository.observeActivities("trip-1").first())
+    }
+  }
+
+  @Test
+  fun deterministicVoteIdsRejectMalformedUtf16AndMeasureTheLimitInUtf8Bytes() {
+    val suggestionId = "__" + "é".repeat(743) + "a"
+    val voteId = initialSuggestionVoteId(suggestionId)
+    assertEquals("suggestion-$suggestionId", voteId)
+    assertEquals(1500, voteId.toByteArray(Charsets.UTF_8).size)
+    assertThrows(IllegalArgumentException::class.java) {
+      initialSuggestionVoteId(suggestionId + "a")
+    }
+    assertThrows(IllegalArgumentException::class.java) { initialSuggestionVoteId("bad-\uD800") }
   }
 
   @Test
