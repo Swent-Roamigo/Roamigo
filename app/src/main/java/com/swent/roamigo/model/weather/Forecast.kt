@@ -34,7 +34,7 @@ data class DailyForecast(
  *
  * @param days the days the provider could forecast, oldest first. Empty when none of the requested
  *   days is inside the forecast window.
- * @param fetchedAt when the provider produced it, so the screen can say how fresh it is.
+ * @param fetchedAt when the app asked the provider, so the screen can say how fresh it is.
  * @param fromCache whether it was saved earlier and could not be refreshed now.
  */
 data class Forecast(

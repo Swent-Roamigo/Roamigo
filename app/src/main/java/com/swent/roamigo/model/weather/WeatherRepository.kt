@@ -21,6 +21,12 @@ interface WeatherRepository {
   ): Forecast
 }
 
-/** The forecast could not be loaded. [cause] tells why when the network failed. */
-class WeatherUnavailableException(message: String, cause: Throwable? = null) :
-    IOException(message, cause)
+/**
+ * The forecast could not be loaded. [cause] tells why when the network failed, and [retryable] says
+ * whether asking again soon may work.
+ */
+class WeatherUnavailableException(
+    message: String,
+    cause: Throwable? = null,
+    val retryable: Boolean = false,
+) : IOException(message, cause)

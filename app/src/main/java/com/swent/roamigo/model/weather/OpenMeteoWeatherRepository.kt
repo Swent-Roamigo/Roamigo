@@ -6,14 +6,20 @@ import com.swent.roamigo.model.MAX_LONGITUDE
 import com.swent.roamigo.model.MIN_LATITUDE
 import com.swent.roamigo.model.MIN_LONGITUDE
 import com.swent.roamigo.model.destination.DESTINATION_USER_AGENT
-import com.swent.roamigo.model.place.await
+import com.swent.roamigo.model.network.await
 import java.io.IOException
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -45,41 +51,79 @@ class OpenMeteoWeatherRepository(
       "Invalid coordinates: $latitude, $longitude"
     }
     val today = LocalDate.now(clock)
-    val first = maxOf(from, today)
-    val last = minOf(to, ForecastWindow.lastDay(today))
+    // The device and the destination can be a day apart, so ask for one day more on each side and
+    // cut the answer to the destination's own window once its time zone is known.
+    val first = maxOf(from, today.minusDays(ZONE_MARGIN_DAYS))
+    val last = minOf(to, ForecastWindow.lastDay(today).plusDays(ZONE_MARGIN_DAYS))
     val fetchedAt = clock.instant()
     if (first.isAfter(last)) return Forecast(emptyList(), fetchedAt)
 
     val url =
         BASE_URL.toHttpUrl()
             .newBuilder()
-            .addQueryParameter("latitude", latitude.toString())
-            .addQueryParameter("longitude", longitude.toString())
+            .addQueryParameter("latitude", coarse(latitude))
+            .addQueryParameter("longitude", coarse(longitude))
             .addQueryParameter("daily", DAILY_FIELDS)
             .addQueryParameter("timezone", "auto")
             .addQueryParameter("start_date", first.toString())
             .addQueryParameter("end_date", last.toString())
             .build()
-    val body = read(Request.Builder().url(url).header("User-Agent", DESTINATION_USER_AGENT).build())
-    return Forecast(parseDays(body), fetchedAt)
+    val answer =
+        read(Request.Builder().url(url).header("User-Agent", DESTINATION_USER_AGENT).build())
+    val destinationToday = answer.utcOffsetSeconds?.let { dateAt(fetchedAt, it) } ?: today
+    val window = maxOf(from, destinationToday)..minOf(to, ForecastWindow.lastDay(destinationToday))
+    val days = answer.days.filter { it.date in window }.distinctBy { it.date }.sortedBy { it.date }
+    return Forecast(days, fetchedAt)
   }
 
-  private suspend fun read(request: Request): String =
+  /** The provider needs no more than a few kilometres, and the exact spot is private. */
+  private fun coarse(degrees: Double): String =
+      BigDecimal(degrees).setScale(COORDINATE_DECIMALS, RoundingMode.HALF_UP).toPlainString()
+
+  private fun dateAt(instant: Instant, utcOffsetSeconds: Int): LocalDate =
+      LocalDateTime.ofInstant(
+              instant,
+              ZoneOffset.ofTotalSeconds(
+                  utcOffsetSeconds.coerceIn(-MAX_OFFSET_SECONDS, MAX_OFFSET_SECONDS)
+              ),
+          )
+          .toLocalDate()
+
+  /** Tries once more after a short pause when the network or the provider failed for a moment. */
+  private suspend fun read(request: Request): Answer {
+    repeat(ATTEMPTS - 1) {
+      try {
+        return fetch(request)
+      } catch (error: WeatherUnavailableException) {
+        if (!error.retryable) throw error
+      }
+      delay(RETRY_DELAY_MILLIS)
+    }
+    return fetch(request)
+  }
+
+  // Reading and parsing both happen here, off the caller's thread.
+  private suspend fun fetch(request: Request): Answer =
       try {
         withContext(ioDispatcher) {
           client.newCall(request).await().use { response ->
             val text = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
               throw WeatherUnavailableException(
-                  "Open-Meteo answered ${response.code}: ${reasonOf(text)}"
+                  "Open-Meteo answered ${response.code}: ${reasonOf(text)}",
+                  retryable = response.code >= HTTP_SERVER_ERROR,
               )
             }
-            text
+            parse(text)
           }
         }
       } catch (error: IOException) {
         if (error is WeatherUnavailableException) throw error
-        throw WeatherUnavailableException("Open-Meteo could not be reached", error)
+        throw WeatherUnavailableException(
+            "Open-Meteo could not be reached",
+            error,
+            retryable = true,
+        )
       }
 
   private fun reasonOf(text: String): String =
@@ -89,24 +133,31 @@ class OpenMeteoWeatherRepository(
         "no reason given"
       }
 
-  private fun parseDays(body: String): List<DailyForecast> {
-    val daily =
+  private class Answer(val days: List<DailyForecast>, val utcOffsetSeconds: Int?)
+
+  private fun parse(body: String): Answer {
+    val unreadable = WeatherUnavailableException("Open-Meteo sent an answer the app cannot read")
+    val root =
         try {
-          JSONObject(body).optJSONObject("daily")
+          JSONObject(body)
         } catch (_: JSONException) {
-          null
-        } ?: throw WeatherUnavailableException("Open-Meteo sent an answer the app cannot read")
+          throw unreadable
+        }
+    val daily = root.optJSONObject("daily") ?: throw unreadable
     val times = daily.optJSONArray("time")
     val codes = daily.optJSONArray("weather_code")
     val highs = daily.optJSONArray("temperature_2m_max")
     val lows = daily.optJSONArray("temperature_2m_min")
     if (times == null || codes == null || highs == null || lows == null) {
-      throw WeatherUnavailableException("Open-Meteo sent an answer the app cannot read")
+      throw unreadable
     }
     val rain = daily.optJSONArray("precipitation_probability_max")
-    return (0 until times.length()).mapNotNull { index ->
-      dayAt(index, times, codes, highs, lows, rain)
-    }
+    val days =
+        (0 until times.length()).mapNotNull { index ->
+          dayAt(index, times, codes, highs, lows, rain)
+        }
+    val offset = if (root.has("utc_offset_seconds")) root.optInt("utc_offset_seconds") else null
+    return Answer(days, offset)
   }
 
   /**
@@ -131,6 +182,7 @@ class OpenMeteoWeatherRepository(
     val high = highs.optDouble(index)
     val low = lows.optDouble(index)
     if (!high.isFinite() || !low.isFinite()) return null
+    if (high !in PLAUSIBLE_CELSIUS || low !in PLAUSIBLE_CELSIUS || low > high) return null
     val chance =
         if (rain == null || rain.isNull(index)) null else rain.optInt(index).coerceIn(0, 100)
     return DailyForecast(date, condition, high.roundToInt(), low.roundToInt(), chance)
@@ -159,6 +211,13 @@ class OpenMeteoWeatherRepository(
     const val DAILY_FIELDS =
         "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"
     const val TIMEOUT_SECONDS = 12L
+    const val ZONE_MARGIN_DAYS = 1L
+    const val COORDINATE_DECIMALS = 3
+    const val MAX_OFFSET_SECONDS = 18 * 60 * 60
+    const val ATTEMPTS = 2
+    const val RETRY_DELAY_MILLIS = 400L
+    const val HTTP_SERVER_ERROR = 500
+    val PLAUSIBLE_CELSIUS = -90.0..60.0
     val DEFAULT_CLIENT: OkHttpClient =
         OkHttpClient.Builder().callTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS).build()
   }

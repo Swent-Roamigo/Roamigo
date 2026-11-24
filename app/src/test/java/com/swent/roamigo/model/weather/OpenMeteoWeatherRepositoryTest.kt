@@ -56,8 +56,8 @@ class OpenMeteoWeatherRepositoryTest {
     assertEquals("https", url.scheme)
     assertEquals("api.open-meteo.com", url.host)
     assertEquals("/v1/forecast", url.encodedPath)
-    assertEquals("38.7223", url.queryParameter("latitude"))
-    assertEquals("-9.1393", url.queryParameter("longitude"))
+    assertEquals("38.722", url.queryParameter("latitude"))
+    assertEquals("-9.139", url.queryParameter("longitude"))
     assertEquals(
         "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
         url.queryParameter("daily"),
@@ -152,15 +152,16 @@ class OpenMeteoWeatherRepositoryTest {
   }
 
   @Test
-  fun onlyAsksForDaysInsideTheForecastWindow() = runTest {
+  fun onlyAsksForDaysInsideTheForecastWindowAndItsMargin() = runTest {
     var request: Request? = null
 
     repository(daily(), onRequest = { request = it })
         .forecast(1.0, 1.0, LocalDate.of(2026, 11, 20), LocalDate.of(2026, 12, 30))
 
     val url = requireNotNull(request).url
-    assertEquals("2026-11-23", url.queryParameter("start_date"))
-    assertEquals("2026-12-07", url.queryParameter("end_date"))
+    // One day more than the window on each side, for a destination whose date differs.
+    assertEquals("2026-11-22", url.queryParameter("start_date"))
+    assertEquals("2026-12-08", url.queryParameter("end_date"))
   }
 
   @Test
@@ -288,6 +289,125 @@ class OpenMeteoWeatherRepositoryTest {
         kotlinx.coroutines.runBlocking { repository(daily()).forecast(lat, lon, today, today) }
       }
     }
+  }
+
+  @Test
+  fun cutsTheAnswerToTheWindowOfTheDestinationNotOfTheDevice() = runTest {
+    // At 10:00Z it is already 24 Nov on the Line Islands (UTC+14) but still 23 Nov in Lisbon.
+    val lineIslands =
+        """{"utc_offset_seconds":50400,"daily":{"time":["2026-11-22","2026-11-23","2026-11-24"],"weather_code":[0,0,0],"temperature_2m_max":[10,10,10],"temperature_2m_min":[5,5,5]}}"""
+    val lisbon = lineIslands.replace("50400", "0")
+    val trip: suspend (String) -> List<LocalDate> = { json ->
+      repository(json)
+          .forecast(1.0, 1.0, LocalDate.of(2026, 11, 22), LocalDate.of(2026, 11, 24))
+          .days
+          .map { it.date }
+    }
+
+    assertEquals(listOf(LocalDate.of(2026, 11, 24)), trip(lineIslands))
+    assertEquals(
+        listOf(LocalDate.of(2026, 11, 23), LocalDate.of(2026, 11, 24)),
+        trip(lisbon),
+    )
+  }
+
+  @Test
+  fun returnsEachDayOnceAndOldestFirstAndOnlyInsideTheRequestedDates() = runTest {
+    val json =
+        daily(
+            times = """["2026-11-29","2026-11-28","2026-11-29","2026-12-05"]""",
+            codes = "[3,0,0,0]",
+            highs = "[15,16,17,18]",
+            lows = "[9,10,11,12]",
+            rain = "[1,2,3,4]",
+        )
+
+    val forecast = repository(json).trip()
+
+    assertEquals(
+        listOf(LocalDate.of(2026, 11, 28), LocalDate.of(2026, 11, 29)),
+        forecast.days.map { it.date },
+    )
+    assertEquals(WeatherCondition.CLOUDY, forecast.days[1].condition)
+  }
+
+  @Test
+  fun skipsADayWithTemperaturesThatCannotBeRight() = runTest {
+    val json = daily(highs = "[1e30,5]", lows = "[9.6,9.0]")
+
+    val forecast = repository(json).trip()
+
+    // 1e30 is absurd, and a low above the high is a swapped pair.
+    assertEquals(emptyList<DailyForecast>(), forecast.days)
+  }
+
+  @Test
+  fun doesNotCallTheServiceForADatesRangeThatIsBackwardsOrInThePast() = runTest {
+    var calls = 0
+    val repository = repository(daily(), onRequest = { calls++ })
+
+    val backwards =
+        repository.forecast(1.0, 1.0, LocalDate.of(2026, 11, 29), LocalDate.of(2026, 11, 28))
+    val past = repository.forecast(1.0, 1.0, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 10))
+
+    assertEquals(emptyList<DailyForecast>(), backwards.days)
+    assertEquals(emptyList<DailyForecast>(), past.days)
+    assertEquals(0, calls)
+  }
+
+  @Test
+  fun asksAgainOnceWhenTheProviderFailsForAMoment() = runTest {
+    var calls = 0
+    val client =
+        OkHttpClient.Builder()
+            .addInterceptor { chain ->
+              calls++
+              val ok = calls > 1
+              Response.Builder()
+                  .request(chain.request())
+                  .protocol(Protocol.HTTP_1_1)
+                  .code(if (ok) 200 else 503)
+                  .message("Test response")
+                  .body((if (ok) daily() else "").toResponseBody("application/json".toMediaType()))
+                  .build()
+            }
+            .build()
+
+    val forecast = OpenMeteoWeatherRepository(client = client, clock = clock).trip()
+
+    assertEquals(2, calls)
+    assertEquals(2, forecast.days.size)
+  }
+
+  @Test
+  fun givesUpAfterOneRetryButNeverRetriesARefusal() = runTest {
+    var calls = 0
+    val failing = repository("", status = 503, onRequest = { calls++ })
+    val error =
+        assertThrows(WeatherUnavailableException::class.java) {
+          kotlinx.coroutines.runBlocking { failing.trip() }
+        }
+    assertEquals(2, calls)
+    assertTrue(error.message.orEmpty().contains("503"))
+
+    calls = 0
+    val limited =
+        repository("""{"reason":"Too many requests"}""", status = 429, onRequest = { calls++ })
+    assertThrows(WeatherUnavailableException::class.java) {
+      kotlinx.coroutines.runBlocking { limited.trip() }
+    }
+    assertEquals(1, calls)
+  }
+
+  @Test
+  fun sendsCoordinatesInPlainDecimalNotationEvenNearZero() = runTest {
+    var request: Request? = null
+
+    repository(daily(), onRequest = { request = it })
+        .forecast(0.0001, -0.0004, LocalDate.of(2026, 11, 28), LocalDate.of(2026, 11, 29))
+
+    assertEquals("0.000", requireNotNull(request).url.queryParameter("latitude"))
+    assertEquals("0.000", requireNotNull(request).url.queryParameter("longitude"))
   }
 
   @Test
