@@ -27,6 +27,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.time.Instant
 import java.util.UUID
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.first
@@ -140,8 +142,11 @@ class ActivityRepositoryFirestoreEmulatorTest {
   fun concurrentSuggestionAttemptsAndChangedDraftRetriesReturnOneStoredPair() = runBlocking {
     val results =
         withTimeout(30_000) {
-          List(2) { index ->
-                async {
+          val start = CompletableDeferred<Unit>()
+          val contenders =
+              List(4) { index ->
+                async(Dispatchers.Default) {
+                  start.await()
                   alice.repository.createSuggestionWithVote(
                       tripId,
                       "suggestion",
@@ -149,11 +154,14 @@ class ActivityRepositoryFirestoreEmulatorTest {
                   )
                 }
               }
-              .awaitAll()
+          start.complete(Unit)
+          contenders.awaitAll()
         }
     val first = results.first()
 
-    assertEquals(listOf(first, first), results)
+    assertEquals(List(4) { first }, results)
+    assertEquals(first.activity.linkedVoteId, first.vote.uid)
+    assertEquals(first.activity.uid, first.vote.suggestionId)
     assertEquals(
         first,
         alice.repository.createSuggestionWithVote(
@@ -161,6 +169,15 @@ class ActivityRepositoryFirestoreEmulatorTest {
             "suggestion",
             draft.copy(name = "Changed"),
         ),
+    )
+    val trip = alice.db.collection("trips").document(tripId)
+    assertEquals(
+        listOf(first.activity.uid),
+        trip.collection("activities").get(Source.SERVER).await().documents.map { it.id },
+    )
+    assertEquals(
+        listOf(first.vote.uid),
+        trip.collection("votes").get(Source.SERVER).await().documents.map { it.id },
     )
     assertEquals(listOf(first.activity), alice.tripRepository.getActivitiesForTrip(tripId))
     assertEquals(listOf(first.vote), VoteRepositoryFirestore(alice.db).getVotes(tripId))

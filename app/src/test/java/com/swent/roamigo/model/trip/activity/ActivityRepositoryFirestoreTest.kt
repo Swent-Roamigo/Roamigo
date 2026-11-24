@@ -60,6 +60,7 @@ class ActivityRepositoryFirestoreTest {
   private var stored: Activity? = null
   private var storedVote: Vote? = null
   private var transactionFailure: Exception? = null
+  private var commitFailure: (() -> Exception)? = null
   private var listener: EventListener<QuerySnapshot>? = null
   private val writes = mutableListOf<Map<String, Any?>>()
 
@@ -109,7 +110,12 @@ class ActivityRepositoryFirestoreTest {
           transactionFailure?.let { error ->
             return@doAnswer failedTask<Any?>(error)
           }
-          successfulTask(function.apply(transaction))
+          val result = function.apply(transaction)
+          commitFailure?.let { failCommit ->
+            commitFailure = null
+            return@doAnswer failedTask<Any?>(failCommit())
+          }
+          successfulTask(result)
         }
         .`when`(db)
         .runTransaction(any<Transaction.Function<Any?>>())
@@ -241,6 +247,85 @@ class ActivityRepositoryFirestoreTest {
     }
     assertTrue(ownership.exceptionOrNull() is ActivityCreationException.PermissionDenied)
     assertTrue(writes.isEmpty())
+  }
+
+  @Test
+  fun createSuggestion_recoversAConcurrentSameAuthorCommitWithoutWritingAgain() = runTest {
+    val winner =
+        draft
+            .copy(name = "Winning draft")
+            .newSuggestionPair("trip-1", "activity-1", "suggestion-activity-1", "alice")
+    val closedVote = winner.vote.copy(status = VoteStatus.CLOSED, nextRoundVoteId = "round-2")
+    commitFailure = {
+      stored = winner.activity
+      storedVote = closedVote
+      FirebaseFirestoreException("stale commit", Code.PERMISSION_DENIED)
+    }
+
+    assertEquals(
+        winner.copy(vote = closedVote),
+        repository.createSuggestionWithVote("trip-1", "activity-1", draft),
+    )
+    verify(db, times(2)).runTransaction(any<Transaction.Function<Any?>>())
+    assertEquals(2, writes.size)
+  }
+
+  @Test
+  fun createSuggestion_keepsTheOriginalDenialWhenRecoveryCannotVerifyThePair() = runTest {
+    val winner = draft.newSuggestionPair("trip-1", "activity-1", "suggestion-activity-1", "alice")
+    val invalidPairs =
+        listOf(
+            null to null,
+            winner.activity to null,
+            null to winner.vote,
+            winner.activity.copy(createdByUserId = "bob") to
+                winner.vote.copy(createdByUserId = "bob"),
+            winner.activity.copy(linkedVoteId = "other") to winner.vote,
+            winner.activity to winner.vote.copy(winningOptionId = "YES"),
+            winner.activity to winner.vote.copy(creationTime = Timestamp(100, 0)),
+            winner.activity.copy(name = " ") to winner.vote.copy(question = " "),
+        )
+    val denial = FirebaseFirestoreException("commit denied", Code.PERMISSION_DENIED)
+    for ((activity, vote) in invalidPairs) {
+      stored = null
+      storedVote = null
+      writes.clear()
+      commitFailure = {
+        stored = activity
+        storedVote = vote
+        denial
+      }
+      val error = runCatching {
+        repository.createSuggestionWithVote("trip-1", "activity-1", draft)
+      }
+          .exceptionOrNull()
+      assertTrue(error is ActivityCreationException.PermissionDenied)
+      assertSame(denial, error?.cause)
+      assertEquals(2, writes.size)
+    }
+  }
+
+  @Test
+  fun createSuggestion_doesNotRecoverIfTheInitialReadsAreDenied() = runTest {
+    transactionFailure = FirebaseFirestoreException("read denied", Code.PERMISSION_DENIED)
+    val error = runCatching { repository.createSuggestionWithVote("trip-1", "activity-1", draft) }
+
+    assertTrue(error.exceptionOrNull() is ActivityCreationException.PermissionDenied)
+    verify(db).runTransaction(any<Transaction.Function<Any?>>())
+    assertTrue(writes.isEmpty())
+  }
+
+  @Test
+  fun createSuggestion_propagatesCancellationWhileRecovering() = runTest {
+    val cancellation = CancellationException("cancelled during recovery")
+    commitFailure = {
+      transactionFailure = cancellation
+      FirebaseFirestoreException("stale commit", Code.PERMISSION_DENIED)
+    }
+
+    val error = runCatching { repository.createSuggestionWithVote("trip-1", "activity-1", draft) }
+
+    assertSame(cancellation, error.exceptionOrNull())
   }
 
   @Test

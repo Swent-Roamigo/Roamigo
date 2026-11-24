@@ -2,6 +2,7 @@
 package com.swent.roamigo.model.trip.activity
 
 import com.google.firebase.Timestamp
+import com.swent.roamigo.model.toDomainInstant
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.validDocumentId
@@ -113,8 +114,25 @@ internal fun storedSuggestionPair(
           vote.round != 1 ||
           vote.question != activity.name ||
           vote.options != suggestionOptions ||
-          vote.creationTime != activity.creationTime
+          vote.creationTime != activity.creationTime ||
+          (vote.status == VoteStatus.OPEN &&
+              (vote.closingTime != null ||
+                  vote.winningOptionId != null ||
+                  vote.nextRoundVoteId != null ||
+                  vote.resolvedOptionId != null ||
+                  vote.resolvedByUserId != null))
   ) {
+    throw ActivityCreationException.PairConflict()
+  }
+  val storedDraft =
+      ActivityDraft(
+          name = activity.name,
+          description = activity.description,
+          location = activity.location,
+          startTime = activity.startTime?.toDomainInstant(),
+          endTime = activity.endTime?.toDomainInstant(),
+      )
+  if (storedDraft.validate(startRequired = false).isNotEmpty()) {
     throw ActivityCreationException.PairConflict()
   }
   return SuggestionWithVote(activity, vote)

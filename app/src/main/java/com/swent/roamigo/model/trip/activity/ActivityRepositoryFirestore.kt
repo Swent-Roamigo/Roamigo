@@ -15,6 +15,7 @@ import com.swent.roamigo.model.trip.toFirestoreData
 import com.swent.roamigo.model.trip.validDocumentId
 import com.swent.roamigo.model.trip.voting.toFirestoreData as toVoteFirestoreData
 import com.swent.roamigo.model.trip.voting.toVote
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -83,31 +84,56 @@ class ActivityRepositoryFirestore(
     val activityRef = trip.collection("activities").document(suggestionId)
     val voteRef = trip.collection("votes").document(voteId)
 
+    fun readPair(activity: DocumentSnapshot, vote: DocumentSnapshot) =
+        readStoredPair(activity, vote, tripId, suggestionId, voteId, authorId)
+
+    val stagedPair = AtomicBoolean()
     val outcome = mapCreationFailures {
-      db.runTransaction { transaction ->
-            val activity = transaction.get(activityRef)
-            val vote = transaction.get(voteRef)
-            if (activity.exists() || vote.exists()) {
-              return@runTransaction readStoredPair(
-                  activity,
-                  vote,
-                  tripId,
-                  suggestionId,
-                  voteId,
-                  authorId,
-              )
+      try {
+        db.runTransaction { transaction ->
+              stagedPair.set(false)
+              val activity = transaction.get(activityRef)
+              val vote = transaction.get(voteRef)
+              if (activity.exists() || vote.exists()) {
+                return@runTransaction readPair(activity, vote)
+              }
+              val pair =
+                  try {
+                    draft.newSuggestionPair(tripId, suggestionId, voteId, authorId)
+                  } catch (error: ActivityCreationException.Validation) {
+                    return@runTransaction PairCreationOutcome(Result.failure(error))
+                  }
+              transaction.set(activityRef, pair.activity.toFirestoreData())
+              transaction.set(voteRef, pair.vote.toVoteFirestoreData())
+              stagedPair.set(true)
+              PairCreationOutcome(Result.success(pair))
             }
-            val pair =
-                try {
-                  draft.newSuggestionPair(tripId, suggestionId, voteId, authorId)
-                } catch (error: ActivityCreationException.Validation) {
-                  return@runTransaction PairCreationOutcome(Result.failure(error))
-                }
-            transaction.set(activityRef, pair.activity.toFirestoreData())
-            transaction.set(voteRef, pair.vote.toVoteFirestoreData())
-            PairCreationOutcome(Result.success(pair))
-          }
-          .await()
+            .await()
+      } catch (error: FirebaseFirestoreException) {
+        if (
+            error.code != FirebaseFirestoreException.Code.PERMISSION_DENIED ||
+                !stagedPair.get() ||
+                currentUserId() != authorId
+        )
+            throw error
+
+        // The Android SDK can get a rules denial instead of a retryable conflict when another
+        // request creates the pair after both reads. A read-only transaction verifies the stored
+        // versions against the server without writing or accepting cached/pending local data.
+        val recovered =
+            try {
+              db.runTransaction { transaction ->
+                    readPair(transaction.get(activityRef), transaction.get(voteRef))
+                  }
+                  .await()
+                  .result
+                  .getOrNull()
+            } catch (_: FirebaseFirestoreException) {
+              throw error
+            }
+        if (recovered == null || currentUserId() != authorId) throw error
+        PairCreationOutcome(Result.success(recovered))
+      }
     }
     return outcome.result.getOrThrow()
   }
