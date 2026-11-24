@@ -6,6 +6,9 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -20,6 +23,9 @@ class CachingWeatherRepositoryTest {
   private val fresh = Instant.parse("2026-11-23T10:00:00Z")
   private val saved = Instant.parse("2026-11-22T08:00:00Z")
   private val clock = Clock.fixed(fresh, ZoneOffset.UTC)
+
+  // Runs a write at once, so a test can look at the cache right after the forecast.
+  private val writes = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
 
   private fun day(date: LocalDate) = DailyForecast(date, WeatherCondition.SUNNY, 16, 10, 5)
 
@@ -47,7 +53,8 @@ class CachingWeatherRepositoryTest {
   @Test
   fun returnsTheFreshForecastAndSavesIt() = runTest {
     val cache = MemoryCache()
-    val repository = CachingWeatherRepository(online(day(saturday), day(sunday)), cache, clock)
+    val repository =
+        CachingWeatherRepository(online(day(saturday), day(sunday)), cache, clock, writes)
 
     val forecast = repository.trip()
 
@@ -60,7 +67,7 @@ class CachingWeatherRepositoryTest {
   fun doesNotSaveAnEmptyForecast() = runTest {
     val cache = MemoryCache()
 
-    CachingWeatherRepository(online(), cache, clock).trip()
+    CachingWeatherRepository(online(), cache, clock, writes).trip()
 
     assertTrue(cache.entries.isEmpty())
   }
@@ -87,7 +94,8 @@ class CachingWeatherRepositoryTest {
   @Test
   fun failsWhenNothingIsSaved() = runTest {
     val offline = WeatherUnavailableException("offline")
-    val repository = CachingWeatherRepository(online(failure = offline), MemoryCache(), clock)
+    val repository =
+        CachingWeatherRepository(online(failure = offline), MemoryCache(), clock, writes)
 
     val error =
         assertThrows(WeatherUnavailableException::class.java) {
@@ -118,7 +126,10 @@ class CachingWeatherRepositoryTest {
     val cache = MemoryCache().apply { putFailure = IllegalStateException("disk full") }
     assertEquals(
         2,
-        CachingWeatherRepository(online(day(saturday), day(sunday)), cache, clock).trip().days.size,
+        CachingWeatherRepository(online(day(saturday), day(sunday)), cache, clock, writes)
+            .trip()
+            .days
+            .size,
     )
 
     val offline = WeatherUnavailableException("offline")
@@ -126,7 +137,7 @@ class CachingWeatherRepositoryTest {
     val error =
         assertThrows(WeatherUnavailableException::class.java) {
           kotlinx.coroutines.runBlocking {
-            CachingWeatherRepository(online(failure = offline), unreadable, clock).trip()
+            CachingWeatherRepository(online(failure = offline), unreadable, clock, writes).trip()
           }
         }
     assertSame(offline, error)
@@ -152,16 +163,55 @@ class CachingWeatherRepositoryTest {
     val readCancelled = MemoryCache().apply { getFailure = CancellationException("stopped") }
     assertThrows(CancellationException::class.java) {
       kotlinx.coroutines.runBlocking {
-        CachingWeatherRepository(offline, readCancelled, clock).trip()
+        CachingWeatherRepository(offline, readCancelled, clock, writes).trip()
       }
     }
+  }
 
-    val writeCancelled = MemoryCache().apply { putFailure = CancellationException("stopped") }
-    assertThrows(CancellationException::class.java) {
-      kotlinx.coroutines.runBlocking {
-        CachingWeatherRepository(online(day(saturday)), writeCancelled, clock).trip()
-      }
-    }
+  @Test
+  fun aWriteThatIsCancelledOrFailsNeverHidesTheFreshForecast() = runTest {
+    listOf<Exception>(CancellationException("stopped"), IllegalStateException("disk full"))
+        .forEach { failure ->
+          val cache = MemoryCache().apply { putFailure = failure }
+
+          val forecast =
+              CachingWeatherRepository(online(day(saturday)), cache, clock, writes).trip()
+
+          assertEquals(listOf(saturday), forecast.days.map { it.date })
+        }
+  }
+
+  @Test
+  fun fallsBackToTheSavedForecastWhateverIOErrorTheServiceReports() = runTest {
+    val cache = MemoryCache()
+    cache.entries[38.7 to -9.1] = Forecast(listOf(day(saturday)), saved)
+    val repository =
+        CachingWeatherRepository(
+            online(failure = java.net.SocketTimeoutException("slow")),
+            cache,
+            clock,
+            writes,
+        )
+
+    assertTrue(repository.trip().fromCache)
+  }
+
+  @Test
+  fun anIOErrorWithNothingSavedBecomesAnUnavailableForecast() = runTest {
+    val repository =
+        CachingWeatherRepository(
+            online(failure = java.net.SocketTimeoutException("slow")),
+            MemoryCache(),
+            clock,
+            writes,
+        )
+
+    val error =
+        assertThrows(WeatherUnavailableException::class.java) {
+          kotlinx.coroutines.runBlocking { repository.trip() }
+        }
+
+    assertTrue(error.cause is java.net.SocketTimeoutException)
   }
 
   private fun offline(cache: MemoryCache) =
@@ -169,6 +219,7 @@ class CachingWeatherRepositoryTest {
           online(failure = WeatherUnavailableException("offline")),
           cache,
           clock,
+          writes,
       )
 
   @Test
