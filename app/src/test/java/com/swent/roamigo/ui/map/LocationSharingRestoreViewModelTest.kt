@@ -2,6 +2,7 @@
 package com.swent.roamigo.ui.map
 
 import androidx.credentials.Credential
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import com.swent.roamigo.model.authentication.AuthRepository
@@ -17,6 +18,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 
@@ -102,6 +104,15 @@ class LocationSharingRestoreViewModelTest {
     assertEquals(1, locationRepository.restoreSharingCalls)
   }
 
+  @Test
+  fun factory_rejectsOtherViewModelClasses() {
+    val factory = LocationSharingRestoreViewModel.factory(locationRepository, authRepository)
+
+    assertThrows(IllegalArgumentException::class.java) {
+      factory.create(OtherViewModel::class.java)
+    }
+  }
+
   private fun createViewModel(): LocationSharingRestoreViewModel =
       ViewModelProvider(
           store,
@@ -141,6 +152,8 @@ class LocationSharingRestoreViewModelTest {
 
     override fun signOut(): Result<Unit> = throw UnsupportedOperationException()
   }
+
+  private class OtherViewModel : ViewModel()
 
   private companion object {
     const val USER_ID = "user-1"
