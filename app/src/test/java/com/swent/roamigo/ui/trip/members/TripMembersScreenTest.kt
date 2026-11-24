@@ -65,6 +65,7 @@ class TripMembersScreenTest {
     composeRule.onNodeWithText("Sam").assertIsDisplayed()
     composeRule.onNodeWithText("Unknown traveler").assertIsDisplayed()
     composeRule.onNodeWithText("3 members").assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_members_invite).assertIsDisplayed()
   }
 
   @Test
@@ -72,6 +73,7 @@ class TripMembersScreenTest {
     show(TripMembersUiState.Error)
 
     composeRule.onNodeWithText("Unable to load members. Please try again.").assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.trip_members_invite).assertIsDisplayed()
     composeRule.onNodeWithText("Retry").performClick()
     composeRule.onNodeWithTag(C.Tag.trip_members_back).performClick()
 
