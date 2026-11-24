@@ -54,6 +54,7 @@ class TripForecastViewModel(
   val state: StateFlow<ForecastUiState> = _state.asStateFlow()
   private var job: Job? = null
   private var loadedAt: Instant = clock.instant()
+  private var loadedOn: LocalDate = LocalDate.now(clock)
 
   init {
     load()
@@ -70,7 +71,7 @@ class TripForecastViewModel(
    */
   fun refresh() {
     val now = clock.instant()
-    val dayChanged = LocalDate.now(clock) != LocalDate.ofInstant(loadedAt, clock.zone)
+    val dayChanged = LocalDate.now(clock) != loadedOn
     val stale = Duration.between(loadedAt, now) >= REFRESH_AFTER
     when (_state.value) {
       ForecastUiState.Loading -> Unit
@@ -84,6 +85,7 @@ class TripForecastViewModel(
     val before = _state.value
     if (!keepWhileLoading) _state.value = ForecastUiState.Loading
     loadedAt = clock.instant()
+    loadedOn = LocalDate.now(clock)
     job = viewModelScope.launch {
       val today = LocalDate.now(clock)
       val next =
