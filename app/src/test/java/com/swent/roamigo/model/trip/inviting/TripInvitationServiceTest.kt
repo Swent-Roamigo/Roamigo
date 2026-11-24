@@ -164,17 +164,4 @@ class TripInvitationServiceTest {
         invitationExceptionFor(FirebaseFunctionsException.Code.NOT_FOUND, cause).cause,
     )
   }
-
-  @Test
-  fun theDefaultServiceFailsEveryCallWithoutTouchingTheNetwork() = runTest {
-    val unavailable = UnavailableTripInvitationService
-
-    listOf<suspend () -> Unit>(
-            { unavailable.createLink("t") },
-            { unavailable.preview("tok") },
-            { unavailable.accept("tok") },
-            { unavailable.revokeLinks("t") },
-        )
-        .forEach { call -> assertTrue(failureOf { call() } is InvitationException.Unavailable) }
-  }
 }

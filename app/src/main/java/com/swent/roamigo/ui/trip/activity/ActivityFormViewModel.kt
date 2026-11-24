@@ -8,12 +8,14 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.atZone
+import com.swent.roamigo.model.toDomainInstant
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.activity.ActivityCreationException
 import com.swent.roamigo.model.trip.activity.ActivityDraft
 import com.swent.roamigo.model.trip.activity.ActivityDraftError
 import com.swent.roamigo.model.trip.activity.ActivityRepository
-import com.swent.roamigo.model.trip.toDomainInstant
+import com.swent.roamigo.model.trip.activity.toActivity
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
@@ -30,8 +32,9 @@ import kotlinx.coroutines.launch
 /**
  * Holds one activity form in [mode]. Navigation is left to the caller through [consumeResult].
  *
- * Without a time, the activity starts at the beginning of its day in [zone]: trips have no time
- * zone of their own, and stored start times cannot be empty yet.
+ * The form adds itinerary activities, so a start time is required: the date may be prefilled, but
+ * the user must choose the time. Dates and times are read in [zone], since trips have no time zone
+ * of their own.
  *
  * The draft and its activity ID are kept in [savedState], so the form survives process death while
  * the user is in the place picker, and a retry after it still reuses the same ID.
@@ -55,7 +58,7 @@ class ActivityFormViewModel(
   private val initialFields =
       when (mode) {
         is ActivityFormMode.Create -> ActivityFormFields(date = mode.defaultDate ?: trip.startDate)
-        is ActivityFormMode.Edit -> mode.activity.toFields(zone)
+        is ActivityFormMode.Edit -> mode.activity.toFields(zone, trip.startDate)
       }
 
   // Errors appear once the user tries to save, then follow every change.
@@ -163,7 +166,7 @@ class ActivityFormViewModel(
   // A retry after a write that reached the server returns the first version, which createActivity
   // cannot change. Showing it keeps the form from reporting changes that were never stored.
   private fun showAlreadySaved(stored: Activity) {
-    val fields = stored.toFields(zone)
+    val fields = stored.toFields(zone, _uiState.value.fields.date)
     savedState.storeFields(fields)
     _uiState.update {
       it.copy(
@@ -191,7 +194,7 @@ class ActivityFormViewModel(
 
   private fun ActivityFormFields.errors(): List<ActivityFormError> =
       draftAt(place ?: NO_PLACE, zone, editedActivity)
-          .validate()
+          .validate(startRequired = true)
           .toFormErrors(placeChosen = place != null)
 
   companion object {
@@ -254,6 +257,7 @@ private val NO_PLACE = TripLocation(Double.NaN, Double.NaN, "")
 /**
  * Converts the entered values into a draft, or returns `null` without a place.
  *
+ * Without a time the draft has no start, which validation reports instead of assuming midnight.
  * When [edited] has an end, the activity keeps its length, so moving the start moves the end too.
  */
 internal fun ActivityFormFields.toDraft(zone: ZoneId, edited: Activity?): ActivityDraft? =
@@ -266,33 +270,48 @@ private fun ActivityFormFields.draftAt(
     zone: ZoneId,
     edited: Activity?,
 ): ActivityDraft {
-  val start = (time?.let { date.atTime(it).atZone(zone) } ?: date.atStartOfDay(zone)).toInstant()
-  val length =
-      edited?.endTime?.let {
-        Duration.between(edited.startTime.toDomainInstant(), it.toDomainInstant())
+  val editedStart = edited?.startTime?.toDomainInstant()
+  val editedStartAt = editedStart?.atZone(zone)
+  // In a daylight-saving overlap the same local time exists twice, and rebuilding it would pick the
+  // earlier one, so an unchanged start keeps its stored instant.
+  val start =
+      if (
+          editedStartAt != null &&
+              date == editedStartAt.toLocalDate() &&
+              time == editedStartAt.toLocalTime()
+      ) {
+        editedStart
+      } else {
+        time?.let { date.atTime(it).atZone(zone).toInstant() }
       }
+  val length = edited?.length()
   return ActivityDraft(
       name = name.trim(),
       description = description.trim().ifEmpty { null },
       location = location,
       startTime = start,
-      endTime = length?.let { start + it },
+      endTime = start?.let { begin -> length?.let { begin + it } },
   )
 }
 
-private fun Activity.matches(draft: ActivityDraft): Boolean =
-    name == draft.name &&
-        description == draft.description &&
-        location == draft.location &&
-        startTime.toDomainInstant() == draft.startTime &&
-        endTime?.toDomainInstant() == draft.endTime
+/** How long this activity lasts, or `null` without both a start and an end. */
+private fun Activity.length(): Duration? {
+  val start = startTime ?: return null
+  val end = endTime ?: return null
+  return Duration.between(start.toDomainInstant(), end.toDomainInstant())
+}
 
-private fun Activity.toFields(zone: ZoneId): ActivityFormFields {
-  val start = startTime.toDomainInstant().atZone(zone)
+// The stored activity matches when it is exactly what the repository would create from [draft].
+private fun Activity.matches(draft: ActivityDraft): Boolean =
+    this == draft.toActivity(uid, tripId, createdByUserId, creationTime)
+
+/** Shows this activity in the form; an activity without a start is shown on [fallbackDate]. */
+private fun Activity.toFields(zone: ZoneId, fallbackDate: LocalDate): ActivityFormFields {
+  val start = startTime?.atZone(zone)
   return ActivityFormFields(
       name = name,
-      date = start.toLocalDate(),
-      time = start.toLocalTime(),
+      date = if (start == null) fallbackDate else start.toLocalDate(),
+      time = start?.toLocalTime(),
       place = location,
       description = description.orEmpty(),
   )
@@ -307,6 +326,9 @@ private fun List<ActivityDraftError>.toFormErrors(placeChosen: Boolean): List<Ac
         ActivityDraftError.BlankLocationName,
         ActivityDraftError.InvalidLocationCoordinates ->
             if (placeChosen) ActivityFormError.INVALID_PLACE else ActivityFormError.MISSING_PLACE
+        // The form never sets an end without a start, so both mean the start is missing.
+        ActivityDraftError.MissingStartTime,
+        ActivityDraftError.EndWithoutStart -> ActivityFormError.MISSING_TIME
         ActivityDraftError.EndBeforeStart -> ActivityFormError.END_BEFORE_START
       }
     }

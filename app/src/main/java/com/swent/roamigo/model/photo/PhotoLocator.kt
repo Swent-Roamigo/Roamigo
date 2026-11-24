@@ -4,6 +4,7 @@ package com.swent.roamigo.model.photo
 import com.swent.roamigo.model.location.DeviceLocation
 import com.swent.roamigo.model.location.LocationRepository
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
@@ -42,6 +43,14 @@ data class PhotoCoordinates(val latitude: Double, val longitude: Double) {
  */
 val PHOTO_LOCATION_TIMEOUT: Duration = 5.seconds
 
+/**
+ * How old a known position may be to locate a photo when no new fix arrives in time. On foot, the
+ * user is still within a few hundred metres of a 2-minute-old position, which is close enough to
+ * place a trip memory on the map and better than no position. An older one may predate a ride to a
+ * different place.
+ */
+val PHOTO_LAST_KNOWN_MAX_AGE: Duration = 2.minutes
+
 /** Outcome of [PhotoLocator.locate]. */
 sealed interface PhotoLocationResult {
   data class Found(val coordinates: PhotoCoordinates) : PhotoLocationResult
@@ -52,7 +61,7 @@ sealed interface PhotoLocationResult {
   /** The permission is granted, but no usable position could be read. */
   data object Unavailable : PhotoLocationResult
 
-  /** No position arrived within the allowed time. */
+  /** No position arrived within the allowed time, and no recent one was known. */
   data object TimedOut : PhotoLocationResult
 }
 
@@ -63,11 +72,17 @@ interface PhotoLocator {
    * uses one that is already granted, e.g. on the trip map. The call is cancellable, and a
    * cancelled read does not return a result.
    *
+   * A new fix is preferred. If none with valid coordinates arrives within [timeout], the most
+   * recent known position no older than [PHOTO_LAST_KNOWN_MAX_AGE] is used instead, e.g. the one
+   * the trip map shows. Reading it does not wait, so the call never takes longer than [timeout].
+   *
    * It never throws, except [CancellationException]: a failure is reported as
    * [PhotoLocationResult.PermissionOff], [PhotoLocationResult.Unavailable] or
-   * [PhotoLocationResult.TimedOut].
+   * [PhotoLocationResult.TimedOut]. The last two are only returned when no recent known position is
+   * usable either, and tell whether the new fix timed out or failed.
    *
-   * @param timeout how long to wait for a position. A zero or negative value times out at once.
+   * @param timeout how long to wait for a new fix. A zero or negative value does not wait for one
+   *   and only uses a recent known position.
    */
   suspend fun locate(timeout: Duration = PHOTO_LOCATION_TIMEOUT): PhotoLocationResult
 }
@@ -77,6 +92,16 @@ class DefaultPhotoLocator(private val locationRepository: LocationRepository) : 
 
   override suspend fun locate(timeout: Duration): PhotoLocationResult {
     if (!locationRepository.hasLocationPermission()) return PhotoLocationResult.PermissionOff
+    val fresh = readFreshFix(timeout)
+    if (fresh !is PhotoLocationResult.TimedOut && fresh !is PhotoLocationResult.Unavailable) {
+      return fresh
+    }
+    // A recent position is better than none when GPS is slow, e.g. indoors, while the trip map
+    // already shows where the user is.
+    return readLastKnownFix() ?: fresh
+  }
+
+  private suspend fun readFreshFix(timeout: Duration): PhotoLocationResult {
     if (timeout <= Duration.ZERO) return PhotoLocationResult.TimedOut
     val read =
         try {
@@ -96,6 +121,18 @@ class DefaultPhotoLocator(private val locationRepository: LocationRepository) : 
     return if (coordinates == null) PhotoLocationResult.Unavailable
     else PhotoLocationResult.Found(coordinates)
   }
+
+  /** The recent known position, [PhotoLocationResult.PermissionOff], or null if none is usable. */
+  private fun readLastKnownFix(): PhotoLocationResult? =
+      try {
+        locationRepository.lastKnownLocation(PHOTO_LAST_KNOWN_MAX_AGE)?.toValidCoordinates()?.let {
+          PhotoLocationResult.Found(it)
+        }
+      } catch (e: SecurityException) {
+        PhotoLocationResult.PermissionOff
+      } catch (_: Exception) {
+        null
+      }
 
   private class Read(val location: DeviceLocation?)
 

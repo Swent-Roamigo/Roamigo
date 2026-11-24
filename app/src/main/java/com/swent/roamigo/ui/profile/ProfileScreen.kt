@@ -1,6 +1,7 @@
 // Implemented with assistance from Claude (Anthropic) and OpenAI Codex.
 package com.swent.roamigo.ui.profile
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,13 +42,17 @@ import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.InfoRow
-import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.Ochre
 import com.swent.roamigo.ui.theme.Paper
 import com.swent.roamigo.ui.theme.Spacing
 
-/** Connects [authRepository] to [ProfileScreen] and forwards successful sign-out. */
+/**
+ * Connects [authRepository] to [ProfileScreen] and forwards successful sign-out.
+ *
+ * @param onEditNameClick Edits the display name; its button is hidden while it is null.
+ * @param onChangePictureClick Changes the profile picture; its button is hidden while it is null.
+ */
 @Composable
 fun ProfileRoute(
     authRepository: AuthRepository,
@@ -56,6 +61,8 @@ fun ProfileRoute(
     onTripsClick: () -> Unit = rememberNotImplementedAction(),
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
     onMapClick: () -> Unit = {},
+    onEditNameClick: (() -> Unit)? = null,
+    onChangePictureClick: (() -> Unit)? = null,
 ) {
   val viewModel = viewModel { ProfileViewModel(authRepository) }
   val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -67,9 +74,15 @@ fun ProfileRoute(
       onFriendsClick = onFriendsClick,
       onSignOutClick = viewModel::signOut,
       onMapClick = onMapClick,
+      onEditNameClick = onEditNameClick,
+      onChangePictureClick = onChangePictureClick,
   )
 }
 
+/**
+ * Shows the signed-in account. A null [onEditNameClick] or [onChangePictureClick] hides its button,
+ * so the screen never offers an action that does nothing.
+ */
 @Composable
 fun ProfileScreen(
     state: ProfileUiState,
@@ -78,6 +91,8 @@ fun ProfileScreen(
     onFriendsClick: () -> Unit = rememberNotImplementedAction(),
     onSignOutClick: () -> Unit = {},
     onMapClick: () -> Unit = {},
+    onEditNameClick: (() -> Unit)? = null,
+    onChangePictureClick: (() -> Unit)? = null,
 ) {
   var confirmingLogOut by rememberSaveable { mutableStateOf(false) }
   Scaffold(
@@ -153,16 +168,14 @@ fun ProfileScreen(
             R.drawable.ic_user,
             stringResource(R.string.profile_display_name),
             state.user.displayName,
-        ) {
-          EditAction(stringResource(R.string.profile_edit))
-        }
+            action = onEditNameClick?.let { rowAction(R.string.profile_edit, it) },
+        )
         InfoRow(
             R.drawable.ic_camera,
             stringResource(R.string.profile_picture),
             stringResource(R.string.profile_picture_description),
-        ) {
-          EditAction(stringResource(R.string.profile_change))
-        }
+            action = onChangePictureClick?.let { rowAction(R.string.profile_change, it) },
+        )
         InfoRow(
             R.drawable.ic_users,
             stringResource(R.string.profile_friends),
@@ -173,7 +186,7 @@ fun ProfileScreen(
             ),
             Modifier.testTag(C.Tag.profile_friends_row),
         ) {
-          EditAction(
+          RowAction(
               label = stringResource(R.string.profile_view),
               onClick = onFriendsClick,
           )
@@ -220,14 +233,19 @@ fun ProfileScreen(
   }
 }
 
+/** Wraps [RowAction] as the trailing content of an [InfoRow]. */
+private fun rowAction(@StringRes label: Int, onClick: () -> Unit): @Composable () -> Unit = {
+  RowAction(stringResource(label), onClick)
+}
+
 @Composable
-private fun EditAction(
+private fun RowAction(
     label: String,
-    onClick: () -> Unit = rememberNotImplementedAction(),
+    onClick: () -> Unit,
 ) {
   TextButton(
       onClick = onClick,
-      modifier = Modifier.markNotImplemented(onClick).testTag(C.Tag.profile_action),
+      modifier = Modifier.testTag(C.Tag.profile_action),
   ) {
     Text(label)
   }
