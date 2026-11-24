@@ -92,3 +92,114 @@ test('direct resolution/link writes are denied for ties, unique winners and zero
     assert.equal(data.status.stringValue, 'CLOSED');
   }
 });
+
+test('suggestions and their initial YES/NO votes require one atomic creation', async () => {
+  const id = `${tripId}-pair`;
+  const trip = `trips/${id}`;
+  const activityPath = `${trip}/activities/proposal`;
+  const votePath = `${trip}/votes/suggestion-proposal`;
+  const NULL = { nullValue: null };
+  const activity = {
+    activityType: str('SUGGESTION'), name: str('Dinner'), description: NULL,
+    location: { mapValue: { fields: {
+      name: str('Lausanne'), latitude: { doubleValue: 46.5 }, longitude: { doubleValue: 6.6 },
+    } } },
+    startTime: NULL, endTime: NULL, createdByUserId: str('creator'),
+    creationTime: timestamp, linkedVoteId: str('suggestion-proposal'),
+  };
+  const linkedVote = {
+    ...vote, uid: str('suggestion-proposal'), tripId: str(id), suggestionId: str('proposal'),
+    question: activity.name,
+    options: { arrayValue: { values: [['YES', 'Yes'], ['NO', 'No']].map(([uid, name]) =>
+      ({ mapValue: { fields: { uid: str(uid), name: str(name) } } })) } },
+  };
+  const auth = user => user ? { Authorization: `Bearer ${token(user)}` } : {};
+  const members = { memberIds: { arrayValue: { values: ['creator', 'member'].map(str) } } };
+  await expectWrite(200, trip, members);
+  await expectWrite(200, `${trip}-other`, members);
+
+  const documentName = path => `projects/${project}/databases/(default)/documents/${path}`;
+  async function commit(expected, writes, user, transaction) {
+    const response = await fetch(`${base}:commit`, {
+      method: 'POST', headers: { ...auth(user), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transaction, writes: writes.map(([path, fields]) => ({
+        update: { name: documentName(path), fields },
+      })) }),
+    });
+    assert.equal(response.status, expected, await response.text());
+  }
+
+  const pair = [[activityPath, activity], [votePath, linkedVote]];
+  const { linkedVoteId, ...unlinkedActivity } = activity;
+  const { suggestionId, ...unlinkedVote } = linkedVote;
+  await commit(403, pair, null);
+  await commit(403, pair, 'outsider');
+  for (const writes of [
+    [pair[0]],
+    [pair[1]],
+    [[activityPath, unlinkedActivity], pair[1]],
+    [[activityPath, { ...activity, linkedVoteId: str('ordinary') }], pair[1]],
+    [[activityPath, { ...activity, endTime: timestamp }], pair[1]],
+    [[activityPath, { ...activity, location: str('Lausanne') }], pair[1]],
+    [[activityPath, { ...activity, createdByUserId: str('member') }], pair[1]],
+    [[activityPath, { ...activity, activityType: str('ACCEPTED'), startTime: timestamp }], pair[1]],
+    [pair[0], [votePath, unlinkedVote]],
+    [[votePath, unlinkedVote]],
+    [pair[0], [votePath, { ...linkedVote, suggestionId: str('unrelated') }]],
+    [pair[0], [votePath, { ...linkedVote, tripId: str(`${id}-other`) }]],
+    [pair[0], [votePath.replace(trip, `${trip}-other`), { ...linkedVote, tripId: str(`${id}-other`) }]],
+    [pair[0], [votePath, { ...linkedVote, status: str('CLOSED') }]],
+    [pair[0], [votePath, { ...linkedVote, options: vote.options }]],
+    [pair[0], [votePath, { ...linkedVote, createdByUserId: str('member') }]],
+    [pair[0], [votePath, { ...linkedVote, question: str('Unrelated question') }]],
+    [pair[0], [votePath, { ...linkedVote, round: { integerValue: '2' } }]],
+    [pair[0], [votePath, { ...linkedVote, round: { doubleValue: 1 } }]],
+    [pair[0], [votePath, { ...linkedVote, resolvedOptionId: str('YES') }]],
+    [[`${trip}/votes/ordinary`, { ...linkedVote, uid: str('ordinary') }]],
+  ]) {
+    await commit(403, writes, 'creator');
+  }
+  for (const [path] of pair) {
+    const read = await fetch(`${base}/${path}`, { headers: auth('creator') });
+    assert.equal(read.status, 404, await read.text());
+  }
+
+  // A matching legacy/admin fixture isn't sufficient. Both halves must be new.
+  await expectWrite(200, `${trip}/activities/legacy`, { ...activity, linkedVoteId: str('suggestion-legacy') });
+  await commit(403, [[`${trip}/votes/suggestion-legacy`, {
+    ...linkedVote, uid: str('suggestion-legacy'), suggestionId: str('legacy'),
+  }]], 'creator');
+  await expectWrite(200, `${trip}/votes/suggestion-existing`, {
+    ...linkedVote, uid: str('suggestion-existing'), suggestionId: str('existing'),
+  });
+  await commit(403, [[`${trip}/activities/existing`, {
+    ...activity, linkedVoteId: str('suggestion-existing'),
+  }]], 'creator');
+
+  const headers = { ...auth('creator'), 'Content-Type': 'application/json' };
+  const begin = await fetch(`${base}:beginTransaction`, {
+    method: 'POST', headers, body: '{}',
+  });
+  assert.equal(begin.status, 200);
+  const { transaction } = await begin.json();
+  const readPair = await fetch(`${base}:batchGet`, {
+    method: 'POST', headers,
+    body: JSON.stringify({ documents: pair.map(([path]) => documentName(path)), transaction }),
+  });
+  assert.equal(readPair.status, 200);
+  assert.deepEqual(
+    (await readPair.json()).map(result => result.missing).sort(),
+    pair.map(([path]) => documentName(path)).sort(),
+  );
+  await commit(200, pair, 'creator', transaction);
+  for (const [path, fields] of pair) {
+    const read = await fetch(`${base}/${path}`, { headers: auth('member') });
+    assert.equal(read.status, 200);
+    assert.deepEqual((await read.json()).fields, fields);
+  }
+  await expectWrite(403, `${votePath}/ballots/member`, ballot('member', 'a'), 'member');
+  await expectWrite(200, `${votePath}/ballots/member`, ballot('member', 'YES'), 'member');
+  await expectWrite(403, activityPath, { name: str('Edited after a ballot') }, 'creator', ['name']);
+  await expectWrite(200, votePath, { status: str('CLOSED') }, 'creator', ['status']);
+  await expectWrite(403, `${votePath}/ballots/member`, ballot('member', 'NO'), 'member');
+});
