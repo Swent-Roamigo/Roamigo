@@ -56,6 +56,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.job
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -78,7 +79,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * @param database the Realtime Database holding shared member locations.
  * @param auth provides the signed-in user whose position is shared.
  * @param sharedTripsStore saves the trips each user is sharing with, across app processes.
- * @param scope runs the periodic position updates while sharing is on.
+ * @param scope runs the periodic position updates while sharing is on, and the restored trips.
  * @param updateInterval delay between two published positions while sharing is on.
  * @param clock current device time in milliseconds since the epoch, on the same clock as the fix
  *   timestamps; injectable for tests.
@@ -266,8 +267,10 @@ class DefaultLocationRepository(
   override suspend fun restoreSharing() {
     val userId = auth.currentUser?.uid ?: return
     val tripIds = readSharedTrips(userId)
-    // Concurrent, since each trip may wait several seconds for a fix and for the database.
-    coroutineScope { tripIds.forEach { launch { restoreTrip(it) } } }
+    // Concurrent, since each trip may wait several seconds for a fix and for the database. Run on
+    // the repository's scope so that a caller cancelled meanwhile, e.g. when the app UI closes,
+    // cannot skip the removal of a trip that then fails to resume; it was already forgotten.
+    tripIds.map { scope.launch { restoreTrip(it) } }.joinAll()
   }
 
   /**

@@ -6,13 +6,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
- * Calls [LocationRepository.restoreSharing] once per signed-in user and app process: at startup if
- * a user is already signed in, otherwise right after the sign-in. Its owner forwards each
- * authentication state to [onUserChanged].
+ * Calls [LocationRepository.restoreSharing] once per signed-in user for as long as it lives: at
+ * startup if a user is already signed in, otherwise right after the sign-in. Its owner forwards
+ * each authentication state to [onUserChanged].
  *
  * @param repository the app-wide repository whose sharing is restored.
- * @param scope outlives the screens, so that the restore runs in the background instead of on a
- *   path the UI waits for.
+ * @param scope runs the restore in the background, so that the UI does not wait for it.
  */
 class LocationSharingRestorer(
     private val repository: LocationRepository,
