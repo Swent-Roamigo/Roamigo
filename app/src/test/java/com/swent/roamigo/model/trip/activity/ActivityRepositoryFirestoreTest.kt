@@ -17,6 +17,9 @@ import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.toFirestoreData
+import com.swent.roamigo.model.trip.voting.Vote
+import com.swent.roamigo.model.trip.voting.VoteStatus
+import com.swent.roamigo.model.trip.voting.toFirestoreData as toVoteFirestoreData
 import java.io.IOException
 import java.time.Instant
 import kotlinx.coroutines.CancellationException
@@ -49,10 +52,13 @@ class ActivityRepositoryFirestoreTest {
   private val tripDocument = mock(DocumentReference::class.java)
   private val activities = mock(CollectionReference::class.java)
   private val document = mock(DocumentReference::class.java)
+  private val votes = mock(CollectionReference::class.java)
+  private val voteDocument = mock(DocumentReference::class.java)
   private val transaction = mock(Transaction::class.java)
   private val registration = mock(ListenerRegistration::class.java)
   private var userId: String? = "alice"
   private var stored: Activity? = null
+  private var storedVote: Vote? = null
   private var transactionFailure: Exception? = null
   private var listener: EventListener<QuerySnapshot>? = null
   private val writes = mutableListOf<Map<String, Any?>>()
@@ -74,6 +80,16 @@ class ActivityRepositoryFirestoreTest {
     `when`(trips.document("trip-1")).thenReturn(tripDocument)
     `when`(tripDocument.collection("activities")).thenReturn(activities)
     `when`(activities.document("activity-1")).thenReturn(document)
+    `when`(tripDocument.collection("votes")).thenReturn(votes)
+    `when`(votes.document("suggestion-activity-1")).thenReturn(voteDocument)
+    `when`(transaction.get(voteDocument)).thenAnswer {
+      val vote = storedVote
+      mock(DocumentSnapshot::class.java).also {
+        `when`(it.exists()).thenReturn(vote != null)
+        `when`(it.id).thenReturn(vote?.uid.orEmpty())
+        `when`(it.data).thenReturn(vote?.toVoteFirestoreData())
+      }
+    }
     `when`(transaction.get(document)).thenAnswer { snapshot(stored) }
     doAnswer {
           writes += it.getArgument<Map<String, Any?>>(1)
@@ -117,41 +133,126 @@ class ActivityRepositoryFirestoreTest {
   fun createSuggestion_writesAnUnscheduledSuggestionWithRepositoryMetadata() = runTest {
     val before = Timestamp.now()
     val created =
-        repository.createSuggestion(
+        repository.createSuggestionWithVote(
             "trip-1",
             "activity-1",
             draft.copy(description = null, startTime = null, endTime = null),
         )
 
-    assertEquals("activity-1", created.uid)
-    assertEquals("trip-1", created.tripId)
-    assertEquals(ActivityType.SUGGESTION, created.activityType)
-    assertEquals("alice", created.createdByUserId)
-    assertTrue(created.creationTime >= before && created.creationTime <= Timestamp.now())
-    assertNull(created.startTime)
-    assertNull(created.endTime)
-    assertNull(created.description)
-    assertEquals(created.toFirestoreData(), writes.single())
+    val (activity, vote) = created
+    assertEquals("activity-1", activity.uid)
+    assertEquals("trip-1", activity.tripId)
+    assertEquals(ActivityType.SUGGESTION, activity.activityType)
+    assertEquals("alice", activity.createdByUserId)
+    assertTrue(activity.creationTime >= before && activity.creationTime <= Timestamp.now())
+    assertNull(activity.startTime)
+    assertNull(activity.endTime)
+    assertNull(activity.description)
+    assertEquals("suggestion-activity-1", vote.uid)
+    assertEquals(vote.uid, activity.linkedVoteId)
+    assertEquals(activity.uid, vote.suggestionId)
+    assertEquals(activity.tripId, vote.tripId)
+    assertEquals(activity.createdByUserId, vote.createdByUserId)
+    assertEquals(activity.creationTime, vote.creationTime)
+    assertEquals(activity.name, vote.question)
+    assertEquals(listOf("YES", "NO"), vote.options.map { it.uid })
+    assertEquals(VoteStatus.OPEN, vote.status)
+    assertEquals(1, vote.round)
+    assertNull(vote.parentVoteId)
+    assertNull(vote.closingTime)
+    assertNull(vote.winningOptionId)
+    assertNull(vote.resolvedOptionId)
+    assertNull(vote.resolvedByUserId)
+    assertEquals(listOf(activity.toFirestoreData(), vote.toVoteFirestoreData()), writes)
+    val order = org.mockito.Mockito.inOrder(transaction)
+    order.verify(transaction).get(document)
+    order.verify(transaction).get(voteDocument)
+    order.verify(transaction).set(document, activity.toFirestoreData())
+    order.verify(transaction).set(voteDocument, vote.toVoteFirestoreData())
   }
 
   @Test
   fun createSuggestion_retriesReturnTheOriginalAndRejectAnotherAuthor() = runTest {
-    val first = repository.createSuggestion("trip-1", "activity-1", draft)
-    stored = first
+    val first = repository.createSuggestionWithVote("trip-1", "activity-1", draft)
+    stored = first.activity
+    storedVote = first.vote
 
-    assertEquals(first, repository.createSuggestion("trip-1", "activity-1", draft))
+    assertEquals(first, repository.createSuggestionWithVote("trip-1", "activity-1", draft))
     assertEquals(
         first,
-        repository.createSuggestion("trip-1", "activity-1", draft.copy(name = "Changed")),
+        repository.createSuggestionWithVote("trip-1", "activity-1", draft.copy(name = "Changed")),
     )
 
     val invalid = draft.copy(name = " ")
-    assertEquals(first, repository.createSuggestion("trip-1", "activity-1", invalid))
+    assertEquals(first, repository.createSuggestionWithVote("trip-1", "activity-1", invalid))
 
     userId = "bob"
-    val error = runCatching { repository.createSuggestion("trip-1", "activity-1", invalid) }
+    val error = runCatching { repository.createSuggestionWithVote("trip-1", "activity-1", invalid) }
     assertTrue(error.exceptionOrNull() is ActivityCreationException.PermissionDenied)
-    assertEquals(first.toFirestoreData(), writes.single())
+    assertEquals(listOf(first.activity.toFirestoreData(), first.vote.toVoteFirestoreData()), writes)
+  }
+
+  @Test
+  fun createSuggestion_returnsTheStoredClosedVoteEvenAfterARevote() = runTest {
+    val pair = repository.createSuggestionWithVote("trip-1", "activity-1", draft)
+    val closed = pair.vote.copy(status = VoteStatus.CLOSED, nextRoundVoteId = "round-2")
+    stored = pair.activity
+    storedVote = closed
+
+    assertEquals(draft.startTime?.epochSecond, pair.activity.startTime?.seconds)
+    assertEquals(draft.endTime?.epochSecond, pair.activity.endTime?.seconds)
+    assertEquals(
+        pair.copy(vote = closed),
+        repository.createSuggestionWithVote("trip-1", "activity-1", draft.copy(name = "")),
+    )
+    assertEquals(2, writes.size)
+  }
+
+  @Test
+  fun createSuggestion_rejectsPartialPairsAndIncompatibleLinkageWithoutWriting() = runTest {
+    val pair = repository.createSuggestionWithVote("trip-1", "activity-1", draft)
+    writes.clear()
+    val invalidPairs =
+        listOf(
+            pair.activity to null,
+            null to pair.vote,
+            pair.activity.copy(linkedVoteId = "other") to pair.vote,
+            pair.activity to pair.vote.copy(uid = "other"),
+            pair.activity to pair.vote.copy(tripId = "other"),
+            pair.activity to pair.vote.copy(suggestionId = null),
+            pair.activity to pair.vote.copy(suggestionId = "other"),
+            pair.activity to pair.vote.copy(question = "other"),
+            pair.activity to pair.vote.copy(options = pair.vote.options.reversed()),
+            pair.activity to pair.vote.copy(parentVoteId = "other", round = 2),
+        )
+    for ((activity, vote) in invalidPairs) {
+      stored = activity
+      storedVote = vote
+      val error = runCatching { repository.createSuggestionWithVote("trip-1", "activity-1", draft) }
+      assertTrue(
+          error.toString(),
+          error.exceptionOrNull() is ActivityCreationException.PairConflict,
+      )
+    }
+    stored = pair.activity
+    storedVote = pair.vote.copy(createdByUserId = "bob")
+    val ownership = runCatching {
+      repository.createSuggestionWithVote("trip-1", "activity-1", draft)
+    }
+    assertTrue(ownership.exceptionOrNull() is ActivityCreationException.PermissionDenied)
+    assertTrue(writes.isEmpty())
+  }
+
+  @Test
+  fun createSuggestion_validatesIdsAndAuthenticationBeforeReading() = runTest {
+    userId = null
+    val invalid = runCatching { repository.createSuggestionWithVote("trip-1", "a/b", draft) }
+    assertTrue(invalid.exceptionOrNull() is IllegalArgumentException)
+    val signedOut = runCatching {
+      repository.createSuggestionWithVote("trip-1", "activity-1", draft)
+    }
+    assertTrue(signedOut.exceptionOrNull() is ActivityCreationException.NotAuthenticated)
+    verify(db, never()).runTransaction(any<Transaction.Function<Any?>>())
   }
 
   @Test
@@ -176,7 +277,7 @@ class ActivityRepositoryFirestoreTest {
     stored = draft.toActivity("activity-1", "trip-1", "alice", Timestamp(900, 0))
 
     val error = runCatching {
-      repository.createSuggestion("trip-1", "activity-1", draft.copy(name = " "))
+      repository.createSuggestionWithVote("trip-1", "activity-1", draft.copy(name = " "))
     }
 
     val conflict = error.exceptionOrNull() as ActivityCreationException.TypeConflict
@@ -198,7 +299,9 @@ class ActivityRepositoryFirestoreTest {
         )
 
     invalid.forEach { (invalidDraft, expected) ->
-      val result = runCatching { repository.createSuggestion("trip-1", "activity-1", invalidDraft) }
+      val result = runCatching {
+        repository.createSuggestionWithVote("trip-1", "activity-1", invalidDraft)
+      }
       assertEquals(
           listOf(expected),
           (result.exceptionOrNull() as ActivityCreationException.Validation).errors,
@@ -213,7 +316,7 @@ class ActivityRepositoryFirestoreTest {
     val cancellation = CancellationException("cancelled")
     transactionFailure = cancellation
 
-    val error = runCatching { repository.createSuggestion("trip-1", "activity-1", draft) }
+    val error = runCatching { repository.createSuggestionWithVote("trip-1", "activity-1", draft) }
 
     assertSame(cancellation, error.exceptionOrNull())
   }
@@ -285,6 +388,7 @@ class ActivityRepositoryFirestoreTest {
   fun create_mapsFirestoreFailuresToCreationExceptions() = runTest {
     val expected =
         mapOf(
+            Code.UNAUTHENTICATED to ActivityCreationException.NotAuthenticated::class.java,
             Code.PERMISSION_DENIED to ActivityCreationException.PermissionDenied::class.java,
             Code.UNAVAILABLE to ActivityCreationException.Network::class.java,
             Code.DEADLINE_EXCEEDED to ActivityCreationException.Network::class.java,
@@ -297,6 +401,10 @@ class ActivityRepositoryFirestoreTest {
       val error = runCatching { repository.createActivity("trip-1", "activity-1", draft) }
 
       assertEquals(code.name, type, error.exceptionOrNull()?.javaClass)
+      val pairError = runCatching {
+        repository.createSuggestionWithVote("trip-1", "activity-1", draft)
+      }
+      assertEquals(code.name, type, pairError.exceptionOrNull()?.javaClass)
     }
   }
 
@@ -335,9 +443,16 @@ class ActivityRepositoryFirestoreTest {
   fun observe_emitsEveryListSnapshotMappedFromItsDocuments() = runTest {
     val activity = draft.toActivity("activity-1", "trip-1", "alice", Timestamp(900, 0))
     val suggestion =
-        repository
-            .createSuggestion("trip-1", "activity-1", draft.copy(startTime = null, endTime = null))
-            .copy(uid = "suggestion-1")
+        draft
+            .copy(startTime = null, endTime = null)
+            .toActivity(
+                "suggestion-1",
+                "trip-1",
+                "alice",
+                Timestamp(900, 0),
+                ActivityType.SUGGESTION,
+            )
+            .copy(linkedVoteId = "suggestion-suggestion-1")
     val emitted = mutableListOf<List<Activity>>()
     val job =
         launch(UnconfinedTestDispatcher(testScheduler)) {
