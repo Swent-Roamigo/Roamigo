@@ -38,6 +38,34 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 
 class TripMapScreenPreviews {
+  // Previews draw a placeholder instead of the map and its annotations, so the popup is shown
+  // alone.
+  @Preview(showBackground = true)
+  @Composable
+  private fun ActivityPopupPreview() {
+    RoamigoTheme {
+      ActivityPopup(
+          name = "Pastéis de Belém",
+          onDirectionsClick = {},
+          onDetailsClick = {},
+          modifier = Modifier.padding(Spacing.medium),
+      )
+    }
+  }
+
+  @Preview(showBackground = true)
+  @Composable
+  private fun ActivityPopupLongNamePreview() {
+    RoamigoTheme {
+      ActivityPopup(
+          name = "Guided sunset walking tour through Alfama and the Castelo de São Jorge",
+          onDirectionsClick = {},
+          onDetailsClick = {},
+          modifier = Modifier.padding(Spacing.medium),
+      )
+    }
+  }
+
   @Preview(showBackground = true, widthDp = 390, heightDp = 844)
   @Composable
   private fun TripMapLoadingPreview() {

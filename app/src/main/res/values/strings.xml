@@ -194,6 +194,10 @@
     <string name="trip_map_photos_empty">No photos with a location yet</string>
     <string name="trip_map_photos_error">Unable to load photos.</string>
     <string name="trip_map_retry_photos">Retry loading photos</string>
+    <string name="trip_map_activity_marker_open">Show directions and details</string>
+    <string name="trip_map_activity_directions">Directions</string>
+    <string name="trip_map_activity_details">Details</string>
+    <string name="trip_map_directions_no_app">No app available to show directions</string>
 
     <!-- Vote creation -->
     <string name="vote_new">New vote</string>
