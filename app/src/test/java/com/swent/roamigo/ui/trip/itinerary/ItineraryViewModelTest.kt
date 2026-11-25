@@ -124,6 +124,20 @@ class ItineraryViewModelTest {
       }
 
   @Test
+  fun todayOutsideTheTripDoesNotOpenEvenWithAnActivity() =
+      runTest(dispatcher) {
+        val today = DAY_2.plusDays(3)
+        repository.activities.value =
+            listOf(activity("museum", DAY_2.atTime(10, 0)), activity("late", today.atTime(20, 0)))
+        createViewModel(today = today)
+        viewModel.setTripDates(DAY_1, DAY_2)
+        runCurrent()
+
+        assertEquals(DAY_2, ready().selectedDay)
+        assertTrue(today in ready().days)
+      }
+
+  @Test
   fun anEmptyTripOpensOnItsFirstDayAndSaysItHasNoActivity() =
       runTest(dispatcher) {
         createViewModel(today = DAY_1.minusDays(30))
