@@ -9,9 +9,8 @@ import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.activity.ActivityDraft
 import com.swent.roamigo.model.trip.activity.ActivityRepository
 import com.swent.roamigo.model.trip.activity.initialSuggestionVoteId
+import com.swent.roamigo.model.trip.activity.newSuggestionPair
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
-import com.swent.roamigo.model.trip.voting.Vote
-import com.swent.roamigo.model.trip.voting.VoteOption
 import com.swent.roamigo.model.trip.voting.VoteStatus
 import java.time.Clock
 import java.time.LocalDate
@@ -269,15 +268,15 @@ class ItineraryViewModelTest {
   @Test
   fun countsSuggestionsWhoseCurrentVoteRoundIsOpen() =
       runTest(dispatcher) {
-        val revoted = vote(suggestionVoteId("revoted"), VoteStatus.CLOSED, nextRound = "round-2")
+        val revoted = suggestionVote("revoted", VoteStatus.CLOSED, nextRound = "round-2")
         votes.snapshots.value =
             Result.success(
                 listOf(
-                    vote(suggestionVoteId("open"), VoteStatus.OPEN),
-                    vote(suggestionVoteId("decided"), VoteStatus.CLOSED),
+                    suggestionVote("open"),
+                    suggestionVote("decided", VoteStatus.CLOSED),
                     revoted,
-                    vote("round-2", VoteStatus.OPEN),
-                    vote(suggestionVoteId("pending-round"), VoteStatus.CLOSED, nextRound = "late"),
+                    laterRound("revoted", "round-2"),
+                    suggestionVote("pending-round", VoteStatus.CLOSED, nextRound = "late"),
                 )
             )
         repository.activities.value =
@@ -311,8 +310,7 @@ class ItineraryViewModelTest {
   @Test
   fun aVoteFailureKeepsTheLastCountAndOffersRetry() =
       runTest(dispatcher) {
-        votes.snapshots.value =
-            Result.success(listOf(vote(suggestionVoteId("open"), VoteStatus.OPEN)))
+        votes.snapshots.value = Result.success(listOf(suggestionVote("open")))
         repository.activities.value = listOf(activity("a", DAY_1.atTime(9, 0)), suggestion("open"))
         createViewModel()
         viewModel.setTripDates(DAY_1, DAY_2)
@@ -370,25 +368,29 @@ class ItineraryViewModelTest {
           creationTime = Timestamp(0, 0),
       )
 
-  private fun suggestion(id: String) =
-      activity(id, DAY_1.atTime(10, 0), ActivityType.SUGGESTION)
-          .copy(linkedVoteId = suggestionVoteId(id))
+  /** A suggestion and its initial vote, built exactly as suggestion creation stores them. */
+  private fun suggestionPair(id: String) =
+      ActivityDraft(id, null, TripLocation(38.7, -9.1, "Lisbon"), null, null)
+          .newSuggestionPair(TRIP_ID, id, initialSuggestionVoteId(id), "alex")
 
-  private fun suggestionVoteId(suggestionId: String) = initialSuggestionVoteId(suggestionId)
+  private fun suggestion(id: String) = suggestionPair(id).activity
 
-  private fun vote(id: String, status: VoteStatus, nextRound: String? = null) =
-      Vote(
-          uid = id,
-          tripId = TRIP_ID,
-          question = id,
-          options = listOf(VoteOption("YES", "Yes"), VoteOption("NO", "No")),
-          createdByUserId = "alex",
-          status = status,
-          creationTime = Timestamp(0, 0),
-          closingTime = null,
-          winningOptionId = null,
-          nextRoundVoteId = nextRound,
-      )
+  private fun suggestionVote(
+      suggestionId: String,
+      status: VoteStatus = VoteStatus.OPEN,
+      nextRound: String? = null,
+  ) = suggestionPair(suggestionId).vote.copy(status = status, nextRoundVoteId = nextRound)
+
+  /** The second round of [suggestionId]'s vote, linked to its initial vote like a revote. */
+  private fun laterRound(suggestionId: String, roundId: String) =
+      suggestionPair(suggestionId)
+          .vote
+          .copy(
+              uid = roundId,
+              parentVoteId = initialSuggestionVoteId(suggestionId),
+              round = 2,
+              suggestionId = null,
+          )
 
   private fun timestamp(instant: java.time.Instant) = Timestamp(instant.epochSecond, instant.nano)
 
