@@ -111,7 +111,9 @@ fun PhotosRoute(
                   )
               )
             } catch (_: ActivityNotFoundException) {
-              // Some devices have no app that handles this screen, e.g. a restricted profile.
+              // Some devices have no app that handles this screen, e.g. a restricted profile. The
+              // general settings are not a fallback: on such a device they are restricted too, and
+              // the message tells the user where to allow the camera.
               viewModel.onSettingsUnavailable()
               Toast.makeText(context, R.string.photos_no_settings, Toast.LENGTH_LONG).show()
             }

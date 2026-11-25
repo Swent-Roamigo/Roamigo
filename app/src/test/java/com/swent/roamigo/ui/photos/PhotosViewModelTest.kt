@@ -473,20 +473,13 @@ class PhotosViewModelTest {
   @Test
   fun takesThePhotoWhenBackFromSettingsAfterTheAppWasRecreated() {
     val handle = SavedStateHandle()
-    val first =
-        PhotosViewModel(repository, connectivity, "trip", locator, savedStateHandle = handle)
-    first.onOpenSettings()
+    modelWith(handle, locator).onOpenSettings()
 
     // Android killed the process while the user was in the settings.
-    val second =
-        PhotosViewModel(repository, connectivity, "trip", locator, savedStateHandle = handle)
-    val recreatedEffects = mutableListOf<PhotosEffect>()
-    second.effects
-        .onEach { recreatedEffects += it }
-        .launchIn(kotlinx.coroutines.CoroutineScope(dispatcher))
-    second.onScreenResumed(permissionGranted = true)
+    val recreated = modelWith(afterProcessDeath(handle), locator)
+    recreated.onScreenResumed(permissionGranted = true)
 
-    assertTrue(recreatedEffects.single() is PhotosEffect.LaunchCamera)
+    assertTrue(effects.last() is PhotosEffect.LaunchCamera)
   }
 
   @Test

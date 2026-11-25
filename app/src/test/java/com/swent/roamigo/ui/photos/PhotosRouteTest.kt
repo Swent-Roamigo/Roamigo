@@ -240,6 +240,15 @@ class PhotosRouteTest {
         ShadowToast.getTextOfLatestToast(),
     )
     composeRule.onNodeWithTag(C.Tag.photos_screen).assertIsDisplayed()
+
+    // Coming back later with the camera allowed must not open it: nothing was waited for.
+    allowCamera()
+    val scenario = composeRule.activityRule.scenario
+    scenario.moveToState(Lifecycle.State.STARTED)
+    scenario.moveToState(Lifecycle.State.RESUMED)
+    composeRule.waitForIdle()
+
+    assertTrue(launched(ActivityResultContracts.TakePicture::class.java).isEmpty())
   }
 
   @Test
