@@ -387,7 +387,20 @@ test('removing and restoring a friendship does not revive old invitations', asyn
     'PERMISSION_DENIED',
   );
 
-  // A new accepted friendship has a different friendship requestId.
+  // Same creation time, but a different friendship request ID.
+  await seedAcceptedFriend(
+    recipient,
+    'friend-restored',
+    1000,
+  );
+
+  assert.ok(
+    !(await incomingFor(recipient)).invitations.some(
+      i => i.invitationId === original.invitationId
+    )
+  );
+
+  // Same request ID, but a different friendship creation time.
   await seedAcceptedFriend(
     recipient,
     `friend-${recipient.uid}`,
@@ -550,8 +563,12 @@ test('pagination returns all matching invitations without duplicates', async () 
     Date.now() + 3600000,
   );
 
+  const seededIds = [];
+
   for (let i = 0; i < 21; i++) {
     const ref = await trip({name: `Trip ${i}`});
+
+    seededIds.push(directDocId(ref.id, recipient.uid));
 
     await db.doc(
       `directTripInvitations/${directDocId(ref.id, recipient.uid)}`
@@ -569,8 +586,17 @@ test('pagination returns all matching invitations without duplicates', async () 
     });
   }
 
+  // Expire an invitation within the first page by document ID order.
+  const expiredId = [...seededIds].sort()[5];
+
+  await db.doc(
+    `directTripInvitations/${expiredId}`
+  ).update({
+    expirationTime: Timestamp.fromMillis(1),
+  });
+
   const first = await incomingFor(recipient);
-  assert.equal(first.invitations.length, 20);
+  assert.equal(first.invitations.length, 19);
   assert.ok(first.nextCursor);
 
   const second = await incomingFor(
@@ -586,7 +612,135 @@ test('pagination returns all matching invitations without duplicates', async () 
     ...second.invitations,
   ].map(i => i.tripId);
 
-  assert.equal(new Set(tripIds).size, 21);
+  assert.equal(new Set(tripIds).size, 20);
+
+  const returnedIds = [
+    ...first.invitations,
+    ...second.invitations,
+  ].map(i => i.invitationId);
+
+  assert.ok(!returnedIds.includes(expiredId));
+  assert.equal(new Set(returnedIds).size, 20);
+});
+
+
+test('outgoing pagination skips invalid rows without losing later pages', async () => {
+  const ref = await trip();
+  const createdAt = Timestamp.fromMillis(1000);
+  const expires = Timestamp.fromMillis(Date.now() + 3600000);
+  const ids = [];
+
+  const batch = db.batch();
+
+  for (let i = 0; i < 21; i++) {
+    const recipientId = `outgoing-recipient-${i}`;
+    const requestId = `friend-outgoing-${i}`;
+    const id = directDocId(ref.id, recipientId);
+    ids.push(id);
+
+    batch.set(
+      db.doc(`friendships/${directFriendId(owner.uid, recipientId)}`),
+      {
+        requestId,
+        senderUserId: owner.uid,
+        recipientUserId: recipientId,
+        participantIds: [owner.uid, recipientId],
+        status: 'ACCEPTED',
+        createdAt,
+        respondedAt: Timestamp.fromMillis(2000),
+      },
+    );
+
+    batch.set(db.doc(`directTripInvitations/${id}`), {
+      tripId: ref.id,
+      inviterUserId: owner.uid,
+      inviteeUserId: recipientId,
+      requestId: `invite-${i}`,
+      friendshipRequestId: requestId,
+      friendshipCreatedAt: createdAt,
+      status: 'PENDING',
+      creationTime: Timestamp.now(),
+      expirationTime: expires,
+      respondedAt: null,
+    });
+  }
+
+  await batch.commit();
+
+  const expiredId = [...ids].sort()[5];
+  await db.doc(`directTripInvitations/${expiredId}`).update({
+    expirationTime: Timestamp.fromMillis(1),
+  });
+
+  const first = succeeded(await call(
+    'listSentDirectTripInvitations',
+    {tripId: ref.id},
+    owner,
+  ));
+
+  assert.equal(first.invitations.length, 19);
+  assert.ok(first.nextCursor);
+
+  const second = succeeded(await call(
+    'listSentDirectTripInvitations',
+    {tripId: ref.id, cursor: first.nextCursor},
+    owner,
+  ));
+
+  assert.equal(second.invitations.length, 1);
+  assert.equal(second.nextCursor, null);
+
+  const returned = [
+    ...first.invitations,
+    ...second.invitations,
+  ].map(invitation => invitation.invitationId);
+
+  assert.equal(new Set(returned).size, 20);
+  assert.ok(!returned.includes(expiredId));
+});
+
+test('full trips temporarily hide pending direct invitations', async () => {
+  const ref = await trip();
+  const recipient = await account();
+
+  await seedAcceptedFriend(recipient);
+  const invitation = await sendDirect(ref, recipient);
+
+  await ref.update({
+    memberIds: [
+      owner.uid,
+      ...Array.from({length: 9}, (_, i) => `member-${i}`),
+    ],
+  });
+
+  const incoming = await incomingFor(recipient);
+  assert.ok(
+    !incoming.invitations.some(
+      i => i.invitationId === invitation.invitationId
+    )
+  );
+
+  const outgoing = succeeded(await call(
+    'listSentDirectTripInvitations',
+    {tripId: ref.id},
+    owner,
+  ));
+
+  assert.ok(
+    !outgoing.invitations.some(
+      i => i.invitationId === invitation.invitationId
+    )
+  );
+
+  // Capacity becomes available again.
+  await ref.update({memberIds: [owner.uid]});
+
+  const restored = await incomingFor(recipient);
+  assert.ok(
+    restored.invitations.some(
+      i => i.invitationId === invitation.invitationId
+    )
+  );
 });
 
 test('ordinary Firestore clients cannot access direct invitations', async () => {

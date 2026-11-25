@@ -30,16 +30,16 @@
       "collectionGroup": "directTripInvitations",
       "queryScope": "COLLECTION",
       "fields": [
-        {"fieldPath": "inviteeUserId", "order": "ASCENDING"},
-        {"fieldPath": "status", "order": "ASCENDING"}
+        { "fieldPath": "inviteeUserId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
       ]
     },
     {
       "collectionGroup": "directTripInvitations",
       "queryScope": "COLLECTION",
       "fields": [
-        {"fieldPath": "tripId", "order": "ASCENDING"},
-        {"fieldPath": "status", "order": "ASCENDING"}
+        { "fieldPath": "tripId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
       ]
     }
   ],

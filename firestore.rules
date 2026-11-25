@@ -507,7 +507,8 @@ service cloud.firestore {
       }
     }
 
-    // Everything else stays closed.
+    // Everything else stays closed, including both trip invitation collections.
+    // Only trusted Cloud Functions may access their documents.
     match /{document=**} {
       allow read, write: if false;
     }

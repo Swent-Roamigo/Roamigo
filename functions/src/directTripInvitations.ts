@@ -1,9 +1,8 @@
-
 // AI assistance was used for implementation support and code review.
 import {createHash, randomBytes} from "node:crypto";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {FieldPath, getFirestore, Timestamp} from "firebase-admin/firestore";
-import {callableOptions, documentId} from "./callable.js";
+import {callableOptions, documentId, isDocumentId} from "./callable.js";
 import {
   ensureProfile, INVITATION_LIFETIME_MS, MAX_MEMBERS,
   requireOwner, userIdOf,
@@ -25,16 +24,12 @@ function friendshipId(a: string, b: string): string {
   return [hash(a), hash(b)].sort().join("_");
 }
 
-function safeId(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length > 0 &&
-    !value.includes("/") && value !== "." && value !== "..";
-}
 
 function acceptedFriendship(
   data: FirebaseFirestore.DocumentData | undefined,
   a: string, b: string,
 ): boolean {
-  return data?.status === "ACCEPTED" && safeId(data.requestId) &&
+  return data?.status === "ACCEPTED" && isDocumentId(data.requestId) &&
     data.createdAt instanceof Timestamp &&
     Array.isArray(data.participantIds) && data.participantIds.length === 2 &&
     data.participantIds.includes(a) && data.participantIds.includes(b) &&
@@ -51,13 +46,36 @@ function sameFriendshipGeneration(
     invitation.friendshipCreatedAt.isEqual(friendship.createdAt);
 }
 
-function pendingInvitation(
+/**
+ * Shared eligibility check for sending, listing and future acceptance.
+ * Full trips temporarily hide pending invitations until capacity returns.
+ */
+function isStillValid(
+  invitation: FirebaseFirestore.DocumentData,
+  trip: FirebaseFirestore.DocumentData | undefined,
+  friendship: FirebaseFirestore.DocumentData | undefined,
+): boolean {
+  return !!trip &&
+    trip.ownerId === invitation.inviterUserId &&
+    Array.isArray(trip.memberIds) &&
+    trip.memberIds.includes(invitation.inviterUserId) &&
+    !trip.memberIds.includes(invitation.inviteeUserId) &&
+    trip.memberIds.length < MAX_MEMBERS &&
+    acceptedFriendship(
+      friendship,
+      invitation.inviterUserId,
+      invitation.inviteeUserId,
+    ) &&
+    sameFriendshipGeneration(invitation, friendship!);
+}
+
+function isPendingInvitation(
   id: string, data: FirebaseFirestore.DocumentData, now: Timestamp,
 ): boolean {
   return data.status === "PENDING" &&
-    safeId(data.tripId) && safeId(data.inviterUserId) &&
-    safeId(data.inviteeUserId) && safeId(data.requestId) &&
-    safeId(data.friendshipRequestId) &&
+    isDocumentId(data.tripId) && isDocumentId(data.inviterUserId) &&
+    isDocumentId(data.inviteeUserId) && isDocumentId(data.requestId) &&
+    isDocumentId(data.friendshipRequestId) &&
     data.friendshipCreatedAt instanceof Timestamp &&
     data.respondedAt === null &&
     data.inviterUserId !== data.inviteeUserId &&
@@ -122,17 +140,27 @@ export const sendDirectTripInvitation = onCall(callableOptions, async (request) 
     }
 
     const friendship = (await tx.get(friendRef)).data();
-    if (!acceptedFriendship(friendship, senderId, inviteeId)) {
-      throw new HttpsError("permission-denied", "Established friendship required");
+
+    const candidate = {
+      inviterUserId: senderId,
+      inviteeUserId: inviteeId,
+      friendshipRequestId: friendship?.requestId,
+      friendshipCreatedAt: friendship?.createdAt,
+    };
+
+    if (!isStillValid(candidate, trip, friendship)) {
+      throw new HttpsError(
+        "permission-denied",
+        "Established friendship required",
+      );
     }
 
     const previous = (await tx.get(inviteRef)).data();
     const now = Timestamp.now();
 
-    // Reuse an eligible pending request without extending its expiry.
-    if (previous && pendingInvitation(id, previous, now) &&
-        previous.inviterUserId === senderId &&
-        sameFriendshipGeneration(previous, friendship!)) {
+    // Reuse only the current, still-eligible invitation.
+    if (previous && isPendingInvitation(id, previous, now) &&
+        isStillValid(previous, trip, friendship)) {
       return {
         invitationId: id,
         requestId: previous.requestId,
@@ -149,11 +177,8 @@ export const sendDirectTripInvitation = onCall(callableOptions, async (request) 
 
     tx.set(inviteRef, {
       tripId,
-      inviterUserId: senderId,
-      inviteeUserId: inviteeId,
+      ...candidate,
       requestId,
-      friendshipRequestId: friendship!.requestId,
-      friendshipCreatedAt: friendship!.createdAt,
       status: "PENDING",
       creationTime: now,
       expirationTime: expires,
@@ -171,7 +196,12 @@ export const sendDirectTripInvitation = onCall(callableOptions, async (request) 
   return result;
 });
 
-/** Returns invitations addressed only to the authenticated recipient. */
+/**
+ * Lists usable invitations for the authenticated recipient.
+ * A page may be empty while nextCursor is non-null because invalid
+ * invitations are filtered after querying. Clients must continue
+ * until nextCursor is null.
+ */
 export const listIncomingDirectTripInvitations = onCall(
   callableOptions,
   async (request) => {
@@ -185,7 +215,7 @@ export const listIncomingDirectTripInvitations = onCall(
     const rows = await Promise.all(docs.map(async (doc) => {
       const data = doc.data();
 
-      if (!pendingInvitation(doc.id, data, now) ||
+      if (!isPendingInvitation(doc.id, data, now) ||
           data.inviteeUserId !== recipientId) {
         return null;
       }
@@ -198,14 +228,10 @@ export const listIncomingDirectTripInvitations = onCall(
       const tripData = trip.data();
       const friendData = friendship.data();
 
-      if (!tripData || tripData.ownerId !== data.inviterUserId ||
-          !Array.isArray(tripData.memberIds) ||
-          !tripData.memberIds.includes(data.inviterUserId) ||
-          tripData.memberIds.includes(recipientId) ||
-          tripData.memberIds.length >= MAX_MEMBERS ||
-          typeof tripData.name !== "string" || !tripData.name.trim() ||
-          !acceptedFriendship(friendData, data.inviterUserId, recipientId) ||
-          !sameFriendshipGeneration(data, friendData!)) {
+      if (!tripData ||
+          !isStillValid(data, tripData, friendData) ||
+          typeof tripData.name !== "string" ||
+          !tripData.name.trim()) {
         return null;
       }
 
@@ -232,7 +258,11 @@ export const listIncomingDirectTripInvitations = onCall(
   },
 );
 
-/** Returns pending invitations sent by the current trip organizer. */
+/**
+ * Lists usable invitations sent by the current trip organizer.
+ * A page may be empty with a non-null nextCursor; clients must
+ * continue pagination until the cursor is null.
+ */
 export const listSentDirectTripInvitations = onCall(
   callableOptions,
   async (request) => {
@@ -251,10 +281,9 @@ export const listSentDirectTripInvitations = onCall(
     const rows = await Promise.all(docs.map(async (doc) => {
       const data = doc.data();
 
-      if (!pendingInvitation(doc.id, data, now) ||
-          data.tripId !== tripId || data.inviterUserId !== senderId ||
-          trip!.memberIds.includes(data.inviteeUserId) ||
-          trip!.memberIds.length >= MAX_MEMBERS) {
+      if (!isPendingInvitation(doc.id, data, now) ||
+          data.tripId !== tripId ||
+          data.inviterUserId !== senderId) {
         return null;
       }
 
@@ -264,8 +293,7 @@ export const listSentDirectTripInvitations = onCall(
         ).get()
       ).data();
 
-      if (!acceptedFriendship(friend, senderId, data.inviteeUserId) ||
-          !sameFriendshipGeneration(data, friend!)) {
+      if (!isStillValid(data, trip, friend)) {
         return null;
       }
 
