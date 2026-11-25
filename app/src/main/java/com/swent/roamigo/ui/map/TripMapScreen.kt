@@ -4,6 +4,7 @@ package com.swent.roamigo.ui.map
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
@@ -84,7 +85,6 @@ import com.swent.roamigo.model.location.MemberLocation
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.TripActionButton
 import com.swent.roamigo.ui.components.TripActionButtonPadding
-import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.photos.PhotoViewer
 import com.swent.roamigo.ui.theme.MyLocationBlue
@@ -114,6 +114,8 @@ import com.swent.roamigo.ui.theme.WarningSurface
  * @param startActivity starts the activity of an intent, such as the app's settings.
  * @param readOnly whether location sharing controls and permission requests are disabled.
  * @param currentUserId the signed-in user, for the photo viewer's fallback photographer name.
+ * @param uriNavigator opens directions to an activity in another app. A toast tells the user when
+ *   no app can.
  */
 @Composable
 fun TripMapRoute(
@@ -125,6 +127,7 @@ fun TripMapRoute(
     startActivity: (Intent) -> Unit = LocalContext.current::startActivity,
     readOnly: Boolean = false,
     currentUserId: String? = null,
+    uriNavigator: UriNavigator = rememberUriNavigator(),
 ) {
   val tripMapViewModel: TripMapViewModel =
       viewModel(key = "trip_map_$tripId", factory = tripMapViewModelFactory)
@@ -186,6 +189,13 @@ fun TripMapRoute(
       onRetryPhotos = tripMapViewModel::retryPhotos,
       onPhotoMarkerClick = tripMapViewModel::selectPhotoGroup,
       onPhotoViewerClose = tripMapViewModel::closePhotoViewer,
+      onActivityMarkerClick = tripMapViewModel::selectActivity,
+      onActivityPopupDismiss = tripMapViewModel::clearActivitySelection,
+      onDirectionsClick = { activity ->
+        if (!uriNavigator.openDirectionsTo(activity)) {
+          Toast.makeText(context, R.string.trip_map_directions_no_app, Toast.LENGTH_SHORT).show()
+        }
+      },
       currentUserId = currentUserId,
       onTurnOnSharing = { locationViewModel?.onTurnOnSharingClick(permissionChecker.isGranted()) },
       onPauseSharing = { locationViewModel?.stopSharing() },
@@ -238,6 +248,12 @@ private val MyLocationDotBorderWidth = 3.dp
  * @param onPhotoMarkerClick called with the coordinate of the photo group the user tapped. The
  *   viewer shows [TripMapUiState.Loaded.selectedPhotoGroup].
  * @param onPhotoViewerClose called when the user closes the viewer.
+ * @param onActivityMarkerClick called with the marker ID of the activity or suggestion the user
+ *   tapped. The popup shows [TripMapUiState.Loaded.selectedActivity].
+ * @param onActivityPopupDismiss called when the user taps the map outside of any marker.
+ * @param onDirectionsClick called with the activity whose popup asked for directions.
+ * @param onActivityDetailsClick called when the popup's "Details" button is tapped. Placeholder
+ *   feedback by default, until the activity details screen exists.
  * @param currentUserId the signed-in user, for the viewer's fallback photographer name.
  */
 @Composable
@@ -252,6 +268,10 @@ fun TripMapScreen(
     onRetryPhotos: () -> Unit = {},
     onPhotoMarkerClick: (MapCoordinate) -> Unit = {},
     onPhotoViewerClose: () -> Unit = {},
+    onActivityMarkerClick: (String) -> Unit = {},
+    onActivityPopupDismiss: () -> Unit = {},
+    onDirectionsClick: (TripMarkerUiState) -> Unit = {},
+    onActivityDetailsClick: () -> Unit = rememberNotImplementedAction(),
     currentUserId: String? = null,
     readOnly: Boolean = false,
     memberLocations: List<MemberLocation> = emptyList(),
@@ -268,7 +288,7 @@ fun TripMapScreen(
   val mapState = rememberTripMapGesturesState { cameraState.onCameraGesture(viewport) }
   val mapViewportState =
       rememberTripMapViewportState(viewport, autoFrame = !cameraState.hasUserMovedCamera)
-  val onMarkerClick = rememberNotImplementedAction()
+  val activityMarkerClickLabel = stringResource(R.string.trip_map_activity_marker_open)
   val members = (uiState as? TripMapUiState.Loaded)?.members.orEmpty()
   val snackbarHostState = remember { SnackbarHostState() }
   val resources = LocalResources.current
@@ -289,6 +309,7 @@ fun TripMapScreen(
 
   val loaded = uiState as? TripMapUiState.Loaded
   val selectedPhotoGroup = loaded?.selectedPhotoGroup
+  val selectedActivity = loaded?.selectedActivity
 
   // The viewer is drawn over the map instead of replacing it, so the camera is kept when it closes.
   Box(modifier = modifier.fillMaxSize()) {
@@ -319,6 +340,11 @@ fun TripMapScreen(
               )
             },
             attribution = {},
+            // Taps on markers and on the popup are handled by them and never reach the map.
+            onMapClickListener = {
+              onActivityPopupDismiss()
+              false
+            },
         ) {
           if (uiState is TripMapUiState.Loaded) {
             uiState.activityMarkers.forEach { marker ->
@@ -330,9 +356,12 @@ fun TripMapScreen(
                           annotationAnchor { anchor(ViewAnnotationAnchor.BOTTOM) }
                         },
                     modifier =
-                        Modifier.testTag(TripMarkerTestTags.markerFor(marker.id))
-                            .markNotImplemented(onMarkerClick)
-                            .clickable(onClick = onMarkerClick),
+                        Modifier.testTag(TripMarkerTestTags.markerFor(marker.id)).clickable(
+                            onClickLabel = activityMarkerClickLabel,
+                            role = Role.Button,
+                        ) {
+                          onActivityMarkerClick(marker.id)
+                        },
                 ) {
                   TripMarkerIcon(locationName = marker.locationName, kind = marker.kind)
                 }
@@ -369,7 +398,7 @@ fun TripMapScreen(
               }
             }
           }
-          // Declared last so that it is drawn above the member markers.
+          // Declared after the member markers so that it is drawn above them.
           if (myLocation != null) {
             ViewAnnotation(
                 options =
@@ -381,6 +410,16 @@ fun TripMapScreen(
                     }
             ) {
               MyLocationDot()
+            }
+          }
+          // Declared last so that the popup is drawn above every marker.
+          selectedActivity?.let { activity ->
+            key(activity.id) {
+              ActivityPopupAnnotation(
+                  activity = activity,
+                  onDirectionsClick = { onDirectionsClick(activity) },
+                  onDetailsClick = onActivityDetailsClick,
+              )
             }
           }
         }

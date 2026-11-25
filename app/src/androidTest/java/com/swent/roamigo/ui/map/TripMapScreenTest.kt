@@ -239,7 +239,7 @@ class TripMapScreenTest {
   }
 
   @Test
-  fun activityAndSuggestionMarkersShowPlaceholderActionsAndFollowStateChanges() {
+  fun activityAndSuggestionMarkersReportTapsAndFollowStateChanges() {
     val activity =
         TripMarkerUiState(
             id = "lisbon_activity",
@@ -264,7 +264,8 @@ class TripMapScreenTest {
             viewport = tripMapViewportOf(markers.map { MapCoordinate(it.latitude, it.longitude) }),
             activityMarkers = markers,
         )
-    setContent(TripMapUiState.Loading)
+    val tappedMarkerIds = mutableListOf<String>()
+    setContent(TripMapUiState.Loading, onActivityMarkerClick = { tappedMarkerIds += it })
 
     composeRule.runOnIdle { uiState.value = state }
 
@@ -277,9 +278,10 @@ class TripMapScreenTest {
           .onNodeWithTag(markerTag)
           .assertIsDisplayed()
           .assertContentDescriptionEquals(marker.locationName)
-          .assert(isNotImplemented)
+          .assert(isNotImplemented.not())
           .performClick()
     }
+    composeRule.runOnIdle { assertEquals(markers.map { it.id }, tappedMarkerIds) }
 
     composeRule.runOnIdle { uiState.value = state.copy(activityMarkers = listOf(suggestion)) }
 
@@ -912,6 +914,7 @@ class TripMapScreenTest {
       onTurnOnSharing: () -> Unit = {},
       onPauseSharing: () -> Unit = {},
       readOnly: Boolean = false,
+      onActivityMarkerClick: (String) -> Unit = {},
   ) {
     uiState.value = TripMapUiState.Loading
     isSharing.value = sharing
@@ -927,6 +930,7 @@ class TripMapScreenTest {
             onTurnOnSharing = onTurnOnSharing,
             onPauseSharing = onPauseSharing,
             readOnly = readOnly,
+            onActivityMarkerClick = onActivityMarkerClick,
         )
       }
     }
