@@ -141,6 +141,11 @@ class TripMapViewModel(
                 activityMarkers = activityMarkers,
                 viewport = tripMapViewportOf(coordinates),
                 activitiesLoadState = ActivitiesLoadState.LOADED,
+                // The popup closes when its activity is removed from the trip.
+                selectedActivityId =
+                    loaded.selectedActivityId?.takeIf { selected ->
+                      activityMarkers.any { it.id == selected }
+                    },
             )
           }
         }
@@ -196,6 +201,25 @@ class TripMapViewModel(
   /** Closes the photo viewer and returns to the map. */
   fun closePhotoViewer() {
     updateLoaded { it.copy(selectedPhotoCoordinate = null) }
+  }
+
+  /**
+   * Opens the popup of the activity or suggestion whose marker has [markerId], replacing any open
+   * one. IDs without a current marker are ignored, e.g. a tap on a marker removed by an update.
+   */
+  fun selectActivity(markerId: String) {
+    updateLoaded { state ->
+      if (state.activityMarkers.any { it.id == markerId }) {
+        state.copy(selectedActivityId = markerId)
+      } else {
+        state
+      }
+    }
+  }
+
+  /** Closes the activity popup, if one is open. */
+  fun clearActivitySelection() {
+    updateLoaded { it.copy(selectedActivityId = null) }
   }
 
   private fun observePhotos() {
