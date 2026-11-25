@@ -36,6 +36,7 @@ import com.swent.roamigo.ui.trip.activity.ActivityFormFixtures.day
 import com.swent.roamigo.ui.trip.activity.ActivityFormFixtures.place
 import com.swent.roamigo.ui.trip.activity.ActivityFormFixtures.storedActivity
 import com.swent.roamigo.ui.trip.activity.ActivityFormFixtures.trip
+import java.time.LocalTime
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -138,6 +139,7 @@ class ActivityFormRouteTest {
     compose.onNodeWithTag(ActivityFormTestTags.SUBMIT).performClick()
     compose.onNodeWithText("Enter a name for the activity.").assertIsDisplayed()
     compose.onNodeWithText("Choose a place for the activity.").assertIsDisplayed()
+    compose.onNodeWithText("Choose when this activity starts.").assertIsDisplayed()
     compose.runOnIdle {
       assertTrue(saved.isEmpty())
       assertTrue(runBlocking { activities.observeActivities(TRIP_ID).first() }.isEmpty())
@@ -148,6 +150,7 @@ class ActivityFormRouteTest {
   fun filledFormIsSavedThroughTheRepositoryAndReportedOnce() {
     show()
     compose.onNodeWithTag(ActivityFormTestTags.NAME).performTextInput("Dinner")
+    compose.pickNoon()
     compose.pickPlace(candidate)
     compose.onNodeWithText("Time Out Market").assertExists()
     compose.onNodeWithTag(ActivityFormTestTags.SUBMIT).performClick()
@@ -202,6 +205,7 @@ class ActivityFormRouteTest {
             SavedStateHandle(),
         )
     form.updateName("Dinner")
+    form.updateTime(LocalTime.NOON)
     form.updatePlace(place)
     show(viewModelFactory = viewModelFactory { initializer { form } })
 

@@ -5,14 +5,15 @@ import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.FirebaseApp
-import com.google.firebase.FirebaseOptions
 import com.google.firebase.Timestamp
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
-import com.google.firebase.firestore.FirebaseFirestoreSettings
-import com.google.firebase.firestore.MemoryCacheSettings
+import com.google.firebase.firestore.Source
+import com.swent.roamigo.FirebaseEmulators
+import com.swent.roamigo.FirebaseEmulators.FIRESTORE_PORT
+import com.swent.roamigo.FirebaseEmulators.HOST
+import com.swent.roamigo.FirebaseEmulators.PROJECT_ID
 import com.swent.roamigo.model.TripLocation
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.TravelMode
@@ -23,6 +24,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.time.Instant
 import java.util.UUID
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
@@ -31,6 +34,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -89,6 +93,131 @@ class ActivityRepositoryFirestoreEmulatorTest {
           alice.repository.observeActivities(tripId).first { it.isNotEmpty() }
         },
     )
+  }
+
+  @Test
+  fun membersCanCreateSuggestionsAndObserveThemAlongsideItineraryActivities() = runBlocking {
+    addBobToTrip()
+    val itinerary = alice.repository.createActivity(tripId, "itinerary", draft)
+    val observed = async {
+      withTimeout(10_000) { bob.repository.observeActivities(tripId).first { it.size == 3 } }
+    }
+
+    val unscheduled =
+        alice.repository.createSuggestion(
+            tripId,
+            "unscheduled",
+            draft.copy(description = null, startTime = null, endTime = null),
+        )
+    val scheduled = bob.repository.createSuggestion(tripId, "scheduled", draft)
+
+    assertEquals(ActivityType.SUGGESTION, unscheduled.activityType)
+    assertEquals(alice.userId, unscheduled.createdByUserId)
+    assertNull(unscheduled.startTime)
+    assertNull(unscheduled.endTime)
+    assertEquals(ActivityType.SUGGESTION, scheduled.activityType)
+    assertEquals(bob.userId, scheduled.createdByUserId)
+    assertEquals(draft.startTime?.epochSecond, scheduled.startTime?.seconds)
+    assertEquals(draft.endTime?.epochSecond, scheduled.endTime?.seconds)
+    val expected = setOf(itinerary, unscheduled, scheduled)
+    assertEquals(expected, observed.await().toSet())
+    assertEquals(expected, alice.tripRepository.getActivitiesForTrip(tripId).toSet())
+  }
+
+  @Test
+  fun concurrentSuggestionAttemptsAndChangedDraftRetriesReturnOneStoredDocument() = runBlocking {
+    val results =
+        withTimeout(30_000) {
+          List(2) { index ->
+                async {
+                  alice.repository.createSuggestion(
+                      tripId,
+                      "suggestion",
+                      draft.copy(name = "Place $index"),
+                  )
+                }
+              }
+              .awaitAll()
+        }
+    val first = results.first()
+
+    assertEquals(listOf(first, first), results)
+    assertEquals(
+        first,
+        alice.repository.createSuggestion(tripId, "suggestion", draft.copy(name = "Changed")),
+    )
+    assertEquals(listOf(first), alice.tripRepository.getActivitiesForTrip(tripId))
+  }
+
+  @Test
+  fun anotherMemberCannotReuseAnExistingSuggestionId() = runBlocking {
+    val original = alice.repository.createSuggestion(tripId, "suggestion", draft)
+    addBobToTrip()
+
+    val error = runCatching {
+      bob.repository.createSuggestion(tripId, original.uid, draft.copy(name = "Other"))
+    }
+
+    assertTrue(error.exceptionOrNull() is ActivityCreationException.PermissionDenied)
+    val stored = bob.tripRepository.getActivitiesForTrip(tripId).single()
+    assertEquals(alice.userId, stored.createdByUserId)
+    assertEquals(original, stored)
+  }
+
+  @Test
+  fun createActivityCannotReuseASuggestionId() = runBlocking {
+    val original = alice.repository.createSuggestion(tripId, "suggestion", draft)
+
+    val error = runCatching { alice.repository.createActivity(tripId, original.uid, draft) }
+
+    val conflict = error.exceptionOrNull() as ActivityCreationException.TypeConflict
+    assertEquals(ActivityType.ACCEPTED, conflict.requested)
+    assertEquals(ActivityType.SUGGESTION, conflict.existing)
+    assertEquals(listOf(original), alice.tripRepository.getActivitiesForTrip(tripId))
+  }
+
+  @Test
+  fun createSuggestionCannotReuseAnAcceptedActivityId() = runBlocking {
+    val original = alice.repository.createActivity(tripId, "activity", draft)
+
+    val error = runCatching { alice.repository.createSuggestion(tripId, original.uid, draft) }
+
+    val conflict = error.exceptionOrNull() as ActivityCreationException.TypeConflict
+    assertEquals(ActivityType.SUGGESTION, conflict.requested)
+    assertEquals(ActivityType.ACCEPTED, conflict.existing)
+    assertEquals(listOf(original), alice.tripRepository.getActivitiesForTrip(tripId))
+  }
+
+  @Test
+  fun rawSuggestionWritesAndReadsRequireAuthenticationAndMembership() = runBlocking {
+    val proposal = activityData(alice, ActivityType.SUGGESTION)
+    val stored = activityDocument(alice, "suggestion")
+    stored.set(proposal).await()
+
+    // Use a separate, signed-out client whose cache and auth have never seen the trip.
+    val signedOutDb = FirebaseEmulators.firestore(newApp())
+    val collection = signedOutDb.collection("trips").document(tripId).collection("activities")
+    assertPermissionDenied { collection.document("new").set(proposal).await() }
+    assertPermissionDenied { collection.document(stored.id).get(Source.SERVER).await() }
+    assertPermissionDenied {
+      activityDocument(bob, "new").set(activityData(bob, ActivityType.SUGGESTION)).await()
+    }
+    assertPermissionDenied { activityDocument(bob, stored.id).get(Source.SERVER).await() }
+    assertPermissionDenied {
+      withTimeout(10_000) { bob.repository.observeActivities(tripId).first() }
+    }
+  }
+
+  @Test
+  fun suggestionsCannotBeUpdatedOrDeleted() = runBlocking {
+    val fields = activityData(alice, ActivityType.SUGGESTION)
+    val document = activityDocument(alice)
+    document.set(fields).await()
+
+    assertPermissionDenied { document.update("name", "Changed").await() }
+    assertPermissionDenied { document.delete().await() }
+    assertPermissionDenied { document.set(fields).await() }
+    assertEquals(fields, document.get(Source.SERVER).await().data)
   }
 
   @Test
@@ -163,15 +292,17 @@ class ActivityRepositoryFirestoreEmulatorTest {
   }
 
   @Test
-  fun rulesRejectSuggestionsAndAuthorImpersonation() = runBlocking {
-    val data = activityData(alice)
+  fun rulesRejectUnknownTypesAuthorImpersonationAndInvalidFieldSets() = runBlocking {
+    val data = activityData(alice, ActivityType.SUGGESTION)
     val invalid =
         listOf(
-            data + ("activityType" to "SUGGESTION"),
+            data + ("activityType" to 42),
             data + ("activityType" to "OTHER"),
             data + ("createdByUserId" to bob.userId),
             data + ("extra" to true),
             data - "creationTime",
+            data - "startTime",
+            data - "endTime",
         )
 
     invalid.forEach { fields ->
@@ -199,6 +330,32 @@ class ActivityRepositoryFirestoreEmulatorTest {
             data + ("location" to mapOf("name" to "EPFL", "latitude" to 91.0, "longitude" to 0.0)),
             data + ("location" to mapOf("name" to " ", "latitude" to 0.0, "longitude" to 0.0)),
             data + ("location" to mapOf("name" to "EPFL", "latitude" to 0.0)),
+        )
+
+    ActivityType.entries.forEach { type ->
+      invalid.forEach { fields ->
+        assertPermissionDenied {
+          activityDocument(alice).set(fields + ("activityType" to type.name)).await()
+        }
+      }
+    }
+  }
+
+  @Test
+  fun rulesRejectSuggestionsWithEndButNoStart() = runBlocking {
+    val invalid = activityData(alice, ActivityType.SUGGESTION) + ("startTime" to null)
+
+    assertPermissionDenied { activityDocument(alice).set(invalid).await() }
+  }
+
+  @Test
+  fun rulesRejectAcceptedActivitiesWithoutStartTime() = runBlocking {
+    val data = activityData(alice)
+    val invalid =
+        listOf(
+            data + mapOf("startTime" to null, "endTime" to null),
+            data + ("startTime" to null),
+            data - "startTime",
         )
 
     invalid.forEach { fields ->
@@ -249,28 +406,13 @@ class ActivityRepositoryFirestoreEmulatorTest {
       val repository: ActivityRepositoryFirestore,
   )
 
+  private fun newApp(): FirebaseApp =
+      FirebaseEmulators.newApp(context, "activity-test-${UUID.randomUUID()}").also { apps += it }
+
   private suspend fun signInUser(): User {
-    val appName = "activity-test-${UUID.randomUUID()}"
-    val options =
-        FirebaseOptions.Builder()
-            .setProjectId(PROJECT_ID)
-            .setApplicationId("1:1234567890:android:roamigo-activity-emulator")
-            // Firebase Auth keeps emulator settings per API key, which must not point to the
-            // app of a previous test once it is deleted.
-            .setApiKey("fake-api-key-$appName")
-            .build()
-    val app = FirebaseApp.initializeApp(context, options, appName)
-    apps += app
-    val auth = FirebaseAuth.getInstance(app).apply { useEmulator(EMULATOR_HOST, AUTH_PORT) }
-    val db =
-        FirebaseFirestore.getInstance(app).apply {
-          useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
-          // A local cache could answer reads that the rules would deny.
-          firestoreSettings =
-              FirebaseFirestoreSettings.Builder()
-                  .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
-                  .build()
-        }
+    val app = newApp()
+    val auth = FirebaseEmulators.auth(app)
+    val db = FirebaseEmulators.firestore(app)
     val userId = auth.signInAnonymously().await().user!!.uid
     val currentUserId = { auth.currentUser?.uid }
     return User(
@@ -296,8 +438,11 @@ class ActivityRepositoryFirestoreEmulatorTest {
       user.db.collection("trips").document(tripId).collection("activities").document(id)
 
   // Bypasses the repository and its Kotlin validation, so only the rules decide.
-  private fun activityData(author: User): Map<String, Any?> =
-      draft.toActivity("activity", tripId, author.userId, Timestamp.now()).toFirestoreData()
+  private fun activityData(
+      author: User,
+      type: ActivityType = ActivityType.ACCEPTED,
+  ): Map<String, Any?> =
+      draft.toActivity("activity", tripId, author.userId, Timestamp.now(), type).toFirestoreData()
 
   private fun addBobToTrip() {
     val members =
@@ -321,7 +466,7 @@ class ActivityRepositoryFirestoreEmulatorTest {
     val body = JSONObject().put("writes", JSONArray().put(write)).toString()
     val connection =
         URL(
-                "http://$EMULATOR_HOST:$FIRESTORE_PORT/v1/projects/$PROJECT_ID/databases/(default)/documents:commit"
+                "http://$HOST:$FIRESTORE_PORT/v1/projects/$PROJECT_ID/databases/(default)/documents:commit"
             )
             .openConnection() as HttpURLConnection
     try {
@@ -350,7 +495,7 @@ class ActivityRepositoryFirestoreEmulatorTest {
   private fun clearFirestore() {
     val url =
         URL(
-            "http://$EMULATOR_HOST:$FIRESTORE_PORT/emulator/v1/projects/$PROJECT_ID" +
+            "http://$HOST:$FIRESTORE_PORT/emulator/v1/projects/$PROJECT_ID" +
                 "/databases/(default)/documents"
         )
     val connection = url.openConnection() as HttpURLConnection
@@ -362,12 +507,5 @@ class ActivityRepositoryFirestoreEmulatorTest {
     } finally {
       connection.disconnect()
     }
-  }
-
-  private companion object {
-    const val PROJECT_ID = "demo-roamigo"
-    const val EMULATOR_HOST = "10.0.2.2"
-    const val AUTH_PORT = 9099
-    const val FIRESTORE_PORT = 8080
   }
 }

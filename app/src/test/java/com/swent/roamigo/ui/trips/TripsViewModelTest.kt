@@ -180,6 +180,32 @@ class TripsViewModelTest {
   }
 
   @Test
+  fun selectNextActivityIgnoresActivitiesWithoutStartTime() {
+    val now = ZonedDateTime.parse("2026-10-08T10:00:00Z")
+    val unscheduledSuggestion =
+        activity(uid = "unscheduled", type = ActivityType.SUGGESTION, start = null)
+    val accepted =
+        activity(uid = "accepted", type = ActivityType.ACCEPTED, start = "2026-10-09T09:00:00Z")
+
+    assertNull(selectNextActivity(listOf(unscheduledSuggestion), now))
+    assertEquals(accepted, selectNextActivity(listOf(unscheduledSuggestion, accepted), now))
+  }
+
+  @Test
+  fun selectNextActivityKeepsSubMillisecondPrecision() {
+    // Truncating both to milliseconds would drop this activity as already started.
+    val now = ZonedDateTime.parse("2026-10-08T10:00:00.000500Z")
+    val justAfterNow =
+        activity(
+            uid = "just-after",
+            type = ActivityType.ACCEPTED,
+            start = "2026-10-08T10:00:00.000600Z",
+        )
+
+    assertEquals(justAfterNow, selectNextActivity(listOf(justAfterNow), now))
+  }
+
+  @Test
   fun selectOtherTripsFiltersAndSortsTrips() {
     val now = ZonedDateTime.parse("2026-10-08T14:00:00Z")
 
@@ -800,6 +826,37 @@ class TripsViewModelTest {
   }
 
   @Test
+  fun tripsCrossingNewYearShowBothYears() = runTest {
+    val main =
+        trip(
+            "new-year",
+            "New Year",
+            "2026-12-30T10:00:00Z",
+            "2027-01-02T10:00:00Z",
+            TripStatus.PLANNED,
+        )
+    val other =
+        main.copy(
+            uid = "second-new-year",
+            startDate = timestamp("2026-12-31T10:00:00Z"),
+            endDate = timestamp("2027-01-03T10:00:00Z"),
+        )
+
+    val viewModel =
+        TripsViewModel(
+            tripRepository = FakeTripRepository(trips = listOf(main, other)),
+            userRepository = FakeUserRepository(currentUser = alex),
+            clock = Clock.fixed(Instant.parse("2026-12-01T10:00:00Z"), ZoneOffset.UTC),
+        )
+
+    advanceUntilIdle()
+
+    val state = viewModel.uiState.value
+    assertEquals("30 Dec 2026 – 2 Jan 2027", state.mainTrip?.dateRange)
+    assertEquals("31 Dec 2026 – 3 Jan 2027", state.otherTrips.single().dateRange)
+  }
+
+  @Test
   fun viewModelUsesFallbackNameWhenDisplayNameIsBlank() = runTest {
     val blankUser =
         User(
@@ -1067,7 +1124,7 @@ class TripsViewModelTest {
       tripId: String = "trip",
       name: String = uid,
       type: ActivityType,
-      start: String,
+      start: String?,
   ): Activity =
       Activity(
           uid = uid,
@@ -1076,7 +1133,7 @@ class TripsViewModelTest {
           name = name,
           description = null,
           location = location,
-          startTime = timestamp(start),
+          startTime = start?.let(::timestamp),
           endTime = null,
           createdByUserId = alex.uid,
           creationTime = timestamp("2026-10-01T10:00:00Z"),
