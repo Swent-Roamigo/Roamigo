@@ -10,8 +10,8 @@ import kotlinx.coroutines.flow.Flow
  * Defines the activity data operations required by the presentation layer.
  *
  * Reading a trip's activities once stays on [TripRepository.getActivitiesForTrip]; this interface
- * adds creation and live observation. Any trip member may create an [ActivityType.ACCEPTED]
- * itinerary entry or an [ActivityType.SUGGESTION] in the shared activities collection.
+ * adds accepted activity creation and live observation. Use [SuggestionVoteRepository] to create
+ * suggestions.
  */
 interface ActivityRepository {
 
@@ -42,25 +42,6 @@ interface ActivityRepository {
    * @throws ActivityCreationException for any other failure, using the matching subtype.
    */
   suspend fun createActivity(tripId: String, activityId: String, draft: ActivityDraft): Activity
-
-  /**
-   * Creates a suggestion from [draft] in [tripId] with a repository-assigned author, creation time,
-   * and [ActivityType.SUGGESTION] type. A proposed start is optional. An end requires a start and
-   * must be at or after it.
-   *
-   * Generate [suggestionId] once per draft. A retry with the same ID, author, and type returns the
-   * original suggestion without writing. The retry draft is ignored, even if it is invalid.
-   *
-   * @throws IllegalArgumentException if either ID is invalid, as in [createActivity].
-   * @throws ActivityCreationException.Validation if creating a new suggestion with an invalid
-   *   [draft].
-   * @throws ActivityCreationException.PermissionDenied if another author owns [suggestionId] or the
-   *   current user lacks permission.
-   * @throws ActivityCreationException.TypeConflict if the current user owns [suggestionId] as an
-   *   accepted activity.
-   * @throws ActivityCreationException for any other failure, using the matching subtype.
-   */
-  suspend fun createSuggestion(tripId: String, suggestionId: String, draft: ActivityDraft): Activity
 
   /**
    * Observes the activities of a trip, emitting the full list again after every change.

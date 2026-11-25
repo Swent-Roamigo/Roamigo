@@ -19,6 +19,8 @@ data class Vote(
     // Owner choice is independent of the original ballot outcome.
     val resolvedOptionId: String? = null,
     val resolvedByUserId: String? = null,
+    // Immutable back-reference on the initial suggestion vote. Later rounds use parentVoteId.
+    val suggestionId: String? = null,
 )
 
 enum class VoteStatus {

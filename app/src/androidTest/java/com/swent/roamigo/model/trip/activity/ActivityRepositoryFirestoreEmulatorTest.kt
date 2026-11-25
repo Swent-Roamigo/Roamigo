@@ -20,10 +20,15 @@ import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.TripDraft
 import com.swent.roamigo.model.trip.TripRepositoryFirestore
 import com.swent.roamigo.model.trip.toFirestoreData
+import com.swent.roamigo.model.trip.voting.VoteBallot
+import com.swent.roamigo.model.trip.voting.VoteRepositoryFirestore
+import com.swent.roamigo.model.trip.voting.VoteStatus
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.Instant
 import java.util.UUID
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.first
@@ -103,13 +108,14 @@ class ActivityRepositoryFirestoreEmulatorTest {
       withTimeout(10_000) { bob.repository.observeActivities(tripId).first { it.size == 3 } }
     }
 
-    val unscheduled =
-        alice.repository.createSuggestion(
+    val (unscheduled, unscheduledVote) =
+        alice.repository.createSuggestionWithVote(
             tripId,
             "unscheduled",
             draft.copy(description = null, startTime = null, endTime = null),
         )
-    val scheduled = bob.repository.createSuggestion(tripId, "scheduled", draft)
+    val (scheduled, scheduledVote) =
+        bob.repository.createSuggestionWithVote(tripId, "scheduled", draft)
 
     assertEquals(ActivityType.SUGGESTION, unscheduled.activityType)
     assertEquals(alice.userId, unscheduled.createdByUserId)
@@ -119,43 +125,75 @@ class ActivityRepositoryFirestoreEmulatorTest {
     assertEquals(bob.userId, scheduled.createdByUserId)
     assertEquals(draft.startTime?.epochSecond, scheduled.startTime?.seconds)
     assertEquals(draft.endTime?.epochSecond, scheduled.endTime?.seconds)
+    assertEquals(0, unscheduled.creationTime.nanoseconds % 1_000)
+    assertEquals(0, scheduled.creationTime.nanoseconds % 1_000)
+    assertEquals(unscheduled.creationTime, unscheduledVote.creationTime)
+    assertEquals(scheduled.creationTime, scheduledVote.creationTime)
     val expected = setOf(itinerary, unscheduled, scheduled)
+    val voting = VoteRepositoryFirestore(alice.db)
+    assertEquals(unscheduledVote, voting.getVote(tripId, unscheduled.linkedVoteId!!))
+    assertEquals(
+        scheduledVote,
+        withTimeout(10_000) {
+          voting.observeVote(tripId, scheduled.linkedVoteId!!).first { it != null }
+        },
+    )
     assertEquals(expected, observed.await().toSet())
     assertEquals(expected, alice.tripRepository.getActivitiesForTrip(tripId).toSet())
   }
 
   @Test
-  fun concurrentSuggestionAttemptsAndChangedDraftRetriesReturnOneStoredDocument() = runBlocking {
+  fun concurrentSuggestionAttemptsAndChangedDraftRetriesReturnOneStoredPair() = runBlocking {
     val results =
         withTimeout(30_000) {
-          List(2) { index ->
-                async {
-                  alice.repository.createSuggestion(
+          val start = CompletableDeferred<Unit>()
+          val contenders =
+              List(4) { index ->
+                async(Dispatchers.Default) {
+                  start.await()
+                  alice.repository.createSuggestionWithVote(
                       tripId,
                       "suggestion",
                       draft.copy(name = "Place $index"),
                   )
                 }
               }
-              .awaitAll()
+          start.complete(Unit)
+          contenders.awaitAll()
         }
     val first = results.first()
 
-    assertEquals(listOf(first, first), results)
+    assertEquals(List(4) { first }, results)
+    assertEquals(first.activity.linkedVoteId, first.vote.uid)
+    assertEquals(first.activity.uid, first.vote.suggestionId)
     assertEquals(
         first,
-        alice.repository.createSuggestion(tripId, "suggestion", draft.copy(name = "Changed")),
+        alice.repository.createSuggestionWithVote(
+            tripId,
+            "suggestion",
+            draft.copy(name = "Changed"),
+        ),
     )
-    assertEquals(listOf(first), alice.tripRepository.getActivitiesForTrip(tripId))
+    val trip = alice.db.collection("trips").document(tripId)
+    assertEquals(
+        listOf(first.activity.uid),
+        trip.collection("activities").get(Source.SERVER).await().documents.map { it.id },
+    )
+    assertEquals(
+        listOf(first.vote.uid),
+        trip.collection("votes").get(Source.SERVER).await().documents.map { it.id },
+    )
+    assertEquals(listOf(first.activity), alice.tripRepository.getActivitiesForTrip(tripId))
+    assertEquals(listOf(first.vote), VoteRepositoryFirestore(alice.db).getVotes(tripId))
   }
 
   @Test
   fun anotherMemberCannotReuseAnExistingSuggestionId() = runBlocking {
-    val original = alice.repository.createSuggestion(tripId, "suggestion", draft)
+    val (original) = alice.repository.createSuggestionWithVote(tripId, "suggestion", draft)
     addBobToTrip()
 
     val error = runCatching {
-      bob.repository.createSuggestion(tripId, original.uid, draft.copy(name = "Other"))
+      bob.repository.createSuggestionWithVote(tripId, original.uid, draft.copy(name = "Other"))
     }
 
     assertTrue(error.exceptionOrNull() is ActivityCreationException.PermissionDenied)
@@ -166,7 +204,7 @@ class ActivityRepositoryFirestoreEmulatorTest {
 
   @Test
   fun createActivityCannotReuseASuggestionId() = runBlocking {
-    val original = alice.repository.createSuggestion(tripId, "suggestion", draft)
+    val (original) = alice.repository.createSuggestionWithVote(tripId, "suggestion", draft)
 
     val error = runCatching { alice.repository.createActivity(tripId, original.uid, draft) }
 
@@ -180,7 +218,9 @@ class ActivityRepositoryFirestoreEmulatorTest {
   fun createSuggestionCannotReuseAnAcceptedActivityId() = runBlocking {
     val original = alice.repository.createActivity(tripId, "activity", draft)
 
-    val error = runCatching { alice.repository.createSuggestion(tripId, original.uid, draft) }
+    val error = runCatching {
+      alice.repository.createSuggestionWithVote(tripId, original.uid, draft)
+    }
 
     val conflict = error.exceptionOrNull() as ActivityCreationException.TypeConflict
     assertEquals(ActivityType.SUGGESTION, conflict.requested)
@@ -192,7 +232,8 @@ class ActivityRepositoryFirestoreEmulatorTest {
   fun rawSuggestionWritesAndReadsRequireAuthenticationAndMembership() = runBlocking {
     val proposal = activityData(alice, ActivityType.SUGGESTION)
     val stored = activityDocument(alice, "suggestion")
-    stored.set(proposal).await()
+    assertPermissionDenied { stored.set(proposal).await() }
+    alice.repository.createSuggestionWithVote(tripId, stored.id, draft)
 
     // Use a separate, signed-out client whose cache and auth have never seen the trip.
     val signedOutDb = FirebaseEmulators.firestore(newApp())
@@ -209,10 +250,36 @@ class ActivityRepositoryFirestoreEmulatorTest {
   }
 
   @Test
+  fun linkedVoteSupportsBallotsClosingAndAnInvalidDraftRetry() = runBlocking {
+    addBobToTrip()
+    val (suggestion, vote) = alice.repository.createSuggestionWithVote(tripId, "proposal", draft)
+    val voting = VoteRepositoryFirestore(alice.db)
+    val ballot = VoteBallot(bob.userId, "YES", Timestamp(1_900_000_000, 0))
+    VoteRepositoryFirestore(bob.db).submitBallot(tripId, vote.uid, ballot)
+    voting.closeVote(tripId, vote.uid)
+    assertEquals(
+        listOf(ballot),
+        withTimeout(10_000) { voting.observeFinalBallots(tripId, vote.uid).first() },
+    )
+    assertEquals(
+        SuggestionWithVote(suggestion, vote.copy(status = VoteStatus.CLOSED)),
+        alice.repository.createSuggestionWithVote(tripId, suggestion.uid, draft.copy(name = " ")),
+    )
+  }
+
+  @Test
+  fun nonMemberCannotCreatePairAndNeitherDocumentIsStored() = runBlocking {
+    val error = runCatching { bob.repository.createSuggestionWithVote(tripId, "proposal", draft) }
+    assertTrue(error.exceptionOrNull() is ActivityCreationException.PermissionDenied)
+    assertTrue(alice.tripRepository.getActivitiesForTrip(tripId).isEmpty())
+    assertTrue(VoteRepositoryFirestore(alice.db).getVotes(tripId).isEmpty())
+  }
+
+  @Test
   fun suggestionsCannotBeUpdatedOrDeleted() = runBlocking {
-    val fields = activityData(alice, ActivityType.SUGGESTION)
     val document = activityDocument(alice)
-    document.set(fields).await()
+    val (suggestion) = alice.repository.createSuggestionWithVote(tripId, document.id, draft)
+    val fields = suggestion.toFirestoreData()
 
     assertPermissionDenied { document.update("name", "Changed").await() }
     assertPermissionDenied { document.delete().await() }
