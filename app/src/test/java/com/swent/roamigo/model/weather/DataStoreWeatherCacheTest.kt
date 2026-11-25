@@ -377,6 +377,16 @@ class DataStoreWeatherCacheTest {
     assertNull(cache.getAll(0.0, 0.0))
     assertNotNull(cache.getAll(20.0, 0.0))
   }
+
+  @Test
+  fun savingOnlyDaysThatAreOverLeavesNothingForThePlace() = runTest {
+    cache.put(38.72, -9.14, Forecast(listOf(day("2026-11-28")), at("2026-11-23T10:00:00Z")))
+
+    cache.put(38.72, -9.14, Forecast(listOf(day("2026-11-01")), at("2026-12-20T10:00:00Z")))
+
+    assertNull(cache.getAll(38.72, -9.14))
+    assertEquals(0, store.data.first().asMap().size)
+  }
 }
 
 /** Every saved day of the place, whatever its date. */

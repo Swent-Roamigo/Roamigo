@@ -207,7 +207,7 @@ class CachingWeatherRepositoryTest {
     assertTrue(error.cause is java.net.SocketTimeoutException)
   }
 
-  private fun offline(cache: MemoryCache) =
+  private fun offline(cache: WeatherCache) =
       CachingWeatherRepository(
           online(failure = WeatherUnavailableException("offline")),
           cache,
@@ -240,5 +240,52 @@ class CachingWeatherRepositoryTest {
 
     assertEquals(listOf(saturday, sunday), forecast.days.map { it.date })
     assertTrue(forecast.fromCache)
+  }
+
+  @Test
+  fun doesNotAskTheCacheForDaysOutsideTheForecastWindow() = runTest {
+    val cache = MemoryCache()
+    var asked = false
+    val spy =
+        object : WeatherCache by cache {
+          override suspend fun get(
+              latitude: Double,
+              longitude: Double,
+              from: LocalDate,
+              to: LocalDate,
+          ): Forecast? {
+            asked = true
+            return cache.get(latitude, longitude, from, to)
+          }
+        }
+    val farAway = LocalDate.of(2027, 3, 1)
+
+    expectFailure<WeatherUnavailableException> {
+      offline(spy).forecast(38.7, -9.1, farAway, farAway.plusDays(2))
+    }
+
+    assertEquals(false, asked)
+  }
+
+  @Test
+  fun treatsACacheThatAnswersWithNoDaysAsHavingNothing() = runTest {
+    val empty =
+        object : WeatherCache {
+          override suspend fun get(
+              latitude: Double,
+              longitude: Double,
+              from: LocalDate,
+              to: LocalDate,
+          ) = Forecast(emptyList(), saved)
+
+          override suspend fun put(latitude: Double, longitude: Double, forecast: Forecast) = Unit
+        }
+
+    expectFailure<WeatherUnavailableException> { offline(empty).trip() }
+  }
+
+  @Test
+  fun canBeCreatedWithItsDefaultClockAndWriteScope() {
+    CachingWeatherRepository(online(), MemoryCache())
   }
 }

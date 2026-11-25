@@ -161,11 +161,8 @@ class DataStoreWeatherCache(
    * dropped first, whatever order it claims.
    */
   private fun order(text: String?): Long =
-      try {
-        if (text == null || decode(text) == null) 0L else JSONObject(text).optLong("s", 0L)
-      } catch (_: JSONException) {
-        0L
-      }
+      // Once decode has read the text, parsing it again cannot fail.
+      if (text == null || decode(text) == null) 0L else JSONObject(text).optLong("s", 0L)
 
   companion object {
     /** Enough for the trips a person has on the go, and a bounded file. */
