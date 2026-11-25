@@ -158,6 +158,43 @@ class ItineraryViewModelTest {
       }
 
   @Test
+  fun keepsTheShownDayWhenActivitiesChangeElsewhereOrItBecomesEmpty() =
+      runTest(dispatcher) {
+        val lastDay = DAY_2.plusDays(1)
+        repository.activities.value = listOf(activity("museum", DAY_2.atTime(10, 0)))
+        createViewModel(today = DAY_1.minusDays(30))
+        viewModel.setTripDates(DAY_1, lastDay)
+        runCurrent()
+        assertEquals(DAY_2, ready().selectedDay)
+
+        // An earlier activity would now be the first planned day, but the plan stays where it is.
+        repository.activities.value += activity("market", DAY_1.atTime(9, 0))
+        runCurrent()
+        assertEquals(DAY_2, ready().selectedDay)
+        assertEquals(listOf("museum"), ready().activities.map { it.id })
+
+        repository.activities.value = listOf(activity("market", DAY_1.atTime(9, 0)))
+        runCurrent()
+        assertEquals(DAY_2, ready().selectedDay)
+        assertEquals(listOf(DAY_1, DAY_2, lastDay), ready().days)
+        assertTrue(ready().activities.isEmpty())
+        assertTrue(ready().hasActivities)
+      }
+
+  @Test
+  fun theOpeningDayWaitsForTheTripDates() =
+      runTest(dispatcher) {
+        repository.activities.value = listOf(activity("museum", DAY_2.atTime(10, 0)))
+        createViewModel(today = DAY_1)
+        runCurrent()
+        assertEquals(DAY_2, ready().selectedDay)
+
+        viewModel.setTripDates(DAY_1, DAY_2)
+        runCurrent()
+        assertEquals(DAY_1, ready().selectedDay)
+      }
+
+  @Test
   fun followsLiveChangesIncludingAConvertedSuggestion() =
       runTest(dispatcher) {
         val idea = activity("idea", DAY_1.atTime(11, 0), ActivityType.SUGGESTION)
@@ -174,6 +211,8 @@ class ItineraryViewModelTest {
         repository.activities.value = emptyList()
         runCurrent()
         assertFalse(ready().hasActivities)
+        assertEquals(DAY_1, ready().selectedDay)
+        assertEquals(listOf(DAY_1, DAY_2), ready().days)
       }
 
   @Test
