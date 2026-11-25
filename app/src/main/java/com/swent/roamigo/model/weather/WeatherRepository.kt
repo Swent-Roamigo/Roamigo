@@ -1,0 +1,34 @@
+// Implemented with assistance from Claude (Anthropic).
+package com.swent.roamigo.model.weather
+
+import java.io.IOException
+import java.time.LocalDate
+
+/** Source of the daily weather forecast of a place. */
+fun interface WeatherRepository {
+  /**
+   * The forecast for the days from [from] to [to], both included, at the given point. Days outside
+   * [ForecastWindow] are left out, so the result can be empty.
+   *
+   * @throws IllegalArgumentException if the coordinates are not on Earth.
+   * @throws WeatherUnavailableException if the forecast cannot be loaded, e.g. offline.
+   */
+  suspend fun forecast(
+      latitude: Double,
+      longitude: Double,
+      from: LocalDate,
+      to: LocalDate,
+  ): Forecast
+}
+
+/**
+ * The forecast could not be loaded. [cause] tells why when the network failed, and [retryable] says
+ * whether asking again soon may work, and [rateLimited] whether the service is refusing for now
+ * because it was asked too often.
+ */
+class WeatherUnavailableException(
+    message: String,
+    cause: Throwable? = null,
+    val retryable: Boolean = false,
+    val rateLimited: Boolean = false,
+) : IOException(message, cause)
