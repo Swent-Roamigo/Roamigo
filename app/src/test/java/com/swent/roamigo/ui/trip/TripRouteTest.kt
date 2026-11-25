@@ -606,6 +606,8 @@ class TripRouteTest {
       onCreateActivity: (ActivityFormTrip) -> Unit = {},
       activityRepository: ActivityRepository = FakeActivityRepository(),
       voteRepository: InMemoryVoteRepository = InMemoryVoteRepository(),
+      authRepository: FakeAuthRepository = signedInAuth(),
+      onAuthenticationRequired: () -> Unit = {},
   ) {
     val trip =
         trip(
@@ -619,7 +621,7 @@ class TripRouteTest {
             tripId = trip.uid,
             fromHistory = fromHistory,
             openMap = false,
-            authRepository = signedInAuth(),
+            authRepository = authRepository,
             tripRepository = FakeTripRepository(trips = listOf(trip)),
             activityRepository = activityRepository,
             userRepository = FakeUserRepository(User("member", "Member", null)),
@@ -628,7 +630,7 @@ class TripRouteTest {
             connectivityRepository = FakeConnectivityRepository(),
             locationRepository = FakeLocationRepository(),
             onBack = {},
-            onAuthenticationRequired = {},
+            onAuthenticationRequired = onAuthenticationRequired,
             onOpenVote = { _, _ -> },
             onCreateVote = onCreateVote,
             onCreateActivity = onCreateActivity,
@@ -697,6 +699,29 @@ class TripRouteTest {
     composeRule.onNodeWithText("1 suggestion waiting for votes").performClick()
 
     composeRule.onNodeWithText("Fado night").assertIsDisplayed()
+  }
+
+  @Test
+  fun theSuggestionsRowAsksASignedOutUserToSignInAndStaysOnThePlan() {
+    val (suggestion, vote) =
+        ActivityDraft("Fado night", null, TripLocation(38.71, -9.13, "Alfama"), null, null)
+            .newSuggestionPair("trip-id", "fado", initialSuggestionVoteId("fado"), "member")
+    val auth = signedInAuth()
+    var authenticationRequests = 0
+    showRoute(
+        fromHistory = false,
+        activityRepository = FakeActivityRepository(listOf(suggestion)),
+        voteRepository = InMemoryVoteRepository(listOf(vote)),
+        authRepository = auth,
+        onAuthenticationRequired = { authenticationRequests++ },
+    )
+
+    auth.signOut()
+    composeRule.onNodeWithText("1 suggestion waiting for votes").performClick()
+
+    composeRule.runOnIdle { assertEquals(1, authenticationRequests) }
+    composeRule.onNodeWithTag(C.Tag.itinerary_screen).assertIsDisplayed()
+    composeRule.onNodeWithText("Fado night").assertDoesNotExist()
   }
 
   @Test
