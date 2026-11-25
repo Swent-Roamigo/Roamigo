@@ -16,9 +16,10 @@ sealed interface ItineraryUiState {
    * @property selectedDay the day whose activities are listed, or `null` when [days] is empty.
    * @property activities the activities of [selectedDay], ordered by start time.
    * @property hasActivities whether the trip has at least one activity on any day.
-   * @property refreshFailed whether live updates stopped; the last known plan is still shown.
-   * @property waitingSuggestions how many suggestions still have an open vote, or 0 while the votes
-   *   are unavailable.
+   * @property refreshFailed whether live updates of the activities or of the votes stopped; the
+   *   last known plan and suggestion count are still shown.
+   * @property waitingSuggestions how many suggestions still have an open vote, or 0 until the votes
+   *   have loaded once.
    */
   data class Ready(
       val days: List<LocalDate>,

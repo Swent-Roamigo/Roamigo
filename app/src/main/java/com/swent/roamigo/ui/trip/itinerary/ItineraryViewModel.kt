@@ -67,24 +67,36 @@ class ItineraryViewModel(
             }
           }
 
-  // Votes only feed the suggestion count, so their failure hides the count instead of the plan.
-  private val votes = attempts.flatMapLatest {
-    voteRepository
-        .observeVotes(tripId)
-        .map<List<Vote>, Map<String, Vote>?> { votes -> votes.associateBy { it.uid } }
-        .onStart { emit(null) }
-        .catch { emit(null) }
-  }
+  // Votes only feed the suggestion count: a failure keeps the last count and offers a retry,
+  // like a failed plan refresh, instead of replacing the plan with an error.
+  private val votes =
+      attempts
+          .flatMapLatest {
+            voteRepository
+                .observeVotes(tripId)
+                .map<List<Vote>, VotesUpdate> { votes ->
+                  VotesUpdate.Loaded(votes.associateBy { it.uid })
+                }
+                .onStart { emit(VotesUpdate.Retrying) }
+                .catch { emit(VotesUpdate.Failed) }
+          }
+          .runningFold(VotesSnapshot(votesById = null, failed = false)) { previous, update ->
+            when (update) {
+              is VotesUpdate.Loaded -> VotesSnapshot(update.votesById, failed = false)
+              VotesUpdate.Retrying -> previous.copy(failed = false)
+              VotesUpdate.Failed -> previous.copy(failed = true)
+            }
+          }
 
   val uiState: StateFlow<ItineraryUiState> =
-      combine(plan, votes, tripDays, chosenDay) { snapshot, votesById, days, chosen ->
+      combine(plan, votes, tripDays, chosenDay) { snapshot, voteSnapshot, days, chosen ->
             val entries = snapshot.entries
             when {
               entries != null ->
-                  readyState(entries, days, chosen, snapshot.failed)
+                  readyState(entries, days, chosen, snapshot.failed || voteSnapshot.failed)
                       .copy(
                           waitingSuggestions =
-                              votesById?.let {
+                              voteSnapshot.votesById?.let {
                                 snapshot.suggestionVoteIds.countSuggestionsWithOpenRound(it)
                               } ?: 0
                       )
@@ -172,6 +184,16 @@ class ItineraryViewModel(
     data object Retrying : PlanUpdate
 
     data object Failed : PlanUpdate
+  }
+
+  private data class VotesSnapshot(val votesById: Map<String, Vote>?, val failed: Boolean)
+
+  private sealed interface VotesUpdate {
+    data class Loaded(val votesById: Map<String, Vote>) : VotesUpdate
+
+    data object Retrying : VotesUpdate
+
+    data object Failed : VotesUpdate
   }
 
   companion object {
