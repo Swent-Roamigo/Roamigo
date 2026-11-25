@@ -37,16 +37,26 @@ class ItineraryScreenTest {
       activities: List<ItineraryActivity> = listOf(belem, lx),
       hasActivities: Boolean = true,
       refreshFailed: Boolean = false,
-  ) = ItineraryUiState.Ready(listOf(sat, sun), sun, activities, hasActivities, refreshFailed)
+      waitingSuggestions: Int = 0,
+  ) =
+      ItineraryUiState.Ready(
+          listOf(sat, sun),
+          sun,
+          activities,
+          hasActivities,
+          refreshFailed,
+          waitingSuggestions,
+      )
 
   private fun show(
       state: ItineraryUiState,
       onSelectDay: (LocalDate) -> Unit = {},
       onRetry: () -> Unit = {},
       onAddActivity: (() -> Unit)? = {},
+      onOpenVotes: () -> Unit = {},
   ) {
     composeRule.setContent {
-      RoamigoTheme { ItineraryScreen(state, onSelectDay, onRetry, onAddActivity) }
+      RoamigoTheme { ItineraryScreen(state, onSelectDay, onRetry, onAddActivity, onOpenVotes) }
     }
   }
 
@@ -63,6 +73,29 @@ class ItineraryScreenTest {
     // Some JDKs put a narrow no-break space before AM.
     composeRule.onNodeWithText("9:30", substring = true).assertIsDisplayed()
     composeRule.runOnIdle { assertEquals(listOf(sat), selected) }
+  }
+
+  @Test
+  fun waitingSuggestionsOpenTheVotes() {
+    var opened = 0
+    show(ready(waitingSuggestions = 3), onOpenVotes = { opened++ })
+
+    composeRule.onNodeWithText("3 suggestions waiting for votes").assertIsDisplayed().performClick()
+    composeRule.runOnIdle { assertEquals(1, opened) }
+  }
+
+  @Test
+  fun oneWaitingSuggestionUsesTheSingular() {
+    show(ready(emptyList(), hasActivities = false, waitingSuggestions = 1))
+
+    composeRule.onNodeWithText("1 suggestion waiting for votes").assertIsDisplayed()
+  }
+
+  @Test
+  fun noWaitingSuggestionShowsNoSuggestionRow() {
+    show(ready())
+
+    composeRule.onNodeWithTag(C.Tag.itinerary_waiting_suggestions).assertDoesNotExist()
   }
 
   @Test
@@ -103,7 +136,7 @@ class ItineraryScreenTest {
     val state = mutableStateOf<ItineraryUiState>(ItineraryUiState.Loading)
     var retries = 0
     composeRule.setContent {
-      RoamigoTheme { ItineraryScreen(state.value, {}, { retries++ }, null) }
+      RoamigoTheme { ItineraryScreen(state.value, {}, { retries++ }, null, {}) }
     }
     composeRule.onNodeWithText("Loading the plan…").assertIsDisplayed()
 

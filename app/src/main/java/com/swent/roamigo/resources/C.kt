@@ -131,6 +131,7 @@ object C {
     const val itinerary_list = "itinerary_list"
     const val itinerary_retry = "itinerary_retry"
     const val itinerary_add_activity = "itinerary_add_activity"
+    const val itinerary_waiting_suggestions = "itinerary_waiting_suggestions"
 
     fun itineraryDay(day: LocalDate) = "itinerary_day_" + day
 

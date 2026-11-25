@@ -46,8 +46,11 @@ import com.swent.roamigo.model.trip.TravelMode
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
+import com.swent.roamigo.model.trip.activity.ActivityDraft
 import com.swent.roamigo.model.trip.activity.ActivityRepository
 import com.swent.roamigo.model.trip.activity.FakeActivityRepository
+import com.swent.roamigo.model.trip.activity.initialSuggestionVoteId
+import com.swent.roamigo.model.trip.activity.newSuggestionPair
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
@@ -601,6 +604,8 @@ class TripRouteTest {
       fromHistory: Boolean,
       onCreateVote: () -> Unit = {},
       onCreateActivity: (ActivityFormTrip) -> Unit = {},
+      activityRepository: ActivityRepository = FakeActivityRepository(),
+      voteRepository: InMemoryVoteRepository = InMemoryVoteRepository(),
   ) {
     val trip =
         trip(
@@ -616,9 +621,9 @@ class TripRouteTest {
             openMap = false,
             authRepository = signedInAuth(),
             tripRepository = FakeTripRepository(trips = listOf(trip)),
-            activityRepository = FakeActivityRepository(),
+            activityRepository = activityRepository,
             userRepository = FakeUserRepository(User("member", "Member", null)),
-            voteRepository = InMemoryVoteRepository(),
+            voteRepository = voteRepository,
             photoRepository = FakePhotoRepository(composeRule.activity.cacheDir),
             connectivityRepository = FakeConnectivityRepository(),
             locationRepository = FakeLocationRepository(),
@@ -675,6 +680,23 @@ class TripRouteTest {
     // A shortcut that only switched tabs added little, so it is not offered for now.
     composeRule.onNodeWithTag(C.Tag.trip_add_sheet).assertIsDisplayed()
     composeRule.onNodeWithText("Take a photo").assertDoesNotExist()
+  }
+
+  @Test
+  fun aSuggestionWithAnOpenVoteLeadsFromThePlanToItsVote() {
+    val (suggestion, vote) =
+        ActivityDraft("Fado night", null, TripLocation(38.71, -9.13, "Alfama"), null, null)
+            .newSuggestionPair("trip-id", "fado", initialSuggestionVoteId("fado"), "member")
+    showRoute(
+        fromHistory = false,
+        activityRepository = FakeActivityRepository(listOf(suggestion)),
+        voteRepository = InMemoryVoteRepository(listOf(vote)),
+    )
+
+    composeRule.onNodeWithText("Fado night").assertDoesNotExist()
+    composeRule.onNodeWithText("1 suggestion waiting for votes").performClick()
+
+    composeRule.onNodeWithText("Fado night").assertIsDisplayed()
   }
 
   @Test
