@@ -167,18 +167,16 @@ internal fun TripRoute(
         onVote = onCreateVote,
     )
   }
-  val showMapTab = {
-    if (authRepository.getCurrentUser() == null) onAuthenticationRequired()
-    else tab = TripSection.Map
+  val openTab = { section: TripSection ->
+    if (authRepository.getCurrentUser() == null) onAuthenticationRequired() else tab = section
   }
+  val showMapTab = { openTab(TripSection.Map) }
   TripScreen(
       trip = header,
       selectedTab = tab,
       isSharing = locationState?.isSharing == true,
       onBack = onBack,
-      onTabSelected = { section ->
-        if (authRepository.getCurrentUser() == null) onAuthenticationRequired() else tab = section
-      },
+      onTabSelected = openTab,
       onPauseSharing = { locationModel?.stopSharing() },
       onMembersClick = onMembersClick,
       onAddClick = if (readOnly) null else ({ showAdd = true }),
@@ -193,9 +191,11 @@ internal fun TripRoute(
             ItineraryRoute(
                 tripId = tripId,
                 activityRepository = activityRepository,
+                voteRepository = voteRepository,
                 tripStartDate = header?.startDate,
                 tripEndDate = header?.endDate,
                 onAddActivity = if (readOnly) null else openActivityForm,
+                onOpenVotes = { openTab(TripSection.Votes) },
                 tripFailed = tripState is TripMapUiState.Error,
                 onRetryTrip = tripModel::retryTrip,
                 forecast =

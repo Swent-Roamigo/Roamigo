@@ -1,6 +1,7 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.ui.trip.itinerary
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,9 +14,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,7 +32,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -37,6 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.activity.ActivityRepository
+import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.details.ForecastUiState
@@ -52,6 +59,7 @@ import java.time.format.FormatStyle
  * @param tripStartDate first day of the trip, or `null` while the trip is loading.
  * @param tripEndDate last day of the trip, or `null` while the trip is loading.
  * @param onAddActivity opens the activity form, or `null` when the trip is read-only.
+ * @param onOpenVotes opens the trip's votes, where waiting suggestions are decided.
  * @param tripFailed whether the trip itself failed to load; the plan then shows an error.
  * @param onRetryTrip reloads the trip itself, whose dates and header may have failed to load too.
  * @param forecast the weather of the trip's days, shown above the plan, or `null` when there is
@@ -61,9 +69,11 @@ import java.time.format.FormatStyle
 fun ItineraryRoute(
     tripId: String,
     activityRepository: ActivityRepository,
+    voteRepository: VoteRepository,
     tripStartDate: LocalDate?,
     tripEndDate: LocalDate?,
     onAddActivity: (() -> Unit)?,
+    onOpenVotes: () -> Unit,
     modifier: Modifier = Modifier,
     tripFailed: Boolean = false,
     onRetryTrip: () -> Unit = {},
@@ -72,7 +82,7 @@ fun ItineraryRoute(
   val model: ItineraryViewModel =
       viewModel(
           key = "itinerary_$tripId",
-          factory = ItineraryViewModel.factory(tripId, activityRepository),
+          factory = ItineraryViewModel.factory(tripId, activityRepository, voteRepository),
       )
   LaunchedEffect(model, tripStartDate, tripEndDate) {
     if (tripStartDate != null && tripEndDate != null) {
@@ -88,6 +98,7 @@ fun ItineraryRoute(
         onRetryTrip()
       },
       onAddActivity = onAddActivity,
+      onOpenVotes = onOpenVotes,
       modifier = modifier,
       forecast = forecast,
   )
@@ -103,6 +114,7 @@ fun ItineraryScreen(
     onSelectDay: (LocalDate) -> Unit,
     onRetry: () -> Unit,
     onAddActivity: (() -> Unit)?,
+    onOpenVotes: () -> Unit,
     modifier: Modifier = Modifier,
     forecast: TripForecastUi? = null,
 ) {
@@ -127,7 +139,7 @@ fun ItineraryScreen(
             }
           }
       is ItineraryUiState.Ready ->
-          ItineraryContent(state, onSelectDay, onRetry, onAddActivity, forecast = forecast)
+          ItineraryContent(state, onSelectDay, onRetry, onAddActivity, onOpenVotes, forecast)
     }
   }
 }
@@ -138,6 +150,7 @@ private fun ItineraryContent(
     onSelectDay: (LocalDate) -> Unit,
     onRetry: () -> Unit,
     onAddActivity: (() -> Unit)?,
+    onOpenVotes: () -> Unit,
     forecast: TripForecastUi?,
 ) {
   val locale = LocalConfiguration.current.locales[0]
@@ -175,6 +188,33 @@ private fun ItineraryContent(
           items(state.activities, key = { it.id }) { activity ->
             ActivityRow(activity, timeFormatter.format(activity.startTime))
           }
+    }
+    if (state.waitingSuggestions > 0) {
+      item { WaitingSuggestionsRow(state.waitingSuggestions, onOpenVotes) }
+    }
+  }
+}
+
+@Composable
+private fun WaitingSuggestionsRow(count: Int, onOpenVotes: () -> Unit) {
+  Surface(
+      modifier =
+          Modifier.fillMaxWidth()
+              .padding(horizontal = Spacing.screenPadding)
+              .testTag(C.Tag.itinerary_waiting_suggestions),
+      shape = MaterialTheme.shapes.medium,
+      color = MaterialTheme.colorScheme.surfaceVariant,
+  ) {
+    Row(
+        Modifier.clickable(role = Role.Button, onClick = onOpenVotes).padding(Spacing.medium),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Text(
+          pluralStringResource(R.plurals.itinerary_waiting_suggestions, count, count),
+          Modifier.weight(1f),
+          style = MaterialTheme.typography.bodyMedium,
+      )
+      Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
     }
   }
 }

@@ -492,6 +492,10 @@
     <string name="itinerary_retry">Retry</string>
     <string name="itinerary_empty_trip">Nothing planned yet. Add the first activity for the group.</string>
     <string name="itinerary_empty_day">Nothing planned this day.</string>
+    <plurals name="itinerary_waiting_suggestions">
+        <item quantity="one">%1$d suggestion waiting for votes</item>
+        <item quantity="other">%1$d suggestions waiting for votes</item>
+    </plurals>
     <string name="trip_add_activity_hint">Put something in the plan for a day</string>
     <string name="trip_add_suggestion">Suggest a place</string>
     <string name="trip_add_suggestion_hint">The group can vote on it</string>

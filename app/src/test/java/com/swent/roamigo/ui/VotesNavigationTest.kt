@@ -239,7 +239,9 @@ class VotesNavigationTest {
     composeRule.runOnIdle {
       assertEquals(Route.TRIP_DETAILS, navController.currentBackStackEntry?.destination?.route)
       assertEquals(tripId, navController.currentBackStackEntry?.arguments?.getString("tripId"))
-      assertEquals(0, repository.activeObservers)
+      // The Votes listener is released; the remaining one counts the Plan's waiting suggestions.
+      assertEquals(listOf(tripId, tripId), repository.observedTrips)
+      assertEquals(1, repository.activeObservers)
     }
 
     composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
@@ -376,9 +378,11 @@ class VotesNavigationTest {
     composeRule.runOnIdle {
       assertEquals(Route.TRIP_DETAILS, navController.currentBackStackEntry?.destination?.route)
       assertEquals(tripId, repository.snapshots.value.getOrThrow().last().tripId)
-      assertEquals(listOf(tripId, tripId), repository.observedTrips)
-      assertEquals(1, repository.activeObservers)
-      assertEquals(1, repository.maximumObservers)
+      // The Plan tab opened first observes votes for its suggestion count and keeps its listener
+      // during its stop timeout; the Votes tab itself observes the trip again after returning.
+      assertEquals(listOf(tripId, tripId, tripId), repository.observedTrips)
+      assertEquals(PLAN_AND_VOTES_OBSERVERS, repository.activeObservers)
+      assertEquals(PLAN_AND_VOTES_OBSERVERS, repository.maximumObservers)
     }
     composeRule.onNode(hasText("Vote") and hasAnySibling(hasText("Where tomorrow?"))).performClick()
     dialogText("Park").assertIsDisplayed()
@@ -463,8 +467,9 @@ class VotesNavigationTest {
     composeRule.onNodeWithText("Other trip vote?").assertIsDisplayed()
     composeRule.onNodeWithText(vote.question).assertDoesNotExist()
     composeRule.runOnIdle {
-      assertEquals("other", repository.observedTrips.last())
-      assertEquals(1, repository.activeObservers)
+      // Both remaining listeners, the Plan's and the Votes tab's, follow the newly selected trip.
+      assertEquals(listOf("other", "other"), repository.observedTrips.takeLast(2))
+      assertEquals(PLAN_AND_VOTES_OBSERVERS, repository.activeObservers)
     }
     assertTripAcrossDetailAndPhotos("other", "Other trip")
   }
@@ -529,9 +534,16 @@ class VotesNavigationTest {
     composeRule.onNodeWithText("Cancel").performClick()
     composeRule.onNodeWithText(vote.question).assertIsDisplayed()
     composeRule.runOnIdle {
-      assertEquals(listOf(tripId, tripId), repository.observedTrips)
-      assertEquals(1, repository.activeObservers)
-      assertEquals(1, repository.maximumObservers)
+      // The Plan tab opened first observes votes for its suggestion count and keeps its listener
+      // during its stop timeout; the Votes tab itself observes the trip again after returning.
+      assertEquals(listOf(tripId, tripId, tripId), repository.observedTrips)
+      assertEquals(PLAN_AND_VOTES_OBSERVERS, repository.activeObservers)
+      assertEquals(PLAN_AND_VOTES_OBSERVERS, repository.maximumObservers)
     }
+  }
+
+  private companion object {
+    /** One vote listener for the Plan's suggestion count, one for the Votes tab. */
+    const val PLAN_AND_VOTES_OBSERVERS = 2
   }
 }
