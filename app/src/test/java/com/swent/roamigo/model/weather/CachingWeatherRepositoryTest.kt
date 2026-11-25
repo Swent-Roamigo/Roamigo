@@ -13,7 +13,6 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
-import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -34,9 +33,17 @@ class CachingWeatherRepositoryTest {
     var getFailure: Exception? = null
     var putFailure: Exception? = null
 
-    override suspend fun get(latitude: Double, longitude: Double): Forecast? {
+    override suspend fun get(
+        latitude: Double,
+        longitude: Double,
+        from: LocalDate,
+        to: LocalDate,
+    ): Forecast? {
       getFailure?.let { throw it }
-      return entries[latitude to longitude]
+      val saved = entries[latitude to longitude] ?: return null
+      return saved.copy(days = saved.days.filter { it.date in from..to }).takeIf {
+        it.days.isNotEmpty()
+      }
     }
 
     override suspend fun put(latitude: Double, longitude: Double, forecast: Forecast) {
@@ -97,10 +104,7 @@ class CachingWeatherRepositoryTest {
     val repository =
         CachingWeatherRepository(online(failure = offline), MemoryCache(), clock, writes)
 
-    val error =
-        assertThrows(WeatherUnavailableException::class.java) {
-          kotlinx.coroutines.runBlocking { repository.trip() }
-        }
+    val error = expectFailure<WeatherUnavailableException> { repository.trip() }
 
     assertSame(offline, error)
   }
@@ -116,9 +120,7 @@ class CachingWeatherRepositoryTest {
             clock,
         )
 
-    assertThrows(WeatherUnavailableException::class.java) {
-      kotlinx.coroutines.runBlocking { repository.trip() }
-    }
+    expectFailure<WeatherUnavailableException> { repository.trip() }
   }
 
   @Test
@@ -135,10 +137,8 @@ class CachingWeatherRepositoryTest {
     val offline = WeatherUnavailableException("offline")
     val unreadable = MemoryCache().apply { getFailure = IllegalStateException("corrupt") }
     val error =
-        assertThrows(WeatherUnavailableException::class.java) {
-          kotlinx.coroutines.runBlocking {
-            CachingWeatherRepository(online(failure = offline), unreadable, clock, writes).trip()
-          }
+        expectFailure<WeatherUnavailableException> {
+          CachingWeatherRepository(online(failure = offline), unreadable, clock, writes).trip()
         }
     assertSame(offline, error)
   }
@@ -152,19 +152,15 @@ class CachingWeatherRepositoryTest {
             clock,
         )
 
-    assertThrows(IllegalArgumentException::class.java) {
-      kotlinx.coroutines.runBlocking { repository.trip() }
-    }
+    expectFailure<IllegalArgumentException> { repository.trip() }
   }
 
   @Test
   fun neverSwallowsACancellationFromTheCache() = runTest {
     val offline = online(failure = WeatherUnavailableException("offline"))
     val readCancelled = MemoryCache().apply { getFailure = CancellationException("stopped") }
-    assertThrows(CancellationException::class.java) {
-      kotlinx.coroutines.runBlocking {
-        CachingWeatherRepository(offline, readCancelled, clock, writes).trip()
-      }
+    expectFailure<CancellationException> {
+      CachingWeatherRepository(offline, readCancelled, clock, writes).trip()
     }
   }
 
@@ -206,10 +202,7 @@ class CachingWeatherRepositoryTest {
             writes,
         )
 
-    val error =
-        assertThrows(WeatherUnavailableException::class.java) {
-          kotlinx.coroutines.runBlocking { repository.trip() }
-        }
+    val error = expectFailure<WeatherUnavailableException> { repository.trip() }
 
     assertTrue(error.cause is java.net.SocketTimeoutException)
   }

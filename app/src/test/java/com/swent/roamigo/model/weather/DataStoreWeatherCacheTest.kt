@@ -58,22 +58,22 @@ class DataStoreWeatherCacheTest {
           Instant.parse(at),
       )
 
-  @Test fun nothingSavedGivesNull() = runTest { assertNull(cache.get(38.72, -9.14)) }
+  @Test fun nothingSavedGivesNull() = runTest { assertNull(cache.getAll(38.72, -9.14)) }
 
   @Test
   fun givesBackWhatWasSaved() = runTest {
     cache.put(38.72, -9.14, forecast())
 
-    assertEquals(forecast(), cache.get(38.72, -9.14))
+    assertEquals(forecast(), cache.getAll(38.72, -9.14))
   }
 
   @Test
   fun pointsAboutAKilometreApartShareAForecastButFarOnesDoNot() = runTest {
     cache.put(38.7223, -9.1393, forecast())
 
-    assertNotNull(cache.get(38.7249, -9.1351))
-    assertNull(cache.get(38.80, -9.14))
-    assertNull(cache.get(41.15, -8.61))
+    assertNotNull(cache.getAll(38.7249, -9.1351))
+    assertNull(cache.getAll(38.80, -9.14))
+    assertNull(cache.getAll(41.15, -8.61))
   }
 
   @Test
@@ -81,7 +81,7 @@ class DataStoreWeatherCacheTest {
     cache.put(38.72, -9.14, forecast("2026-11-22T10:00:00Z"))
     cache.put(38.72, -9.14, forecast("2026-11-23T10:00:00Z"))
 
-    assertEquals(Instant.parse("2026-11-23T10:00:00Z"), cache.get(38.72, -9.14)?.fetchedAt)
+    assertEquals(Instant.parse("2026-11-23T10:00:00Z"), cache.getAll(38.72, -9.14)?.fetchedAt)
   }
 
   private fun day(date: String, high: Int = 15) =
@@ -99,12 +99,13 @@ class DataStoreWeatherCacheTest {
     cache.put(38.72, -9.14, first)
     cache.put(38.72, -9.14, second)
 
-    val saved = requireNotNull(cache.get(38.72, -9.14))
+    val saved = requireNotNull(cache.getAll(38.72, -9.14))
     assertEquals(
         listOf("2026-12-01", "2026-12-02", "2026-12-10"),
         saved.days.map { it.date.toString() },
     )
-    assertEquals(second.fetchedAt, saved.fetchedAt)
+    // The first two days were fetched an hour before the third, so the forecast is that old.
+    assertEquals(first.fetchedAt, saved.fetchedAt)
   }
 
   @Test
@@ -116,7 +117,7 @@ class DataStoreWeatherCacheTest {
     )
     cache.put(38.72, -9.14, Forecast(listOf(day("2026-12-01", high = 20)), Instant.EPOCH))
 
-    val saved = requireNotNull(cache.get(38.72, -9.14))
+    val saved = requireNotNull(cache.getAll(38.72, -9.14))
     assertEquals(listOf(20, 15), saved.days.map { it.highCelsius })
   }
 
@@ -130,7 +131,7 @@ class DataStoreWeatherCacheTest {
 
     cache.put(38.72, -9.14, Forecast(days, Instant.EPOCH))
 
-    val saved = requireNotNull(cache.get(38.72, -9.14))
+    val saved = requireNotNull(cache.getAll(38.72, -9.14))
     assertEquals(DataStoreWeatherCache.MAX_DAYS, saved.days.size)
     assertEquals(start.plusDays(5), saved.days.first().date)
   }
@@ -143,15 +144,15 @@ class DataStoreWeatherCacheTest {
 
     cache.put(50.0, 0.0, forecast("2026-01-01T10:00:00Z"))
 
-    assertNotNull(cache.get(50.0, 0.0))
-    assertNull(cache.get(0.0, 0.0))
+    assertNotNull(cache.getAll(50.0, 0.0))
+    assertNull(cache.getAll(0.0, 0.0))
   }
 
   @Test
   fun pointsOnEitherSideOfZeroShareAPlace() = runTest {
     cache.put(0.004, 0.0, forecast())
 
-    assertNotNull(cache.get(-0.004, -0.001))
+    assertNotNull(cache.getAll(-0.004, -0.001))
   }
 
   @Test
@@ -159,8 +160,8 @@ class DataStoreWeatherCacheTest {
     saveRaw(38.72, -9.14, """{"t":1,"d":[{"d":"2026-11-28","c":"SUNNY","h":"warm","l":9}]}""")
     saveRaw(40.0, -9.14, """{"t":"soon","d":"none"}""")
 
-    assertNull(cache.get(38.72, -9.14))
-    assertNull(cache.get(40.0, -9.14))
+    assertNull(cache.getAll(38.72, -9.14))
+    assertNull(cache.getAll(40.0, -9.14))
   }
 
   @Test
@@ -171,7 +172,7 @@ class DataStoreWeatherCacheTest {
         """{"t":1,"d":[{"d":"2026-11-29","c":"SUNNY","h":15,"l":9,"r":250},{"d":"2026-11-28","c":"SUNNY","h":14,"l":9},{"d":"2026-11-29","c":"SNOW","h":1,"l":0}]}""",
     )
 
-    val days = requireNotNull(cache.get(38.72, -9.14)).days
+    val days = requireNotNull(cache.getAll(38.72, -9.14)).days
 
     assertEquals(listOf("2026-11-28", "2026-11-29"), days.map { it.date.toString() })
     assertEquals(100, days[1].rainChancePercent)
@@ -183,10 +184,10 @@ class DataStoreWeatherCacheTest {
       cache.put(index.toDouble(), 0.0, forecast("2026-11-%02dT10:00:00Z".format(index + 1)))
     }
 
-    assertNull(cache.get(0.0, 0.0))
-    assertNull(cache.get(1.0, 0.0))
-    assertNotNull(cache.get(2.0, 0.0))
-    assertNotNull(cache.get((DataStoreWeatherCache.MAX_PLACES + 1).toDouble(), 0.0))
+    assertNull(cache.getAll(0.0, 0.0))
+    assertNull(cache.getAll(1.0, 0.0))
+    assertNotNull(cache.getAll(2.0, 0.0))
+    assertNotNull(cache.getAll((DataStoreWeatherCache.MAX_PLACES + 1).toDouble(), 0.0))
   }
 
   @Test
@@ -195,7 +196,7 @@ class DataStoreWeatherCacheTest {
     val key = store.data.first().asMap().keys.single()
     store.edit { it[stringPreferencesKey(key.name)] = "{not json" }
 
-    assertNull(cache.get(38.72, -9.14))
+    assertNull(cache.getAll(38.72, -9.14))
   }
 
   private suspend fun saveRaw(latitude: Double, longitude: Double, text: String) {
@@ -215,7 +216,7 @@ class DataStoreWeatherCacheTest {
         """{"t":1,"d":[{"d":"2026-11-28","c":"FOG","h":15,"l":9}]}""",
     )
 
-    assertNull(cache.get(38.72, -9.14))
+    assertNull(cache.getAll(38.72, -9.14))
   }
 
   @Test
@@ -226,7 +227,7 @@ class DataStoreWeatherCacheTest {
         """{"t":1,"d":[{"d":"yesterday","c":"SUNNY","h":15,"l":9}]}""",
     )
 
-    assertNull(cache.get(38.72, -9.14))
+    assertNull(cache.getAll(38.72, -9.14))
   }
 
   @Test
@@ -236,8 +237,8 @@ class DataStoreWeatherCacheTest {
       cache.put(index.toDouble(), 0.0, forecast("2026-11-%02dT10:00:00Z".format(index + 1)))
     }
 
-    assertNotNull(cache.get(0.0, 0.0))
-    assertNotNull(cache.get((DataStoreWeatherCache.MAX_PLACES - 1).toDouble(), 0.0))
+    assertNotNull(cache.getAll(0.0, 0.0))
+    assertNotNull(cache.getAll((DataStoreWeatherCache.MAX_PLACES - 1).toDouble(), 0.0))
     assertEquals(DataStoreWeatherCache.MAX_PLACES, store.data.first().asMap().size)
   }
 
@@ -248,6 +249,119 @@ class DataStoreWeatherCacheTest {
 
     appCache.put(12.34, 56.78, forecast())
 
-    assertEquals(forecast(), appCache.get(12.34, 56.78))
+    assertEquals(forecast(), appCache.getAll(12.34, 56.78))
+  }
+
+  private fun at(time: String) = Instant.parse(time)
+
+  @Test
+  fun aShorterRequestNeverShrinksALongerSavedForecast() = runTest {
+    // The trip card asks for every trip day, and the home chip for one day, later.
+    val tripDays = listOf("2026-11-28", "2026-11-29", "2026-11-30", "2026-12-01", "2026-12-02")
+    cache.put(
+        38.72,
+        -9.14,
+        Forecast(tripDays.mapIndexed { i, d -> day(d, high = 10 + i) }, at("2026-11-23T10:00:00Z")),
+    )
+    cache.put(
+        38.72,
+        -9.14,
+        Forecast(listOf(day("2026-11-28", high = 20)), at("2026-11-23T11:00:00Z")),
+    )
+
+    val saved = requireNotNull(cache.getAll(38.72, -9.14))
+
+    assertEquals(tripDays, saved.days.map { it.date.toString() })
+    assertEquals(listOf(20, 11, 12, 13, 14), saved.days.map { it.highCelsius })
+  }
+
+  @Test
+  fun aSlowOlderRequestFinishingLastDoesNotOverwriteANewerForecast() = runTest {
+    val newer = Forecast(listOf(day("2026-11-28", high = 20)), at("2026-11-23T10:00:30Z"))
+    val older = Forecast(listOf(day("2026-11-28", high = 10)), at("2026-11-23T10:00:00Z"))
+
+    cache.put(38.72, -9.14, newer)
+    cache.put(38.72, -9.14, older)
+
+    val saved = requireNotNull(cache.getAll(38.72, -9.14))
+    assertEquals(20, saved.days.single().highCelsius)
+    assertEquals(newer.fetchedAt, saved.fetchedAt)
+  }
+
+  @Test
+  fun aDeviceClockSetBackByMoreThanADayDoesNotPinAStaleForecast() = runTest {
+    cache.put(
+        38.72,
+        -9.14,
+        Forecast(listOf(day("2026-11-28", high = 10)), at("2026-11-25T10:00:00Z")),
+    )
+    // The clock went back two days: this later fetch carries an earlier time but is the fresh one.
+    cache.put(
+        38.72,
+        -9.14,
+        Forecast(listOf(day("2026-11-28", high = 20)), at("2026-11-23T10:00:00Z")),
+    )
+
+    assertEquals(20, requireNotNull(cache.getAll(38.72, -9.14)).days.single().highCelsius)
+  }
+
+  @Test
+  fun theAgeIsThatOfTheOldestDayReturned() = runTest {
+    cache.put(38.72, -9.14, Forecast(listOf(day("2026-11-28")), at("2026-11-23T10:00:00Z")))
+    cache.put(38.72, -9.14, Forecast(listOf(day("2026-11-29")), at("2026-11-23T12:00:00Z")))
+
+    val both = requireNotNull(cache.getAll(38.72, -9.14))
+    val onlyTheNewer =
+        requireNotNull(
+            cache.get(38.72, -9.14, LocalDate.of(2026, 11, 29), LocalDate.of(2026, 11, 29))
+        )
+
+    assertEquals(at("2026-11-23T10:00:00Z"), both.fetchedAt)
+    assertEquals(at("2026-11-23T12:00:00Z"), onlyTheNewer.fetchedAt)
+  }
+
+  @Test
+  fun givesNothingWhenNoSavedDayFallsInTheRequestedRange() = runTest {
+    cache.put(38.72, -9.14, Forecast(listOf(day("2026-11-28")), at("2026-11-23T10:00:00Z")))
+
+    assertNull(cache.get(38.72, -9.14, LocalDate.of(2026, 12, 1), LocalDate.of(2026, 12, 5)))
+  }
+
+  @Test
+  fun daysThatAreOverAreDroppedWhenSaving() = runTest {
+    cache.put(
+        38.72,
+        -9.14,
+        Forecast(
+            listOf(day("2026-11-10"), day("2026-11-21"), day("2026-11-22"), day("2026-11-28")),
+            at("2026-11-23T10:00:00Z"),
+        ),
+    )
+
+    // Yesterday is kept, since the destination can be a day behind.
+    assertEquals(
+        listOf("2026-11-22", "2026-11-28"),
+        requireNotNull(cache.getAll(38.72, -9.14)).days.map { it.date.toString() },
+    )
+  }
+
+  @Test
+  fun anEntryWhoseDaysCannotBeReadIsEvictedFirstEvenWithAValidOrder() = runTest {
+    repeat(DataStoreWeatherCache.MAX_PLACES) { index ->
+      cache.put(index.toDouble(), 0.0, forecast("2026-11-%02dT10:00:00Z".format(index + 1)))
+    }
+    // The newest save by its order, but its days are of no use.
+    saveRaw(60.0, 10.0, """{"s":999999999,"d":[{"d":"yesterday","c":"SUNNY","h":1,"l":0,"t":1}]}""")
+    cache.put(20.0, 0.0, forecast("2026-11-20T10:00:00Z"))
+
+    val keys = store.data.first().asMap().keys.map { it.name }
+    assertEquals(DataStoreWeatherCache.MAX_PLACES, keys.size)
+    assertEquals(false, keys.any { it.contains("60.00") })
+    assertNull(cache.getAll(0.0, 0.0))
+    assertNotNull(cache.getAll(20.0, 0.0))
   }
 }
+
+/** Every saved day of the place, whatever its date. */
+private suspend fun DataStoreWeatherCache.getAll(latitude: Double, longitude: Double) =
+    get(latitude, longitude, LocalDate.MIN, LocalDate.MAX)

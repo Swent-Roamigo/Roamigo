@@ -59,11 +59,12 @@ class CachingWeatherRepository(
       from: LocalDate,
       to: LocalDate,
   ): Forecast? {
-    val forecast = quietly { cache.get(latitude, longitude) } ?: return null
     val today = LocalDate.now(clock)
-    val window = today.minusDays(1)..ForecastWindow.lastDay(today).plusDays(1)
-    val days = forecast.days.filter { it.date in from..to && it.date in window }
-    return if (days.isEmpty()) null else Forecast(days, forecast.fetchedAt, fromCache = true)
+    val first = maxOf(from, today.minusDays(1))
+    val last = minOf(to, ForecastWindow.lastDay(today).plusDays(1))
+    if (first.isAfter(last)) return null
+    val forecast = quietly { cache.get(latitude, longitude, first, last) } ?: return null
+    return if (forecast.days.isEmpty()) null else forecast.copy(fromCache = true)
   }
 
   private suspend fun <T> quietly(block: suspend () -> T): T? =
