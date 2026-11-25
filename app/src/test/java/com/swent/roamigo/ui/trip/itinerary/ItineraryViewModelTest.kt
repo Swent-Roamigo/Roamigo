@@ -361,7 +361,7 @@ class ItineraryViewModelTest {
       }
 
   @Test
-  fun aVoteFailureKeepsTheLastCountAndOffersRetry() =
+  fun aVoteFailureHidesTheCountWithoutWarningAboutThePlan() =
       runTest(dispatcher) {
         votes.snapshots.value = Result.success(listOf(suggestionVote("open")))
         repository.activities.value = listOf(activity("a", DAY_1.atTime(9, 0)), suggestion("open"))
@@ -369,28 +369,23 @@ class ItineraryViewModelTest {
         viewModel.setTripDates(DAY_1, DAY_2)
         runCurrent()
         assertEquals(1, ready().waitingSuggestions)
-        assertFalse(ready().refreshFailed)
 
         val loaded = votes.snapshots.value
-        votes.snapshots.value = Result.failure(IllegalStateException("listener lost"))
+        votes.snapshots.value = Result.failure(IllegalStateException("unreadable vote"))
         runCurrent()
-        assertEquals(1, ready().waitingSuggestions)
+        assertEquals(0, ready().waitingSuggestions)
         assertEquals(listOf("a"), ready().activities.map { it.id })
-        assertTrue(ready().refreshFailed)
+        assertFalse(ready().refreshFailed)
 
-        // The plan listener is still healthy, so only retrying clears the warning.
+        // Retry restarts the votes listener too, which brings the count back.
         votes.snapshots.value = loaded
-        runCurrent()
-        assertTrue(ready().refreshFailed)
-
         viewModel.retry()
         runCurrent()
-        assertFalse(ready().refreshFailed)
         assertEquals(1, ready().waitingSuggestions)
       }
 
   @Test
-  fun votesFailingFromTheStartShowThePlanWithoutACountButWithRetry() =
+  fun votesFailingFromTheStartShowThePlanWithoutACount() =
       runTest(dispatcher) {
         votes.snapshots.value = Result.failure(IllegalStateException("denied"))
         repository.activities.value = listOf(activity("a", DAY_1.atTime(9, 0)), suggestion("open"))
@@ -400,7 +395,7 @@ class ItineraryViewModelTest {
 
         assertEquals(listOf("a"), ready().activities.map { it.id })
         assertEquals(0, ready().waitingSuggestions)
-        assertTrue(ready().refreshFailed)
+        assertFalse(ready().refreshFailed)
       }
 
   private fun activity(
