@@ -60,23 +60,26 @@ class NotificationsViewModel(
           failedReadIds = it.failedReadIds - notificationId,
       )
     }
-    sessionScope.launch {
-      try {
-        if (!ensureSession()) return@launch
-        notificationRepository.markAsRead(notificationId)
-      } catch (cancelled: CancellationException) {
-        throw cancelled
-      } catch (_: Exception) {
-        if (ensureSession()) {
-          _uiState.update {
-            if (it.hasUnread(notificationId))
-                it.copy(failedReadIds = it.failedReadIds + notificationId)
-            else it
-          }
-        }
-      } finally {
-        _uiState.update { it.copy(markingReadIds = it.markingReadIds - notificationId) }
-      }
+    sessionScope.launch { writeMarkAsRead(notificationId) }
+  }
+
+  private suspend fun writeMarkAsRead(notificationId: String) {
+    try {
+      if (ensureSession()) notificationRepository.markAsRead(notificationId)
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (_: Exception) {
+      if (ensureSession()) recordReadFailure(notificationId)
+    } finally {
+      _uiState.update { it.copy(markingReadIds = it.markingReadIds - notificationId) }
+    }
+  }
+
+  private fun recordReadFailure(notificationId: String) {
+    _uiState.update { state ->
+      if (state.hasUnread(notificationId))
+          state.copy(failedReadIds = state.failedReadIds + notificationId)
+      else state
     }
   }
 
