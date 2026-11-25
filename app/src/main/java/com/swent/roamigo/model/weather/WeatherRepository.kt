@@ -5,7 +5,7 @@ import java.io.IOException
 import java.time.LocalDate
 
 /** Source of the daily weather forecast of a place. */
-interface WeatherRepository {
+fun interface WeatherRepository {
   /**
    * The forecast for the days from [from] to [to], both included, at the given point. Days outside
    * [ForecastWindow] are left out, so the result can be empty.

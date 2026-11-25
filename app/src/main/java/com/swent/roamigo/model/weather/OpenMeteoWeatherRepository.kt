@@ -29,8 +29,9 @@ import org.json.JSONException
 import org.json.JSONObject
 
 /**
- * [WeatherRepository] backed by Open-Meteo, which needs no key. Its data is free for non-commercial
- * use under CC BY 4.0, so the screen must credit "Open-Meteo".
+ * [WeatherRepository] backed by Open-Meteo, which needs no key. Its free API may only be used for
+ * non-commercial purposes, and its data is licensed under CC BY 4.0, so the screen must credit
+ * "Open-Meteo".
  *
  * @param clock gives "today" for the forecast window, and the time the forecast was fetched.
  */

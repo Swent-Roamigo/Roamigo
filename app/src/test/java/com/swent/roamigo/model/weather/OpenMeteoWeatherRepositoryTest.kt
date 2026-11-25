@@ -17,7 +17,6 @@ import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -179,10 +178,8 @@ class OpenMeteoWeatherRepositoryTest {
   @Test
   fun reportsAnErrorAnswerWithItsReason() = runTest {
     val error =
-        assertThrows(WeatherUnavailableException::class.java) {
-          kotlinx.coroutines.runBlocking {
-            repository("""{"error":true,"reason":"Too many requests"}""", status = 429).trip()
-          }
+        expectFailure<WeatherUnavailableException> {
+          repository("""{"error":true,"reason":"Too many requests"}""", status = 429).trip()
         }
 
     assertTrue(error.message.orEmpty().contains("Too many requests"))
@@ -191,9 +188,7 @@ class OpenMeteoWeatherRepositoryTest {
   @Test
   fun reportsAnAnswerItCannotRead() = runTest {
     listOf("not json", "{}", """{"daily":{}}""").forEach { body ->
-      assertThrows(WeatherUnavailableException::class.java) {
-        kotlinx.coroutines.runBlocking { repository(body).trip() }
-      }
+      expectFailure<WeatherUnavailableException> { repository(body).trip() }
     }
   }
 
@@ -202,10 +197,8 @@ class OpenMeteoWeatherRepositoryTest {
     val client = OkHttpClient.Builder().addInterceptor { throw IOException("offline") }.build()
 
     val error =
-        assertThrows(WeatherUnavailableException::class.java) {
-          kotlinx.coroutines.runBlocking {
-            OpenMeteoWeatherRepository(client = client, clock = clock).trip()
-          }
+        expectFailure<WeatherUnavailableException> {
+          OpenMeteoWeatherRepository(client = client, clock = clock).trip()
         }
 
     assertTrue(error.cause is IOException)
@@ -213,11 +206,11 @@ class OpenMeteoWeatherRepositoryTest {
 
   @Test
   fun refusesCoordinatesThatAreNotOnEarth() = runTest {
-    assertThrows(IllegalArgumentException::class.java) {
-      kotlinx.coroutines.runBlocking { repository(daily()).forecast(95.0, 0.0, today, today) }
+    expectFailure<IllegalArgumentException> {
+      repository(daily()).forecast(95.0, 0.0, today, today)
     }
-    assertThrows(IllegalArgumentException::class.java) {
-      kotlinx.coroutines.runBlocking { repository(daily()).forecast(0.0, Double.NaN, today, today) }
+    expectFailure<IllegalArgumentException> {
+      repository(daily()).forecast(0.0, Double.NaN, today, today)
     }
   }
 
@@ -264,9 +257,7 @@ class OpenMeteoWeatherRepositoryTest {
               .joinToString(",", prefix = """{"daily":{""", postfix = "}}") {
                 "\"${it.key}\":${it.value}"
               }
-      assertThrows(WeatherUnavailableException::class.java) {
-        kotlinx.coroutines.runBlocking { repository(body).trip() }
-      }
+      expectFailure<WeatherUnavailableException> { repository(body).trip() }
     }
   }
 
@@ -274,9 +265,7 @@ class OpenMeteoWeatherRepositoryTest {
   fun reportsAnErrorThatComesWithoutAReason() = runTest {
     listOf("<html>Bad gateway</html>", """{"error":true}""").forEach { body ->
       val error =
-          assertThrows(WeatherUnavailableException::class.java) {
-            kotlinx.coroutines.runBlocking { repository(body, status = 502).trip() }
-          }
+          expectFailure<WeatherUnavailableException> { repository(body, status = 502).trip() }
       assertTrue("$body -> ${error.message}", error.message.orEmpty().contains("502"))
       assertTrue("$body -> ${error.message}", error.message.orEmpty().contains("no reason given"))
     }
@@ -285,8 +274,8 @@ class OpenMeteoWeatherRepositoryTest {
   @Test
   fun refusesEachCoordinateThatIsNotOnEarth() = runTest {
     listOf(-91.0 to 0.0, 0.0 to 181.0, 0.0 to -181.0, Double.NaN to 0.0).forEach { (lat, lon) ->
-      assertThrows(IllegalArgumentException::class.java) {
-        kotlinx.coroutines.runBlocking { repository(daily()).forecast(lat, lon, today, today) }
+      expectFailure<IllegalArgumentException> {
+        repository(daily()).forecast(lat, lon, today, today)
       }
     }
   }
@@ -383,19 +372,14 @@ class OpenMeteoWeatherRepositoryTest {
   fun givesUpAfterOneRetryButNeverRetriesARefusal() = runTest {
     var calls = 0
     val failing = repository("", status = 503, onRequest = { calls++ })
-    val error =
-        assertThrows(WeatherUnavailableException::class.java) {
-          kotlinx.coroutines.runBlocking { failing.trip() }
-        }
+    val error = expectFailure<WeatherUnavailableException> { failing.trip() }
     assertEquals(2, calls)
     assertTrue(error.message.orEmpty().contains("503"))
 
     calls = 0
     val limited =
         repository("""{"reason":"Too many requests"}""", status = 429, onRequest = { calls++ })
-    assertThrows(WeatherUnavailableException::class.java) {
-      kotlinx.coroutines.runBlocking { limited.trip() }
-    }
+    expectFailure<WeatherUnavailableException> { limited.trip() }
     assertEquals(1, calls)
   }
 
@@ -426,13 +410,9 @@ class OpenMeteoWeatherRepositoryTest {
   @Test
   fun marksARefusalForAskingTooOftenAndNothingElseAsRateLimited() = runTest {
     val limited =
-        assertThrows(WeatherUnavailableException::class.java) {
-          kotlinx.coroutines.runBlocking { repository("{}", status = 429).trip() }
-        }
+        expectFailure<WeatherUnavailableException> { repository("{}", status = 429).trip() }
     val broken =
-        assertThrows(WeatherUnavailableException::class.java) {
-          kotlinx.coroutines.runBlocking { repository("{}", status = 400).trip() }
-        }
+        expectFailure<WeatherUnavailableException> { repository("{}", status = 400).trip() }
 
     assertTrue(limited.rateLimited)
     assertEquals(false, broken.rateLimited)
