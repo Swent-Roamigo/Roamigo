@@ -2,6 +2,7 @@
 package com.swent.roamigo.model.notification
 
 import com.google.android.gms.tasks.Task
+import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
@@ -28,6 +29,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -262,18 +264,17 @@ class NotificationRepositoryFirestoreTest {
   }
 
   @Test
-  fun markReadDoesNotReportSuccessAfterAnAccountChange() = runTest {
-    val successfulWrite = writeTask()
-    `when`(reference.update("isRead", true)).thenAnswer {
-      currentUser = mock(FirebaseUser::class.java)
-      successfulWrite
-    }
-
-    assertTrue(
-        runCatching { repository().markAsRead("request") }.exceptionOrNull()
-            is IllegalStateException
-    )
+  fun acknowledgedMarkReadReturnsNormallyAfterAnAccountChange() = runTest {
+    val completion = TaskCompletionSource<Void>()
+    `when`(reference.update("isRead", true)).thenReturn(completion.task)
+    val pendingWrite = async { repository().markAsRead("request") }
+    runCurrent()
     verify(reference).update("isRead", true)
+    assertFalse(pendingWrite.isCompleted)
+
+    currentUser = mock(FirebaseUser::class.java)
+    completion.setResult(null)
+    pendingWrite.await()
   }
 
   @Test

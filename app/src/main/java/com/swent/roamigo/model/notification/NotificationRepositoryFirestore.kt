@@ -46,7 +46,6 @@ class NotificationRepositoryFirestore(
     withContext(dispatcher) {
       val user = authenticatedUser()
       inbox(user.uid).document(validIdentifier(notificationId)).update("isRead", true).await()
-      check(auth.currentUser === user) { "The notification session changed" }
     }
   }
 
