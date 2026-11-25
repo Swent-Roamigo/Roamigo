@@ -51,7 +51,7 @@ class NotificationsViewModel(
    * Requests a read update for a visible unread entry. Observation supplies confirmed read state.
    */
   fun markAsRead(notificationId: String) {
-    if (!hasSession()) return
+    if (!ensureSession()) return
     val state = _uiState.value
     if (notificationId in state.markingReadIds || !state.hasUnread(notificationId)) return
     _uiState.update {
@@ -62,13 +62,12 @@ class NotificationsViewModel(
     }
     sessionScope.launch {
       try {
-        if (!hasSession()) return@launch
+        if (!ensureSession()) return@launch
         notificationRepository.markAsRead(notificationId)
-        hasSession()
       } catch (cancelled: CancellationException) {
         throw cancelled
       } catch (_: Exception) {
-        if (hasSession()) {
+        if (ensureSession()) {
           _uiState.update {
             if (it.hasUnread(notificationId))
                 it.copy(failedReadIds = it.failedReadIds + notificationId)
@@ -82,19 +81,19 @@ class NotificationsViewModel(
   }
 
   private fun observeInbox() {
-    if (!hasSession()) return
+    if (!ensureSession()) return
     _uiState.update { it.copy(loadState = NotificationsLoadState.LOADING) }
     sessionScope.launch {
       try {
         notificationRepository.observeNotifications().collect { entries ->
-          if (hasSession()) publishInbox(entries)
+          if (ensureSession()) publishInbox(entries)
         }
       } catch (cancelled: CancellationException) {
         throw cancelled
       } catch (_: Exception) {
         // A failed listener uses the same retry state as a listener that ends unexpectedly.
       }
-      if (hasSession()) _uiState.update { it.copy(loadState = NotificationsLoadState.FAILED) }
+      if (ensureSession()) _uiState.update { it.copy(loadState = NotificationsLoadState.FAILED) }
     }
   }
 
@@ -111,10 +110,13 @@ class NotificationsViewModel(
     }
   }
 
-  private fun hasSession(): Boolean {
-    if (!sessionJob.isActive) return false
-    if (authRepository.getCurrentUser()?.uid == currentUserId) return true
-    endSession()
+  private fun isSessionActive(): Boolean =
+      sessionJob.isActive && authRepository.getCurrentUser()?.uid == currentUserId
+
+  /** Ends the session if the account changed and returns whether inbox work may proceed. */
+  private fun ensureSession(): Boolean {
+    if (isSessionActive()) return true
+    if (sessionJob.isActive) endSession()
     return false
   }
 
