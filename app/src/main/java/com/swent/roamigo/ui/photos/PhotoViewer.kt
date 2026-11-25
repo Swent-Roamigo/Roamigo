@@ -3,6 +3,7 @@ package com.swent.roamigo.ui.photos
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -119,10 +120,11 @@ fun PhotoViewer(
           // Callers may draw the viewer over a map; without this, gestures on the photo pass
           // through to the map and move it.
           .pointerInput(Unit) {
-            awaitPointerEventScope {
-              while (true) {
-                awaitPointerEvent().changes.forEach { it.consume() }
-              }
+            awaitEachGesture {
+              do {
+                val event = awaitPointerEvent()
+                event.changes.forEach { it.consume() }
+              } while (event.changes.any { it.pressed })
             }
           }
           .testTag(C.Tag.photo_viewer)
