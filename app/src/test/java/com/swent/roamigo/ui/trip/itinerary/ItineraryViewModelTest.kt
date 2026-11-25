@@ -360,6 +360,26 @@ class ItineraryViewModelTest {
         assertEquals(0, ready().waitingSuggestions)
       }
 
+  // The timeout turns an endless walk of the rounds into a failure instead of a hung build.
+  @Test(timeout = CYCLE_TIMEOUT_MILLIS)
+  fun roundsThatPointBackToEachOtherStillGiveACount() =
+      runTest(dispatcher) {
+        votes.snapshots.value =
+            Result.success(
+                listOf(
+                    suggestionVote("loop", VoteStatus.CLOSED, nextRound = "round-2"),
+                    laterRound("loop", "round-2")
+                        .copy(nextRoundVoteId = initialSuggestionVoteId("loop")),
+                )
+            )
+        repository.activities.value = listOf(suggestion("loop"))
+        createViewModel()
+        viewModel.setTripDates(DAY_1, DAY_2)
+        runCurrent()
+
+        assertEquals(1, ready().waitingSuggestions)
+      }
+
   @Test
   fun aVoteFailureHidesTheCountWithoutWarningAboutThePlan() =
       runTest(dispatcher) {
@@ -473,6 +493,7 @@ class ItineraryViewModelTest {
 
   private companion object {
     const val TRIP_ID = "trip"
+    const val CYCLE_TIMEOUT_MILLIS = 10_000L
     val ZONE: ZoneId = ZoneId.of("Europe/Lisbon")
     val DAY_1: LocalDate = LocalDate.of(2026, 7, 11)
     val DAY_2: LocalDate = DAY_1.plusDays(1)
