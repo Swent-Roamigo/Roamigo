@@ -46,6 +46,10 @@ class ItineraryViewModel(
   private val chosenDay = MutableStateFlow<LocalDate?>(null)
   private val attempts = MutableStateFlow(0)
 
+  // The opening rule picks the day once; live updates then keep it on screen while it still exists,
+  // so that adding or removing an activity elsewhere does not move the selection.
+  private var shownDay: LocalDate? = null
+
   private val activities = attempts.observeKeepingLast {
     activityRepository.observeActivities(tripId)
   }
@@ -112,10 +116,12 @@ class ItineraryViewModel(
     val days = (tripDays + byDay.keys).distinct().sorted()
     val today = LocalDate.now(clock)
     val selected =
-        chosen?.takeIf { it in days }
+        (chosen ?: shownDay)?.takeIf { it in days }
             ?: today.takeIf { it in days }
             ?: byDay.keys.minOrNull()
             ?: days.firstOrNull()
+    // Before the trip dates arrive, today may be missing from the days, so the choice can't hold yet.
+    if (tripDays.isNotEmpty()) shownDay = selected
     val rows =
         byDay[selected]
             .orEmpty()
