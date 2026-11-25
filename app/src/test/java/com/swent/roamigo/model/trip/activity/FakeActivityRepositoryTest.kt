@@ -154,6 +154,16 @@ class FakeActivityRepositoryTest {
   }
 
   @Test
+  fun suggestionCreationChecksAuthenticationBeforeValidatingIds() = runBlocking {
+    val repository = FakeActivityRepository(currentUserId = null)
+    for (id in listOf("activity-1", "a/b")) {
+      val error = runCatching { repository.createSuggestionWithVote("trip-1", id, draft) }
+      assertTrue(error.exceptionOrNull() is ActivityCreationException.NotAuthenticated)
+    }
+    assertTrue(repository.observeActivities("trip-1").first().isEmpty())
+  }
+
+  @Test
   fun suggestionCreationKeepsUnscheduledRetriesIsolatedByTrip() = runBlocking {
     val repository = FakeActivityRepository()
     val unscheduled = draft.copy(startTime = null)

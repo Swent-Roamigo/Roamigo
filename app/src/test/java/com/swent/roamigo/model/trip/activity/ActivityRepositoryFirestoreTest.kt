@@ -42,6 +42,7 @@ import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
+import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.Mockito.`when`
 
 /** Controlled SDK clients; no Firebase app, network connection, or emulator is used. */
@@ -140,7 +141,7 @@ class ActivityRepositoryFirestoreTest {
 
   @Test
   fun createSuggestion_writesAnUnscheduledSuggestionWithRepositoryMetadata() = runTest {
-    val before = Timestamp.now()
+    val before = Timestamp.now().let { Timestamp(it.seconds, it.nanoseconds / 1_000 * 1_000) }
     val created =
         repository.createSuggestionWithVote(
             "trip-1",
@@ -162,6 +163,7 @@ class ActivityRepositoryFirestoreTest {
     assertEquals(activity.uid, vote.suggestionId)
     assertEquals(activity.tripId, vote.tripId)
     assertEquals(activity.createdByUserId, vote.createdByUserId)
+    assertEquals(0, activity.creationTime.nanoseconds % 1_000)
     assertEquals(activity.creationTime, vote.creationTime)
     assertEquals(activity.name, vote.question)
     assertEquals(listOf("YES", "NO"), vote.options.map { it.uid })
@@ -453,15 +455,22 @@ class ActivityRepositoryFirestoreTest {
   }
 
   @Test
-  fun createSuggestion_validatesIdsAndAuthenticationBeforeReading() = runTest {
-    userId = null
-    val invalid = runCatching { repository.createSuggestionWithVote("trip-1", "a/b", draft) }
-    assertTrue(invalid.exceptionOrNull() is IllegalArgumentException)
-    val signedOut = runCatching {
-      repository.createSuggestionWithVote("trip-1", "activity-1", draft)
+  fun createSuggestion_validatesIdsBeforeAccessingFirestore() = runTest {
+    for ((tripId, suggestionId) in listOf("a/b" to "activity-1", "trip-1" to "a/b")) {
+      val invalid = runCatching { repository.createSuggestionWithVote(tripId, suggestionId, draft) }
+      assertTrue(invalid.exceptionOrNull() is IllegalArgumentException)
+      verifyNoInteractions(db)
     }
-    assertTrue(signedOut.exceptionOrNull() is ActivityCreationException.NotAuthenticated)
-    verify(db, never()).runTransaction(any<Transaction.Function<Any?>>())
+  }
+
+  @Test
+  fun createSuggestion_checksAuthenticationBeforeValidatingIds() = runTest {
+    userId = null
+    for (id in listOf("activity-1", "a/b")) {
+      val signedOut = runCatching { repository.createSuggestionWithVote("trip-1", id, draft) }
+      assertTrue(signedOut.exceptionOrNull() is ActivityCreationException.NotAuthenticated)
+      verifyNoInteractions(db)
+    }
   }
 
   @Test

@@ -10,6 +10,7 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.Source
+import com.swent.roamigo.model.trip.activity.SUGGESTION_VOTE_PREFIX
 import com.swent.roamigo.model.trip.isBeforeLocalDate
 import java.time.Clock
 import java.time.LocalDate
@@ -27,6 +28,9 @@ class VoteRepositoryFirestore(
     private val clock: Clock = Clock.systemDefaultZone(),
 ) : VoteRepository {
   override suspend fun createVote(vote: Vote) {
+    require(vote.suggestionId == null && !vote.uid.startsWith(SUGGESTION_VOTE_PREFIX)) {
+      "Suggestion votes must be created through SuggestionVoteRepository"
+    }
     requireDocumentId(vote.uid)
     val document = votes(vote.tripId).document(vote.uid)
     try {

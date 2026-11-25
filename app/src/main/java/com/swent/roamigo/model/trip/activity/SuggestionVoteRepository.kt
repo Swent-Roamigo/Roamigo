@@ -16,7 +16,7 @@ import java.time.temporal.ChronoUnit
  */
 data class SuggestionWithVote(val activity: Activity, val vote: Vote)
 
-interface SuggestionVoteRepository {
+fun interface SuggestionVoteRepository {
   /**
    * Creates both documents atomically for the signed-in trip member. Generate [suggestionId] once
    * per submission. A retry by the same author returns the stored pair regardless of [draft]. Begin
@@ -33,7 +33,7 @@ interface SuggestionVoteRepository {
   ): SuggestionWithVote
 }
 
-private const val SUGGESTION_VOTE_PREFIX = "suggestion-"
+internal const val SUGGESTION_VOTE_PREFIX = "suggestion-"
 private val suggestionOptions = listOf(VoteOption("YES", "Yes"), VoteOption("NO", "No"))
 
 /** The initial vote ID is the literal prefix `suggestion-` followed by the activity document ID. */
@@ -59,8 +59,9 @@ internal fun ActivityDraft.newSuggestionPair(
 ): SuggestionWithVote {
   val errors = validate(startRequired = false)
   if (errors.isNotEmpty()) throw ActivityCreationException.Validation(errors)
-  val createdAt = Timestamp.now()
   // Firestore stores timestamps with microsecond precision.
+  val now = Timestamp.now()
+  val createdAt = Timestamp(now.seconds, now.nanoseconds / 1_000 * 1_000)
   val activity =
       copy(
               startTime = startTime?.truncatedTo(ChronoUnit.MICROS),

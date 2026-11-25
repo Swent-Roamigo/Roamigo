@@ -78,9 +78,9 @@ class ActivityRepositoryFirestore(
       suggestionId: String,
       draft: ActivityDraft,
   ): SuggestionWithVote {
+    val authorId = currentUserId() ?: throw ActivityCreationException.NotAuthenticated()
     validateFirestoreDocumentId(tripId)
     val voteId = initialSuggestionVoteId(suggestionId)
-    val authorId = currentUserId() ?: throw ActivityCreationException.NotAuthenticated()
     val trip = db.collection("trips").document(tripId)
     val activityRef = trip.collection("activities").document(suggestionId)
     val voteRef = trip.collection("votes").document(voteId)

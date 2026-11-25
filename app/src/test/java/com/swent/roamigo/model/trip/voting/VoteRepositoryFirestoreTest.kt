@@ -531,6 +531,20 @@ class VoteRepositoryFirestoreTest {
   }
 
   @Test
+  fun createVoteRejectsSuggestionVotesBeforeAccessingFirestore() = runTest {
+    for (invalid in
+        listOf(vote.copy(suggestionId = "proposal"), vote.copy(uid = "suggestion-proposal"))) {
+      val error = runCatching { repository.createVote(invalid) }.exceptionOrNull()
+      assertTrue(error is IllegalArgumentException)
+      assertEquals(
+          "Suggestion votes must be created through SuggestionVoteRepository",
+          error?.message,
+      )
+      verifyNoInteractions(db)
+    }
+  }
+
+  @Test
   fun createVoteWritesAllFieldsUnderItsTrip() = runTest {
     val transaction = mock(Transaction::class.java)
     val snapshot = mock(DocumentSnapshot::class.java)

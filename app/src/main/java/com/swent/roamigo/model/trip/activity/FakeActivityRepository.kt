@@ -67,9 +67,9 @@ class FakeActivityRepository(
       suggestionId: String,
       draft: ActivityDraft,
   ): SuggestionWithVote {
+    val authorId = author()
     validateFirestoreDocumentId(tripId)
     val voteId = initialSuggestionVoteId(suggestionId)
-    val authorId = author()
     currentCoroutineContext().ensureActive()
     synchronized(stored) {
       val state = stored.value
