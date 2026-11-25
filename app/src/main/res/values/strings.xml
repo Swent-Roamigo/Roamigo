@@ -727,7 +727,10 @@
     <string name="weather_just_now">just now</string>
     <string name="weather_stale_notice">Couldn\'t refresh the forecast. Showing the one saved %1$s.</string>
     <string name="weather_loading">Loading the forecast…</string>
-    <string name="weather_too_far_title">The forecast comes %1$d days before your trip.</string>
+    <plurals name="weather_too_far_title">
+        <item quantity="one">The forecast comes %1$d day before your trip.</item>
+        <item quantity="other">The forecast comes %1$d days before your trip.</item>
+    </plurals>
     <string name="weather_too_far_body">Check back on %1$s. Until then, weather this far ahead would only be a guess.</string>
     <string name="weather_failed_title">The weather can\'t be loaded.</string>
     <string name="weather_failed_body">No forecast is saved on this phone yet. Try again in a moment.</string>

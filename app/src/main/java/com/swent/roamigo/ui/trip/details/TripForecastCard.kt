@@ -310,7 +310,12 @@ private fun TooFarBody(availableFrom: LocalDate) {
   val locale = LocalConfiguration.current.locales[0]
   Message(
       icon = { Icon(Icons.Default.DateRange, contentDescription = null, Modifier.size(20.dp)) },
-      title = stringResource(R.string.weather_too_far_title, ForecastWindow.DAYS_AHEAD),
+      title =
+          pluralStringResource(
+              R.plurals.weather_too_far_title,
+              ForecastWindow.DAYS_AHEAD.toInt(),
+              ForecastWindow.DAYS_AHEAD,
+          ),
       body =
           stringResource(
               R.string.weather_too_far_body,
