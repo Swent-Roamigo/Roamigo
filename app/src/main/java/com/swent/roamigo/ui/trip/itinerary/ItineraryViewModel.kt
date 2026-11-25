@@ -117,10 +117,10 @@ class ItineraryViewModel(
     val today = LocalDate.now(clock)
     val selected =
         (chosen ?: shownDay)?.takeIf { it in days }
-            ?: today.takeIf { it in days }
+            ?: today.takeIf { it in tripDays }
             ?: byDay.keys.minOrNull()
             ?: days.firstOrNull()
-    // Before the trip dates arrive, today may be missing from the days, so the choice can't hold yet.
+    // Until the trip dates arrive, today can't count as a trip day, so the choice can't hold yet.
     if (tripDays.isNotEmpty()) shownDay = selected
     val rows =
         byDay[selected]
