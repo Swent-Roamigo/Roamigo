@@ -35,6 +35,8 @@ sealed interface TripMapUiState {
    *   Unlike [members], it holds no fallback, so viewers can show their own when a name is missing.
    * @property selectedPhotoCoordinate coordinate of the photo group open in the viewer, or null
    *   when the map is shown. Only the coordinate is kept, so the group follows gallery updates.
+   * @property selectedActivityId marker ID of the activity or suggestion whose popup is open, or
+   *   null when none is. Only the ID is kept, so the popup follows activity updates.
    */
   data class Loaded(
       val trip: Trip,
@@ -46,12 +48,19 @@ sealed interface TripMapUiState {
       val photosLoadState: PhotosLoadState = PhotosLoadState.LOADING,
       val photographerNames: Map<String, String> = emptyMap(),
       val selectedPhotoCoordinate: MapCoordinate? = null,
+      val selectedActivityId: String? = null,
   ) : TripMapUiState {
     /** The photo group open in the viewer, resolved from the latest markers, or null. */
     val selectedPhotoGroup: PhotoMarkerUiState?
       get() = selectedPhotoCoordinate?.let { coordinate ->
         photoMarkers.firstOrNull { it.coordinate == coordinate }
       }
+
+    /**
+     * The activity or suggestion whose popup is open, resolved from the latest markers, or null.
+     */
+    val selectedActivity: TripMarkerUiState?
+      get() = selectedActivityId?.let { id -> activityMarkers.firstOrNull { it.id == id } }
   }
 }
 
