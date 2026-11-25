@@ -4,16 +4,17 @@ package com.swent.roamigo.model.friends
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.FirebaseApp
-import com.google.firebase.FirebaseOptions
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
-import com.google.firebase.firestore.FirebaseFirestoreSettings
-import com.google.firebase.firestore.MemoryCacheSettings
 import com.google.firebase.firestore.Source
+import com.swent.roamigo.FirebaseEmulators
+import com.swent.roamigo.FirebaseEmulators.FIRESTORE_PORT
+import com.swent.roamigo.FirebaseEmulators.HOST
+import com.swent.roamigo.FirebaseEmulators.PROJECT_ID
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
@@ -59,7 +60,7 @@ class FriendshipRulesEmulatorTest {
     apps.forEach { it.delete() }
     val connection =
         URL(
-                "http://$HOST:$FIRESTORE_PORT/emulator/v1/projects/$PROJECT/databases/(default)/documents"
+                "http://$HOST:$FIRESTORE_PORT/emulator/v1/projects/$PROJECT_ID/databases/(default)/documents"
             )
             .openConnection() as HttpURLConnection
     try {
@@ -323,16 +324,120 @@ class FriendshipRulesEmulatorTest {
   }
 
   @Test
-  fun removal_requiresAcceptanceAndEitherFriendCanRemoveAndRequestAgain() = emulatorTest {
+  fun cancellationRulesAllowOnlySenderToDeletePendingRequest() = emulatorTest {
+    val requestId = createPending()
+
+    // Bob is the recipient and cannot cancel.
+    denied { document(bob).delete().await() }
+
+    // Alice is the sender and may cancel.
+    document(alice).delete().await()
+
+    assertFalse(document(alice).get(Source.SERVER).await().exists())
+    assertFalse(document(bob).get(Source.SERVER).await().exists())
+
+    // A new request must receive a new generation ID.
+    val newRequestId = createPending()
+    assertNotEquals(requestId, newRequestId)
+
+    alice.repository.cancelFriendRequest(
+        bob.id,
+        newRequestId,
+    )
+
+    assertFalse(document(alice).get(Source.SERVER).await().exists())
+    assertFalse(document(bob).get(Source.SERVER).await().exists())
+  }
+
+  @Test
+  fun nonParticipantCannotDeletePendingFriendRequest() = emulatorTest {
+    val requestId = createPending()
+
+    // Charlie is neither the sender nor the recipient.
+    denied { document(charlie).delete().await() }
+
+    val snapshot = document(alice).get(Source.SERVER).await()
+    assertTrue(snapshot.exists())
+    assertEquals(requestId, snapshot.getString("requestId"))
+    assertEquals("PENDING", snapshot.getString("status"))
+  }
+
+  @Test
+  fun senderCannotDeleteDeclinedFriendRequest() = emulatorTest {
+    val requestId = createPending()
+    respond(bob, "DECLINED")
+
+    // Cancellation is allowed only while the request is PENDING.
+    denied { document(alice).delete().await() }
+
+    val snapshot = document(alice).get(Source.SERVER).await()
+    assertTrue(snapshot.exists())
+    assertEquals(requestId, snapshot.getString("requestId"))
+    assertEquals("DECLINED", snapshot.getString("status"))
+  }
+
+  @Test
+  fun concurrentCancellationAndAcceptanceHaveOneWinner() = emulatorTest {
+    val pending = alice.repository.sendFriendRequest(bob.id)
+
+    val results =
+        concurrently(
+            listOf<suspend () -> Result<Unit>>(
+                {
+                  runCatching {
+                    alice.repository.cancelFriendRequest(
+                        bob.id,
+                        pending.uid,
+                    )
+                  }
+                },
+                {
+                  runCatching {
+                    bob.repository.acceptFriendRequest(
+                        alice.id,
+                        pending.uid,
+                    )
+                    Unit
+                  }
+                },
+            )
+        )
+
+    assertEquals(1, results.count { it.isSuccess })
+
+    assertTrue(alice.repository.getOutgoingRequests().isEmpty())
+    assertTrue(bob.repository.getIncomingRequests().isEmpty())
+
+    val friends = alice.repository.getFriends()
+
+    assertEquals(
+        friends,
+        bob.repository.getFriends(),
+    )
+
+    if (friends.isNotEmpty()) {
+      assertEquals(pending.uid, friends.single().uid)
+    }
+  }
+
+  @Test
+  fun acceptedFriendshipCanBeRemovedByEitherFriendAndRequestedAgain() = emulatorTest {
     for (remover in listOf(alice, bob)) {
       val requestId = createPending()
-      denied { document(remover).delete().await() }
+
+      // Bob cannot delete a pending request sent by Alice.
+      denied { document(bob).delete().await() }
+
+      // Once accepted, either participant can remove the friendship.
       respond(bob, "ACCEPTED")
       document(remover).delete().await()
+
       assertFalse(document(alice).get(Source.SERVER).await().exists())
       assertFalse(document(bob).get(Source.SERVER).await().exists())
+
       val newId = createPending()
       assertNotEquals(requestId, newId)
+
       respond(bob, "DECLINED")
     }
   }
@@ -548,28 +653,11 @@ class FriendshipRulesEmulatorTest {
 
   private suspend fun signInUser(): User {
     val name = "friendship-rules-${UUID.randomUUID()}"
-    val options =
-        FirebaseOptions.Builder()
-            .setProjectId(PROJECT)
-            .setApplicationId("1:1234567890:android:friendship-rules")
-            .setApiKey("fake-api-key-$name")
-            .build()
     val app =
-        FirebaseApp.initializeApp(
-            InstrumentationRegistry.getInstrumentation().targetContext,
-            options,
-            name,
-        )
+        FirebaseEmulators.newApp(InstrumentationRegistry.getInstrumentation().targetContext, name)
     apps += app
-    val auth = FirebaseAuth.getInstance(app).apply { useEmulator(HOST, AUTH_PORT) }
-    val db =
-        FirebaseFirestore.getInstance(app).apply {
-          useEmulator(HOST, FIRESTORE_PORT)
-          firestoreSettings =
-              FirebaseFirestoreSettings.Builder()
-                  .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
-                  .build()
-        }
+    val auth = FirebaseEmulators.auth(app)
+    val db = FirebaseEmulators.firestore(app)
     return User(requireNotNull(auth.signInAnonymously().await().user).uid, auth, db)
   }
 
@@ -627,12 +715,5 @@ class FriendshipRulesEmulatorTest {
 
   private fun emulatorTest(action: suspend CoroutineScope.() -> Unit): Unit = runBlocking {
     withTimeout(30_000) { action() }
-  }
-
-  private companion object {
-    const val PROJECT = "demo-roamigo"
-    const val HOST = "10.0.2.2"
-    const val AUTH_PORT = 9099
-    const val FIRESTORE_PORT = 8080
   }
 }

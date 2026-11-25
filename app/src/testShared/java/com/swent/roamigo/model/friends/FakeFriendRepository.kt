@@ -149,6 +149,33 @@ class FakeFriendRepository(
     respond(otherUserId, requestId, FriendRequestStatus.DECLINED)
   }
 
+    override suspend fun cancelFriendRequest(
+        otherUserId: String,
+        requestId: String,
+    ) {
+        access { userId ->
+            requireFriendIdentifier(requestId)
+
+            val pair = pair(userId, otherUserId)
+            val request =
+                store.requests.value[pair] ?: return@access
+
+            if (
+                request.uid != requestId ||
+                request.status != FriendRequestStatus.PENDING
+            ) {
+                throw FriendRepositoryException.Conflict()
+            }
+
+            if (request.senderUserId != userId) {
+                throw FriendRepositoryException.PermissionDenied()
+            }
+
+            store.requests.value =
+                store.requests.value.filterKeys { it != pair }
+        }
+    }
+
   override suspend fun removeFriend(otherUserId: String, friendshipId: String) {
     access { userId ->
       requireFriendIdentifier(friendshipId)

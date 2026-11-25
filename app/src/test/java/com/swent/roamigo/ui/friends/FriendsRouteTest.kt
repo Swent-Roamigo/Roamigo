@@ -357,6 +357,28 @@ class FriendsRouteTest {
   }
 
   @Test
+  fun cancellingOutgoingRequestThroughRouteUpdatesBothUsers() {
+    val request = runBlocking { alice.sendFriendRequest("bob") }
+
+    show()
+
+    composeRule
+        .onNodeWithTag(C.Tag.friends_cancel_request_prefix + request.uid)
+        .performScrollTo()
+        .assertIsDisplayed()
+        .performClick()
+
+    composeRule.onNodeWithTag(C.Tag.friends_pending_request_row).assertDoesNotExist()
+
+    composeRule.runOnIdle {
+      runBlocking {
+        assertTrue(alice.getOutgoingRequests().isEmpty())
+        assertTrue(bob.getIncomingRequests().isEmpty())
+      }
+    }
+  }
+
+  @Test
   fun removingAFriendClearsBothUsersFriendships() {
     val request = runBlocking {
       val request = bob.sendFriendRequest("alice")
@@ -371,6 +393,11 @@ class FriendsRouteTest {
             resources.string(R.string.friends_remove_accessibility, "Bob")
         )
         .performClick()
+    composeRule.onNodeWithTag(C.Tag.friends_remove_confirm_dialog).assertIsDisplayed()
+
+    composeRule.runOnIdle { runBlocking { assertEquals(1, bob.getFriends().size) } }
+
+    composeRule.onNodeWithTag(C.Tag.friends_remove_confirm_action).performClick()
 
     composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertIsDisplayed()
     composeRule.runOnIdle { runBlocking { assertTrue(bob.getFriends().isEmpty()) } }
@@ -522,6 +549,7 @@ class FriendsRouteTest {
         .onNodeWithTag(C.Tag.friends_remove_prefix + friendship.uid)
         .performScrollTo()
         .performClick()
+    composeRule.onNodeWithTag(C.Tag.friends_remove_confirm_action).performClick()
 
     composeRule.runOnIdle { runBlocking { assertTrue(alice.getFriends().isEmpty()) } }
     composeRule.onNodeWithText("Bob").assertIsDisplayed()
@@ -629,23 +657,35 @@ class FriendsRouteTest {
         .onNodeWithTag(C.Tag.friends_remove_prefix + request.uid)
         .performScrollTo()
         .performClick()
+    composeRule.onNodeWithTag(C.Tag.friends_remove_confirm_action).performClick()
 
     composeRule.onNodeWithText(resources.string(R.string.friends_remove_failed)).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.friends_remove_prefix + request.uid).assertIsEnabled()
     val gate = CompletableDeferred<Unit>()
+
     composeRule.runOnIdle {
       controlled.failure = null
       controlled.gate = gate
     }
+
+    // Second removal attempt: open the confirmation dialog.
     composeRule.onNodeWithTag(C.Tag.friends_remove_prefix + request.uid).performClick()
+
+    // Confirm the second removal.
+    composeRule.onNodeWithTag(C.Tag.friends_remove_confirm_action).performClick()
+
+    // The repository is now waiting on the gate.
     composeRule
         .onNodeWithTag(C.Tag.friends_remove_prefix + request.uid)
         .assertIsNotEnabled()
         .performClick()
+
+    // The disabled button must not trigger another operation.
     composeRule.runOnIdle {
       assertEquals(2, controlled.calls)
       gate.complete(Unit)
     }
+
     composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertIsDisplayed()
   }
 
@@ -663,6 +703,7 @@ class FriendsRouteTest {
         .onNodeWithTag(C.Tag.friends_remove_prefix + request.uid)
         .performScrollTo()
         .performClick()
+    composeRule.onNodeWithTag(C.Tag.friends_remove_confirm_action).performClick()
     composeRule.onNodeWithText(resources.string(R.string.friends_remove_failed)).assertIsDisplayed()
     val originalActivity = composeRule.activity
     val originalStore = originalActivity.viewModelStore
@@ -699,6 +740,10 @@ class FriendsRouteTest {
     composeRule
         .onNodeWithTag(C.Tag.friends_remove_prefix + request.uid)
         .performScrollTo()
+        .assertIsDisplayed()
+        .performClick()
+    composeRule
+        .onNodeWithTag(C.Tag.friends_remove_confirm_action)
         .assertIsDisplayed()
         .performClick()
     composeRule.onNodeWithTag(C.Tag.friends_empty_state).assertIsDisplayed()
@@ -767,6 +812,14 @@ class FriendsRouteTest {
     override suspend fun declineFriendRequest(otherUserId: String, requestId: String) {
       beforeAction()
       delegate.declineFriendRequest(otherUserId, requestId)
+    }
+
+    override suspend fun cancelFriendRequest(
+        otherUserId: String,
+        requestId: String,
+    ) {
+      beforeAction()
+      delegate.cancelFriendRequest(otherUserId, requestId)
     }
 
     override suspend fun removeFriend(otherUserId: String, friendshipId: String) {

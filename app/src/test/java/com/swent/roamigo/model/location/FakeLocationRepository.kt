@@ -1,6 +1,7 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.model.location
 
+import kotlin.time.Duration
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
@@ -18,7 +19,16 @@ import kotlinx.coroutines.flow.merge
 class FakeLocationRepository(
     var hasPermission: Boolean = false,
     var currentLocation: DeviceLocation? = null,
+    /**
+     * Returned by [lastKnownLocation] while [hasPermission] is true and it is no older than the max
+     * age, measured against [nowMillis]. Like the real repository, it is never returned without a
+     * timestamp.
+     */
+    var knownLocation: DeviceLocation? = null,
 ) : LocationRepository {
+
+  /** Device time, in milliseconds since the epoch, used to measure the age of [knownLocation]. */
+  var nowMillis: Long = 0L
 
   val memberLocations = MutableStateFlow<List<MemberLocation>>(emptyList())
 
@@ -59,6 +69,12 @@ class FakeLocationRepository(
     getCurrentLocationCalls++
     return currentLocation
   }
+
+  override fun lastKnownLocation(maxAge: Duration): DeviceLocation? =
+      knownLocation?.takeIf { known ->
+        val time = known.timestampMillis
+        hasPermission && time != null && nowMillis - time <= maxAge.inWholeMilliseconds
+      }
 
   /**
    * Awaited by [startSharing] before publishing, when set, like a start waiting for its first

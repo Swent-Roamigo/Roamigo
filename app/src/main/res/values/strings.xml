@@ -4,7 +4,6 @@
     <string name="profile_sign_out_failed">Unable to sign out. Please try again.</string>
     <string name="feature_not_implemented">Not implemented yet</string>
     <string name="app_name">Roamigo</string>
-    <string name="title_activity_second">SecondActivity</string>
     <string name="auth_tagline">Plan together. Travel together.</string>
     <string name="auth_brand">roamigo</string>
     <string name="auth_signing_in">Signing in with Google</string>
@@ -214,7 +213,6 @@
     <string name="trip_history_completed">Completed</string>
     <string name="trip_history_empty">No completed trips yet</string>
     <string name="trip_history_unknown_destination">Destination unavailable</string>
-    <string name="trip_history_world_map">Open explored world map</string>
     <string name="trip_history_back">Back</string>
 
     <plurals name="trip_history_count">
@@ -300,6 +298,20 @@
         <item quantity="one">%d trip together</item>
         <item quantity="other">%d trips together</item>
     </plurals>
+
+    <string name="friends_cancel_request">Cancel request</string>
+    <string name="friends_cancel_request_accessibility">Cancel friend request to %1$s</string>
+
+    <string name="friends_remove_confirm_title">Remove friend?</string>
+    <string name="friends_remove_confirm_message">Remove %1$s from your friends?</string>
+    <string name="friends_remove_unknown_message">Remove this traveler from your friends?</string>
+    <string name="friends_remove_confirm_cancel">Keep</string>
+
+    <string name="friends_cancel_request_failed">Could not cancel the request. Please try again.</string>
+    <string name="friends_cancel_request_network">Couldn\'t cancel the request. Check your connection and try again.</string>
+    <string name="friends_cancel_request_conflict">This request has changed. Refresh to see its current status.</string>
+    <string name="friends_cancel_request_permission">You cannot cancel this request.</string>
+
     <!-- Find travelers -->
     <string name="friends_search_title">Find travelers</string>
     <string name="friends_search_back">Back to Friends</string>
@@ -397,8 +409,6 @@
     </plurals>
     <!-- Trip Votes tab -->
     <string name="votes_title">Votes</string>
-    <string name="trip_tab_overview">Overview</string>
-    <string name="trip_tab_itinerary">Itinerary</string>
     <string name="votes_trip_summary">%1$s · %2$s</string>
     <plurals name="votes_open_count">
         <item quantity="one">%d open</item>
@@ -482,6 +492,7 @@
     <string name="trip_add_vote">Start a vote</string>
     <string name="trip_add_vote_hint">Ask the group to decide between options</string>
     <string name="trip_members_title">Members</string>
+    <string name="trip_members_invite">Invite</string>
     <string name="trip_members_you">%1$s (you)</string>
     <string name="trip_members_organiser">Organiser</string>
     <string name="trip_members_member">Member</string>
@@ -665,7 +676,7 @@
     <string name="activity_form_date">Date</string>
     <string name="activity_form_outside_trip">This date is outside the trip (%1$s – %2$s). You can still save it.</string>
     <string name="activity_form_time">Time</string>
-    <string name="activity_form_time_placeholder">Add a time (optional)</string>
+    <string name="activity_form_time_placeholder">Add a start time</string>
     <string name="activity_form_time_clear">Remove time</string>
     <string name="activity_form_time_dialog_title">Choose a time</string>
     <string name="activity_form_time_use_keyboard">Type the time</string>
@@ -687,6 +698,7 @@
     <string name="activity_form_error_description_too_long">This description is too long. Shorten it.</string>
     <string name="activity_form_error_place_missing">Choose a place for the activity.</string>
     <string name="activity_form_error_place_invalid">This place has no usable location. Choose another place.</string>
+    <string name="activity_form_error_time_missing">Choose when this activity starts.</string>
     <string name="activity_form_error_end_before_start">This activity would end before it starts. Choose an earlier time.</string>
     <string name="activity_form_failure_not_signed_in">Sign in again to save this activity.</string>
     <string name="activity_form_failure_permission">You cannot add activities to this trip.</string>

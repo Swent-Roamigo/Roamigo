@@ -15,6 +15,7 @@ import java.io.File
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
@@ -322,12 +323,36 @@ class PhotosViewModel(
       locationJob?.cancel()
       fetchGeneration++
       if (local.value.location == PhotoLocationStatus.Locating) {
-        setLocation(PhotoLocationStatus.Unavailable)
+        // The budget is measured on the wall clock, so the fetch may be stopped just before the
+        // locator fell back to a recent known position. Without a timeout it only reads that one,
+        // without waiting.
+        setLocation(if (cleared) PhotoLocationStatus.Unavailable else locateAtOnce())
       }
     }
     return (local.value.location as? PhotoLocationStatus.Attached)?.let {
       PhotoCoordinates.orNull(it.latitude, it.longitude)
     }
+  }
+
+  /** The status of a read that does not wait, or [PhotoLocationStatus.Unavailable] if it would. */
+  private fun locateAtOnce(): PhotoLocationStatus {
+    var status: PhotoLocationStatus = PhotoLocationStatus.Unavailable
+    // Run only until its first suspension: a locator that waits despite the zero timeout must not
+    // make the user wait longer than the timeout.
+    viewModelScope
+        .launch(start = CoroutineStart.UNDISPATCHED) {
+          status =
+              try {
+                locator.locate(Duration.ZERO).toStatus()
+              } catch (e: CancellationException) {
+                throw e
+              } catch (_: Exception) {
+                // Same safety net as in startLocationFetch.
+                PhotoLocationStatus.Unavailable
+              }
+        }
+        .cancel()
+    return status
   }
 
   private fun remainingBudget(): Duration =

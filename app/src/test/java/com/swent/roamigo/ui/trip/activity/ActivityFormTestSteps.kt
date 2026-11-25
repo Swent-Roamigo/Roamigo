@@ -4,6 +4,7 @@ package com.swent.roamigo.ui.trip.activity
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import com.swent.roamigo.model.place.PlaceCandidate
@@ -14,6 +15,13 @@ private const val UI_TIMEOUT_MS = 5_000L
 /** Waits until a node tagged [tag] is shown. */
 internal fun ComposeTestRule.waitForTag(tag: String) =
     waitUntil(UI_TIMEOUT_MS) { onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty() }
+
+/** Confirms the time picker opened from the activity form, which starts at noon. */
+internal fun ComposeTestRule.pickNoon() {
+  onNodeWithTag(ActivityFormTestTags.TIME).performClick()
+  waitForTag(ActivityFormTestTags.TIME_DIALOG)
+  onNodeWithText("OK").performClick()
+}
 
 /**
  * Picks [candidate] through the place picker opened from the activity form, then waits for the form
