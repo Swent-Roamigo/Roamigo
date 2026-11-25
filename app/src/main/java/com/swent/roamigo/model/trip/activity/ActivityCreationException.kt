@@ -6,7 +6,7 @@ import com.swent.roamigo.model.trip.ActivityType
 /**
  * A failure to create an activity.
  *
- * Both creation operations on [ActivityRepository] report persistence and validation failures
+ * [ActivityRepository] and [SuggestionVoteRepository] report persistence and validation failures
  * through this type so callers can handle them without depending on Firebase.
  */
 sealed class ActivityCreationException(message: String, cause: Throwable? = null) :
@@ -27,6 +27,13 @@ sealed class ActivityCreationException(message: String, cause: Throwable? = null
   /** The current user already owns a document with this ID and a different activity type. */
   class TypeConflict(val requested: ActivityType, val existing: ActivityType) :
       ActivityCreationException("Cannot create a $requested activity with an ID used by $existing")
+
+  /** The requested IDs contain an incomplete or incompatible suggestion-vote pair. */
+  class PairConflict(cause: Throwable? = null) :
+      ActivityCreationException(
+          "Existing documents do not form the requested suggestion-vote pair",
+          cause,
+      )
 
   /** The data source could not be reached. */
   class Network(cause: Throwable? = null) :

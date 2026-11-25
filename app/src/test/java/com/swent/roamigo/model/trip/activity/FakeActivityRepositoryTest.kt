@@ -2,7 +2,9 @@
 package com.swent.roamigo.model.trip.activity
 
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
+import com.swent.roamigo.model.trip.voting.Vote
 import java.io.IOException
 import java.time.Instant
 import kotlinx.coroutines.CancellationException
@@ -35,23 +37,27 @@ class FakeActivityRepositoryTest {
         val repository = FakeActivityRepository(currentUserId = "user-1")
         val itinerary = repository.createActivity("trip-1", "itinerary", draft)
         val unscheduled =
-            repository.createSuggestion("trip-1", "unscheduled", draft.copy(startTime = null))
-        val startOnly = repository.createSuggestion("trip-1", "start-only", draft)
+            repository.createSuggestionWithVote(
+                "trip-1",
+                "unscheduled",
+                draft.copy(startTime = null),
+            )
+        val startOnly = repository.createSuggestionWithVote("trip-1", "start-only", draft)
         val end = draft.startTime!!.plusSeconds(3600)
         val scheduled =
-            repository.createSuggestion("trip-1", "scheduled", draft.copy(endTime = end))
+            repository.createSuggestionWithVote("trip-1", "scheduled", draft.copy(endTime = end))
 
-        assertEquals(ActivityType.SUGGESTION, unscheduled.activityType)
-        assertEquals("user-1", unscheduled.createdByUserId)
-        assertNull(unscheduled.startTime)
-        assertNull(unscheduled.endTime)
-        assertNull(unscheduled.description)
-        assertEquals(draft.startTime.epochSecond, startOnly.startTime?.seconds)
-        assertNull(startOnly.endTime)
-        assertEquals(draft.startTime.epochSecond, scheduled.startTime?.seconds)
-        assertEquals(end.epochSecond, scheduled.endTime?.seconds)
+        assertEquals(ActivityType.SUGGESTION, unscheduled.activity.activityType)
+        assertEquals("user-1", unscheduled.activity.createdByUserId)
+        assertNull(unscheduled.activity.startTime)
+        assertNull(unscheduled.activity.endTime)
+        assertNull(unscheduled.activity.description)
+        assertEquals(draft.startTime.epochSecond, startOnly.activity.startTime?.seconds)
+        assertNull(startOnly.activity.endTime)
+        assertEquals(draft.startTime.epochSecond, scheduled.activity.startTime?.seconds)
+        assertEquals(end.epochSecond, scheduled.activity.endTime?.seconds)
         assertEquals(
-            listOf(itinerary, unscheduled, startOnly, scheduled),
+            listOf(itinerary, unscheduled.activity, startOnly.activity, scheduled.activity),
             repository.observeActivities("trip-1").first(),
         )
       }
@@ -63,51 +69,64 @@ class FakeActivityRepositoryTest {
     val attempts =
         List(12) { index ->
               async(Dispatchers.Default) {
-                repository.createSuggestion("trip-1", "repeat", draft.copy(name = "Place $index"))
+                repository.createSuggestionWithVote(
+                    "trip-1",
+                    "repeat",
+                    draft.copy(name = "Place $index"),
+                )
               }
             }
             .awaitAll()
 
     assertEquals(listOf(attempts.first()), attempts.distinct())
-    assertEquals(listOf(attempts.first()), repository.observeActivities("trip-1").first())
+    assertEquals(listOf(attempts.first().activity), repository.observeActivities("trip-1").first())
   }
 
   @Test
   fun invalidSuggestionDraftIsIgnoredOnlyWhenRetryingAnExistingSuggestion() = runBlocking {
     val repository = FakeActivityRepository()
-    val original = repository.createSuggestion("trip-1", "id", draft)
+    val original = repository.createSuggestionWithVote("trip-1", "id", draft)
     val invalid = draft.copy(name = " ")
 
-    assertEquals(original, repository.createSuggestion("trip-1", "id", invalid))
+    assertEquals(original, repository.createSuggestionWithVote("trip-1", "id", invalid))
 
-    val error = runCatching { repository.createSuggestion("trip-1", "new", invalid) }
+    val error = runCatching { repository.createSuggestionWithVote("trip-1", "new", invalid) }
     val validation = error.exceptionOrNull() as ActivityCreationException.Validation
     assertEquals(listOf(ActivityDraftError.BlankName), validation.errors)
-    assertEquals(listOf(original), repository.observeActivities("trip-1").first())
+    assertEquals(listOf(original.activity), repository.observeActivities("trip-1").first())
   }
 
   @Test
   fun anotherAuthorCannotReuseASuggestionId() = runBlocking {
     val original =
-        FakeActivityRepository(currentUserId = "alice").createSuggestion("trip-1", "id", draft)
-    val repository = FakeActivityRepository(listOf(original), currentUserId = "bob")
+        FakeActivityRepository(currentUserId = "alice")
+            .createSuggestionWithVote("trip-1", "id", draft)
+    val repository =
+        FakeActivityRepository(
+            listOf(original.activity),
+            currentUserId = "bob",
+            votes = listOf(original.vote),
+        )
 
-    val error = runCatching { repository.createSuggestion("trip-1", "id", draft.copy(name = " ")) }
+    val error = runCatching {
+      repository.createSuggestionWithVote("trip-1", "id", draft.copy(name = " "))
+    }
 
     assertTrue(error.exceptionOrNull() is ActivityCreationException.PermissionDenied)
-    assertEquals(listOf(original), repository.observeActivities("trip-1").first())
+    assertEquals(listOf(original.activity), repository.observeActivities("trip-1").first())
   }
 
   @Test
   fun createActivityCannotReuseAnExistingSuggestionId() = runBlocking {
     val suggestion =
-        FakeActivityRepository().createSuggestion("trip-1", "id", draft.copy(startTime = null))
-    val repository = FakeActivityRepository(listOf(suggestion))
+        FakeActivityRepository()
+            .createSuggestionWithVote("trip-1", "id", draft.copy(startTime = null))
+    val repository = FakeActivityRepository(listOf(suggestion.activity))
 
     val error = runCatching { repository.createActivity("trip-1", "id", draft.copy(name = " ")) }
 
     assertTrue(error.exceptionOrNull() is ActivityCreationException.TypeConflict)
-    assertEquals(listOf(suggestion), repository.observeActivities("trip-1").first())
+    assertEquals(listOf(suggestion.activity), repository.observeActivities("trip-1").first())
   }
 
   @Test
@@ -115,10 +134,85 @@ class FakeActivityRepositoryTest {
     val repository = FakeActivityRepository()
     val itinerary = repository.createActivity("trip-1", "id", draft)
 
-    val error = runCatching { repository.createSuggestion("trip-1", "id", draft.copy(name = " ")) }
+    val error = runCatching {
+      repository.createSuggestionWithVote("trip-1", "id", draft.copy(name = " "))
+    }
 
     assertTrue(error.exceptionOrNull() is ActivityCreationException.TypeConflict)
     assertEquals(listOf(itinerary), repository.observeActivities("trip-1").first())
+  }
+
+  @Test
+  fun suggestionCreationRejectsIdsThatCannotProduceAValidVoteId() = runBlocking {
+    val repository = FakeActivityRepository()
+    for (id in listOf(" ", ".", "..", "a/b", "__reserved__", "é".repeat(746))) {
+      val error = runCatching { repository.createSuggestionWithVote("trip-1", id, draft) }
+      assertTrue(error.exceptionOrNull() is IllegalArgumentException)
+    }
+    assertEquals(1500, initialSuggestionVoteId("a".repeat(1489)).toByteArray().size)
+    assertTrue(repository.observeActivities("trip-1").first().isEmpty())
+  }
+
+  @Test
+  fun suggestionCreationChecksAuthenticationBeforeValidatingIds() = runBlocking {
+    val repository = FakeActivityRepository(currentUserId = null)
+    for (id in listOf("activity-1", "a/b")) {
+      val error = runCatching { repository.createSuggestionWithVote("trip-1", id, draft) }
+      assertTrue(error.exceptionOrNull() is ActivityCreationException.NotAuthenticated)
+    }
+    assertTrue(repository.observeActivities("trip-1").first().isEmpty())
+  }
+
+  @Test
+  fun suggestionCreationKeepsUnscheduledRetriesIsolatedByTrip() = runBlocking {
+    val repository = FakeActivityRepository()
+    val unscheduled = draft.copy(startTime = null)
+    val first = repository.createSuggestionWithVote("trip-1", "shared-id", unscheduled)
+    val second =
+        repository.createSuggestionWithVote(
+            "trip-2",
+            "shared-id",
+            unscheduled.copy(name = "Other trip"),
+        )
+
+    assertEquals(first.vote.uid, second.vote.uid)
+    assertEquals(first, repository.createSuggestionWithVote("trip-1", "shared-id", draft))
+    assertEquals(second, repository.createSuggestionWithVote("trip-2", "shared-id", draft))
+    assertEquals(listOf(first.activity), repository.observeActivities("trip-1").first())
+    assertEquals(listOf(second.activity), repository.observeActivities("trip-2").first())
+  }
+
+  @Test
+  fun suggestionCreationDoesNotRepairIncompleteStoredPairs() = runBlocking {
+    val original = FakeActivityRepository().createSuggestionWithVote("trip-1", "id", draft)
+    val fixtures =
+        listOf(
+            listOf(original.activity) to emptyList<Vote>(),
+            emptyList<Activity>() to listOf(original.vote),
+            listOf(original.activity) to listOf(original.vote.copy(suggestionId = "other")),
+        )
+    for ((activities, votes) in fixtures) {
+      val repository = FakeActivityRepository(activities, votes = votes)
+      val failure = runCatching {
+        repository.createSuggestionWithVote("trip-1", "id", draft)
+      }
+          .exceptionOrNull()
+
+      assertTrue(failure is ActivityCreationException.PairConflict)
+      assertEquals(activities, repository.observeActivities("trip-1").first())
+    }
+  }
+
+  @Test
+  fun deterministicVoteIdsRejectMalformedUtf16AndMeasureTheLimitInUtf8Bytes() {
+    val suggestionId = "__" + "é".repeat(743) + "a"
+    val voteId = initialSuggestionVoteId(suggestionId)
+    assertEquals("suggestion-$suggestionId", voteId)
+    assertEquals(1500, voteId.toByteArray(Charsets.UTF_8).size)
+    assertThrows(IllegalArgumentException::class.java) {
+      initialSuggestionVoteId(suggestionId + "a")
+    }
+    assertThrows(IllegalArgumentException::class.java) { initialSuggestionVoteId("bad-\uD800") }
   }
 
   @Test
@@ -126,7 +220,7 @@ class FakeActivityRepositoryTest {
     val cancellation = CancellationException("cancelled")
     val repository = FakeActivityRepository(failure = cancellation)
 
-    val error = runCatching { repository.createSuggestion("trip-1", "id", draft) }
+    val error = runCatching { repository.createSuggestionWithVote("trip-1", "id", draft) }
 
     assertSame(cancellation, error.exceptionOrNull())
   }

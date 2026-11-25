@@ -405,21 +405,30 @@ class VoteRepositoryFirestoreTest {
   }
 
   @Test
-  fun observeSelectedDocumentEmitsStatusAndDeletionAndCleansUp() = runTest {
+  fun observeLinkedVoteEmitsItsRevoteLinkAndDeletionAndCleansUp() = runTest {
+    val initial =
+        vote.copy(
+            uid = "suggestion-proposal",
+            suggestionId = "proposal",
+            question = "Visit the museum",
+            options = listOf(VoteOption("YES", "Yes"), VoteOption("NO", "No")),
+        )
+    val closed = initial.copy(status = VoteStatus.CLOSED, nextRoundVoteId = "round-2")
+    `when`(votes.document(initial.uid)).thenReturn(voteDocument)
     val registration = mock(ListenerRegistration::class.java)
     `when`(voteDocument.addSnapshotListener(any<EventListener<DocumentSnapshot>>()))
         .thenReturn(registration)
     val changes = mutableListOf<Vote?>()
-    val job = launch { repository.observeVote("trip-1", "vote-1").collect { changes += it } }
+    val job = launch { repository.observeVote("trip-1", initial.uid).collect { changes += it } }
     runCurrent()
     val listener = capturedDocumentListener()
-    listener.onEvent(document(vote.uid, voteData), null)
+    listener.onEvent(document(initial.uid, initial.toFirestoreData()), null)
     runCurrent()
-    listener.onEvent(document(vote.uid, voteData + ("status" to "CLOSED")), null)
+    listener.onEvent(document(closed.uid, closed.toFirestoreData()), null)
     runCurrent()
     listener.onEvent(mock(DocumentSnapshot::class.java), null)
     runCurrent()
-    assertEquals(listOf(vote, vote.copy(status = VoteStatus.CLOSED), null), changes)
+    assertEquals(listOf(initial, closed, null), changes)
     verify(votes, never()).addSnapshotListener(any<EventListener<QuerySnapshot>>())
     job.cancel()
     runCurrent()
@@ -519,6 +528,20 @@ class VoteRepositoryFirestoreTest {
     stubTransaction(transaction)
     repository.closeVote("trip-1", "vote-1")
     verify(transaction).update(voteDocument, "status", "CLOSED")
+  }
+
+  @Test
+  fun createVoteRejectsSuggestionVotesBeforeAccessingFirestore() = runTest {
+    for (invalid in
+        listOf(vote.copy(suggestionId = "proposal"), vote.copy(uid = "suggestion-proposal"))) {
+      val error = runCatching { repository.createVote(invalid) }.exceptionOrNull()
+      assertTrue(error is IllegalArgumentException)
+      assertEquals(
+          "Suggestion votes must be created through SuggestionVoteRepository",
+          error?.message,
+      )
+      verifyNoInteractions(db)
+    }
   }
 
   @Test
@@ -673,6 +696,7 @@ class VoteRepositoryFirestoreTest {
             voteData + ("createdByUserId" to "other-user"),
             voteData + ("creationTime" to Timestamp(101, 123)),
             voteData + ("closingTime" to timestamp),
+            voteData + ("suggestionId" to "proposal"),
         )
     for (data in conflicts) {
       val transaction = mock(Transaction::class.java)
