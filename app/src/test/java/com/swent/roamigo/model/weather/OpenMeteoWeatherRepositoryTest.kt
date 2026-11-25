@@ -8,13 +8,18 @@ import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import java.util.concurrent.Executors
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.test.runTest
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.Response
+import okhttp3.ResponseBody
 import okhttp3.ResponseBody.Companion.toResponseBody
+import okio.Buffer
+import okio.BufferedSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -298,6 +303,66 @@ class OpenMeteoWeatherRepositoryTest {
         listOf(LocalDate.of(2026, 11, 23), LocalDate.of(2026, 11, 24)),
         trip(lisbon),
     )
+  }
+
+  @Test
+  fun cutsTheAnswerToTheWindowOfADestinationBehindTheDevice() = runTest {
+    // At 10:00Z it is still 22 Nov at UTC-12, a day behind the device clock.
+    val json =
+        """{"utc_offset_seconds":-43200,"daily":{"time":["2026-11-21","2026-11-22","2026-11-23"],"weather_code":[0,0,0],"temperature_2m_max":[10,10,10],"temperature_2m_min":[5,5,5]}}"""
+
+    val forecast =
+        repository(json).forecast(1.0, 1.0, LocalDate.of(2026, 11, 21), LocalDate.of(2026, 11, 23))
+
+    assertEquals(
+        listOf(LocalDate.of(2026, 11, 22), LocalDate.of(2026, 11, 23)),
+        forecast.days.map { it.date },
+    )
+    assertEquals(LocalDate.of(2026, 11, 22), forecast.destinationToday)
+  }
+
+  @Test
+  fun readsAndParsesTheAnswerOnTheIoDispatcher() = runTest {
+    val executor = Executors.newSingleThreadExecutor { Thread(it, "weather-io-test") }
+    val readOn = mutableListOf<String>()
+    val body =
+        object : ResponseBody() {
+          override fun contentType() = "application/json".toMediaType()
+
+          override fun contentLength() = -1L
+
+          override fun source(): BufferedSource {
+            readOn += Thread.currentThread().name
+            return Buffer().writeUtf8(daily())
+          }
+        }
+    val client =
+        OkHttpClient.Builder()
+            .addInterceptor { chain ->
+              Response.Builder()
+                  .request(chain.request())
+                  .protocol(Protocol.HTTP_1_1)
+                  .code(200)
+                  .message("Test response")
+                  .body(body)
+                  .build()
+            }
+            .build()
+    try {
+      val repository =
+          OpenMeteoWeatherRepository(
+              client = client,
+              clock = clock,
+              ioDispatcher = executor.asCoroutineDispatcher(),
+          )
+
+      val forecast = repository.trip()
+
+      assertEquals(2, forecast.days.size)
+      assertTrue(readOn.isNotEmpty() && readOn.all { it == "weather-io-test" })
+    } finally {
+      executor.shutdown()
+    }
   }
 
   @Test
