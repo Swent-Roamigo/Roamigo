@@ -84,7 +84,9 @@ class ItineraryViewModel(
                   readyState(entries, days, chosen, snapshot.failed)
                       .copy(
                           waitingSuggestions =
-                              votesById?.let { snapshot.suggestionVoteIds.countOpen(it) } ?: 0
+                              votesById?.let {
+                                snapshot.suggestionVoteIds.countSuggestionsWithOpenRound(it)
+                              } ?: 0
                       )
               snapshot.failed -> ItineraryUiState.Error
               else -> ItineraryUiState.Loading
@@ -190,9 +192,10 @@ class ItineraryViewModel(
  * Counts the suggestions, given by the IDs of their initial votes, whose current round is still
  * open. A revote continues the suggestion's vote through [Vote.nextRoundVoteId].
  */
-internal fun List<String>.countOpen(votesById: Map<String, Vote>): Int = count { initialVoteId ->
-  currentRound(initialVoteId, votesById)?.status == VoteStatus.OPEN
-}
+private fun List<String>.countSuggestionsWithOpenRound(votesById: Map<String, Vote>): Int =
+    count { initialVoteId ->
+      currentRound(initialVoteId, votesById)?.status == VoteStatus.OPEN
+    }
 
 private fun currentRound(initialVoteId: String, votesById: Map<String, Vote>): Vote? {
   var vote = votesById[initialVoteId] ?: return null
