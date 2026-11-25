@@ -309,7 +309,7 @@ class ItineraryViewModelTest {
       }
 
   @Test
-  fun aVoteFailureHidesTheSuggestionCountButKeepsThePlan() =
+  fun aVoteFailureKeepsTheLastCountAndOffersRetry() =
       runTest(dispatcher) {
         votes.snapshots.value =
             Result.success(listOf(vote(suggestionVoteId("open"), VoteStatus.OPEN)))
@@ -318,18 +318,38 @@ class ItineraryViewModelTest {
         viewModel.setTripDates(DAY_1, DAY_2)
         runCurrent()
         assertEquals(1, ready().waitingSuggestions)
+        assertFalse(ready().refreshFailed)
 
         val loaded = votes.snapshots.value
         votes.snapshots.value = Result.failure(IllegalStateException("listener lost"))
         runCurrent()
-        assertEquals(0, ready().waitingSuggestions)
+        assertEquals(1, ready().waitingSuggestions)
         assertEquals(listOf("a"), ready().activities.map { it.id })
-        assertFalse(ready().refreshFailed)
+        assertTrue(ready().refreshFailed)
 
+        // The plan listener is still healthy, so only retrying clears the warning.
         votes.snapshots.value = loaded
+        runCurrent()
+        assertTrue(ready().refreshFailed)
+
         viewModel.retry()
         runCurrent()
+        assertFalse(ready().refreshFailed)
         assertEquals(1, ready().waitingSuggestions)
+      }
+
+  @Test
+  fun votesFailingFromTheStartShowThePlanWithoutACountButWithRetry() =
+      runTest(dispatcher) {
+        votes.snapshots.value = Result.failure(IllegalStateException("denied"))
+        repository.activities.value = listOf(activity("a", DAY_1.atTime(9, 0)), suggestion("open"))
+        createViewModel()
+        viewModel.setTripDates(DAY_1, DAY_2)
+        runCurrent()
+
+        assertEquals(listOf("a"), ready().activities.map { it.id })
+        assertEquals(0, ready().waitingSuggestions)
+        assertTrue(ready().refreshFailed)
       }
 
   private fun activity(
