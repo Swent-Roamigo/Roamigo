@@ -54,8 +54,9 @@ class ItineraryViewModel(
     activityRepository.observeActivities(tripId)
   }
 
-  // Votes only feed the suggestion count, so their failure warns like a failed plan refresh
-  // instead of replacing the plan with an error.
+  // Votes only feed the suggestion count. Their listener stops on any unreadable vote of the trip,
+  // which Retry cannot fix, so a failure hides the count instead of warning about a plan that is
+  // still up to date.
   private val votes = attempts.observeKeepingLast { voteRepository.observeVotes(tripId) }
 
   val uiState: StateFlow<ItineraryUiState> =
@@ -63,7 +64,13 @@ class ItineraryViewModel(
             val loaded = activities.value
             when {
               loaded != null ->
-                  readyState(loaded, votes.value, days, chosen, activities.failed || votes.failed)
+                  readyState(
+                      loaded,
+                      votes.value.takeUnless { votes.failed },
+                      days,
+                      chosen,
+                      activities.failed,
+                  )
               activities.failed -> ItineraryUiState.Error
               else -> ItineraryUiState.Loading
             }
@@ -134,7 +141,7 @@ class ItineraryViewModel(
                   startTime = it.start.toLocalTime(),
               )
             }
-    // Until the votes have loaded once, no suggestion is known to be waiting.
+    // While the votes are unknown, no suggestion is known to be waiting.
     val waitingSuggestions =
         votes?.let { activities.suggestionVoteIds().countSuggestionsWithOpenRound(it) } ?: 0
     return ItineraryUiState.Ready(
