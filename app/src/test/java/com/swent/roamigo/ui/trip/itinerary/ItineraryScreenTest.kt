@@ -114,6 +114,24 @@ class ItineraryScreenTest {
   }
 
   @Test
+  fun activityNamesLineUpWhateverTheWidthOfTheirTime() {
+    val morning = ItineraryActivity("m", "Belém Tower", "Belém", LocalTime.of(9, 30))
+    val noon =
+        ItineraryActivity("n", "Lunch at Time Out Market", "Cais do Sodré", LocalTime.of(12, 30))
+    show(ready(listOf(morning, noon)))
+
+    // Each row merges its texts for TalkBack, so the names are read from the unmerged tree.
+
+    val morningName =
+        composeRule.onNodeWithText("Belém Tower", useUnmergedTree = true).getUnclippedBoundsInRoot()
+    val noonName =
+        composeRule
+            .onNodeWithText("Lunch at Time Out Market", useUnmergedTree = true)
+            .getUnclippedBoundsInRoot()
+    assertEquals(noonName.left, morningName.left)
+  }
+
+  @Test
   fun dayChipsAnnounceTheFullDate() {
     show(ready())
 
