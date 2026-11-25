@@ -16,7 +16,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -34,15 +33,19 @@ class NotificationsViewModel(
 
   init {
     sessionScope.launch {
-      authRepository
-          .observeCurrentUser()
-          .catch { emit(null) }
-          .firstOrNull { it?.uid != currentUserId }
+      try {
+        authRepository.observeCurrentUser().firstOrNull { it?.uid != currentUserId }
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (_: Exception) {
+        // A failed auth stream ends the session so private entries are cleared.
+      }
       endSession()
     }
     observeInbox()
   }
 
+  /** Restarts a failed inbox listener, retaining its last snapshot for this session. */
   fun retry() {
     if (_uiState.value.loadState == NotificationsLoadState.FAILED) observeInbox()
   }
@@ -129,6 +132,7 @@ class NotificationsViewModel(
   }
 
   companion object {
+    /** Creates an inbox ViewModel scoped to [currentUserId] using the supplied repositories. */
     fun factory(
         notificationRepository: NotificationRepository,
         authRepository: AuthRepository,
