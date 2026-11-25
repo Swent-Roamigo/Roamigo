@@ -199,6 +199,7 @@ service cloud.firestore {
       return suggestionId is string
           && suggestionId.trim().size() > 0
           && voteId == 'suggestion-' + suggestionId
+          // Numeric equality also accepts 1.0, so require integer round metadata.
           && vote.get('round', 1) is int
           && vote.options == [{'uid': 'YES', 'name': 'Yes'}, {'uid': 'NO', 'name': 'No'}]
           && hasNewSuggestion(vote, tripId, suggestionId, voteId);
