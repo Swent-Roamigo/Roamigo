@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -12,12 +13,14 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import java.time.LocalDate
 import java.time.LocalTime
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -96,6 +99,18 @@ class ItineraryScreenTest {
     show(ready())
 
     composeRule.onNodeWithTag(C.Tag.itinerary_waiting_suggestions).assertDoesNotExist()
+  }
+
+  @Test
+  fun aLaterSelectedDayKeepsThePreviousDayFullyInView() {
+    // Enough days after the selection that the row can scroll it to the start.
+    val days = (0L until 20L).map { sat.plusDays(it) }
+    val selected = days[10]
+    show(ItineraryUiState.Ready(days, selected, emptyList(), hasActivities = true))
+
+    composeRule.onNodeWithTag(C.Tag.itineraryDay(selected)).assertIsSelected().assertIsDisplayed()
+    val previous = composeRule.onNodeWithTag(C.Tag.itineraryDay(days[9])).getUnclippedBoundsInRoot()
+    assertTrue("previous day is cut off at ${previous.left}", previous.left >= 0.dp)
   }
 
   @Test

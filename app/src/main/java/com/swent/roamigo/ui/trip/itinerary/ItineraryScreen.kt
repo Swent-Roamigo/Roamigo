@@ -250,7 +250,8 @@ private fun DayChips(
   val listState = rememberLazyListState()
   val selectedIndex = days.indexOf(selected)
   LaunchedEffect(selectedIndex) {
-    if (selectedIndex >= 0) listState.animateScrollToItem(selectedIndex)
+    // Keep the previous day in view so the row shows where the selection sits in the trip.
+    if (selectedIndex >= 0) listState.animateScrollToItem((selectedIndex - 1).coerceAtLeast(0))
   }
   LazyRow(
       state = listState,
