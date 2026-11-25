@@ -11,6 +11,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.io.File
 import java.time.Instant
 import java.time.LocalDate
+import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -139,7 +140,11 @@ class DataStoreWeatherCacheTest {
   @Test
   fun theNewestSaveSurvivesEvenWhenItsForecastLooksOlder() = runTest {
     repeat(DataStoreWeatherCache.MAX_PLACES) { index ->
-      cache.put(index.toDouble(), 0.0, forecast("2026-11-%02dT10:00:00Z".format(index + 10)))
+      cache.put(
+          index.toDouble(),
+          0.0,
+          forecast("2026-11-%02dT10:00:00Z".format(Locale.ROOT, index + 10)),
+      )
     }
 
     cache.put(50.0, 0.0, forecast("2026-01-01T10:00:00Z"))
@@ -181,7 +186,11 @@ class DataStoreWeatherCacheTest {
   @Test
   fun keepsOnlyTheMostRecentPlaces() = runTest {
     repeat(DataStoreWeatherCache.MAX_PLACES + 2) { index ->
-      cache.put(index.toDouble(), 0.0, forecast("2026-11-%02dT10:00:00Z".format(index + 1)))
+      cache.put(
+          index.toDouble(),
+          0.0,
+          forecast("2026-11-%02dT10:00:00Z".format(Locale.ROOT, index + 1)),
+      )
     }
 
     assertNull(cache.getAll(0.0, 0.0))
@@ -203,7 +212,7 @@ class DataStoreWeatherCacheTest {
     cache.put(latitude, longitude, forecast())
     val key =
         store.data.first().asMap().keys.first {
-          it.name.contains("%.2f".format(java.util.Locale.ROOT, latitude))
+          it.name.contains("%.2f".format(Locale.ROOT, latitude))
         }
     store.edit { it[stringPreferencesKey(key.name)] = text }
   }
@@ -234,7 +243,11 @@ class DataStoreWeatherCacheTest {
   fun anUnreadableEntryIsTheFirstToGoWhenThereAreTooManyPlaces() = runTest {
     saveRaw(60.0, 10.0, "{not json")
     repeat(DataStoreWeatherCache.MAX_PLACES) { index ->
-      cache.put(index.toDouble(), 0.0, forecast("2026-11-%02dT10:00:00Z".format(index + 1)))
+      cache.put(
+          index.toDouble(),
+          0.0,
+          forecast("2026-11-%02dT10:00:00Z".format(Locale.ROOT, index + 1)),
+      )
     }
 
     assertNotNull(cache.getAll(0.0, 0.0))
@@ -348,7 +361,11 @@ class DataStoreWeatherCacheTest {
   @Test
   fun anEntryWhoseDaysCannotBeReadIsEvictedFirstEvenWithAValidOrder() = runTest {
     repeat(DataStoreWeatherCache.MAX_PLACES) { index ->
-      cache.put(index.toDouble(), 0.0, forecast("2026-11-%02dT10:00:00Z".format(index + 1)))
+      cache.put(
+          index.toDouble(),
+          0.0,
+          forecast("2026-11-%02dT10:00:00Z".format(Locale.ROOT, index + 1)),
+      )
     }
     // The newest save by its order, but its days are of no use.
     saveRaw(60.0, 10.0, """{"s":999999999,"d":[{"d":"yesterday","c":"SUNNY","h":1,"l":0,"t":1}]}""")
