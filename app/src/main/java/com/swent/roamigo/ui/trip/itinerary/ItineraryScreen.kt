@@ -10,9 +10,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -31,13 +33,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -156,6 +162,11 @@ private fun ItineraryContent(
   val locale = LocalConfiguration.current.locales[0]
   val timeFormatter =
       remember(locale) { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale) }
+  val startTimes =
+      remember(state.activities, timeFormatter) {
+        state.activities.map { timeFormatter.format(it.startTime) }
+      }
+  val timeColumnWidth = widestTextWidth(startTimes, MaterialTheme.typography.labelLarge)
   // Chips and rows share one scrolling list so rows stay reachable in landscape.
   LazyColumn(
       Modifier.fillMaxSize().testTag(C.Tag.itinerary_list),
@@ -185,8 +196,8 @@ private fun ItineraryContent(
       state.activities.isEmpty() ->
           item { EmptyPlan(stringResource(R.string.itinerary_empty_day), onAddActivity) }
       else ->
-          items(state.activities, key = { it.id }) { activity ->
-            ActivityRow(activity, timeFormatter.format(activity.startTime))
+          itemsIndexed(state.activities, key = { _, activity -> activity.id }) { index, activity ->
+            ActivityRow(activity, startTimes[index], timeColumnWidth)
           }
     }
     if (state.waitingSuggestions > 0) {
@@ -272,7 +283,7 @@ private fun DayChips(
 }
 
 @Composable
-private fun ActivityRow(activity: ItineraryActivity, startTime: String) {
+private fun ActivityRow(activity: ItineraryActivity, startTime: String, timeWidth: Dp) {
   Surface(
       modifier =
           Modifier.fillMaxWidth()
@@ -287,7 +298,7 @@ private fun ActivityRow(activity: ItineraryActivity, startTime: String) {
         horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-      Text(startTime, style = MaterialTheme.typography.labelLarge)
+      Text(startTime, Modifier.width(timeWidth), style = MaterialTheme.typography.labelLarge)
       Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(activity.name, style = MaterialTheme.typography.titleSmall)
         Text(
@@ -297,6 +308,16 @@ private fun ActivityRow(activity: ItineraryActivity, startTime: String) {
         )
       }
     }
+  }
+}
+
+/** Width of the widest of [texts] in [style], so a column of them lines up what follows. */
+@Composable
+private fun widestTextWidth(texts: List<String>, style: TextStyle): Dp {
+  val measurer = rememberTextMeasurer()
+  val density = LocalDensity.current
+  return remember(texts, style, density) {
+    with(density) { (texts.maxOfOrNull { measurer.measure(it, style).size.width } ?: 0).toDp() }
   }
 }
 
