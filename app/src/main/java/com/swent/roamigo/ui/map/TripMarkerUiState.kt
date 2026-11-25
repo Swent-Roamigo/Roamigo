@@ -22,6 +22,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.toLocalDate
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.Trip
@@ -90,8 +91,8 @@ fun TripLocation.toTripMarkerUiState(
         latitude = this.latitude,
         longitude = this.longitude,
         snippet = this.name,
-        startDate = trip.startDate.toDate().toInstant().atZone(zone).toLocalDate(),
-        endDate = trip.endDate.toDate().toInstant().atZone(zone).toLocalDate(),
+        startDate = trip.startDate.toLocalDate(zone),
+        endDate = trip.endDate.toLocalDate(zone),
     )
 
 /**

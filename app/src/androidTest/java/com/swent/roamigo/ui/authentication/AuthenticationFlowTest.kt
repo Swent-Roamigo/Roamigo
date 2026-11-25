@@ -1,8 +1,6 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.ui.authentication
 
-import android.content.Context
-import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
@@ -16,24 +14,20 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.credentials.ClearCredentialStateRequest
-import androidx.credentials.CredentialManager
-import androidx.credentials.CustomCredential
-import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
 import androidx.credentials.exceptions.ClearCredentialUnknownException
 import androidx.credentials.exceptions.GetCredentialCancellationException
-import androidx.credentials.exceptions.GetCredentialException
 import androidx.credentials.exceptions.NoCredentialException
 import androidx.lifecycle.Lifecycle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
+import com.swent.roamigo.model.authentication.FakeCredentialManager
 import com.swent.roamigo.model.destination.FakeDestinationRepository
 import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.resources.C
-import com.swent.roamigo.ui.RoamigoApp
+import com.swent.roamigo.ui.TestRoamigoApp
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
@@ -49,14 +43,14 @@ class AuthenticationFlowTest {
   @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
   private val user = AuthenticatedUser("test-user", "Test User", "test@example.test", null)
   private lateinit var repository: FakeAuthRepository
-  private lateinit var credentialManager: TestCredentialManager
+  private lateinit var credentialManager: FakeCredentialManager
 
   private fun launchApp(signedIn: Boolean = false) {
     repository = FakeAuthRepository(user, initiallySignedIn = signedIn)
-    credentialManager = TestCredentialManager(composeRule.activity)
+    credentialManager = FakeCredentialManager(composeRule.activity)
     composeRule.setContent {
       RoamigoTheme {
-        RoamigoApp(
+        TestRoamigoApp(
             friendRepository = FakeFriendRepository(user.uid),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = FakeDestinationRepository(),
@@ -299,33 +293,5 @@ class AuthenticationFlowTest {
     composeRule.runOnIdle { repository.failure = null }
     signIn()
     assertSignedInOnTrips()
-  }
-
-  /** Supplies credentials without opening Google's account picker. */
-  private class TestCredentialManager(context: Context) :
-      CredentialManager by CredentialManager.create(context) {
-    var failure: GetCredentialException? = null
-    var pendingResponse: CompletableDeferred<GetCredentialResponse>? = null
-    val credential = CustomCredential("test-credential", Bundle())
-    var clearRequests = 0
-    var clearFailure: ClearCredentialUnknownException? = null
-    var pendingClear: CompletableDeferred<Unit>? = null
-
-    override suspend fun clearCredentialState(request: ClearCredentialStateRequest) {
-      clearRequests++
-      pendingClear?.await()
-      clearFailure?.let { throw it }
-    }
-
-    override suspend fun getCredential(
-        context: Context,
-        request: GetCredentialRequest,
-    ): GetCredentialResponse {
-      failure?.let { throw it }
-      pendingResponse?.let {
-        return it.await()
-      }
-      return GetCredentialResponse(credential)
-    }
   }
 }

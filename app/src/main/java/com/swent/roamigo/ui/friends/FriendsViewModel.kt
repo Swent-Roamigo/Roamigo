@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.friends.FriendRepository
+import com.swent.roamigo.model.friends.FriendRepositoryException
 import com.swent.roamigo.model.friends.FriendRequest
 import com.swent.roamigo.model.friends.Friendship
 import com.swent.roamigo.model.users.User
@@ -33,10 +34,28 @@ enum class FriendsLoadError {
 enum class FriendsAction {
   ACCEPT,
   DECLINE,
+  CANCEL,
   REMOVE,
 }
 
-data class FriendsActionFailure(val relationshipId: String, val action: FriendsAction)
+enum class FriendsActionFailureReason {
+  CONFLICT,
+  NETWORK,
+  PERMISSION,
+  OTHER,
+}
+
+/**
+ * Describes a failed friendship action for the UI.
+ *
+ * [reason] is currently classified only for [FriendsAction.CANCEL]. Other actions use
+ * [FriendsActionFailureReason.OTHER].
+ */
+data class FriendsActionFailure(
+    val relationshipId: String,
+    val action: FriendsAction,
+    val reason: FriendsActionFailureReason = FriendsActionFailureReason.OTHER,
+)
 
 /**
  * Live relationship data, separate from the existing screen's travel-statistic presentation models.
@@ -222,8 +241,15 @@ class FriendsViewModel(
           } catch (cancelled: CancellationException) {
             throw cancelled
           } catch (error: Exception) {
-            if (error.isSessionFailure()) endSession()
-            else _uiState.update { it.copy(actionFailure = FriendsActionFailure(id, action)) }
+            if (error.isSessionFailure()) {
+              endSession()
+            } else {
+              val reason =
+                  if (action == FriendsAction.CANCEL) error.toCancellationFailureReason()
+                  else FriendsActionFailureReason.OTHER
+
+              _uiState.update { it.copy(actionFailure = FriendsActionFailure(id, action, reason)) }
+            }
           } finally {
             actionJobs.remove(id)
             _uiState.update { it.copy(processingIds = it.processingIds - id) }
@@ -239,10 +265,37 @@ class FriendsViewModel(
       when (action) {
         FriendsAction.ACCEPT,
         FriendsAction.DECLINE -> state.incomingRequests.none { it.uid == id }
+        FriendsAction.CANCEL -> state.outgoingRequests.none { it.uid == id }
+
         FriendsAction.REMOVE -> state.friends.none { it.uid == id }
       }
     }
   }
+
+  fun cancelRequest(requestId: String) {
+    val request =
+        _uiState.value.outgoingRequests.find {
+          it.uid == requestId && it.senderUserId == currentUserId
+        } ?: return
+
+    performAction(requestId, FriendsAction.CANCEL) {
+      friendRepository.cancelFriendRequest(
+          request.recipientUserId,
+          request.uid,
+      )
+    }
+  }
+
+  private fun Exception.toCancellationFailureReason(): FriendsActionFailureReason =
+      when (this) {
+        is FriendRepositoryException.Conflict -> FriendsActionFailureReason.CONFLICT
+
+        is FriendRepositoryException.Network -> FriendsActionFailureReason.NETWORK
+
+        is FriendRepositoryException.PermissionDenied -> FriendsActionFailureReason.PERMISSION
+
+        else -> FriendsActionFailureReason.OTHER
+      }
 
   private fun endSession() {
     sessionJob?.cancel()

@@ -15,6 +15,12 @@ on:
 permissions:
   contents: read
 
+env:
+  # Each milestone wiki page follows main until its deadline, so it always
+  # links the last build that started before the deadline. Add the next
+  # milestone here as soon as its deadline is announced (SwEnt public README).
+  MILESTONE_DEADLINES: M3=2026-12-11T08:45:00+01:00
+
 # Push runs share one group so a newer merge cancels the outdated build;
 # manual runs get their own group so a merge never cancels a milestone build.
 concurrency:
@@ -28,6 +34,8 @@ jobs:
     timeout-minutes: 25
     outputs:
       artifact: ${{ steps.apk.outputs.artifact }}
+      artifact-url: ${{ steps.upload.outputs.artifact-url }}
+      short-sha: ${{ steps.apk.outputs.short-sha }}
     env:
       # Push runs have no workflow_dispatch inputs, so fall back to a fixed label.
       MILESTONE: ${{ inputs.milestone || 'main' }}
@@ -84,9 +92,10 @@ jobs:
             echo "::error::No APK found at $apk."
             exit 1
           fi
+          short_sha=${GITHUB_SHA::7}
           # Push builds are identified by commit; manual builds keep the milestone naming.
           if [ "$GITHUB_EVENT_NAME" = push ]; then
-            name="roamigo-${GITHUB_SHA::7}.apk"
+            name="roamigo-$short_sha.apk"
             mkdir -p "$RUNNER_TEMP/apk"
             path="$RUNNER_TEMP/apk/$name"
             cp "$apk" "$path"
@@ -96,8 +105,10 @@ jobs:
           fi
           echo "artifact=$name" >> "$GITHUB_OUTPUT"
           echo "path=$path" >> "$GITHUB_OUTPUT"
+          echo "short-sha=$short_sha" >> "$GITHUB_OUTPUT"
 
       - name: Upload APK
+        id: upload
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.apk.outputs.artifact }}
@@ -178,3 +189,63 @@ jobs:
             gh release create "$TAG" "$apk" --prerelease --verify-tag \
               --title "$title" --notes-file notes.md
           fi
+
+  update-milestone-wiki:
+    name: Point the milestone wiki page at this APK
+    # Re-runs are allowed (e.g. the deadline build after a flaky test): the script
+    # never replaces a newer run on the page with an older one.
+    if: github.event_name == 'push'
+    needs: apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # The APK and the release are already published; a wiki failure only warns.
+    continue-on-error: true
+    permissions:
+      # actions: read to get this run's creation time, contents: write to push to the wiki.
+      actions: read
+      contents: write
+    concurrency:
+      group: milestone-wiki
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      WIKI_DIR: wiki
+      REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      RUN_NUMBER: ${{ github.run_number }}
+      SHORT_SHA: ${{ needs.apk.outputs.short-sha }}
+      ARTIFACT_NAME: ${{ needs.apk.outputs.artifact }}
+      ARTIFACT_URL: ${{ needs.apk.outputs.artifact-url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Update and push the wiki page
+        run: |
+          # The run's creation time is when the merge reached main, not when the build ended.
+          RUN_CREATED_AT=$(gh api "repos/$GH_REPO/actions/runs/$GITHUB_RUN_ID" --jq .created_at)
+          export RUN_CREATED_AT
+          # Pass the token as a header for this job only, so it is never stored in the clone.
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="http.https://github.com/.extraheader"
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
+          git clone --depth 1 "https://github.com/$GH_REPO.wiki.git" "$WIKI_DIR"
+          git -C "$WIKI_DIR" config user.name "github-actions[bot]"
+          git -C "$WIKI_DIR" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          bash .github/scripts/update-milestone-apk-wiki.sh
+          if [ -z "$(git -C "$WIKI_DIR" status --porcelain)" ]; then
+            echo "Wiki page already up to date."
+            exit 0
+          fi
+          git -C "$WIKI_DIR" add -A
+          git -C "$WIKI_DIR" commit -qm "Link milestone APK to run #$RUN_NUMBER ($SHORT_SHA)"
+          # Retry in case someone edits the wiki at the same time.
+          for _ in 1 2 3; do
+            git -C "$WIKI_DIR" push -q && exit 0
+            git -C "$WIKI_DIR" pull -q --rebase
+          done
+          echo "::warning::Could not push the milestone wiki page after 3 attempts."
+          exit 1

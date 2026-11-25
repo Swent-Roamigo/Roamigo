@@ -14,6 +14,10 @@ export const createRevote = onCall(callableOptions, async (request) => {
   const tripId = documentId(request.data?.tripId);
   const parentId = documentId(request.data?.parentVoteId);
   const childId = documentId(request.data?.voteId);
+  // Reserved IDs can only be created with their initial suggestion by the client transaction.
+  if (childId.startsWith("suggestion-")) {
+    throw new HttpsError("invalid-argument", "Reserved suggestion vote ID");
+  }
   if (parentId === childId) throw new HttpsError("invalid-argument", "A round needs a new ID");
   const db = getFirestore();
   const tripRef = db.doc(`trips/${tripId}`);

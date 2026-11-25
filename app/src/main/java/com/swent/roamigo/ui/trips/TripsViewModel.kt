@@ -7,9 +7,12 @@ import androidx.lifecycle.viewModelScope
 import com.google.firebase.Timestamp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.atZone
 import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.destination.DestinationPhoto
 import com.swent.roamigo.model.destination.DestinationRepository
+import com.swent.roamigo.model.toDomainInstant
+import com.swent.roamigo.model.toLocalDate
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.Trip
@@ -18,8 +21,8 @@ import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.trip.isCompletedOn
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
+import com.swent.roamigo.ui.trip.formatTripDateRange
 import java.time.Clock
-import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -135,8 +138,10 @@ class TripsViewModel(
               .searchDestinations(key.location.name)
               .filter {
                 (key.location.countryCode == null || it.countryCode == key.location.countryCode) &&
-                    kotlin.math.abs(it.latitude - key.location.latitude) < 0.02 &&
-                    kotlin.math.abs(it.longitude - key.location.longitude) < 0.02
+                    kotlin.math.abs(it.latitude - key.location.latitude) <
+                        PHOTO_MATCH_TOLERANCE_DEGREES &&
+                    kotlin.math.abs(it.longitude - key.location.longitude) <
+                        PHOTO_MATCH_TOLERANCE_DEGREES
               }
               .minByOrNull {
                 kotlin.math.abs(it.latitude - key.location.latitude) +
@@ -325,7 +330,7 @@ internal fun selectMainTrip(
 
   return eligibleTrips
       .filter { trip ->
-        val tripStartDate = trip.startDate.toDate().toInstant().atZone(now.zone).toLocalDate()
+        val tripStartDate = trip.startDate.toLocalDate(now.zone)
 
         tripStartDate.isBefore(now.toLocalDate())
       }
@@ -351,7 +356,7 @@ internal fun selectNextActivity(
         .mapNotNull { activity -> activity.startTime?.let { start -> activity to start } }
         .filter { (activity, start) ->
           activity.activityType == ActivityType.ACCEPTED &&
-              !start.toDate().toInstant().isBefore(now.toInstant())
+              !start.toDomainInstant().isBefore(now.toInstant())
         }
         .minByOrNull { (_, start) -> start }
         ?.first
@@ -391,9 +396,9 @@ private fun Trip.toMainTripUiModel(
     memberInitials: List<String>,
     now: ZonedDateTime,
 ): MainTripUiModel {
-  val start = startDate.toDate().toInstant().atZone(now.zone)
+  val start = startDate.atZone(now.zone)
 
-  val end = endDate.toDate().toInstant().atZone(now.zone)
+  val end = endDate.atZone(now.zone)
 
   // Both the first and last calendar day belong to the trip.
   val durationDays =
@@ -428,11 +433,7 @@ private fun Trip.toMainTripUiModel(
   return MainTripUiModel(
       id = uid,
       name = name,
-      dateRange =
-          formatTripDates(
-              start = start.toLocalDate(),
-              end = end.toLocalDate(),
-          ),
+      dateRange = formatTripDateRange(start.toLocalDate(), end.toLocalDate(), TRIPS_HOME_LOCALE),
       durationDays = durationDays,
       stopCount = stopCount,
       memberInitials = memberInitials,
@@ -452,18 +453,14 @@ private fun Trip.toOtherTripUiModel(
     memberCount: Int,
     now: ZonedDateTime,
 ): OtherTripUiModel {
-  val start = startDate.toDate().toInstant().atZone(now.zone).toLocalDate()
+  val start = startDate.toLocalDate(now.zone)
 
-  val end = endDate.toDate().toInstant().atZone(now.zone).toLocalDate()
+  val end = endDate.toLocalDate(now.zone)
 
   return OtherTripUiModel(
       id = uid,
       name = name,
-      dateRange =
-          formatTripDates(
-              start = start,
-              end = end,
-          ),
+      dateRange = formatTripDateRange(start, end, TRIPS_HOME_LOCALE),
       memberCount = memberCount,
       isInProgress = status == TripStatus.ACTIVE || !start.isAfter(now.toLocalDate()),
   )
@@ -483,9 +480,9 @@ private fun Activity.toUiModel(
     start: Timestamp,
     zoneId: ZoneId,
 ): ActivityCardUiModel {
-  val activityDateTime = start.toDate().toInstant().atZone(zoneId)
+  val activityDateTime = start.atZone(zoneId)
 
-  val tripStartDate = trip.startDate.toDate().toInstant().atZone(zoneId).toLocalDate()
+  val tripStartDate = trip.startDate.toLocalDate(zoneId)
 
   val dayNumber =
       ChronoUnit.DAYS.between(
@@ -497,7 +494,7 @@ private fun Activity.toUiModel(
   val formatter =
       DateTimeFormatter.ofPattern(
           "EEE d MMM · HH:mm",
-          Locale.ENGLISH,
+          TRIPS_HOME_LOCALE,
       )
 
   return ActivityCardUiModel(
@@ -508,36 +505,16 @@ private fun Activity.toUiModel(
 }
 
 /**
- * Formats a trip's start and end dates for display.
- *
- * @param start the first calendar day of the trip.
- * @param end the last calendar day of the trip.
- * @return the compact formatted date interval.
+ * Locale of the dates on the Trips home. The greeting and the "Day" label are written in English
+ * here, so the dates match them.
  */
-private fun formatTripDates(
-    start: LocalDate,
-    end: LocalDate,
-): String {
-  if (start.month == end.month && start.year == end.year) {
-    val month =
-        end.format(
-            DateTimeFormatter.ofPattern(
-                "MMM",
-                Locale.ENGLISH,
-            )
-        )
+private val TRIPS_HOME_LOCALE: Locale = Locale.ENGLISH
 
-    return "${start.dayOfMonth} – ${end.dayOfMonth} $month"
-  }
-
-  val formatter =
-      DateTimeFormatter.ofPattern(
-          "d MMM",
-          Locale.ENGLISH,
-      )
-
-  return "${start.format(formatter)} – ${end.format(formatter)}"
-}
+/**
+ * How far, in degrees of latitude and of longitude, a searched destination may be from the main
+ * trip's location for its photo to be shown (about 2 km).
+ */
+private const val PHOTO_MATCH_TOLERANCE_DEGREES = 0.02
 
 /**
  * Selects the greeting displayed in the screen header for the current time of day.

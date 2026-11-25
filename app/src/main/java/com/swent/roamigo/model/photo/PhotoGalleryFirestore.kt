@@ -1,6 +1,7 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.model.photo
 
+import android.util.Log
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
@@ -47,26 +48,44 @@ class PhotoGalleryFirestore(
               if (error != null) {
                 close(error)
               } else if (snapshot != null) {
-                trySend(snapshot.documents.mapNotNull { it.toTripPhoto() })
+                trySend(snapshot.documents.mapNotNull { it.toTripPhotoOrNull() })
               }
             }
     awaitClose { registration.remove() }
   }
 
+  // Firestore throws when a field holds another type than the one asked for. One such document
+  // must not stop the others from showing, nor end the listener.
+  private fun DocumentSnapshot.toTripPhotoOrNull(): TripPhoto? =
+      try {
+        toTripPhoto()
+      } catch (e: RuntimeException) {
+        Log.w(TAG, "Skipping malformed photo document $id", e)
+        null
+      }
+
   /** The photo in this document, or null if the document is not one the app wrote. */
   private fun DocumentSnapshot.toTripPhoto(): TripPhoto? {
     val image = getBlob(PhotoUploaderFirestore.IMAGE)?.toBytes() ?: return null
+    val latitude = getDouble(PhotoUploaderFirestore.LATITUDE)
+    val longitude = getDouble(PhotoUploaderFirestore.LONGITUDE)
+    // The position is one valid value: both coordinates, or none.
+    val position =
+        if (latitude != null && longitude != null) PhotoCoordinates.orNull(latitude, longitude)
+        else null
     return TripPhoto(
         id = id,
         uploadedBy = getString(PhotoUploaderFirestore.UPLOADED_BY) ?: return null,
         takenAtMillis = getLong(PhotoUploaderFirestore.TAKEN_AT) ?: return null,
-        latitude = getDouble(PhotoUploaderFirestore.LATITUDE),
-        longitude = getDouble(PhotoUploaderFirestore.LONGITUDE),
+        latitude = position?.latitude,
+        longitude = position?.longitude,
         image = image,
     )
   }
 
   companion object {
+    private const val TAG = "PhotoGalleryFirestore"
+
     /** Enough for a trip's worth of photos at a glance, and a bounded download. */
     const val LIMIT = 50L
   }

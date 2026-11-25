@@ -5,17 +5,20 @@ import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.FirebaseApp
-import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
-import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.firestore.MemoryCacheSettings
 import com.google.firebase.firestore.MemoryLruGcSettings
 import com.google.firebase.firestore.Source
+import com.swent.roamigo.FirebaseEmulators
+import com.swent.roamigo.FirebaseEmulators.AUTH_PORT
+import com.swent.roamigo.FirebaseEmulators.FUNCTIONS_PORT
+import com.swent.roamigo.FirebaseEmulators.HOST
+import com.swent.roamigo.FirebaseEmulators.PROJECT_ID
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
@@ -586,7 +589,7 @@ class UserDirectoryEmulatorTest {
 
       withContext(Dispatchers.IO) {
         val connection =
-            URL("http://10.0.2.2:5001/demo-roamigo/europe-west1/reclaimEmailLookup")
+            URL("http://$HOST:$FUNCTIONS_PORT/$PROJECT_ID/europe-west1/reclaimEmailLookup")
                 .openConnection() as HttpURLConnection
 
         try {
@@ -644,9 +647,9 @@ class UserDirectoryEmulatorTest {
       withContext(Dispatchers.IO) {
         val connection =
             URL(
-                    "http://10.0.2.2:9099/" +
+                    "http://$HOST:$AUTH_PORT/" +
                         "identitytoolkit.googleapis.com/v1/" +
-                        "projects/demo-roamigo/accounts:update"
+                        "projects/$PROJECT_ID/accounts:update"
                 )
                 .openConnection() as HttpURLConnection
 
@@ -722,37 +725,20 @@ class UserDirectoryEmulatorTest {
   ): Client {
     val name = UUID.randomUUID().toString()
 
-    val options =
-        FirebaseOptions.Builder()
-            .setProjectId("demo-roamigo")
-            .setApplicationId("1:1234567890:android:user-directory")
-            .setApiKey("test-key-$name")
-            .build()
-
     val app =
-        FirebaseApp.initializeApp(
-            InstrumentationRegistry.getInstrumentation().targetContext,
-            options,
-            name,
-        )
+        FirebaseEmulators.newApp(InstrumentationRegistry.getInstrumentation().targetContext, name)
 
     apps += app
 
-    val auth = FirebaseAuth.getInstance(app).apply { useEmulator("10.0.2.2", 9099) }
+    val auth = FirebaseEmulators.auth(app)
 
     val db =
-        FirebaseFirestore.getInstance(app).apply {
-          useEmulator("10.0.2.2", 8080)
-
-          firestoreSettings =
-              FirebaseFirestoreSettings.Builder()
-                  .setLocalCacheSettings(
-                      MemoryCacheSettings.newBuilder()
-                          .setGcSettings(MemoryLruGcSettings.newBuilder().build())
-                          .build()
-                  )
-                  .build()
-        }
+        FirebaseEmulators.firestore(
+            app,
+            MemoryCacheSettings.newBuilder()
+                .setGcSettings(MemoryLruGcSettings.newBuilder().build())
+                .build(),
+        )
 
     val user =
         if (email == null) {
