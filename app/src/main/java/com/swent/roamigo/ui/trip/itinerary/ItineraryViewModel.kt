@@ -17,6 +17,7 @@ import java.time.Clock
 import java.time.LocalDate
 import java.time.ZonedDateTime
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -35,7 +36,6 @@ import kotlinx.coroutines.flow.stateIn
  * The repository listeners only run while the UI is subscribed. Dates use the [clock]'s zone, which
  * is also the zone used for the trip's start and end dates.
  */
-@OptIn(ExperimentalCoroutinesApi::class)
 class ItineraryViewModel(
     private val tripId: String,
     private val activityRepository: ActivityRepository,
@@ -46,61 +46,21 @@ class ItineraryViewModel(
   private val chosenDay = MutableStateFlow<LocalDate?>(null)
   private val attempts = MutableStateFlow(0)
 
-  private val plan =
-      attempts
-          .flatMapLatest {
-            activityRepository
-                .observeActivities(tripId)
-                .map<List<Activity>, PlanUpdate> {
-                  PlanUpdate.Loaded(it.toPlanEntries(), it.suggestionVoteIds())
-                }
-                .onStart { emit(PlanUpdate.Retrying) }
-                .catch { emit(PlanUpdate.Failed) }
-          }
-          // Keep the last plan visible when live updates fail after a successful load.
-          .runningFold(PlanSnapshot(entries = null, failed = false)) { previous, update ->
-            when (update) {
-              is PlanUpdate.Loaded ->
-                  PlanSnapshot(update.entries, update.suggestionVoteIds, failed = false)
-              PlanUpdate.Retrying -> previous.copy(failed = false)
-              PlanUpdate.Failed -> previous.copy(failed = true)
-            }
-          }
+  private val activities = attempts.observeKeepingLast {
+    activityRepository.observeActivities(tripId)
+  }
 
-  // Votes only feed the suggestion count: a failure keeps the last count and offers a retry,
-  // like a failed plan refresh, instead of replacing the plan with an error.
-  private val votes =
-      attempts
-          .flatMapLatest {
-            voteRepository
-                .observeVotes(tripId)
-                .map<List<Vote>, VotesUpdate> { votes ->
-                  VotesUpdate.Loaded(votes.associateBy { it.uid })
-                }
-                .onStart { emit(VotesUpdate.Retrying) }
-                .catch { emit(VotesUpdate.Failed) }
-          }
-          .runningFold(VotesSnapshot(votesById = null, failed = false)) { previous, update ->
-            when (update) {
-              is VotesUpdate.Loaded -> VotesSnapshot(update.votesById, failed = false)
-              VotesUpdate.Retrying -> previous.copy(failed = false)
-              VotesUpdate.Failed -> previous.copy(failed = true)
-            }
-          }
+  // Votes only feed the suggestion count, so their failure warns like a failed plan refresh
+  // instead of replacing the plan with an error.
+  private val votes = attempts.observeKeepingLast { voteRepository.observeVotes(tripId) }
 
   val uiState: StateFlow<ItineraryUiState> =
-      combine(plan, votes, tripDays, chosenDay) { snapshot, voteSnapshot, days, chosen ->
-            val entries = snapshot.entries
+      combine(activities, votes, tripDays, chosenDay) { activities, votes, days, chosen ->
+            val loaded = activities.value
             when {
-              entries != null ->
-                  readyState(entries, days, chosen, snapshot.failed || voteSnapshot.failed)
-                      .copy(
-                          waitingSuggestions =
-                              voteSnapshot.votesById?.let {
-                                snapshot.suggestionVoteIds.countSuggestionsWithOpenRound(it)
-                              } ?: 0
-                      )
-              snapshot.failed -> ItineraryUiState.Error
+              loaded != null ->
+                  readyState(loaded, votes.value, days, chosen, activities.failed || votes.failed)
+              activities.failed -> ItineraryUiState.Error
               else -> ItineraryUiState.Loading
             }
           }
@@ -141,11 +101,13 @@ class ItineraryViewModel(
   }
 
   private fun readyState(
-      entries: List<PlanEntry>,
+      activities: List<Activity>,
+      votes: List<Vote>?,
       tripDays: List<LocalDate>,
       chosen: LocalDate?,
       failed: Boolean,
   ): ItineraryUiState.Ready {
+    val entries = activities.toPlanEntries()
     val byDay = entries.groupBy { it.start.toLocalDate() }
     val days = (tripDays + byDay.keys).distinct().sorted()
     val today = LocalDate.now(clock)
@@ -154,7 +116,7 @@ class ItineraryViewModel(
             ?: today.takeIf { it in days }
             ?: byDay.keys.minOrNull()
             ?: days.firstOrNull()
-    val activities =
+    val rows =
         byDay[selected]
             .orEmpty()
             .sortedWith(compareBy<PlanEntry> { it.start.toInstant() }.thenBy { it.activity.uid })
@@ -166,35 +128,20 @@ class ItineraryViewModel(
                   startTime = it.start.toLocalTime(),
               )
             }
-    return ItineraryUiState.Ready(days, selected, activities, entries.isNotEmpty(), failed)
+    // Until the votes have loaded once, no suggestion is known to be waiting.
+    val waitingSuggestions =
+        votes?.let { activities.suggestionVoteIds().countSuggestionsWithOpenRound(it) } ?: 0
+    return ItineraryUiState.Ready(
+        days,
+        selected,
+        rows,
+        entries.isNotEmpty(),
+        failed,
+        waitingSuggestions,
+    )
   }
 
   private data class PlanEntry(val activity: Activity, val start: ZonedDateTime)
-
-  private data class PlanSnapshot(
-      val entries: List<PlanEntry>?,
-      val suggestionVoteIds: List<String> = emptyList(),
-      val failed: Boolean,
-  )
-
-  private sealed interface PlanUpdate {
-    data class Loaded(val entries: List<PlanEntry>, val suggestionVoteIds: List<String>) :
-        PlanUpdate
-
-    data object Retrying : PlanUpdate
-
-    data object Failed : PlanUpdate
-  }
-
-  private data class VotesSnapshot(val votesById: Map<String, Vote>?, val failed: Boolean)
-
-  private sealed interface VotesUpdate {
-    data class Loaded(val votesById: Map<String, Vote>) : VotesUpdate
-
-    data object Retrying : VotesUpdate
-
-    data object Failed : VotesUpdate
-  }
 
   companion object {
     private const val STOP_TIMEOUT_MILLIS = 5_000L
@@ -214,10 +161,12 @@ class ItineraryViewModel(
  * Counts the suggestions, given by the IDs of their initial votes, whose current round is still
  * open. A revote continues the suggestion's vote through [Vote.nextRoundVoteId].
  */
-private fun List<String>.countSuggestionsWithOpenRound(votesById: Map<String, Vote>): Int =
-    count { initialVoteId ->
-      currentRound(initialVoteId, votesById)?.status == VoteStatus.OPEN
-    }
+private fun List<String>.countSuggestionsWithOpenRound(votes: List<Vote>): Int {
+  val votesById = votes.associateBy { it.uid }
+  return count { initialVoteId ->
+    currentRound(initialVoteId, votesById)?.status == VoteStatus.OPEN
+  }
+}
 
 private fun currentRound(initialVoteId: String, votesById: Map<String, Vote>): Vote? {
   var vote = votesById[initialVoteId] ?: return null
@@ -229,3 +178,25 @@ private fun currentRound(initialVoteId: String, votesById: Map<String, Vote>): V
     vote = next
   }
 }
+
+/**
+ * The latest value of a live source, or `null` before the first one, and whether its updates have
+ * stopped after a failure.
+ */
+private data class LiveValue<T>(val value: T?, val failed: Boolean)
+
+/**
+ * Collects [source] and starts it again each time this counter changes, as a retry. A failure keeps
+ * the last value and only sets [LiveValue.failed], so the screen can keep showing it with a
+ * warning; the next attempt clears the flag.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+private fun <T> Flow<Int>.observeKeepingLast(source: () -> Flow<T>): Flow<LiveValue<T>> =
+    flatMapLatest {
+      source()
+          .map<T, (LiveValue<T>) -> LiveValue<T>> { value -> { LiveValue(value, false) } }
+          .onStart { emit { it.copy(failed = false) } }
+          .catch { emit { it.copy(failed = true) } }
+    }
+    // Each event is a change to the previous state, so a failure cannot erase the last value.
+    .runningFold(LiveValue<T>(value = null, failed = false)) { last, change -> change(last) }
