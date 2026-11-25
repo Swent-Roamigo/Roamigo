@@ -1,6 +1,7 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.model.photo
 
+import android.util.Log
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -59,11 +60,14 @@ class PhotoSyncer(
     } catch (e: IOException) {
       queue.setStatus(photo.id, PhotoUploadStatus.FAILED)
       (e as? PhotoUploadException)?.retryable ?: true
-    } catch (_: Exception) {
+    } catch (e: Exception) {
       // Anything unplanned, e.g. from the encoder, must not leave the photo marked as uploading
       // with nothing running, nor stop the photos after it.
+      Log.w(TAG, "Unexpected failure while uploading photo ${photo.id}", e)
       queue.setStatus(photo.id, PhotoUploadStatus.FAILED)
       true
     }
   }
 }
+
+private const val TAG = "PhotoSyncer"
