@@ -451,6 +451,12 @@ class TripsViewModelTest {
     assertEquals(2, searchCount)
   }
 
+  /** A fake whose "today" is 8 October, the day of the clock these tests use. */
+  private fun weatherFake(
+      days: List<DailyForecast> = emptyList(),
+      failure: Exception? = null,
+  ) = FakeWeatherRepository(days, failure, Instant.parse("2026-10-08T10:00:00Z"))
+
   private fun chipViewModel(
       start: String,
       end: String,
@@ -471,7 +477,7 @@ class TripsViewModelTest {
 
   @Test
   fun theChipShowsTheFirstDayOfAnUpcomingTrip() = runTest {
-    val weather = FakeWeatherRepository(listOf(forecastDay("2026-10-12")))
+    val weather = weatherFake(listOf(forecastDay("2026-10-12")))
     val vm = chipViewModel("2026-10-12T00:00:00Z", "2026-10-19T00:00:00Z", weather)
 
     advanceUntilIdle()
@@ -489,7 +495,7 @@ class TripsViewModelTest {
 
   @Test
   fun theChipShowsTodayWhileTheTripIsInProgress() = runTest {
-    val weather = FakeWeatherRepository(listOf(forecastDay("2026-10-08", high = 18)))
+    val weather = weatherFake(listOf(forecastDay("2026-10-08", high = 18)))
     val vm =
         chipViewModel("2026-10-07T00:00:00Z", "2026-10-10T23:00:00Z", weather, TripStatus.ACTIVE)
 
@@ -503,7 +509,7 @@ class TripsViewModelTest {
 
   @Test
   fun noChipForATripBeyondTheForecastWindow() = runTest {
-    val weather = FakeWeatherRepository(listOf(forecastDay("2026-11-20")))
+    val weather = weatherFake(listOf(forecastDay("2026-11-20")))
     val vm = chipViewModel("2026-11-20T00:00:00Z", "2026-11-27T00:00:00Z", weather)
 
     advanceUntilIdle()
@@ -515,7 +521,7 @@ class TripsViewModelTest {
 
   @Test
   fun aFailingWeatherServiceNeitherHidesTheTripNorShowsAnError() = runTest {
-    val weather = FakeWeatherRepository(failure = WeatherUnavailableException("offline"))
+    val weather = weatherFake(failure = WeatherUnavailableException("offline"))
     val vm = chipViewModel("2026-10-12T00:00:00Z", "2026-10-19T00:00:00Z", weather)
 
     advanceUntilIdle()
@@ -537,7 +543,7 @@ class TripsViewModelTest {
 
           override suspend fun findPhoto(destination: Destination) = photo
         }
-    val weather = FakeWeatherRepository(listOf(forecastDay("2026-10-12")))
+    val weather = weatherFake(listOf(forecastDay("2026-10-12")))
     val vm =
         chipViewModel(
             "2026-10-12T00:00:00Z",
@@ -554,7 +560,7 @@ class TripsViewModelTest {
 
   @Test
   fun theChipIsKeptWhenTheTripsAreRefreshedWithoutAConnection() = runTest {
-    val weather = FakeWeatherRepository(listOf(forecastDay("2026-10-12")))
+    val weather = weatherFake(listOf(forecastDay("2026-10-12")))
     val vm = chipViewModel("2026-10-12T00:00:00Z", "2026-10-19T00:00:00Z", weather)
     advanceUntilIdle()
 
@@ -571,7 +577,7 @@ class TripsViewModelTest {
 
   @Test
   fun noChipAndNoRequestWithoutAMainTrip() = runTest {
-    val weather = FakeWeatherRepository(listOf(forecastDay("2026-10-12")))
+    val weather = weatherFake(listOf(forecastDay("2026-10-12")))
     val vm =
         TripsViewModel(
             FakeTripRepository(),
@@ -588,7 +594,7 @@ class TripsViewModelTest {
 
   @Test
   fun noChipAndNoRequestForATripWithoutADestination() = runTest {
-    val weather = FakeWeatherRepository(listOf(forecastDay("2026-10-12")))
+    val weather = weatherFake(listOf(forecastDay("2026-10-12")))
     val bare =
         trip("lisbon", "Lisbon", "2026-10-12T00:00:00Z", "2026-10-19T00:00:00Z", TripStatus.PLANNED)
             .copy(destinations = emptyList())
@@ -609,7 +615,7 @@ class TripsViewModelTest {
 
   @Test
   fun noChipWhenTheProviderHasNoForecastForTheTrip() = runTest {
-    val weather = FakeWeatherRepository(listOf(forecastDay("2026-10-25")))
+    val weather = weatherFake(listOf(forecastDay("2026-10-25")))
     val vm = chipViewModel("2026-10-12T00:00:00Z", "2026-10-19T00:00:00Z", weather)
 
     advanceUntilIdle()
@@ -620,7 +626,7 @@ class TripsViewModelTest {
 
   @Test
   fun theChipShowsTheNextDayWhenTheWantedOneIsMissing() = runTest {
-    val weather = FakeWeatherRepository(listOf(forecastDay("2026-10-13")))
+    val weather = weatherFake(listOf(forecastDay("2026-10-13")))
     val vm = chipViewModel("2026-10-12T00:00:00Z", "2026-10-19T00:00:00Z", weather)
 
     advanceUntilIdle()
@@ -633,7 +639,7 @@ class TripsViewModelTest {
   fun theChipFollowsTheDestinationsDayWhenItIsAheadOfTheDevice() = runTest {
     // It is the 8th on the device, but already the 9th at the destination.
     val weather =
-        FakeWeatherRepository(listOf(forecastDay("2026-10-08"), forecastDay("2026-10-09"))).apply {
+        weatherFake(listOf(forecastDay("2026-10-08"), forecastDay("2026-10-09"))).apply {
           destinationToday = LocalDate.parse("2026-10-09")
         }
     val vm =
@@ -650,7 +656,15 @@ class TripsViewModelTest {
   private class MemoryCache : com.swent.roamigo.model.weather.WeatherCache {
     var saved: com.swent.roamigo.model.weather.Forecast? = null
 
-    override suspend fun get(latitude: Double, longitude: Double) = saved
+    override suspend fun get(
+        latitude: Double,
+        longitude: Double,
+        from: LocalDate,
+        to: LocalDate,
+    ): com.swent.roamigo.model.weather.Forecast? =
+        saved
+            ?.let { it.copy(days = it.days.filter { day -> day.date in from..to }) }
+            ?.takeIf { it.days.isNotEmpty() }
 
     override suspend fun put(
         latitude: Double,
@@ -664,13 +678,17 @@ class TripsViewModelTest {
   @Test
   fun theChipDoesNotCutTheForecastSavedForTheTripScreenToOneDay() = runTest {
     val week = (12..19).map { forecastDay("2026-10-$it") }
-    val network = FakeWeatherRepository(week)
+    val network = weatherFake(week)
     val cache = MemoryCache()
     val weather =
         com.swent.roamigo.model.weather.CachingWeatherRepository(
             network,
             cache,
             Clock.fixed(Instant.parse("2026-10-08T10:00:00Z"), ZoneOffset.UTC),
+            // Saves at once, so the test can look at the cache as soon as the trips are loaded.
+            kotlinx.coroutines.CoroutineScope(
+                kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Unconfined
+            ),
         )
     val vm =
         TripsViewModel(
@@ -709,7 +727,7 @@ class TripsViewModelTest {
 
           override suspend fun findPhoto(destination: Destination): DestinationPhoto? = null
         }
-    val weather = FakeWeatherRepository(listOf(forecastDay("2026-10-12")))
+    val weather = weatherFake(listOf(forecastDay("2026-10-12")))
     val first =
         trip("a", "First", "2026-10-12T00:00:00Z", "2026-10-19T00:00:00Z", TripStatus.PLANNED)
     val trips = SwitchableTrips(listOf(first))
@@ -740,8 +758,7 @@ class TripsViewModelTest {
 
   @Test
   fun theChipOfAnEditedTripIsNotKeptWhenTheRefreshFails() = runTest {
-    val weather =
-        FakeWeatherRepository(listOf(forecastDay("2026-10-12"), forecastDay("2026-10-14")))
+    val weather = weatherFake(listOf(forecastDay("2026-10-12"), forecastDay("2026-10-14")))
     val first =
         trip("a", "First", "2026-10-12T00:00:00Z", "2026-10-19T00:00:00Z", TripStatus.PLANNED)
     val trips = SwitchableTrips(listOf(first))
@@ -766,7 +783,7 @@ class TripsViewModelTest {
 
   @Test
   fun theChipOfAnotherTripIsNotKeptWhenTheRefreshFails() = runTest {
-    val weather = FakeWeatherRepository(listOf(forecastDay("2026-10-12")))
+    val weather = weatherFake(listOf(forecastDay("2026-10-12")))
     val first =
         trip("a", "First", "2026-10-12T00:00:00Z", "2026-10-19T00:00:00Z", TripStatus.PLANNED)
     val second = first.copy(uid = "b", name = "Second")
