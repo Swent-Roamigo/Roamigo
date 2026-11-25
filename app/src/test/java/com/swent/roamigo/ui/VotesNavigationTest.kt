@@ -1,6 +1,7 @@
 // AI assistance was used for implementation support and code review.
 package com.swent.roamigo.ui
 
+import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -40,6 +41,7 @@ import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.flow.first
 import org.junit.Assert.assertEquals
@@ -47,6 +49,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 
 @RunWith(AndroidJUnit4::class)
 class VotesNavigationTest {
@@ -375,13 +378,14 @@ class VotesNavigationTest {
     composeRule.onNodeWithText("Start vote").performClick()
     composeRule.onNodeWithText("Where tomorrow?").assertIsDisplayed()
     composeRule.onNodeWithText(vote.question).assertIsDisplayed()
+    releasePlanListener()
     composeRule.runOnIdle {
       assertEquals(Route.TRIP_DETAILS, navController.currentBackStackEntry?.destination?.route)
       assertEquals(tripId, repository.snapshots.value.getOrThrow().last().tripId)
-      // The Plan tab opened first observes votes for its suggestion count and keeps its listener
-      // during its stop timeout; the Votes tab itself observes the trip again after returning.
+      // The Plan tab opened first observes votes for its suggestion count, then the Votes tab
+      // observes the trip again after returning.
       assertEquals(listOf(tripId, tripId, tripId), repository.observedTrips)
-      assertEquals(PLAN_AND_VOTES_OBSERVERS, repository.activeObservers)
+      assertEquals(1, repository.activeObservers)
       assertEquals(PLAN_AND_VOTES_OBSERVERS, repository.maximumObservers)
     }
     composeRule.onNode(hasText("Vote") and hasAnySibling(hasText("Where tomorrow?"))).performClick()
@@ -466,10 +470,11 @@ class VotesNavigationTest {
     composeRule.onNodeWithText("Votes").performClick()
     composeRule.onNodeWithText("Other trip vote?").assertIsDisplayed()
     composeRule.onNodeWithText(vote.question).assertDoesNotExist()
+    releasePlanListener()
     composeRule.runOnIdle {
-      // Both remaining listeners, the Plan's and the Votes tab's, follow the newly selected trip.
+      // The new trip's Plan and Votes tabs both observed it; only the Votes listener remains.
       assertEquals(listOf("other", "other"), repository.observedTrips.takeLast(2))
-      assertEquals(PLAN_AND_VOTES_OBSERVERS, repository.activeObservers)
+      assertEquals(1, repository.activeObservers)
     }
     assertTripAcrossDetailAndPhotos("other", "Other trip")
   }
@@ -533,17 +538,27 @@ class VotesNavigationTest {
     composeRule.onNodeWithTag(C.Tag.vote_question).assertTextEquals("Question", "")
     composeRule.onNodeWithText("Cancel").performClick()
     composeRule.onNodeWithText(vote.question).assertIsDisplayed()
+    releasePlanListener()
     composeRule.runOnIdle {
-      // The Plan tab opened first observes votes for its suggestion count and keeps its listener
-      // during its stop timeout; the Votes tab itself observes the trip again after returning.
+      // The Plan tab opened first observes votes for its suggestion count, then the Votes tab
+      // observes the trip again after returning.
       assertEquals(listOf(tripId, tripId, tripId), repository.observedTrips)
-      assertEquals(PLAN_AND_VOTES_OBSERVERS, repository.activeObservers)
+      assertEquals(1, repository.activeObservers)
       assertEquals(PLAN_AND_VOTES_OBSERVERS, repository.maximumObservers)
     }
   }
 
+  /** Lets the Plan's vote listener reach its stop timeout after the Votes tab replaced it. */
+  private fun releasePlanListener() {
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(PLAN_STOP_TIMEOUT_MILLIS + 1))
+    composeRule.waitForIdle()
+  }
+
   private companion object {
-    /** One vote listener for the Plan's suggestion count, one for the Votes tab. */
+    /** The Plan's and the Votes tab's listeners overlap only while switching tabs. */
     const val PLAN_AND_VOTES_OBSERVERS = 2
+
+    /** The Plan tab keeps observing for this long after it leaves the screen. */
+    const val PLAN_STOP_TIMEOUT_MILLIS = 5_000L
   }
 }
