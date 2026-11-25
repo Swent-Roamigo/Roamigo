@@ -10,6 +10,9 @@ import com.swent.roamigo.model.atZone
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.activity.ActivityRepository
+import com.swent.roamigo.model.trip.voting.Vote
+import com.swent.roamigo.model.trip.voting.VoteRepository
+import com.swent.roamigo.model.trip.voting.VoteStatus
 import java.time.Clock
 import java.time.LocalDate
 import java.time.ZonedDateTime
@@ -26,15 +29,17 @@ import kotlinx.coroutines.flow.runningFold
 import kotlinx.coroutines.flow.stateIn
 
 /**
- * Observes a trip's accepted activities and groups them by local day for the Plan tab.
+ * Observes a trip's accepted activities and groups them by local day for the Plan tab, and counts
+ * the suggestions whose vote is still open.
  *
- * The repository listener only runs while the UI is subscribed. Dates use the [clock]'s zone, which
+ * The repository listeners only run while the UI is subscribed. Dates use the [clock]'s zone, which
  * is also the zone used for the trip's start and end dates.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ItineraryViewModel(
     private val tripId: String,
     private val activityRepository: ActivityRepository,
+    private val voteRepository: VoteRepository,
     private val clock: Clock = Clock.systemDefaultZone(),
 ) : ViewModel() {
   private val tripDays = MutableStateFlow<List<LocalDate>>(emptyList())
@@ -46,24 +51,41 @@ class ItineraryViewModel(
           .flatMapLatest {
             activityRepository
                 .observeActivities(tripId)
-                .map<List<Activity>, PlanUpdate> { PlanUpdate.Loaded(it.toPlanEntries()) }
+                .map<List<Activity>, PlanUpdate> {
+                  PlanUpdate.Loaded(it.toPlanEntries(), it.suggestionVoteIds())
+                }
                 .onStart { emit(PlanUpdate.Retrying) }
                 .catch { emit(PlanUpdate.Failed) }
           }
           // Keep the last plan visible when live updates fail after a successful load.
           .runningFold(PlanSnapshot(entries = null, failed = false)) { previous, update ->
             when (update) {
-              is PlanUpdate.Loaded -> PlanSnapshot(update.entries, failed = false)
+              is PlanUpdate.Loaded ->
+                  PlanSnapshot(update.entries, update.suggestionVoteIds, failed = false)
               PlanUpdate.Retrying -> previous.copy(failed = false)
               PlanUpdate.Failed -> previous.copy(failed = true)
             }
           }
 
+  // Votes only feed the suggestion count, so their failure hides the count instead of the plan.
+  private val votes = attempts.flatMapLatest {
+    voteRepository
+        .observeVotes(tripId)
+        .map<List<Vote>, Map<String, Vote>?> { votes -> votes.associateBy { it.uid } }
+        .onStart { emit(null) }
+        .catch { emit(null) }
+  }
+
   val uiState: StateFlow<ItineraryUiState> =
-      combine(plan, tripDays, chosenDay) { snapshot, days, chosen ->
+      combine(plan, votes, tripDays, chosenDay) { snapshot, votesById, days, chosen ->
             val entries = snapshot.entries
             when {
-              entries != null -> readyState(entries, days, chosen, snapshot.failed)
+              entries != null ->
+                  readyState(entries, days, chosen, snapshot.failed)
+                      .copy(
+                          waitingSuggestions =
+                              votesById?.let { snapshot.suggestionVoteIds.countOpen(it) } ?: 0
+                      )
               snapshot.failed -> ItineraryUiState.Error
               else -> ItineraryUiState.Loading
             }
@@ -99,6 +121,11 @@ class ItineraryViewModel(
     PlanEntry(activity, start.atZone(clock.zone))
   }
 
+  // Legacy suggestions without a linked vote have nothing to vote on.
+  private fun List<Activity>.suggestionVoteIds(): List<String> = mapNotNull {
+    if (it.activityType == ActivityType.SUGGESTION) it.linkedVoteId else null
+  }
+
   private fun readyState(
       entries: List<PlanEntry>,
       tripDays: List<LocalDate>,
@@ -130,10 +157,15 @@ class ItineraryViewModel(
 
   private data class PlanEntry(val activity: Activity, val start: ZonedDateTime)
 
-  private data class PlanSnapshot(val entries: List<PlanEntry>?, val failed: Boolean)
+  private data class PlanSnapshot(
+      val entries: List<PlanEntry>?,
+      val suggestionVoteIds: List<String> = emptyList(),
+      val failed: Boolean,
+  )
 
   private sealed interface PlanUpdate {
-    data class Loaded(val entries: List<PlanEntry>) : PlanUpdate
+    data class Loaded(val entries: List<PlanEntry>, val suggestionVoteIds: List<String>) :
+        PlanUpdate
 
     data object Retrying : PlanUpdate
 
@@ -143,10 +175,32 @@ class ItineraryViewModel(
   companion object {
     private const val STOP_TIMEOUT_MILLIS = 5_000L
 
-    /** Creates the ViewModel for [tripId] backed by [activityRepository]. */
-    fun factory(tripId: String, activityRepository: ActivityRepository): ViewModelProvider.Factory =
-        viewModelFactory {
-          initializer { ItineraryViewModel(tripId, activityRepository) }
-        }
+    /** Creates the ViewModel for [tripId] backed by [activityRepository] and [voteRepository]. */
+    fun factory(
+        tripId: String,
+        activityRepository: ActivityRepository,
+        voteRepository: VoteRepository,
+    ): ViewModelProvider.Factory = viewModelFactory {
+      initializer { ItineraryViewModel(tripId, activityRepository, voteRepository) }
+    }
+  }
+}
+
+/**
+ * Counts the suggestions, given by the IDs of their initial votes, whose current round is still
+ * open. A revote continues the suggestion's vote through [Vote.nextRoundVoteId].
+ */
+internal fun List<String>.countOpen(votesById: Map<String, Vote>): Int = count { initialVoteId ->
+  currentRound(initialVoteId, votesById)?.status == VoteStatus.OPEN
+}
+
+private fun currentRound(initialVoteId: String, votesById: Map<String, Vote>): Vote? {
+  var vote = votesById[initialVoteId] ?: return null
+  val visited = mutableSetOf(vote.uid)
+  while (true) {
+    // A next round that has not arrived yet leaves the latest known round as the current one.
+    val next = vote.nextRoundVoteId?.let(votesById::get) ?: return vote
+    if (!visited.add(next.uid)) return vote
+    vote = next
   }
 }
