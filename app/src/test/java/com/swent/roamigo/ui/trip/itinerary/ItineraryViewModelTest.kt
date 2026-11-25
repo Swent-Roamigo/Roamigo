@@ -8,6 +8,11 @@ import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.activity.ActivityDraft
 import com.swent.roamigo.model.trip.activity.ActivityRepository
+import com.swent.roamigo.model.trip.activity.initialSuggestionVoteId
+import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
+import com.swent.roamigo.model.trip.voting.Vote
+import com.swent.roamigo.model.trip.voting.VoteOption
+import com.swent.roamigo.model.trip.voting.VoteStatus
 import java.time.Clock
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -46,6 +51,7 @@ class ItineraryViewModelTest {
   private val subscribers = CoroutineScope(dispatcher + SupervisorJob())
   private val store = ViewModelStore()
   private val repository = ControlledActivityRepository()
+  private val votes = InMemoryVoteRepository()
   private lateinit var viewModel: ItineraryViewModel
 
   @Before
@@ -62,7 +68,7 @@ class ItineraryViewModelTest {
 
   private fun createViewModel(today: LocalDate = DAY_1) {
     val clock = Clock.fixed(today.atTime(12, 0).atZone(ZONE).toInstant(), ZONE)
-    viewModel = ItineraryViewModel(TRIP_ID, repository, clock)
+    viewModel = ItineraryViewModel(TRIP_ID, repository, votes, clock)
     subscribers.launch { viewModel.uiState.collect() }
     store.put("itinerary", viewModel)
   }
@@ -251,11 +257,79 @@ class ItineraryViewModelTest {
         createViewModel()
         runCurrent()
         assertEquals(1, repository.activeObservers)
+        assertEquals(1, votes.activeObservers)
 
         subscribers.cancel()
         dispatcher.scheduler.advanceTimeBy(5_001)
         runCurrent()
         assertEquals(0, repository.activeObservers)
+        assertEquals(0, votes.activeObservers)
+      }
+
+  @Test
+  fun countsSuggestionsWhoseCurrentVoteRoundIsOpen() =
+      runTest(dispatcher) {
+        val revoted = vote(suggestionVoteId("revoted"), VoteStatus.CLOSED, nextRound = "round-2")
+        votes.snapshots.value =
+            Result.success(
+                listOf(
+                    vote(suggestionVoteId("open"), VoteStatus.OPEN),
+                    vote(suggestionVoteId("decided"), VoteStatus.CLOSED),
+                    revoted,
+                    vote("round-2", VoteStatus.OPEN),
+                    vote(suggestionVoteId("pending-round"), VoteStatus.CLOSED, nextRound = "late"),
+                )
+            )
+        repository.activities.value =
+            listOf("open", "decided", "revoted", "pending-round", "no-vote-yet").map {
+              suggestion(it)
+            } + suggestion("legacy").copy(linkedVoteId = null)
+        createViewModel()
+        viewModel.setTripDates(DAY_1, DAY_2)
+        runCurrent()
+        assertEquals(2, ready().waitingSuggestions)
+
+        // Closing the second round settles the revoted suggestion.
+        votes.snapshots.value =
+            Result.success(
+                votes.snapshots.value.getOrThrow().map {
+                  if (it.uid == "round-2") it.copy(status = VoteStatus.CLOSED) else it
+                }
+            )
+        runCurrent()
+        assertEquals(1, ready().waitingSuggestions)
+
+        // An accepted suggestion no longer waits, whatever its vote says.
+        repository.activities.value =
+            repository.activities.value.map {
+              if (it.uid == "open") it.copy(activityType = ActivityType.ACCEPTED) else it
+            }
+        runCurrent()
+        assertEquals(0, ready().waitingSuggestions)
+      }
+
+  @Test
+  fun aVoteFailureHidesTheSuggestionCountButKeepsThePlan() =
+      runTest(dispatcher) {
+        votes.snapshots.value =
+            Result.success(listOf(vote(suggestionVoteId("open"), VoteStatus.OPEN)))
+        repository.activities.value = listOf(activity("a", DAY_1.atTime(9, 0)), suggestion("open"))
+        createViewModel()
+        viewModel.setTripDates(DAY_1, DAY_2)
+        runCurrent()
+        assertEquals(1, ready().waitingSuggestions)
+
+        val loaded = votes.snapshots.value
+        votes.snapshots.value = Result.failure(IllegalStateException("listener lost"))
+        runCurrent()
+        assertEquals(0, ready().waitingSuggestions)
+        assertEquals(listOf("a"), ready().activities.map { it.id })
+        assertFalse(ready().refreshFailed)
+
+        votes.snapshots.value = loaded
+        viewModel.retry()
+        runCurrent()
+        assertEquals(1, ready().waitingSuggestions)
       }
 
   private fun activity(
@@ -274,6 +348,26 @@ class ItineraryViewModelTest {
           endTime = null,
           createdByUserId = "alex",
           creationTime = Timestamp(0, 0),
+      )
+
+  private fun suggestion(id: String) =
+      activity(id, DAY_1.atTime(10, 0), ActivityType.SUGGESTION)
+          .copy(linkedVoteId = suggestionVoteId(id))
+
+  private fun suggestionVoteId(suggestionId: String) = initialSuggestionVoteId(suggestionId)
+
+  private fun vote(id: String, status: VoteStatus, nextRound: String? = null) =
+      Vote(
+          uid = id,
+          tripId = TRIP_ID,
+          question = id,
+          options = listOf(VoteOption("YES", "Yes"), VoteOption("NO", "No")),
+          createdByUserId = "alex",
+          status = status,
+          creationTime = Timestamp(0, 0),
+          closingTime = null,
+          winningOptionId = null,
+          nextRoundVoteId = nextRound,
       )
 
   private fun timestamp(instant: java.time.Instant) = Timestamp(instant.epochSecond, instant.nano)
