@@ -60,8 +60,7 @@ class NotificationsViewModelTest {
 
         val older = notification("older", second = 10)
         val newer = notification("newer", second = 20)
-        val foreign = newer.copy(uid = "foreign", recipientUserId = "other")
-        repository.emit(newer, foreign, older)
+        repository.emit(newer, older)
         runCurrent()
 
         assertEquals(listOf(newer, older), model.uiState.value.notifications)

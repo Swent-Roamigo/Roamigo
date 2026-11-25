@@ -99,13 +99,12 @@ class NotificationsViewModel(
   }
 
   private fun publishInbox(entries: List<Notification>) {
-    val inbox = entries.filter { it.recipientUserId == currentUserId }
     _uiState.update { state ->
       state.copy(
           loadState = NotificationsLoadState.READY,
-          notifications = inbox,
+          notifications = entries,
           failedReadIds =
-              inbox
+              entries
                   .filter { !it.isRead && it.uid in state.failedReadIds }
                   .mapTo(mutableSetOf()) { it.uid },
       )
