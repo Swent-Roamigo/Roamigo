@@ -86,6 +86,9 @@ enum class ActivityFormError(val field: ActivityFormField, @StringRes val messag
   /** The picked place has no usable name or coordinates. */
   INVALID_PLACE(ActivityFormField.PLACE, R.string.activity_form_error_place_invalid),
 
+  /** No start time was chosen, which every itinerary activity needs. */
+  MISSING_TIME(ActivityFormField.TIME, R.string.activity_form_error_time_missing),
+
   /** The activity would end before it starts. */
   END_BEFORE_START(ActivityFormField.TIME, R.string.activity_form_error_end_before_start),
 }

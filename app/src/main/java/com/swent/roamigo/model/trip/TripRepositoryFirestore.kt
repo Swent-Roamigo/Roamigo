@@ -7,6 +7,7 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.toFirebaseTimestamp
 import com.swent.roamigo.model.validCountryCodeOrNull
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.tasks.await
@@ -181,19 +182,26 @@ internal fun tripMemberFromFirestore(data: Map<String, Any?>): TripMember =
         joinTime = data.requiredTimestamp("joinTime"),
     )
 
-internal fun activityFromFirestore(id: String, tripId: String, data: Map<String, Any?>): Activity =
-    Activity(
-        uid = id,
-        tripId = tripId,
-        activityType = data.requiredEnum<ActivityType>("activityType"),
-        name = data.requiredString("name"),
-        description = data.optionalString("description"),
-        location = tripLocationFromFirestore(data["location"]),
-        startTime = data.requiredTimestamp("startTime"),
-        endTime = data.optionalTimestamp("endTime"),
-        createdByUserId = data.requiredString("createdByUserId"),
-        creationTime = data.requiredTimestamp("creationTime"),
-    )
+internal fun activityFromFirestore(id: String, tripId: String, data: Map<String, Any?>): Activity {
+  val activityType = data.requiredEnum<ActivityType>("activityType")
+  val startTime = data.optionalTimestamp("startTime")
+  val endTime = data.optionalTimestamp("endTime")
+  // Only a suggestion may be unscheduled, and an end is meaningless without a start.
+  require(startTime != null || activityType == ActivityType.SUGGESTION) { "Missing startTime" }
+  require(startTime != null || endTime == null) { "endTime without startTime" }
+  return Activity(
+      uid = id,
+      tripId = tripId,
+      activityType = activityType,
+      name = data.requiredString("name"),
+      description = data.optionalString("description"),
+      location = tripLocationFromFirestore(data["location"]),
+      startTime = startTime,
+      endTime = endTime,
+      createdByUserId = data.requiredString("createdByUserId"),
+      creationTime = data.requiredTimestamp("creationTime"),
+  )
+}
 
 // The ID and trip come from the document path, so they are not stored as fields.
 internal fun Activity.toFirestoreData(): Map<String, Any?> =

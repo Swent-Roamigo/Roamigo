@@ -2,11 +2,6 @@
 package com.swent.roamigo.ui.authentication
 
 import android.content.Context
-import android.os.Bundle
-import androidx.credentials.CredentialManager
-import androidx.credentials.CustomCredential
-import androidx.credentials.GetCredentialRequest
-import androidx.credentials.GetCredentialResponse
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialUnknownException
 import androidx.credentials.exceptions.NoCredentialException
@@ -15,6 +10,7 @@ import com.swent.roamigo.R
 import com.swent.roamigo.model.authentication.AuthException
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
+import com.swent.roamigo.model.authentication.FakeCredentialManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -40,7 +36,7 @@ class AuthenticationViewModelStateTest {
   private val context = ApplicationProvider.getApplicationContext<Context>()
   private val user = AuthenticatedUser("test-user", "Test User", null, null)
   private val repository = FakeAuthRepository(user)
-  private val manager = TestCredentialManager(context)
+  private val manager = FakeCredentialManager(context)
 
   @Before
   fun setUp() {
@@ -73,14 +69,14 @@ class AuthenticationViewModelStateTest {
               )
 
               manager.failure = null
-              manager.pending = CompletableDeferred()
+              manager.pendingResponse = CompletableDeferred()
               viewModel.signIn(context, manager)
               assertEquals(AuthenticationUiState(isLoading = true), viewModel.uiState.value)
               advanceUntilIdle()
-              manager.pending!!.complete(manager.response)
+              manager.pendingResponse!!.complete(manager.response)
               advanceUntilIdle()
               assertEquals(AuthenticationUiState(user = user), viewModel.uiState.value)
-              manager.pending = null
+              manager.pendingResponse = null
             }
       }
 
@@ -105,14 +101,14 @@ class AuthenticationViewModelStateTest {
               )
 
               failingRepository.failure = null
-              manager.pending = CompletableDeferred()
+              manager.pendingResponse = CompletableDeferred()
               viewModel.signIn(context, manager)
               assertEquals(AuthenticationUiState(isLoading = true), viewModel.uiState.value)
               advanceUntilIdle()
-              manager.pending!!.complete(manager.response)
+              manager.pendingResponse!!.complete(manager.response)
               advanceUntilIdle()
               assertEquals(AuthenticationUiState(user = user), viewModel.uiState.value)
-              manager.pending = null
+              manager.pendingResponse = null
             }
       }
 
@@ -135,35 +131,18 @@ class AuthenticationViewModelStateTest {
   @Test
   fun duplicateRequestsAreIgnoredWhileLoadingAndAfterSuccess() =
       runTest(dispatcher) {
-        manager.pending = CompletableDeferred()
+        manager.pendingResponse = CompletableDeferred()
         val viewModel = AuthenticationViewModel(repository)
         viewModel.signIn(context, manager)
         viewModel.signIn(context, manager)
         advanceUntilIdle()
         assertEquals(1, manager.requests)
         assertEquals(AuthenticationUiState(isLoading = true), viewModel.uiState.value)
-        manager.pending!!.complete(manager.response)
+        manager.pendingResponse!!.complete(manager.response)
         advanceUntilIdle()
         viewModel.signIn(context, manager)
         advanceUntilIdle()
         assertEquals(1, manager.requests)
         assertEquals(AuthenticationUiState(user = user), viewModel.uiState.value)
       }
-
-  private class TestCredentialManager(context: Context) :
-      CredentialManager by CredentialManager.create(context) {
-    var requests = 0
-    var failure: Exception? = null
-    var pending: CompletableDeferred<GetCredentialResponse>? = null
-    val response = GetCredentialResponse(CustomCredential("test-credential", Bundle()))
-
-    override suspend fun getCredential(
-        context: Context,
-        request: GetCredentialRequest,
-    ): GetCredentialResponse {
-      requests++
-      failure?.let { throw it }
-      return pending?.await() ?: response
-    }
-  }
 }

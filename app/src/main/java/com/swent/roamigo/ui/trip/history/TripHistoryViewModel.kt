@@ -4,6 +4,7 @@ package com.swent.roamigo.ui.trip.history
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.swent.roamigo.model.toLocalDate
 import com.swent.roamigo.model.trip.Trip
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.isCompletedOn
@@ -40,9 +41,9 @@ class TripHistoryViewModel(
 
         val items =
             selectCompletedTrips(trips, today, clock.zone).map { trip ->
-              val startDate = trip.startDate.toDate().toInstant().atZone(clock.zone).toLocalDate()
+              val startDate = trip.startDate.toLocalDate(clock.zone)
 
-              val endDate = trip.endDate.toDate().toInstant().atZone(clock.zone).toLocalDate()
+              val endDate = trip.endDate.toLocalDate(clock.zone)
 
               TripHistoryItemUiModel(
                   id = trip.uid,

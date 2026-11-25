@@ -5,11 +5,11 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.swent.roamigo.model.toFirebaseTimestamp
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.activityFromFirestore
 import com.swent.roamigo.model.trip.requireData
-import com.swent.roamigo.model.trip.toFirebaseTimestamp
 import com.swent.roamigo.model.trip.toFirestoreData
 import com.swent.roamigo.model.trip.validDocumentId
 import kotlinx.coroutines.CancellationException
@@ -33,26 +33,41 @@ class ActivityRepositoryFirestore(
       tripId: String,
       activityId: String,
       draft: ActivityDraft,
+  ): Activity = create(tripId, activityId, draft, ActivityType.ACCEPTED)
+
+  override suspend fun createSuggestion(
+      tripId: String,
+      suggestionId: String,
+      draft: ActivityDraft,
+  ): Activity = create(tripId, suggestionId, draft, ActivityType.SUGGESTION)
+
+  private suspend fun create(
+      tripId: String,
+      activityId: String,
+      draft: ActivityDraft,
+      type: ActivityType,
   ): Activity {
     val authorId = currentUserId() ?: throw ActivityCreationException.NotAuthenticated()
-    val errors = draft.validate()
-    if (errors.isNotEmpty()) throw ActivityCreationException.Validation(errors)
     // A malformed ID is a caller bug, so it is thrown as is instead of as an unknown failure.
     val document = activities(tripId).document(validDocumentId(activityId))
 
-    val activity =
+    val outcome =
         try {
           // A transaction makes the existence check and the write atomic, so a retry after an
           // ambiguous failure cannot overwrite the first attempt.
           db.runTransaction { transaction ->
                 val existing = transaction.get(document)
                 if (existing.exists()) {
-                  activityFromFirestore(existing.id, tripId, existing.requireData())
-                } else {
-                  val created = draft.toActivity(activityId, tripId, authorId, Timestamp.now())
-                  transaction.set(document, created.toFirestoreData())
-                  created
+                  return@runTransaction CreationOutcome.Stored(
+                      activityFromFirestore(existing.id, tripId, existing.requireData())
+                  )
                 }
+                val errors = draft.validate(startRequired = type == ActivityType.ACCEPTED)
+                if (errors.isNotEmpty()) return@runTransaction CreationOutcome.InvalidDraft(errors)
+
+                val created = draft.toActivity(activityId, tripId, authorId, Timestamp.now(), type)
+                transaction.set(document, created.toFirestoreData())
+                CreationOutcome.Stored(created)
               }
               .await()
         } catch (error: CancellationException) {
@@ -65,8 +80,10 @@ class ActivityRepositoryFirestore(
 
     // Deciding outside the transaction keeps the exception types independent of how Firestore
     // reports failures thrown from inside a transaction function.
-    if (activity.createdByUserId != authorId) throw ActivityCreationException.PermissionDenied()
-    return activity
+    return when (outcome) {
+      is CreationOutcome.Stored -> outcome.activity.requireCreationMatch(authorId, type)
+      is CreationOutcome.InvalidDraft -> throw ActivityCreationException.Validation(outcome.errors)
+    }
   }
 
   override fun observeActivities(tripId: String): Flow<List<Activity>> = callbackFlow {
@@ -94,6 +111,12 @@ class ActivityRepositoryFirestore(
       db.collection("trips").document(validDocumentId(tripId)).collection("activities")
 }
 
+private sealed interface CreationOutcome {
+  data class Stored(val activity: Activity) : CreationOutcome
+
+  data class InvalidDraft(val errors: List<ActivityDraftError>) : CreationOutcome
+}
+
 private fun FirebaseFirestoreException.toActivityCreationException(): ActivityCreationException =
     when (code) {
       FirebaseFirestoreException.Code.PERMISSION_DENIED ->
@@ -108,15 +131,16 @@ internal fun ActivityDraft.toActivity(
     tripId: String,
     authorId: String,
     createdAt: Timestamp,
+    type: ActivityType = ActivityType.ACCEPTED,
 ): Activity =
     Activity(
         uid = activityId,
         tripId = tripId,
-        activityType = ActivityType.ACCEPTED,
+        activityType = type,
         name = name,
         description = description,
         location = location,
-        startTime = startTime.toFirebaseTimestamp(),
+        startTime = startTime?.toFirebaseTimestamp(),
         endTime = endTime?.toFirebaseTimestamp(),
         createdByUserId = authorId,
         creationTime = createdAt,

@@ -247,3 +247,16 @@ test('clients cannot reassign an existing email lookup', async () => {
     previousUid,
   );
 });
+
+test('email lookup refuses unknown fields', async () => {
+  const uid = `extra-${randomUUID()}`;
+  const address = `extra.${randomUUID()}@example.org`;
+  const path = `userEmailLookups/${hash(address)}`;
+
+  await expectStatus(
+    403, 'PATCH', path, uid, address, true,
+    { uid: str(uid), extra: str('value') },
+  );
+
+  await expectStatus(404, 'GET', path, uid);
+});

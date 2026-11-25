@@ -112,7 +112,7 @@ class ActivityFormScreenTest {
             ActivityFormTestTags.DESCRIPTION,
         )
         .forEach { compose.onNodeWithTag(it).performScrollTo().assertIsDisplayed() }
-    compose.onNodeWithText("Add a time (optional)").assertExists()
+    compose.onNodeWithText("Add a start time").assertExists()
     compose.onNodeWithText("Choose a place").assertExists()
     compose.onNodeWithTag(ActivityFormTestTags.TIME_CLEAR).assertDoesNotExist()
     compose.onNodeWithTag(ActivityFormTestTags.SUBMIT).assertTextContains("Add activity")

@@ -199,6 +199,69 @@ class PhotoGalleryFirestoreTest {
   }
 
   @Test
+  fun skipsADocumentWhoseFieldHasTheWrongType() = runTest {
+    val received = mutableListOf<List<TripPhoto>>()
+    val job =
+        launch(UnconfinedTestDispatcher(testScheduler)) {
+          gallery().observe("t1").collect { received += it }
+        }
+    // Firestore throws when a field holds another type than the one asked for.
+    val wrongTime = document("wrong-time")
+    `when`(wrongTime.getLong("takenAt")).thenThrow(RuntimeException("not a number"))
+    val wrongImage = document("wrong-image")
+    `when`(wrongImage.getBlob("image")).thenThrow(RuntimeException("not a blob"))
+
+    listener!!.onEvent(snapshot(document("a"), wrongTime, wrongImage, document("b")), null)
+
+    assertEquals(listOf("a", "b"), received.single().map { it.id })
+    job.cancel()
+  }
+
+  @Test
+  fun dropsAPositionThatHasOnlyOneCoordinate() = runTest {
+    val received = mutableListOf<List<TripPhoto>>()
+    val job =
+        launch(UnconfinedTestDispatcher(testScheduler)) {
+          gallery().observe("t1").collect { received += it }
+        }
+
+    listener!!.onEvent(snapshot(document("a", latitude = 46.5)), null)
+
+    assertEquals(listOf("a"), received.single().map { it.id })
+    assertNull(received.single().single().latitude)
+    assertNull(received.single().single().longitude)
+    job.cancel()
+  }
+
+  @Test
+  fun dropsAPositionThatIsOutOfRangeButKeepsThePhoto() = runTest {
+    val received = mutableListOf<List<TripPhoto>>()
+    val job =
+        launch(UnconfinedTestDispatcher(testScheduler)) {
+          gallery().observe("t1").collect { received += it }
+        }
+
+    listener!!.onEvent(
+        snapshot(
+            document("a", latitude = 200.0, longitude = 6.6),
+            document("b", latitude = Double.NaN, longitude = 6.6),
+            document("c", latitude = 46.5, longitude = 6.6),
+        ),
+        null,
+    )
+
+    val photos = received.single()
+    assertEquals(listOf("a", "b", "c"), photos.map { it.id })
+    assertNull(photos[0].latitude)
+    assertNull(photos[0].longitude)
+    assertNull(photos[1].latitude)
+    assertNull(photos[1].longitude)
+    assertEquals(46.5, photos[2].latitude)
+    assertEquals(6.6, photos[2].longitude)
+    job.cancel()
+  }
+
+  @Test
   fun emitsAgainWhenAPhotoIsAdded() = runTest {
     val received = mutableListOf<List<String>>()
     val job =
