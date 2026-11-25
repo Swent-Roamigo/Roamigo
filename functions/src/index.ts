@@ -60,4 +60,9 @@ export {
 
 export {reclaimEmailLookup} from "./userEmailLookup.js";
 
+export {
+  sendDirectTripInvitation,
+  listIncomingDirectTripInvitations,
+  listSentDirectTripInvitations,
+} from "./directTripInvitations.js";
 export {notifyFriendRequest, notifyTripVoteCreated} from "./notifications.js";

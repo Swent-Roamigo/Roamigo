@@ -14,6 +14,24 @@ tripInvitations/{token}      // written and read only by Cloud Functions, never 
     creationTime: timestamp
     expirationTime: timestamp  // 7 days after creation
 
+directTripInvitations/{invitationId} // Cloud Functions only; no client access
+    // invitationId = SHA-256(JSON.stringify([tripId, inviteeUserId]))
+    tripId: string
+    inviterUserId: string         // organizer at creation
+    inviteeUserId: string         // specific recipient
+    requestId: string             // new for each invitation generation
+    friendshipRequestId: string   // identifies the accepted friendship generation
+    friendshipCreatedAt: timestamp  // creation time of the authorizing friendship
+    status: "PENDING"             // other transitions belong to the follow-up
+    creationTime: timestamp
+    expirationTime: timestamp     // 7 days after creation
+    respondedAt: timestamp | null // initially null
+
+    // One document per trip/recipient pair.
+    // An active retry preserves requestId and expirationTime.
+    // Obsolete invitations can be replaced using a fresh requestId.
+    // Membership is never modified by creation or listing.
+
 trips/{tripId}
     name: string
     description: string | null
