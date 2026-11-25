@@ -44,7 +44,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
@@ -299,7 +298,7 @@ private fun ActivityRow(activity: ItineraryActivity, startTime: String, timeWidt
         verticalAlignment = Alignment.CenterVertically,
     ) {
       Text(startTime, Modifier.width(timeWidth), style = MaterialTheme.typography.labelLarge)
-      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)) {
         Text(activity.name, style = MaterialTheme.typography.titleSmall)
         Text(
             activity.locationName,
