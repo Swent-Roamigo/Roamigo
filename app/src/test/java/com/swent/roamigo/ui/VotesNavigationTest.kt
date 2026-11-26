@@ -41,6 +41,7 @@ import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import com.swent.roamigo.ui.trip.itinerary.ItineraryViewModel
 import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.flow.first
@@ -550,15 +551,13 @@ class VotesNavigationTest {
 
   /** Lets the Plan's vote listener reach its stop timeout after the Votes tab replaced it. */
   private fun releasePlanListener() {
-    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(PLAN_STOP_TIMEOUT_MILLIS + 1))
+    shadowOf(Looper.getMainLooper())
+        .idleFor(Duration.ofMillis(ItineraryViewModel.STOP_TIMEOUT_MILLIS + 1))
     composeRule.waitForIdle()
   }
 
   private companion object {
     /** The Plan's and the Votes tab's listeners overlap only while switching tabs. */
     const val PLAN_AND_VOTES_OBSERVERS = 2
-
-    /** The Plan tab keeps observing for this long after it leaves the screen. */
-    const val PLAN_STOP_TIMEOUT_MILLIS = 5_000L
   }
 }
