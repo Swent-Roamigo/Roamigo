@@ -19,6 +19,10 @@ import com.swent.roamigo.model.photo.PhotoModule
 import com.swent.roamigo.model.photo.PhotoSyncWorkerFactory
 import com.swent.roamigo.model.place.MapboxPlaceRepository
 import com.swent.roamigo.model.place.PlaceRepository
+import com.swent.roamigo.model.weather.CachingWeatherRepository
+import com.swent.roamigo.model.weather.DataStoreWeatherCache
+import com.swent.roamigo.model.weather.OpenMeteoWeatherRepository
+import com.swent.roamigo.model.weather.WeatherRepository
 import okhttp3.OkHttpClient
 
 class RoamigoApplication : Application(), ImageLoaderFactory, Configuration.Provider {
@@ -34,6 +38,11 @@ class RoamigoApplication : Application(), ImageLoaderFactory, Configuration.Prov
         OnlineDestinationRepository(),
         FileDestinationPhotoStore(cacheDir.resolve("destination_photo_lookups")),
     )
+  }
+
+  // One instance, so that recreating the activity never rebuilds the client or the cache.
+  val weatherRepository: WeatherRepository by lazy {
+    CachingWeatherRepository(OpenMeteoWeatherRepository(), DataStoreWeatherCache(this))
   }
 
   // Outside any screen, because the uploads run in the background.

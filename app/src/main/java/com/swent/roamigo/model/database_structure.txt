@@ -14,6 +14,24 @@ tripInvitations/{token}      // written and read only by Cloud Functions, never 
     creationTime: timestamp
     expirationTime: timestamp  // 7 days after creation
 
+directTripInvitations/{invitationId} // Cloud Functions only; no client access
+    // invitationId = SHA-256(JSON.stringify([tripId, inviteeUserId]))
+    tripId: string
+    inviterUserId: string         // organizer at creation
+    inviteeUserId: string         // specific recipient
+    requestId: string             // new for each invitation generation
+    friendshipRequestId: string   // identifies the accepted friendship generation
+    friendshipCreatedAt: timestamp  // creation time of the authorizing friendship
+    status: "PENDING"             // other transitions belong to the follow-up
+    creationTime: timestamp
+    expirationTime: timestamp     // 7 days after creation
+    respondedAt: timestamp | null // initially null
+
+    // One document per trip/recipient pair.
+    // An active retry preserves requestId and expirationTime.
+    // Obsolete invitations can be replaced using a fresh requestId.
+    // Membership is never modified by creation or listing.
+
 trips/{tripId}
     name: string
     description: string | null
@@ -44,12 +62,41 @@ trips/{tripId}
         endTime: timestamp | null  // only with a startTime, >= startTime
         createdByUserId: string    // auth uid of the creator
         creationTime: timestamp
-        // The ID and trip come from the path. Trip members can create and observe both types.
-        // The repository uses a caller-generated ID and a transaction. A retry by the same
-        // author for the same type returns the stored document. Author or type conflicts fail.
-        // Updates and deletes are denied.
-    votes/{voteId} // later feature
+        linkedVoteId?: string      // immutable initial vote ID; omitted for accepted activities
+        // The ID and trip come from the path. Only trip members can create or observe activities.
+        // Accepted activities are created independently. New suggestions and their initial votes
+        // are both created in one transaction. A same-author retry of a valid pair returns the
+        // original stored documents regardless of draft changes. Partial/conflicting pairs fail.
+        // Legacy suggestions may lack linkedVoteId. Client updates and deletes are denied.
+    votes/{voteId}
+        uid: string                // same as the document ID
+        tripId: string             // same as the parent trip ID
+        question: string           // initial suggestion vote uses the exact suggestion name
+        options: array<{uid: string, name: string}>  // initial suggestion vote uses YES/Yes and NO/No
+        createdByUserId: string    // same as the suggestion author for the initial vote
+        status: "OPEN" | "CLOSED"
+        creationTime: timestamp    // same as the suggestion creation time for the initial vote
+        closingTime: timestamp | null
+        winningOptionId: string | null
+        suggestionId?: string      // immutable, initial suggestion vote only
+        round?: int                // defaults to 1
+        parentVoteId?: string      // revote's source
+        nextRoundVoteId?: string   // set by the trusted revote callable
+        resolvedOptionId?: string  // trip owner's choice after a closed tie
+        resolvedByUserId?: string
+        // The initial vote ID is "suggestion-" + activityId (literal concatenation).
+        // Both IDs must fit Firestore's 1500-byte UTF-8 limit. The prefix is reserved for initial
+        // suggestion votes. The initial linkage, author and timestamps are immutable.
+        // Read the initial round by linkedVoteId, then follow nextRoundVoteId until absent.
+        // Each child identifies its source by parentVoteId. Derive the outcome from the last
+        // closed round's ballots and owner resolution. There is no separate approval field.
         ballots/{userId}
+            userId: string
+            optionId: string
+            updatedAt: timestamp
+        // A future author-only edit/withdrawal operation needs trusted transactions coordinated
+        // with ballot submission. Resolve the initial vote by ID and use a common transactional
+        // lock/state for both operations so a first ballot and an edit cannot both win the race.
     photos/{photoId} // later feature
 
 // memberIds exists so "my trips" can be queried with array-contains and checked by security rules.

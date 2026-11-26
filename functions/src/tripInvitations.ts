@@ -9,11 +9,11 @@ import {callableOptions, documentId} from "./callable.js";
 // Joining a trip changes its members, which clients can never do themselves (see firestore.rules),
 // so invitations are created, read and accepted here, with the Admin SDK.
 
-const INVITATION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
+export const INVITATION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 // Mirrors the travelerCount limit of a group trip in model/trip/Trip.kt.
-const MAX_MEMBERS = 10;
+export const MAX_MEMBERS = 10;
 
-function userIdOf(request: {auth?: {uid: string}}): string {
+export function userIdOf(request: {auth?: {uid: string}}): string {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first");
   return request.auth.uid;
 }
@@ -26,7 +26,7 @@ const MAX_PROFILE_NAME_LENGTH = 120;
 // unknown traveller to everyone else. Joining and inviting are the moments others start to see
 // them, so the profile is created here from the account itself when it is missing. An existing
 // profile is never touched, and a failure here never fails the join.
-async function ensureProfile(userId: string): Promise<void> {
+export async function ensureProfile(userId: string): Promise<void> {
   try {
     const ref = getFirestore().doc(`users/${userId}`);
     if ((await ref.get()).exists) return;
@@ -49,7 +49,7 @@ async function ensureProfile(userId: string): Promise<void> {
   }
 }
 
-function requireOwner(trip: FirebaseFirestore.DocumentData | undefined, userId: string): void {
+export function requireOwner(trip: FirebaseFirestore.DocumentData | undefined, userId: string): void {
   if (!trip) throw new HttpsError("not-found", "Trip not found");
   if (trip.ownerId !== userId || !Array.isArray(trip.memberIds) ||
       !trip.memberIds.includes(userId)) {

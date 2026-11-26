@@ -24,6 +24,7 @@ import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.ClearCredentialException
 import androidx.lifecycle.compose.dropUnlessResumed
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -44,11 +45,13 @@ import com.swent.roamigo.model.trip.inviting.InvitationLinks
 import com.swent.roamigo.model.trip.inviting.TripInvitationService
 import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.users.UserRepository
+import com.swent.roamigo.model.weather.WeatherRepository
 import com.swent.roamigo.ui.authentication.AuthenticationRoute
 import com.swent.roamigo.ui.friends.FriendsRoute
 import com.swent.roamigo.ui.friends.FriendsSearchRoute
 import com.swent.roamigo.ui.heatmap.ExploredWorldRoute
 import com.swent.roamigo.ui.heatmap.VisitedCountryCounts
+import com.swent.roamigo.ui.map.LocationSharingRestoreViewModel
 import com.swent.roamigo.ui.map.TripOverviewMapRoute
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.navigation.activityFormTrip
@@ -87,8 +90,11 @@ import kotlinx.coroutines.launch
  * @param photoRepository Takes trip photos and keeps them until they are uploaded.
  * @param connectivityRepository Tells whether the device is online; the device's own by default.
  * @param invitationService Creates, previews and accepts the links that invite people to a trip.
- * @param locationRepository Shares the user's location on a trip map; the app-wide instance of
- *   [RoamigoApplication] by default, since sharing must go through a single instance.
+ * @param locationRepository Shares the user's location on a trip map, and resumes at startup the
+ *   sharing left on by a previous process. It must be the app-wide instance, since sharing must go
+ *   through a single instance.
+ * @param weatherRepository Forecasts the weather of a trip; the trip screen shows no forecast
+ *   without one, so tests that do not care about it never reach the network.
  * @param placeRepository Searches places for the activity form; the app-wide instance of
  *   [RoamigoApplication] by default, since Search Box keeps one provider session.
  */
@@ -105,13 +111,24 @@ fun RoamigoApp(
     destinationRepository: DestinationRepository,
     photoRepository: PhotoRepository,
     connectivityRepository: ConnectivityRepository? = null,
-    locationRepository: LocationRepository? = null,
+    locationRepository: LocationRepository,
     placeRepository: PlaceRepository? = null,
+    weatherRepository: WeatherRepository? = null,
     countryCounts: VisitedCountryCounts,
     invitationService: TripInvitationService,
 ) {
   val context = LocalContext.current
   val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }
+  // Obtained outside the NavHost, so that it belongs to the activity: it is created once whatever
+  // the start destination and kept across rotation. It restores in the background, so nothing here
+  // waits for it.
+  viewModel<LocationSharingRestoreViewModel>(
+      factory =
+          LocationSharingRestoreViewModel.factory(
+              locationRepository = locationRepository,
+              authRepository = authRepository,
+          )
+  )
   val scope = rememberCoroutineScope()
   // MainActivity is singleTop, so a link opened while the app is running arrives as a new intent
   // on the same activity. The navigation graph only follows it when it is told about it.
@@ -368,6 +385,7 @@ fun RoamigoApp(
           photoRepository = photoRepository,
           connectivityRepository = connectivityRepository,
           locationRepository = locationRepository,
+          weatherRepository = weatherRepository,
           onBack =
               dropUnlessResumed {
                 if (fromHistory) navController.popBackStack()

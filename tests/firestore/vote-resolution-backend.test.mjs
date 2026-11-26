@@ -155,3 +155,52 @@ test('duplicate option IDs cannot turn a unique option winner into a fake tie', 
   failed(await call('createRevote', revote));
   assert.equal((await ref.get()).get('nextRoundVoteId'), undefined);
 });
+
+test('suggestion links reach a revote and its final owner resolution', async () => {
+  const tripRef = db.collection('trips').doc();
+  const suggestionId = 'proposal';
+  const voteId = 'suggestion-proposal';
+  await tripRef.set({ownerId: owner.uid, memberIds: [owner.uid, creator.uid, member.uid]});
+  const creationTime = Timestamp.now();
+  const suggestion = tripRef.collection('activities').doc(suggestionId);
+  const version = {
+    activityType: 'SUGGESTION', linkedVoteId: voteId, name: 'Dinner', description: null,
+    location: { name: 'Lausanne', latitude: 46.5, longitude: 6.6 },
+    startTime: null, endTime: null, createdByUserId: creator.uid, creationTime,
+  };
+  const initial = tripRef.collection('votes').doc(voteId);
+  const batch = db.batch();
+  batch.create(suggestion, version);
+  batch.create(initial, {
+    uid: voteId, tripId: tripRef.id, suggestionId, question: version.name,
+    options: [{uid: 'YES', name: 'Yes'}, {uid: 'NO', name: 'No'}], createdByUserId: creator.uid,
+    status: 'CLOSED', creationTime, closingTime: null, winningOptionId: null,
+  });
+  await batch.commit();
+  async function tie(ref) {
+    for (const [userId, optionId] of [[creator.uid, 'YES'], [member.uid, 'NO']]) {
+      await ref.collection('ballots').doc(userId).set({userId, optionId, updatedAt: Timestamp.now()});
+    }
+  }
+  await tie(initial);
+  const links = {tripId: tripRef.id, parentVoteId: voteId};
+  failed(await call('createRevote', {...links, voteId: 'suggestion-other'}), 'INVALID_ARGUMENT');
+  succeeded(await call('createRevote', {...links, voteId: 'dinner-round-2'}));
+
+  const linked = await suggestion.get();
+  const first = await initial.parent.doc(linked.get('linkedVoteId')).get();
+  const current = await initial.parent.doc(first.get('nextRoundVoteId')).get();
+  assert.equal(first.get('suggestionId'), linked.id);
+  assert.equal(current.get('parentVoteId'), first.id);
+  assert.deepEqual(current.get('options'), first.get('options'));
+  assert.equal(current.get('round'), 2);
+  assert.equal(current.get('nextRoundVoteId'), undefined);
+  await tie(current.ref);
+  await current.ref.update({status: 'CLOSED'});
+  succeeded(await call('resolveVoteByOwner', {
+    tripId: tripRef.id, voteId: current.id, optionId: 'YES',
+  }, owner));
+  assert.equal((await current.ref.get()).get('resolvedOptionId'), 'YES');
+  assert.equal((await initial.get()).get('resolvedOptionId'), undefined);
+  assert.deepEqual((await suggestion.get()).data(), version);
+});

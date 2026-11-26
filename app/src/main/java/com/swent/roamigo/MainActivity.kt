@@ -94,6 +94,8 @@ class MainActivity : ComponentActivity() {
                   remember { (application as RoamigoApplication).locationRepository },
               placeRepository = remember { (application as RoamigoApplication).placeRepository },
               countryCounts = countryCounts,
+              weatherRepository =
+                  remember { (application as RoamigoApplication).weatherRepository },
               userRepository = userRepository,
               invitationService = remember { TripInvitationServiceFunctions() },
           )
