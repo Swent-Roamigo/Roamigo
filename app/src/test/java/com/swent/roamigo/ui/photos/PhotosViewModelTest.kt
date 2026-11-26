@@ -6,14 +6,21 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.model.connectivity.FakeConnectivityRepository
+import com.swent.roamigo.model.location.DeviceLocation
+import com.swent.roamigo.model.location.FakeLocationRepository
+import com.swent.roamigo.model.location.LocationRepository
+import com.swent.roamigo.model.photo.DefaultPhotoLocator
 import com.swent.roamigo.model.photo.FakePhotoLocator
 import com.swent.roamigo.model.photo.PHOTO_LOCATION_TIMEOUT
+import com.swent.roamigo.model.photo.PendingPhoto
 import com.swent.roamigo.model.photo.PhotoCoordinates
 import com.swent.roamigo.model.photo.PhotoLocationResult
 import com.swent.roamigo.model.photo.PhotoLocator
+import com.swent.roamigo.model.photo.PhotoUploadStatus
 import com.swent.roamigo.model.photo.pendingPhoto
 import com.swent.roamigo.model.photo.tripPhoto
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -82,6 +89,98 @@ class PhotosViewModelTest {
     file.writeText("jpeg")
     viewModel.onPictureTaken(true)
     return file
+  }
+
+  @Test
+  fun survivesAnErrorReadingTheWaitingPhotos() {
+    repository.pendingError = java.io.IOException("disk")
+    val model = PhotosViewModel(repository, connectivity, "trip", locator, clock = clock)
+
+    assertTrue(model.uiState.value.pendingFailed)
+    assertEquals(emptyList<PendingPhoto>(), model.uiState.value.photos)
+    // The rest of the screen keeps working.
+    model.onTakePhotoClick(permissionGranted = true)
+    assertEquals(CameraStep.NONE, model.uiState.value.cameraStep)
+  }
+
+  private fun failedPhoto(id: String) =
+      pendingPhoto(id, tripId = "trip", status = PhotoUploadStatus.FAILED)
+
+  @Test
+  fun keepsTheWaitingPhotosAlreadyReadWhenALaterReadFails() {
+    repository.photos.value = listOf(failedPhoto("a"))
+    val model = PhotosViewModel(repository, connectivity, "trip", locator, clock = clock)
+    assertEquals(listOf("a"), model.uiState.value.photos.map { it.id })
+
+    // The disk fails the next time the list changes.
+    repository.pendingError = java.io.IOException("disk")
+    repository.photos.value = listOf(failedPhoto("a"), failedPhoto("b"))
+
+    assertTrue(model.uiState.value.pendingFailed)
+    // The photos the user was looking at, with their retry, stay on screen.
+    assertEquals(listOf("a"), model.uiState.value.photos.map { it.id })
+  }
+
+  @Test
+  fun readsTheWaitingPhotosAgainOnRetryAfterAnError() {
+    repository.pendingError = java.io.IOException("disk")
+    repository.photos.value = listOf(failedPhoto("a"))
+    val model = PhotosViewModel(repository, connectivity, "trip", locator, clock = clock)
+    assertTrue(model.uiState.value.pendingFailed)
+
+    repository.pendingError = null
+    model.onPendingRetry()
+
+    assertFalse(model.uiState.value.pendingFailed)
+    assertEquals(listOf("a"), model.uiState.value.photos.map { it.id })
+  }
+
+  @Test
+  fun aRetryOfTheWaitingPhotosDoesNothingWhileTheyAreRead() {
+    val before = repository.pendingObservations
+
+    viewModel.onPendingRetry()
+
+    assertEquals(before, repository.pendingObservations)
+  }
+
+  @Test
+  fun retriesEveryFailedPhotoAndOnlyThose() {
+    repository.photos.value =
+        listOf(
+            failedPhoto("a"),
+            pendingPhoto("b", tripId = "trip", status = PhotoUploadStatus.WAITING),
+            failedPhoto("c"),
+        )
+
+    viewModel.onRetryAll()
+
+    assertEquals(listOf("a", "c"), repository.retried)
+    assertEquals(emptyList<PhotosEffect>(), effects)
+  }
+
+  @Test
+  fun tellsTheScreenOnceWhenSeveralPhotosCannotBeQueuedAgain() {
+    repository.photos.value = listOf(failedPhoto("a"), failedPhoto("b"), failedPhoto("c"))
+    repository.retryError = java.io.IOException("disk")
+
+    viewModel.onRetryAll()
+
+    assertEquals(listOf<PhotosEffect>(PhotosEffect.RetryFailed), effects)
+  }
+
+  @Test
+  fun doesNotReportAnErrorWhenTheWaitingPhotosAreRead() {
+    assertFalse(state.pendingFailed)
+  }
+
+  @Test
+  fun tellsTheScreenWhenARetryFails() {
+    repository.retryError = java.io.IOException("disk")
+
+    viewModel.onRetry("a")
+
+    assertEquals(listOf<PhotosEffect>(PhotosEffect.RetryFailed), effects)
   }
 
   @Test
@@ -460,6 +559,29 @@ class PhotosViewModelTest {
   }
 
   @Test
+  fun doesNotWaitForAReturnFromSettingsThatCouldNotBeOpened() {
+    viewModel.onOpenSettings()
+    viewModel.onSettingsUnavailable()
+    val before = effects.size
+
+    viewModel.onScreenResumed(permissionGranted = true)
+
+    assertEquals(before, effects.size)
+  }
+
+  @Test
+  fun takesThePhotoWhenBackFromSettingsAfterTheAppWasRecreated() {
+    val handle = SavedStateHandle()
+    modelWith(handle, locator).onOpenSettings()
+
+    // Android killed the process while the user was in the settings.
+    val recreated = modelWith(afterProcessDeath(handle), locator)
+    recreated.onScreenResumed(permissionGranted = true)
+
+    assertTrue(effects.last() is PhotosEffect.LaunchCamera)
+  }
+
+  @Test
   fun anUnavailableCameraDiscardsTheFileItWasGiven() {
     viewModel.onTakePhotoClick(permissionGranted = true)
     val file = (effects.last() as PhotosEffect.LaunchCamera).file
@@ -755,6 +877,44 @@ class PhotosViewModelTest {
   }
 
   @Test
+  fun savesWithoutAPositionWhenTheLastReadAfterTheTimeoutFails() = runTest {
+    // The full read never answers, so saving falls back to a read that does not wait, which fails.
+    val failingFallback =
+        object : PhotoLocator {
+          val timeouts = mutableListOf<kotlin.time.Duration>()
+
+          override suspend fun locate(timeout: kotlin.time.Duration): PhotoLocationResult {
+            timeouts += timeout
+            if (timeout == kotlin.time.Duration.ZERO) throw IllegalStateException("broken")
+            awaitCancellation()
+          }
+        }
+    viewModel = PhotosViewModel(repository, connectivity, "trip", failingFallback, clock = clock)
+    viewModel.effects.onEach { effects += it }.launchIn(CoroutineScope(dispatcher))
+    takePicture()
+    assertEquals(PhotoLocationStatus.Locating, state.previewLocation)
+    // Holds the save, so that the preview and its status can be checked once the wait is over.
+    repository.saveGate = CompletableDeferred()
+
+    viewModel.onSave()
+    advanceTimeBy(PHOTO_LOCATION_TIMEOUT - 1.milliseconds)
+    runCurrent()
+    assertEquals(PhotoLocationStatus.Locating, state.previewLocation)
+    advanceTimeBy(1.milliseconds)
+    runCurrent()
+
+    assertEquals(PhotoLocationStatus.Unavailable, state.previewLocation)
+    assertEquals(
+        listOf(PHOTO_LOCATION_TIMEOUT, kotlin.time.Duration.ZERO),
+        failingFallback.timeouts,
+    )
+    repository.saveGate?.complete(Unit)
+    runCurrent()
+    assertEquals(PHOTO_LOCATION_TIMEOUT.inWholeMilliseconds, currentTime)
+    assertNull(repository.savedPhotos.single().coordinates)
+  }
+
+  @Test
   fun savesWhenTheLocatorFails() = runTest {
     val failing =
         object : PhotoLocator {
@@ -826,6 +986,127 @@ class PhotosViewModelTest {
     viewModel.onPreviewClosed()
 
     assertNull(state.previewLocation)
+  }
+
+  /**
+   * Uses the real [DefaultPhotoLocator] on top of [location], like the Photos tab does with the
+   * repository shared with the trip map. A null [freshFix] makes the new read never complete, like
+   * GPS without a fix indoors.
+   */
+  private fun geotaggingWith(
+      location: FakeLocationRepository,
+      freshFix: DeviceLocation?,
+      clock: () -> Long = this.clock,
+  ): List<PhotoLocationStatus> {
+    val repository =
+        if (freshFix != null) location.apply { currentLocation = freshFix }
+        else
+            object : LocationRepository by location {
+              override suspend fun getCurrentLocation(): DeviceLocation? = awaitCancellation()
+            }
+    viewModel =
+        PhotosViewModel(
+            this.repository,
+            connectivity,
+            "trip",
+            DefaultPhotoLocator(repository),
+            clock = clock,
+        )
+    viewModel.effects.onEach { effects += it }.launchIn(CoroutineScope(dispatcher))
+    val statuses = mutableListOf<PhotoLocationStatus>()
+    viewModel.uiState
+        .onEach { state ->
+          state.previewLocation?.let { if (statuses.lastOrNull() != it) statuses += it }
+        }
+        .launchIn(CoroutineScope(dispatcher))
+    return statuses
+  }
+
+  // Regression test for #305, with a new fix available at once.
+  @Test
+  fun geotagsThePhotoWithANewFixWhenTheLocationIsGranted() = runTest {
+    val statuses =
+        geotaggingWith(FakeLocationRepository(hasPermission = true), DeviceLocation(46.5, 6.6))
+
+    takePicture()
+    viewModel.onSave()
+
+    assertEquals(
+        listOf(PhotoLocationStatus.Locating, PhotoLocationStatus.Attached(46.5, 6.6)),
+        statuses,
+    )
+    assertEquals(PhotoCoordinates(46.5, 6.6), repository.savedPhotos.single().coordinates)
+  }
+
+  // Regression test for #305: the trip map shows the user's position, but GPS gets no new fix.
+  @Test
+  fun geotagsThePhotoWithARecentKnownPositionWhenNoNewFixArrives() = runTest {
+    val location =
+        FakeLocationRepository(
+            hasPermission = true,
+            knownLocation = DeviceLocation(46.5, 6.6, timestampMillis = 0L),
+        )
+    val statuses = geotaggingWith(location, freshFix = null)
+
+    takePicture()
+    advanceTimeBy(PHOTO_LOCATION_TIMEOUT - 1.milliseconds)
+    runCurrent()
+    assertEquals(listOf(PhotoLocationStatus.Locating), statuses)
+    advanceTimeBy(1.milliseconds)
+    runCurrent()
+    viewModel.onSave()
+
+    assertEquals(
+        listOf(PhotoLocationStatus.Locating, PhotoLocationStatus.Attached(46.5, 6.6)),
+        statuses,
+    )
+    assertEquals(PhotoCoordinates(46.5, 6.6), repository.savedPhotos.single().coordinates)
+  }
+
+  @Test
+  fun aPhotoSavedWhileLocatingGetsARecentKnownPositionWhenNoNewFixArrives() = runTest {
+    val location =
+        FakeLocationRepository(
+            hasPermission = true,
+            knownLocation = DeviceLocation(46.5, 6.6, timestampMillis = 0L),
+        )
+    // The wall clock and the timeouts' clock drift apart by a millisecond on a device, so the
+    // save may stop waiting just before the locator falls back to the known position.
+    var drift = 0L
+    geotaggingWith(location, freshFix = null, clock = { currentTime + drift })
+    takePicture()
+    drift = 1L
+    advanceTimeBy(3.seconds)
+
+    viewModel.onSave()
+    advanceTimeBy(2.seconds)
+    runCurrent()
+
+    assertEquals(PhotoCoordinates(46.5, 6.6), repository.savedPhotos.single().coordinates)
+  }
+
+  @Test
+  fun showsUnavailableOnlyOnceTheWholeTimeoutPassedWithoutAUsablePosition() = runTest {
+    val location =
+        FakeLocationRepository(
+            hasPermission = true,
+            // Older than any position a photo may use.
+            knownLocation = DeviceLocation(46.5, 6.6, timestampMillis = 0L),
+        )
+    advanceTimeBy(10.minutes)
+    location.nowMillis = currentTime
+    val statuses = geotaggingWith(location, freshFix = null)
+
+    takePicture()
+    advanceTimeBy(PHOTO_LOCATION_TIMEOUT - 1.milliseconds)
+    runCurrent()
+    assertEquals(listOf(PhotoLocationStatus.Locating), statuses)
+    advanceTimeBy(1.milliseconds)
+    runCurrent()
+
+    assertEquals(listOf(PhotoLocationStatus.Locating, PhotoLocationStatus.Unavailable), statuses)
+    viewModel.onSave()
+    assertNull(repository.savedPhotos.single().coordinates)
   }
 
   /** A view model with its own saved state and locator, listening to its effects. */

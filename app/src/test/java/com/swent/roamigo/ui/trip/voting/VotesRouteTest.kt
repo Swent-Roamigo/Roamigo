@@ -50,7 +50,7 @@ class VotesRouteTest {
   private val openedDialogs = mutableListOf<String>()
   private val closeRequests = mutableListOf<String>()
 
-  private fun show(readOnly: Boolean = false) {
+  private fun show(readOnly: Boolean = false, hintStore: VotesHintStore = NoVotesHint) {
     composeRule.setContent {
       RoamigoTheme {
         VotesRoute(
@@ -64,6 +64,7 @@ class VotesRouteTest {
             onCreateVote = {},
             onCloseVote = { closeRequests += it },
             readOnly = readOnly,
+            hintStore = hintStore,
         )
       }
     }
@@ -81,6 +82,26 @@ class VotesRouteTest {
       assertEquals(listOf(closed.uid), openedVotes)
       assertEquals(listOf(live.tripId), repository.observedTrips)
     }
+  }
+
+  @Test
+  fun theHintStaysGoneOnceItIsDismissed() {
+    var seen = false
+    val hints =
+        object : VotesHintStore {
+          override fun isSeen() = seen
+
+          override fun markSeen() {
+            seen = true
+          }
+        }
+    show(hintStore = hints)
+    composeRule.onNodeWithText("How the group decides").assertIsDisplayed()
+
+    composeRule.onNodeWithTag(C.Tag.votes_hint_dismiss).performClick()
+
+    composeRule.onNodeWithText("How the group decides").assertDoesNotExist()
+    composeRule.runOnIdle { assertTrue(seen) }
   }
 
   @Test

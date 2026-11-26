@@ -2,8 +2,8 @@
 package com.swent.roamigo.model.friends
 
 import com.google.firebase.Timestamp
+import com.swent.roamigo.model.toDomainInstant
 import java.security.MessageDigest
-import java.time.Instant
 
 private val friendshipFields =
     setOf(
@@ -60,8 +60,8 @@ internal fun friendRequestFromFirestore(
         senderUserId = senderId,
         recipientUserId = recipientId,
         status = FriendRequestStatus.valueOf(status),
-        createdAt = createdAt.asInstant(),
-        respondedAt = respondedAt?.asInstant(),
+        createdAt = createdAt.toDomainInstant(),
+        respondedAt = respondedAt?.toDomainInstant(),
     )
   } catch (error: IllegalArgumentException) {
     throw FriendRepositoryException.InvalidData(error)
@@ -89,6 +89,3 @@ private fun Map<String, Any?>.requiredIdentifier(field: String): String {
   requireFriendIdentifier(value)
   return value
 }
-
-// Going through Date would discard sub-millisecond precision.
-private fun Timestamp.asInstant(): Instant = Instant.ofEpochSecond(seconds, nanoseconds.toLong())

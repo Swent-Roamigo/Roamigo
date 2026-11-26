@@ -82,6 +82,7 @@ class TieResolutionRouteTest {
         )
     val model = mock(VotesViewModel::class.java)
     `when`(model.uiState).thenReturn(state)
+    `when`(model.hintVisible).thenReturn(MutableStateFlow(false))
     composeRule.setContent {
       RoamigoTheme {
         VotesRoute(

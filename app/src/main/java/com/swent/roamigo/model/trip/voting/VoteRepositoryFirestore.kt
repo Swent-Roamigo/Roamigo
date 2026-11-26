@@ -10,6 +10,7 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.Source
+import com.swent.roamigo.model.trip.activity.SUGGESTION_VOTE_PREFIX
 import com.swent.roamigo.model.trip.isBeforeLocalDate
 import java.time.Clock
 import java.time.LocalDate
@@ -27,6 +28,9 @@ class VoteRepositoryFirestore(
     private val clock: Clock = Clock.systemDefaultZone(),
 ) : VoteRepository {
   override suspend fun createVote(vote: Vote) {
+    require(vote.suggestionId == null && !vote.uid.startsWith(SUGGESTION_VOTE_PREFIX)) {
+      "Suggestion votes must be created through SuggestionVoteRepository"
+    }
     requireDocumentId(vote.uid)
     val document = votes(vote.tripId).document(vote.uid)
     try {
@@ -241,7 +245,7 @@ private fun requireDocumentId(id: String) {
 }
 
 // Explicit mapping preserves the immutable models, which have no Firestore no-argument constructor.
-private fun Vote.toFirestoreData(): Map<String, Any?> {
+internal fun Vote.toFirestoreData(): Map<String, Any?> {
   requireValidRound()
   return mapOf(
       "uid" to uid,
@@ -255,6 +259,7 @@ private fun Vote.toFirestoreData(): Map<String, Any?> {
       "winningOptionId" to winningOptionId,
       // Optional metadata is omitted for legacy-shaped ordinary votes.
       *listOfNotNull(
+              suggestionId?.let { "suggestionId" to it },
               parentVoteId?.let { "parentVoteId" to it },
               nextRoundVoteId?.let { "nextRoundVoteId" to it },
               if (parentVoteId != null) "round" to round else null,
@@ -287,7 +292,7 @@ private fun Map<*, *>.voteRound(parentId: String?): Int {
   return number.toInt()
 }
 
-private fun DocumentSnapshot.toVote(tripId: String): Vote {
+internal fun DocumentSnapshot.toVote(tripId: String): Vote {
   val data = requireNotNull(data) { "Missing vote data at $reference" }
   val options = requireNotNull(data["options"] as? List<*>) { "Missing or invalid vote options" }
   val parentId = data.optionalString("parentVoteId")
@@ -305,6 +310,7 @@ private fun DocumentSnapshot.toVote(tripId: String): Vote {
           creationTime = data.requiredTimestamp("creationTime"),
           closingTime = data.optionalTimestamp("closingTime"),
           winningOptionId = data.optionalString("winningOptionId"),
+          suggestionId = data.optionalString("suggestionId"),
           parentVoteId = parentId,
           nextRoundVoteId = data.optionalString("nextRoundVoteId"),
           round = data.voteRound(parentId),
@@ -346,6 +352,7 @@ private fun Vote.matchesCreationRequest(request: Vote): Boolean =
         createdByUserId == request.createdByUserId &&
         creationTime == request.creationTime &&
         closingTime == request.closingTime &&
+        suggestionId == request.suggestionId &&
         parentVoteId == request.parentVoteId &&
         round == request.round
 

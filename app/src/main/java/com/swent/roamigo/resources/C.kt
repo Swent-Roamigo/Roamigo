@@ -38,10 +38,7 @@ object C {
 
     fun voteResult(optionId: String) = "vote_result_${optionId}"
 
-    const val greeting_robo = "second_screen_greeting"
-
     const val main_screen_container = "main_screen_container"
-    const val second_screen_container = "second_screen_container"
 
     const val permissions_title = "permissions_screen_title"
     const val permissions_row = "permissions_screen_row"
@@ -83,6 +80,10 @@ object C {
     const val friends_action_error = "friends_action_error"
     const val friends_friend_row = "friends_friend_row"
     const val friends_pending_request_row = "friends_pending_request_row"
+    const val friends_cancel_request_prefix = "friends_cancel_request_"
+    const val friends_remove_confirm_dialog = "friends_remove_confirm_dialog"
+    const val friends_remove_confirm_action = "friends_remove_confirm_action"
+    const val friends_remove_dismiss_action = "friends_remove_dismiss_action"
     const val friends_empty_state = "friends_empty_state"
     const val friends_add_friend = "friends_add_friend"
     const val trip_add_button = "trip_add_button"
@@ -90,6 +91,7 @@ object C {
     const val trip_add_sheet = "trip_add_sheet"
     const val trip_members_screen = "trip_members_screen"
     const val trip_members_back = "trip_members_back"
+    const val trip_members_invite = "trip_members_invite"
     const val trip_members_row_prefix = "trip_members_row_"
     const val create_trip_discard_confirm = "create_trip_discard_confirm"
     const val friends_search = "friends_search"
@@ -119,6 +121,11 @@ object C {
     const val invite_sheet = "invite_sheet"
     const val invite_code = "invite_code"
     const val trip_details_screen = "trip_details_screen"
+    const val weather_card = "weather_card"
+    const val weather_day_prefix = "weather_day_"
+    const val weather_loading = "weather_loading"
+    const val weather_retry = "weather_retry"
+    const val weather_stale_notice = "weather_stale_notice"
     const val trip_details_invite = "trip_details_invite"
     const val invite_description = "invite_description"
     const val invite_share = "invite_share"
@@ -194,6 +201,8 @@ object C {
     const val photos_uploaded_prefix = "photos_uploaded_"
     const val photos_gallery_loading = "photos_gallery_loading"
     const val photos_gallery_error = "photos_gallery_error"
+    const val photos_pending_error = "photos_pending_error"
+    const val photos_pending_retry = "photos_pending_retry"
     const val photos_gallery_retry = "photos_gallery_retry"
 
     const val photo_viewer = "photo_viewer"

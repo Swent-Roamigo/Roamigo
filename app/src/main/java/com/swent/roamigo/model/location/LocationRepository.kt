@@ -1,6 +1,7 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.model.location
 
+import kotlin.time.Duration
 import kotlinx.coroutines.flow.Flow
 
 interface LocationRepository {
@@ -16,6 +17,22 @@ interface LocationRepository {
    * @return the current location, or null if unavailable or permission is denied.
    */
   suspend fun getCurrentLocation(): DeviceLocation?
+
+  /**
+   * Most recent known position of this device, read without waiting for a new fix. It may come from
+   * an earlier [getCurrentLocation] call, e.g. by the trip map or location sharing, or from a fix
+   * the system already has. It is meant for callers that cannot wait for a new fix, and may be less
+   * precise or older than one.
+   *
+   * Safe to call from the main thread.
+   *
+   * @param maxAge how old the position may be, measured with the device clock against
+   *   [DeviceLocation.timestampMillis]. A position without a timestamp is never returned, since its
+   *   age is unknown.
+   * @return the newest known position no older than [maxAge], or null if the location permission is
+   *   not granted, no position is known, or the newest one is too old.
+   */
+  fun lastKnownLocation(maxAge: Duration): DeviceLocation?
 
   /**
    * Opts the current user in to location sharing for a trip and publishes their current position.
@@ -50,9 +67,13 @@ interface LocationRepository {
   /**
    * Resumes the current user's location sharing that was still on when the app process last ended,
    * e.g. because the system killed it. Trips whose sharing cannot be resumed are stopped instead,
-   * so that no position stays published without [isSharing] reporting it. Call it once a user is
-   * signed in, e.g. by registering a [LocationSharingRestorer] at app startup; it does nothing
-   * otherwise. It may take several seconds, so it must not run on a path the UI waits for.
+   * so that no position stays published without [isSharing] reporting it. It does nothing while
+   * signed out. It may take several seconds, so it must not run on a path the UI waits for.
+   *
+   * Called only by [LocationSharingRestorer], and only started while the app is in the foreground:
+   * once the app starts with a user signed in, or after a later sign-in. Restored trips may still
+   * complete after the app UI closes, but resuming while the app is in the background would need a
+   * foreground service.
    */
   suspend fun restoreSharing()
 

@@ -30,6 +30,9 @@ import com.swent.roamigo.model.location.DeviceLocation
 import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.photo.PhotoModule
+import com.swent.roamigo.model.photo.PhotoRepository
+import com.swent.roamigo.model.photo.PhotoUploadStatus
+import com.swent.roamigo.model.photo.pendingPhoto
 import com.swent.roamigo.model.photo.tripPhoto
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
@@ -104,6 +107,7 @@ class PhotosRouteTest {
   private fun show(
       activity: Activity? = null,
       locationRepository: FakeLocationRepository = FakeLocationRepository(),
+      photoRepository: PhotoRepository = repository,
   ) {
     val owner =
         object : ActivityResultRegistryOwner {
@@ -116,7 +120,7 @@ class PhotosRouteTest {
             LocalActivity provides (activity ?: composeRule.activity),
         ) {
           PhotosRoute(
-              photoRepository = repository,
+              photoRepository = photoRepository,
               connectivityRepository = connectivity,
               locationRepository = locationRepository,
               tripId = "trip",
@@ -221,6 +225,34 @@ class PhotosRouteTest {
     val intent: Intent = shadowOf(composeRule.activity).nextStartedActivity
     assertEquals(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, intent.action)
     assertEquals("package:com.swent.roamigo", intent.data.toString())
+  }
+
+  @Test
+  fun tellsTheUserWhenTheSettingsCannotBeOpened() {
+    registry.permissionGranted = false
+    // Makes starting an activity that no app can handle throw, as it does on a locked-down device.
+    shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>())
+        .checkActivities(true)
+    show()
+    tap(C.Tag.photos_take_photo)
+    tap(C.Tag.camera_rationale_continue)
+
+    tap(C.Tag.camera_blocked_open_settings)
+
+    assertEquals(
+        composeRule.activity.getString(R.string.photos_no_settings),
+        ShadowToast.getTextOfLatestToast(),
+    )
+    composeRule.onNodeWithTag(C.Tag.photos_screen).assertIsDisplayed()
+
+    // Coming back later with the camera allowed must not open it: nothing was waited for.
+    allowCamera()
+    val scenario = composeRule.activityRule.scenario
+    scenario.moveToState(Lifecycle.State.STARTED)
+    scenario.moveToState(Lifecycle.State.RESUMED)
+    composeRule.waitForIdle()
+
+    assertTrue(launched(ActivityResultContracts.TakePicture::class.java).isEmpty())
   }
 
   @Test
@@ -392,5 +424,43 @@ class PhotosRouteTest {
       runCatching { composeRule.onNodeWithTag(C.Tag.photo_preview_location).assertTextEquals(text) }
           .isSuccess
     }
+  }
+
+  @Test
+  fun tellsTheUserWhenAFailedPhotoCannotBeQueuedAgain() {
+    val failed =
+        pendingPhoto("a", tripId = "trip", userId = "alex", status = PhotoUploadStatus.FAILED)
+    val base = FakePhotoRepository(repository.newPhotoFile().parentFile!!, "alex", listOf(failed))
+    val broken =
+        object : PhotoRepository by base {
+          override suspend fun retry(photoId: String) = throw java.io.IOException("disk full")
+        }
+    show(photoRepository = broken)
+
+    tap(C.Tag.photos_retry_prefix + "a")
+
+    assertEquals(
+        composeRule.activity.getString(R.string.photos_retry_failed),
+        ShadowToast.getTextOfLatestToast(),
+    )
+  }
+
+  @Test
+  fun showsOneMessageWhenSeveralFailedPhotosCannotBeQueuedAgain() {
+    val photos =
+        listOf("a", "b", "c").map {
+          pendingPhoto(it, tripId = "trip", userId = "alex", status = PhotoUploadStatus.FAILED)
+        }
+    val base = FakePhotoRepository(repository.newPhotoFile().parentFile!!, "alex", photos)
+    val broken =
+        object : PhotoRepository by base {
+          override suspend fun retry(photoId: String) = throw java.io.IOException("disk full")
+        }
+    show(photoRepository = broken)
+
+    tap(C.Tag.photos_retry_all)
+    composeRule.waitForIdle()
+
+    assertEquals(1, ShadowToast.shownToastCount())
   }
 }

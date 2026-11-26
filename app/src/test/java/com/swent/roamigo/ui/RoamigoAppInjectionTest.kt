@@ -81,7 +81,7 @@ class RoamigoAppInjectionTest {
     composeRule.setContent {
       navController = rememberNavController()
       RoamigoTheme {
-        RoamigoApp(
+        TestRoamigoApp(
             friendRepository = FakeFriendRepository("sam"),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
@@ -130,7 +130,7 @@ class RoamigoAppInjectionTest {
     composeRule.setContent {
       navController = rememberNavController()
       RoamigoTheme {
-        RoamigoApp(
+        TestRoamigoApp(
             friendRepository = FakeFriendRepository("sam"),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
@@ -149,6 +149,9 @@ class RoamigoAppInjectionTest {
     composeRule.waitUntil(5_000) {
       composeRule.onAllNodesWithTag("trip_ready").fetchSemanticsNodes().isNotEmpty()
     }
+    // Suggest a place and Share trip are not built yet, so the app must not offer them.
+    composeRule.onNodeWithTag(TripReadyTestTags.SUGGEST_CARD).assertDoesNotExist()
+    composeRule.onNodeWithTag(TripReadyTestTags.SHARE).assertDoesNotExist()
     composeRule.runOnUiThread {
       navController.currentBackStackEntry!!.savedStateHandle["ready_photo"] =
           Bundle().apply {
@@ -183,7 +186,7 @@ class RoamigoAppInjectionTest {
         }
     composeRule.setContent {
       RoamigoTheme {
-        RoamigoApp(
+        TestRoamigoApp(
             friendRepository = FakeFriendRepository("alex"),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
@@ -260,7 +263,7 @@ class RoamigoAppInjectionTest {
         )
     composeRule.setContent {
       RoamigoTheme {
-        RoamigoApp(
+        TestRoamigoApp(
             friendRepository = FakeFriendRepository("alex"),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = destinationRepository,
@@ -319,7 +322,7 @@ class RoamigoAppInjectionTest {
     composeRule.setContent {
       navController = rememberNavController()
       RoamigoTheme {
-        RoamigoApp(
+        TestRoamigoApp(
             friendRepository = FakeFriendRepository("alex"),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
@@ -345,7 +348,7 @@ class RoamigoAppInjectionTest {
   private fun openCreation(repository: TripRepository) {
     composeRule.setContent {
       RoamigoTheme {
-        RoamigoApp(
+        TestRoamigoApp(
             friendRepository = FakeFriendRepository("alex"),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),

@@ -3,15 +3,20 @@ package com.swent.roamigo.model.trip.activity
 
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.CollectionReference
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.Transaction
+import com.swent.roamigo.model.toFirebaseTimestamp
 import com.swent.roamigo.model.trip.Activity
 import com.swent.roamigo.model.trip.ActivityType
 import com.swent.roamigo.model.trip.activityFromFirestore
 import com.swent.roamigo.model.trip.requireData
-import com.swent.roamigo.model.trip.toFirebaseTimestamp
 import com.swent.roamigo.model.trip.toFirestoreData
 import com.swent.roamigo.model.trip.validDocumentId
+import com.swent.roamigo.model.trip.voting.toFirestoreData as toVoteFirestoreData
+import com.swent.roamigo.model.trip.voting.toVote
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -19,7 +24,8 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
 /**
- * Firestore implementation of [ActivityRepository], following `model/database_structure.txt`.
+ * Firestore implementation of [ActivityRepository] and [SuggestionVoteRepository], following
+ * `model/database_structure.txt`.
  *
  * @param db the Firestore instance holding the trips.
  * @param currentUserId returns the ID of the signed-in user, or `null` when signed out.
@@ -27,47 +33,157 @@ import kotlinx.coroutines.tasks.await
 class ActivityRepositoryFirestore(
     private val db: FirebaseFirestore,
     private val currentUserId: () -> String?,
-) : ActivityRepository {
+) : ActivityRepository, SuggestionVoteRepository {
 
   override suspend fun createActivity(
       tripId: String,
       activityId: String,
       draft: ActivityDraft,
   ): Activity {
+    val type = ActivityType.ACCEPTED
     val authorId = currentUserId() ?: throw ActivityCreationException.NotAuthenticated()
-    val errors = draft.validate(startRequired = true)
-    if (errors.isNotEmpty()) throw ActivityCreationException.Validation(errors)
     // A malformed ID is a caller bug, so it is thrown as is instead of as an unknown failure.
     val document = activities(tripId).document(validDocumentId(activityId))
 
-    val activity =
-        try {
-          // A transaction makes the existence check and the write atomic, so a retry after an
-          // ambiguous failure cannot overwrite the first attempt.
-          db.runTransaction { transaction ->
-                val existing = transaction.get(document)
-                if (existing.exists()) {
+    val outcome = mapCreationFailures {
+      // A transaction makes the existence check and the write atomic, so a retry after an
+      // ambiguous failure cannot overwrite the first attempt.
+      db.runTransaction { transaction ->
+            val existing = transaction.get(document)
+            if (existing.exists()) {
+              return@runTransaction CreationOutcome.Stored(
                   activityFromFirestore(existing.id, tripId, existing.requireData())
-                } else {
-                  val created = draft.toActivity(activityId, tripId, authorId, Timestamp.now())
-                  transaction.set(document, created.toFirestoreData())
-                  created
-                }
-              }
-              .await()
-        } catch (error: CancellationException) {
-          throw error
-        } catch (error: FirebaseFirestoreException) {
-          throw error.toActivityCreationException()
-        } catch (error: Exception) {
-          throw ActivityCreationException.Unknown(error)
-        }
+              )
+            }
+            val errors = draft.validate(startRequired = true)
+            if (errors.isNotEmpty()) return@runTransaction CreationOutcome.InvalidDraft(errors)
+
+            val created = draft.toActivity(activityId, tripId, authorId, Timestamp.now(), type)
+            transaction.set(document, created.toFirestoreData())
+            CreationOutcome.Stored(created)
+          }
+          .await()
+    }
 
     // Deciding outside the transaction keeps the exception types independent of how Firestore
     // reports failures thrown from inside a transaction function.
-    if (activity.createdByUserId != authorId) throw ActivityCreationException.PermissionDenied()
-    return activity
+    return when (outcome) {
+      is CreationOutcome.Stored -> outcome.activity.requireCreationMatch(authorId, type)
+      is CreationOutcome.InvalidDraft -> throw ActivityCreationException.Validation(outcome.errors)
+    }
   }
+
+  override suspend fun createSuggestionWithVote(
+      tripId: String,
+      suggestionId: String,
+      draft: ActivityDraft,
+  ): SuggestionWithVote {
+    val authorId = currentUserId() ?: throw ActivityCreationException.NotAuthenticated()
+    validateFirestoreDocumentId(tripId)
+    val voteId = initialSuggestionVoteId(suggestionId)
+    val trip = db.collection("trips").document(tripId)
+    val activityRef = trip.collection("activities").document(suggestionId)
+    val voteRef = trip.collection("votes").document(voteId)
+
+    fun readPair(activity: DocumentSnapshot, vote: DocumentSnapshot) =
+        readStoredPair(activity, vote, tripId, suggestionId, voteId, authorId)
+
+    val stagedPair = AtomicBoolean()
+    val outcome = mapCreationFailures {
+      try {
+        db.runTransaction { transaction ->
+              stagedPair.set(false)
+              val activity = transaction.get(activityRef)
+              val vote = transaction.get(voteRef)
+              if (activity.exists() || vote.exists()) {
+                return@runTransaction readPair(activity, vote)
+              }
+              val pair =
+                  try {
+                    draft.newSuggestionPair(tripId, suggestionId, voteId, authorId)
+                  } catch (error: ActivityCreationException.Validation) {
+                    return@runTransaction PairCreationOutcome(Result.failure(error))
+                  }
+              transaction.set(activityRef, pair.activity.toFirestoreData())
+              transaction.set(voteRef, pair.vote.toVoteFirestoreData())
+              stagedPair.set(true)
+              PairCreationOutcome(Result.success(pair))
+            }
+            .await()
+      } catch (error: FirebaseFirestoreException) {
+        recoverPairAfterDenial(error, stagedPair.get(), authorId) { transaction ->
+          readPair(transaction.get(activityRef), transaction.get(voteRef))
+        }
+      }
+    }
+    return outcome.result.getOrThrow()
+  }
+
+  private suspend fun recoverPairAfterDenial(
+      error: FirebaseFirestoreException,
+      stagedPair: Boolean,
+      authorId: String,
+      readPair: Transaction.Function<PairCreationOutcome>,
+  ): PairCreationOutcome {
+    if (
+        error.code != FirebaseFirestoreException.Code.PERMISSION_DENIED ||
+            !stagedPair ||
+            currentUserId() != authorId
+    ) {
+      throw error
+    }
+
+    // A stale optimistic commit can fail rules after another request creates the pair.
+    // A read-only transaction verifies both server versions without using pending local writes.
+    val recovered =
+        try {
+          db.runTransaction(readPair).await().result.getOrNull()
+        } catch (_: FirebaseFirestoreException) {
+          throw error
+        }
+    if (recovered == null || currentUserId() != authorId) throw error
+    return PairCreationOutcome(Result.success(recovered))
+  }
+
+  private fun readStoredPair(
+      activity: DocumentSnapshot,
+      vote: DocumentSnapshot,
+      tripId: String,
+      suggestionId: String,
+      voteId: String,
+      authorId: String,
+  ): PairCreationOutcome =
+      try {
+        val storedActivity =
+            if (activity.exists())
+                activityFromFirestore(activity.id, tripId, activity.requireData())
+            else null
+        val storedVote =
+            if (vote.exists()) {
+              // toVote uses the snapshot ID and caller's trip ID, so check the stored fields.
+              val data = vote.requireData()
+              if (data["uid"] != voteId || data["tripId"] != tripId) {
+                throw ActivityCreationException.PairConflict()
+              }
+              vote.toVote(tripId)
+            } else null
+        PairCreationOutcome(
+            Result.success(
+                storedSuggestionPair(
+                    storedActivity,
+                    storedVote,
+                    tripId,
+                    suggestionId,
+                    voteId,
+                    authorId,
+                )
+            )
+        )
+      } catch (error: ActivityCreationException) {
+        PairCreationOutcome(Result.failure(error))
+      } catch (error: IllegalArgumentException) {
+        PairCreationOutcome(Result.failure(ActivityCreationException.PairConflict(error)))
+      }
 
   override fun observeActivities(tripId: String): Flow<List<Activity>> = callbackFlow {
     val registration =
@@ -94,8 +210,29 @@ class ActivityRepositoryFirestore(
       db.collection("trips").document(validDocumentId(tripId)).collection("activities")
 }
 
+private data class PairCreationOutcome(val result: Result<SuggestionWithVote>)
+
+private inline fun <T> mapCreationFailures(block: () -> T): T =
+    try {
+      block()
+    } catch (error: CancellationException) {
+      throw error
+    } catch (error: FirebaseFirestoreException) {
+      throw error.toActivityCreationException()
+    } catch (error: Exception) {
+      throw ActivityCreationException.Unknown(error)
+    }
+
+private sealed interface CreationOutcome {
+  data class Stored(val activity: Activity) : CreationOutcome
+
+  data class InvalidDraft(val errors: List<ActivityDraftError>) : CreationOutcome
+}
+
 private fun FirebaseFirestoreException.toActivityCreationException(): ActivityCreationException =
     when (code) {
+      FirebaseFirestoreException.Code.UNAUTHENTICATED ->
+          ActivityCreationException.NotAuthenticated(this)
       FirebaseFirestoreException.Code.PERMISSION_DENIED ->
           ActivityCreationException.PermissionDenied(this)
       FirebaseFirestoreException.Code.UNAVAILABLE,
@@ -108,11 +245,12 @@ internal fun ActivityDraft.toActivity(
     tripId: String,
     authorId: String,
     createdAt: Timestamp,
+    type: ActivityType = ActivityType.ACCEPTED,
 ): Activity =
     Activity(
         uid = activityId,
         tripId = tripId,
-        activityType = ActivityType.ACCEPTED,
+        activityType = type,
         name = name,
         description = description,
         location = location,

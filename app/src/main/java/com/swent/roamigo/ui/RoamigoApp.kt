@@ -24,6 +24,7 @@ import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.ClearCredentialException
 import androidx.lifecycle.compose.dropUnlessResumed
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -36,26 +37,21 @@ import com.swent.roamigo.model.connectivity.ConnectivityRepository
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.friends.FriendRepository
 import com.swent.roamigo.model.location.LocationRepository
-import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.photo.PhotoRepository
 import com.swent.roamigo.model.place.PlaceRepository
-import com.swent.roamigo.model.trip.FakeTripRepository
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.activity.ActivityRepository
-import com.swent.roamigo.model.trip.activity.FakeActivityRepository
 import com.swent.roamigo.model.trip.inviting.InvitationLinks
 import com.swent.roamigo.model.trip.inviting.TripInvitationService
-import com.swent.roamigo.model.trip.inviting.UnavailableTripInvitationService
 import com.swent.roamigo.model.trip.voting.VoteRepository
-import com.swent.roamigo.model.users.FakeUserRepository
-import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
+import com.swent.roamigo.model.weather.WeatherRepository
 import com.swent.roamigo.ui.authentication.AuthenticationRoute
-import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.friends.FriendsRoute
 import com.swent.roamigo.ui.friends.FriendsSearchRoute
 import com.swent.roamigo.ui.heatmap.ExploredWorldRoute
 import com.swent.roamigo.ui.heatmap.VisitedCountryCounts
+import com.swent.roamigo.ui.map.LocationSharingRestoreViewModel
 import com.swent.roamigo.ui.map.TripOverviewMapRoute
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.navigation.activityFormTrip
@@ -85,8 +81,8 @@ import kotlinx.coroutines.launch
 /**
  * New sign-ins continue through the permissions explainer to trips; existing sessions open trips.
  *
- * Repository defaults provide placeholders for previews and tests; MainActivity supplies real
- * trips, activities, and votes.
+ * Data sources have no placeholder defaults, so the app always shows what its caller wires in:
+ * MainActivity passes the production repositories, and tests pass fakes explicitly.
  *
  * @param activityRepository Provides live activity and suggestion updates for the trip map, and
  *   stores the activities created with the activity form.
@@ -94,9 +90,11 @@ import kotlinx.coroutines.launch
  * @param photoRepository Takes trip photos and keeps them until they are uploaded.
  * @param connectivityRepository Tells whether the device is online; the device's own by default.
  * @param invitationService Creates, previews and accepts the links that invite people to a trip.
- *   Every call fails by default, so only production wiring talks to the backend.
- * @param locationRepository Shares the user's location on a trip map; the app-wide instance of
- *   [RoamigoApplication] by default, since sharing must go through a single instance.
+ * @param locationRepository Shares the user's location on a trip map, and resumes at startup the
+ *   sharing left on by a previous process. It must be the app-wide instance, since sharing must go
+ *   through a single instance.
+ * @param weatherRepository Forecasts the weather of a trip; the trip screen shows no forecast
+ *   without one, so tests that do not care about it never reach the network.
  * @param placeRepository Searches places for the activity form; the app-wide instance of
  *   [RoamigoApplication] by default, since Search Box keeps one provider session.
  */
@@ -104,22 +102,33 @@ import kotlinx.coroutines.launch
 fun RoamigoApp(
     voteRepository: VoteRepository,
     friendRepository: FriendRepository,
-    tripRepository: TripRepository = remember { FakeTripRepository() },
-    activityRepository: ActivityRepository = remember { FakeActivityRepository() },
-    userRepository: UserRepository = remember { FakeUserRepository(User("alex", "Alex", null)) },
+    tripRepository: TripRepository,
+    activityRepository: ActivityRepository,
+    userRepository: UserRepository,
     navController: NavHostController = rememberNavController(),
     authRepository: AuthRepository = remember { AuthRepositoryFirebase() },
     credentialManager: CredentialManager? = null,
     destinationRepository: DestinationRepository,
-    photoRepository: PhotoRepository = remember { FakePhotoRepository() },
+    photoRepository: PhotoRepository,
     connectivityRepository: ConnectivityRepository? = null,
-    locationRepository: LocationRepository? = null,
+    locationRepository: LocationRepository,
     placeRepository: PlaceRepository? = null,
-    countryCounts: VisitedCountryCounts = remember { VisitedCountryCounts { emptyMap() } },
-    invitationService: TripInvitationService = UnavailableTripInvitationService,
+    weatherRepository: WeatherRepository? = null,
+    countryCounts: VisitedCountryCounts,
+    invitationService: TripInvitationService,
 ) {
   val context = LocalContext.current
   val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }
+  // Obtained outside the NavHost, so that it belongs to the activity: it is created once whatever
+  // the start destination and kept across rotation. It restores in the background, so nothing here
+  // waits for it.
+  viewModel<LocationSharingRestoreViewModel>(
+      factory =
+          LocationSharingRestoreViewModel.factory(
+              locationRepository = locationRepository,
+              authRepository = authRepository,
+          )
+  )
   val scope = rememberCoroutineScope()
   // MainActivity is singleTop, so a link opened while the app is running arrives as a new intent
   // on the same activity. The navigation graph only follows it when it is told about it.
@@ -273,6 +282,7 @@ fun RoamigoApp(
             tripRepository = tripRepository,
             userRepository = userRepository,
             onBack = { navController.popBackStack() },
+            onInviteClick = { inviteTripId = tripId },
             // The profile source may not know the signed-in user; their account name does.
             currentUserName = authRepository.getCurrentUser()?.displayName,
         )
@@ -373,6 +383,7 @@ fun RoamigoApp(
           photoRepository = photoRepository,
           connectivityRepository = connectivityRepository,
           locationRepository = locationRepository,
+          weatherRepository = weatherRepository,
           onBack = {
             if (fromHistory) navController.popBackStack()
             else navController.popBackStack(Route.TRIPS, inclusive = false)
@@ -395,23 +406,19 @@ fun RoamigoApp(
       val id = entry.tripId()
       val photo by
           entry.savedStateHandle.getStateFlow<Bundle?>("ready_photo", null).collectAsState()
-      val onSuggestClick = rememberNotImplementedAction()
       fun openTrip(openMap: Boolean) {
         navController.navigate(Route.tripDetails(id, openMap = openMap)) {
           popUpTo(Route.TRIP_READY) { inclusive = true }
           launchSingleTop = true
         }
       }
-      val onShareTripClick = rememberNotImplementedAction()
       TripReadyRoute(
           tripRepository = tripRepository,
           tripId = id,
           photo = photo,
           onInviteClick = { inviteTripId = id },
-          onSuggestClick = onSuggestClick,
           onShareLocationClick = { openTrip(openMap = true) },
           onOpenItineraryClick = { openTrip(openMap = false) },
-          onShareTripClick = onShareTripClick,
       )
     }
 

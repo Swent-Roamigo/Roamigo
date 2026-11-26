@@ -54,17 +54,22 @@ internal object TripReadyTestTags {
   const val LOCATION_CARD = "trip_ready_location"
 }
 
-/** Connects [tripRepository] to [TripReadyScreen] for the selected [tripId]. */
+/**
+ * Connects [tripRepository] to [TripReadyScreen] for the selected [tripId].
+ *
+ * @param onSuggestClick Opens place suggestions; the card is hidden while it is null.
+ * @param onShareTripClick Shares the trip; the button is hidden while it is null.
+ */
 @Composable
 fun TripReadyRoute(
     tripRepository: TripRepository,
     tripId: String,
     photo: Bundle?,
     onInviteClick: () -> Unit,
-    onSuggestClick: () -> Unit,
     onShareLocationClick: () -> Unit,
     onOpenItineraryClick: () -> Unit,
-    onShareTripClick: () -> Unit,
+    onSuggestClick: (() -> Unit)? = null,
+    onShareTripClick: (() -> Unit)? = null,
 ) {
   val viewModel = viewModel { TripReadyViewModel(tripRepository, tripId) }
   val state by viewModel.state.collectAsStateWithLifecycle()
@@ -80,17 +85,20 @@ fun TripReadyRoute(
   )
 }
 
-/** Renders [state] and forwards retry and trip actions to the caller. */
+/**
+ * Renders [state] and forwards retry and trip actions to the caller. A null [onSuggestClick] or
+ * [onShareTripClick] hides its action, so the screen never offers one that does nothing.
+ */
 @Composable
 internal fun TripReadyScreen(
     state: TripReadyState,
     photo: Bundle?,
     onRetry: () -> Unit,
     onInviteClick: () -> Unit,
-    onSuggestClick: () -> Unit,
     onShareLocationClick: () -> Unit,
     onOpenItineraryClick: () -> Unit,
-    onShareTripClick: () -> Unit,
+    onSuggestClick: (() -> Unit)? = null,
+    onShareTripClick: (() -> Unit)? = null,
 ) {
   when (state) {
     TripReadyState.Loading ->
@@ -118,11 +126,11 @@ internal fun TripReadyScreen(
         TripReadySuccessContent(
             state,
             photo,
-            onInviteClick,
-            onSuggestClick,
-            onShareLocationClick,
-            onOpenItineraryClick,
-            onShareTripClick,
+            onInviteClick = onInviteClick,
+            onSuggestClick = onSuggestClick,
+            onShareLocationClick = onShareLocationClick,
+            onOpenItineraryClick = onOpenItineraryClick,
+            onShareTripClick = onShareTripClick,
         )
   }
 }
@@ -132,10 +140,10 @@ private fun TripReadySuccessContent(
     state: TripReadyState.Ready,
     photo: Bundle?,
     onInviteClick: () -> Unit,
-    onSuggestClick: () -> Unit,
     onShareLocationClick: () -> Unit,
     onOpenItineraryClick: () -> Unit,
-    onShareTripClick: () -> Unit,
+    onSuggestClick: (() -> Unit)?,
+    onShareTripClick: (() -> Unit)?,
 ) {
   val trip = state.trip
   val formatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
@@ -174,12 +182,14 @@ private fun TripReadySuccessContent(
           tag = "invite",
           onClick = onInviteClick,
       )
-      TripReadyCard(
-          title = stringResource(R.string.trip_ready_suggest),
-          detail = stringResource(R.string.trip_ready_suggest_detail),
-          tag = "suggest",
-          onClick = onSuggestClick,
-      )
+      if (onSuggestClick != null) {
+        TripReadyCard(
+            title = stringResource(R.string.trip_ready_suggest),
+            detail = stringResource(R.string.trip_ready_suggest_detail),
+            tag = "suggest",
+            onClick = onSuggestClick,
+        )
+      }
       TripReadyCard(
           title = stringResource(R.string.trip_ready_location),
           detail = stringResource(R.string.trip_ready_location_detail),
@@ -195,14 +205,13 @@ private fun TripReadySuccessContent(
       ) {
         Text(stringResource(R.string.trip_ready_itinerary))
       }
-      OutlinedButton(
-          onClick = onShareTripClick,
-          modifier =
-              Modifier.fillMaxWidth().markNotImplemented(onShareTripClick).semantics {
-                testTag = TripReadyTestTags.SHARE
-              },
-      ) {
-        Text(stringResource(R.string.trip_ready_share))
+      if (onShareTripClick != null) {
+        OutlinedButton(
+            onClick = onShareTripClick,
+            modifier = Modifier.fillMaxWidth().semantics { testTag = TripReadyTestTags.SHARE },
+        ) {
+          Text(stringResource(R.string.trip_ready_share))
+        }
       }
     }
   }

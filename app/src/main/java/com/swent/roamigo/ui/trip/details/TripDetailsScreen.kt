@@ -39,14 +39,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.TripRepository
+import com.swent.roamigo.model.weather.WeatherRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.TripActionButton
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.Spacing
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 /** Standalone repository-backed entry point; the caller owns navigation and feature actions. */
 @Composable
@@ -60,9 +58,11 @@ fun TripDetailsRoute(
     onTripMapClick: () -> Unit,
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
     onInviteClick: () -> Unit = rememberNotImplementedAction(),
+    weatherRepository: WeatherRepository? = null,
 ) {
   val model = viewModel(key = tripId) { TripDetailsViewModel(tripId, tripRepository) }
   val state by model.uiState.collectAsStateWithLifecycle()
+  val forecast = rememberTripForecast(state.details, weatherRepository)
   TripDetailsScreen(
       state,
       onRetry = {
@@ -75,6 +75,7 @@ fun TripDetailsRoute(
       onTripMapClick = onTripMapClick,
       onPhotosClick = onPhotosClick,
       onInviteClick = onInviteClick,
+      forecast = forecast,
   )
 }
 
@@ -89,6 +90,7 @@ fun TripDetailsScreen(
     onTripMapClick: () -> Unit = rememberNotImplementedAction(),
     onPhotosClick: () -> Unit = rememberNotImplementedAction(),
     onInviteClick: () -> Unit = rememberNotImplementedAction(),
+    forecast: TripForecastUi? = null,
 ) {
   Scaffold(modifier = Modifier.testTag(C.Tag.trip_details_screen)) { padding ->
     when {
@@ -123,6 +125,7 @@ fun TripDetailsScreen(
               onTripMapClick = onTripMapClick,
               onPhotosClick = onPhotosClick,
               onInviteClick = onInviteClick,
+              forecast = forecast,
           )
     }
   }
@@ -138,6 +141,7 @@ private fun TripDetailsContent(
     onTripMapClick: () -> Unit,
     onPhotosClick: () -> Unit,
     onInviteClick: () -> Unit,
+    forecast: TripForecastUi?,
 ) {
   Column(
       modifier.padding(
@@ -152,6 +156,7 @@ private fun TripDetailsContent(
         Modifier.weight(1f).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(Spacing.large),
     ) {
+      forecast?.let { TripForecastCard(it.state, it.city, it.onRetry) }
       val unfinished = rememberNotImplementedAction()
       TextButton(onClick = unfinished, modifier = Modifier.markNotImplemented(unfinished)) {
         Text(stringResource(R.string.trip_details_itinerary))
@@ -273,14 +278,4 @@ private fun TripDetailsBadge(text: String) {
             ),
     )
   }
-}
-
-/** Compact Figma date ranges retain both months or years when the trip crosses a boundary. */
-internal fun formatTripDetailsDates(start: LocalDate, end: LocalDate, locale: Locale): String {
-  val pattern = if (start.year == end.year) "d MMM" else "d MMM yyyy"
-  val formatter = DateTimeFormatter.ofPattern(pattern, locale)
-  val startText =
-      if (start.year == end.year && start.month == end.month) start.dayOfMonth.toString()
-      else start.format(formatter)
-  return "$startText – ${end.format(formatter)}"
 }

@@ -1,0 +1,28 @@
+# AI assistance was used for implementation support.
+name: Run connected tests
+description: Runs one shard of the instrumented tests on an emulator, next to the Firebase emulators.
+
+inputs:
+  shard:
+    description: Index of the shard to run.
+    required: true
+  shard-count:
+    description: Total number of shards.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # The same step runs again if the first attempt fails (see ci.yml), so it lives here once.
+    # The Firestore backend tests run on the first shard only, because they do not depend on it.
+    - name: Run the shard on the emulator
+      uses: reactivecircus/android-emulator-runner@v2
+      with:
+        api-level: 34
+        target: google_apis
+        arch: x86_64
+        force-avd-creation: false
+        emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+        disable-animations: true
+        script: |
+          bash -o pipefail -c "firebase emulators:exec --only auth,database,firestore,functions --project demo-roamigo --non-interactive '${{ inputs.shard == '0' && 'node --test tests/firestore/*.test.mjs && ' || '' }}./gradlew connectedCheck --build-cache -Pandroid.testInstrumentationRunnerArguments.numShards=${{ inputs.shard-count }} -Pandroid.testInstrumentationRunnerArguments.shardIndex=${{ inputs.shard }}' 2>&1 | tee firebase-emulator.log"
