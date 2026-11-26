@@ -2,6 +2,7 @@
 package com.swent.roamigo.ui.friends
 
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -439,7 +440,7 @@ class FriendsScreenTest {
   }
 
   @Test
-  fun removingAFriendDoesNotTriggerTheRowNavigation() {
+  fun friendRowIsAButtonWithNavigationIndependentOfRemoval() {
     var viewedUserId: String? = null
     var removedFriendshipId: String? = null
     composeRule.setContent {
@@ -455,7 +456,19 @@ class FriendsScreenTest {
       }
     }
 
-    composeRule.onNodeWithTag(C.Tag.friends_remove_prefix + "friendship-sam").performClick()
+    val row = composeRule.onNodeWithTag(C.Tag.friends_view_map_prefix + "sam")
+    row.assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+        .assertContentDescriptionEquals(
+            resources.string(R.string.friends_view_map_accessibility, "Sam")
+        )
+        .assertHasClickAction()
+    composeRule
+        .onNodeWithTag(C.Tag.friends_remove_prefix + "friendship-sam")
+        .assertContentDescriptionEquals(
+            resources.string(R.string.friends_remove_accessibility, "Sam")
+        )
+        .assertHasClickAction()
+        .performClick()
     composeRule.onNodeWithTag(C.Tag.friends_remove_confirm_dialog).assertIsDisplayed()
     assertNull(removedFriendshipId)
     assertNull(viewedUserId)
@@ -464,7 +477,7 @@ class FriendsScreenTest {
     assertEquals("friendship-sam", removedFriendshipId)
     assertNull(viewedUserId)
 
-    composeRule.onNodeWithTag(C.Tag.friends_view_map_prefix + "sam").performClick()
+    row.performClick()
     assertEquals("sam", viewedUserId)
   }
 
