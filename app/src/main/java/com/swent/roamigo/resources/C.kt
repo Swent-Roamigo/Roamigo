@@ -68,6 +68,10 @@ object C {
     const val trips_profile_photo = "trips_profile_photo"
 
     const val friends_screen = "friends_screen"
+    const val notifications_screen = "notifications_screen"
+    const val notifications_list = "notifications_list"
+    const val notifications_row_prefix = "notifications_row_"
+    const val notifications_mark_read_prefix = "notifications_mark_read_"
     const val friends_list = "friends_list"
     const val friends_loading = "friends_loading"
     const val friends_load_error = "friends_load_error"
