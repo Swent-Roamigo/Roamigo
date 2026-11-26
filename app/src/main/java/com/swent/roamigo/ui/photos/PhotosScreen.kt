@@ -1,6 +1,7 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui.photos
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,6 +60,8 @@ import java.util.Date
  *
  * @param fileOf the file holding a waiting photo, to show its thumbnail.
  * @param onPhotoClick invoked with the id of an uploaded photo the user wants to see full screen.
+ * @param onRetryAllClick invoked when the user asks to queue every failed photo again.
+ * @param onPendingRetryClick invoked when the user asks to read the waiting photos again.
  * @param onGalleryRetryClick invoked when the user asks to read the uploaded photos again.
  * @param summary the photo and member counts of the trip, shown above the gallery when known.
  */
@@ -69,6 +72,8 @@ fun PhotosScreen(
     fileOf: (PendingPhoto) -> File,
     onTakePhotoClick: () -> Unit,
     onRetryClick: (String) -> Unit,
+    onRetryAllClick: () -> Unit,
+    onPendingRetryClick: () -> Unit,
     onPhotoClick: (String) -> Unit,
     onGalleryRetryClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -93,11 +98,12 @@ fun PhotosScreen(
         )
       }
       if (!readOnly) PhotosBanner(state)
-      if (!readOnly) FailedUploadsBanner(state, onRetryClick)
+      if (!readOnly) FailedUploadsBanner(state, onRetryAllClick)
       PhotosContent(
           if (readOnly) state.copy(photos = emptyList()) else state,
           fileOf,
           onRetryClick,
+          onPendingRetryClick,
           onPhotoClick,
           onGalleryRetryClick,
           Modifier.weight(1f).fillMaxWidth(),
@@ -120,7 +126,7 @@ fun PhotosScreen(
 
 /** Summarises the photos that failed to upload, with one action to retry them all. */
 @Composable
-private fun FailedUploadsBanner(state: PhotosUiState, onRetryClick: (String) -> Unit) {
+private fun FailedUploadsBanner(state: PhotosUiState, onRetryAllClick: () -> Unit) {
   val failed = state.photos.filter { it.status == PhotoUploadStatus.FAILED }
   if (failed.isEmpty()) return
   Surface(
@@ -147,7 +153,7 @@ private fun FailedUploadsBanner(state: PhotosUiState, onRetryClick: (String) -> 
         }
       }
       OutlinedButton(
-          onClick = { failed.forEach { onRetryClick(it.id) } },
+          onClick = onRetryAllClick,
           modifier = Modifier.heightIn(min = 48.dp).testTag(C.Tag.photos_retry_all),
       ) {
         Text(stringResource(R.string.photos_retry_all))
@@ -228,6 +234,7 @@ private fun PhotosContent(
     state: PhotosUiState,
     fileOf: (PendingPhoto) -> File,
     onRetryClick: (String) -> Unit,
+    onPendingRetryClick: () -> Unit,
     onPhotoClick: (String) -> Unit,
     onGalleryRetryClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -251,11 +258,11 @@ private fun PhotosContent(
   ) {
     if (state.pendingFailed) {
       item(key = "pending-error", span = { GridItemSpan(maxLineSpan) }) {
-        Text(
-            stringResource(R.string.photos_pending_error),
-            modifier = Modifier.testTag(C.Tag.photos_pending_error),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.error,
+        ReadError(
+            R.string.photos_pending_error,
+            C.Tag.photos_pending_error,
+            C.Tag.photos_pending_retry,
+            onPendingRetryClick,
         )
       }
     }
@@ -268,7 +275,12 @@ private fun PhotosContent(
     }
     if (state.galleryFailed) {
       item(key = "gallery-error", span = { GridItemSpan(maxLineSpan) }) {
-        GalleryError(onGalleryRetryClick)
+        ReadError(
+            R.string.photos_gallery_error,
+            C.Tag.photos_gallery_error,
+            C.Tag.photos_gallery_retry,
+            onGalleryRetryClick,
+        )
       }
     }
     if (state.uploaded.isNotEmpty()) {
@@ -286,20 +298,26 @@ private fun PhotosContent(
   }
 }
 
+/** Says that photos could not be read, with a button to read them again. */
 @Composable
-private fun GalleryError(onRetryClick: () -> Unit) {
+private fun ReadError(
+    @StringRes message: Int,
+    messageTag: String,
+    retryTag: String,
+    onRetryClick: () -> Unit,
+) {
   Row(
       Modifier.fillMaxWidth(),
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.SpaceBetween,
   ) {
     Text(
-        stringResource(R.string.photos_gallery_error),
-        modifier = Modifier.weight(1f).testTag(C.Tag.photos_gallery_error),
+        stringResource(message),
+        modifier = Modifier.weight(1f).testTag(messageTag),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.error,
     )
-    TextButton(onClick = onRetryClick, modifier = Modifier.testTag(C.Tag.photos_gallery_retry)) {
+    TextButton(onClick = onRetryClick, modifier = Modifier.testTag(retryTag)) {
       Text(stringResource(R.string.photos_retry))
     }
   }

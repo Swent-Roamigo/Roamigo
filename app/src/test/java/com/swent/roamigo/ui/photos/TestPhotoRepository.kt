@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 
 /** What [TestPhotoRepository.savePhoto] was given, besides the trip. */
@@ -47,8 +48,15 @@ class TestPhotoRepository(directory: File) : PhotoRepository {
   var galleryObservations = 0
     private set
 
-  /** Thrown by [pendingPhotos] instead of emitting, when set. */
+  /**
+   * Thrown by [pendingPhotos] in place of the next list, when set: before the first one, or after
+   * the lists already read when it is set later and the photos change.
+   */
   var pendingError: Exception? = null
+
+  /** How many times the waiting photos were observed. */
+  var pendingObservations = 0
+    private set
 
   /** Thrown by [retry] instead of retrying, when set. */
   var retryError: Exception? = null
@@ -62,7 +70,8 @@ class TestPhotoRepository(directory: File) : PhotoRepository {
   override fun pendingPhotos(tripId: String): Flow<List<PendingPhoto>> =
       photos
           .map { list -> list.filter { it.tripId == tripId } }
-          .onStart { pendingError?.let { throw it } }
+          .onStart { pendingObservations++ }
+          .onEach { pendingError?.let { throw it } }
 
   override fun tripPhotos(tripId: String): Flow<List<TripPhoto>> = flow {
     galleryObservations++

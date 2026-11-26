@@ -12,6 +12,7 @@ import com.swent.roamigo.model.photo.PendingPhoto
 import com.swent.roamigo.model.photo.PhotoCoordinates
 import com.swent.roamigo.model.photo.PhotoLocationResult
 import com.swent.roamigo.model.photo.PhotoLocator
+import com.swent.roamigo.model.photo.PhotoUploadStatus
 import com.swent.roamigo.model.photo.pendingPhoto
 import com.swent.roamigo.model.photo.tripPhoto
 import kotlin.time.Duration.Companion.milliseconds
@@ -95,6 +96,72 @@ class PhotosViewModelTest {
     // The rest of the screen keeps working.
     model.onTakePhotoClick(permissionGranted = true)
     assertEquals(CameraStep.NONE, model.uiState.value.cameraStep)
+  }
+
+  private fun failedPhoto(id: String) =
+      pendingPhoto(id, tripId = "trip", status = PhotoUploadStatus.FAILED)
+
+  @Test
+  fun keepsTheWaitingPhotosAlreadyReadWhenALaterReadFails() {
+    repository.photos.value = listOf(failedPhoto("a"))
+    val model = PhotosViewModel(repository, connectivity, "trip", locator, clock = clock)
+    assertEquals(listOf("a"), model.uiState.value.photos.map { it.id })
+
+    // The disk fails the next time the list changes.
+    repository.pendingError = java.io.IOException("disk")
+    repository.photos.value = listOf(failedPhoto("a"), failedPhoto("b"))
+
+    assertTrue(model.uiState.value.pendingFailed)
+    // The photos the user was looking at, with their retry, stay on screen.
+    assertEquals(listOf("a"), model.uiState.value.photos.map { it.id })
+  }
+
+  @Test
+  fun readsTheWaitingPhotosAgainOnRetryAfterAnError() {
+    repository.pendingError = java.io.IOException("disk")
+    repository.photos.value = listOf(failedPhoto("a"))
+    val model = PhotosViewModel(repository, connectivity, "trip", locator, clock = clock)
+    assertTrue(model.uiState.value.pendingFailed)
+
+    repository.pendingError = null
+    model.onPendingRetry()
+
+    assertFalse(model.uiState.value.pendingFailed)
+    assertEquals(listOf("a"), model.uiState.value.photos.map { it.id })
+  }
+
+  @Test
+  fun aRetryOfTheWaitingPhotosDoesNothingWhileTheyAreRead() {
+    val before = repository.pendingObservations
+
+    viewModel.onPendingRetry()
+
+    assertEquals(before, repository.pendingObservations)
+  }
+
+  @Test
+  fun retriesEveryFailedPhotoAndOnlyThose() {
+    repository.photos.value =
+        listOf(
+            failedPhoto("a"),
+            pendingPhoto("b", tripId = "trip", status = PhotoUploadStatus.WAITING),
+            failedPhoto("c"),
+        )
+
+    viewModel.onRetryAll()
+
+    assertEquals(listOf("a", "c"), repository.retried)
+    assertEquals(emptyList<PhotosEffect>(), effects)
+  }
+
+  @Test
+  fun tellsTheScreenOnceWhenSeveralPhotosCannotBeQueuedAgain() {
+    repository.photos.value = listOf(failedPhoto("a"), failedPhoto("b"), failedPhoto("c"))
+    repository.retryError = java.io.IOException("disk")
+
+    viewModel.onRetryAll()
+
+    assertEquals(listOf<PhotosEffect>(PhotosEffect.RetryFailed), effects)
   }
 
   @Test

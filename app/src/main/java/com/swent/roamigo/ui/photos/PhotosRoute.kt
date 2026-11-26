@@ -164,6 +164,8 @@ fun PhotosRoute(
           )
         },
         onRetryClick = viewModel::onRetry,
+        onRetryAllClick = viewModel::onRetryAll,
+        onPendingRetryClick = viewModel::onPendingRetry,
         onPhotoClick = viewModel::onPhotoClick,
         onGalleryRetryClick = viewModel::onGalleryRetry,
         summary = summary,

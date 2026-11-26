@@ -34,6 +34,8 @@ class PhotosScreenTest {
             fileOf = { File("/nowhere/${it.fileName}") },
             onTakePhotoClick = { taps += "take" },
             onRetryClick = { taps += "retry $it" },
+            onRetryAllClick = { taps += "retry all" },
+            onPendingRetryClick = { taps += "pending retry" },
             onPhotoClick = { taps += "photo $it" },
             onGalleryRetryClick = { taps += "gallery retry" },
             readOnly = readOnly,
@@ -140,7 +142,8 @@ class PhotosScreenTest {
         .assertDoesNotExist()
     composeRule.onNodeWithTag(C.Tag.photos_retry_all).performClick()
 
-    composeRule.runOnIdle { assertEquals(listOf("retry p0", "retry p1"), taps) }
+    // One call for all of them, so the ViewModel can report a failure once.
+    composeRule.runOnIdle { assertEquals(listOf("retry all"), taps) }
   }
 
   @Test
@@ -302,6 +305,24 @@ class PhotosScreenTest {
 
     composeRule.onNodeWithTag(C.Tag.photos_pending_error).assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.photos_empty).assertDoesNotExist()
+  }
+
+  @Test
+  fun offersToReadTheWaitingPhotosAgainAfterAnError() {
+    show(PhotosUiState(pendingFailed = true))
+
+    composeRule.onNodeWithTag(C.Tag.photos_pending_retry).performClick()
+
+    composeRule.runOnIdle { assertEquals(listOf("pending retry"), taps) }
+  }
+
+  @Test
+  fun keepsTheWaitingPhotosAndTheirRetryNextToTheErrorMessage() {
+    show(PhotosUiState(pendingFailed = true, photos = waiting(1, PhotoUploadStatus.FAILED)))
+
+    composeRule.onNodeWithTag(C.Tag.photos_pending_error).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.photos_failed_banner).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.photos_retry_all).assertIsDisplayed()
   }
 
   @Test

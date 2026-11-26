@@ -11,6 +11,7 @@ import com.swent.roamigo.model.photo.PhotoCoordinates
 import com.swent.roamigo.model.photo.PhotoLocationResult
 import com.swent.roamigo.model.photo.PhotoLocator
 import com.swent.roamigo.model.photo.PhotoRepository
+import com.swent.roamigo.model.photo.PhotoUploadStatus
 import com.swent.roamigo.model.photo.TripPhoto
 import java.io.File
 import kotlin.time.Duration
@@ -23,7 +24,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -62,7 +62,12 @@ class PhotosViewModel(
       val saveFailed: Boolean = false,
       val location: PhotoLocationStatus? = null,
       val viewingId: String? = null,
-      val pendingFailed: Boolean = false,
+  )
+
+  /** The photos waiting on the device, and whether reading them failed. */
+  private data class Waiting(
+      val photos: List<PendingPhoto> = emptyList(),
+      val failed: Boolean = false,
   )
 
   private data class Gallery(
@@ -74,6 +79,8 @@ class PhotosViewModel(
   private val local = MutableStateFlow(Local())
   private val gallery = MutableStateFlow(Gallery())
   private var galleryJob: Job? = null
+  private val waiting = MutableStateFlow(Waiting())
+  private var waitingJob: Job? = null
 
   // The file the camera is writing into, until it reports back. It is kept in the saved state
   // because Android may kill the app while the camera is open.
@@ -98,18 +105,14 @@ class PhotosViewModel(
   private var awaitingSettings = false
 
   val uiState: StateFlow<PhotosUiState> =
-      combine(waitingPhotos(), connectivity.isOnline, local, gallery) {
-              photos,
-              online,
-              local,
-              gallery ->
+      combine(waiting, connectivity.isOnline, local, gallery) { waiting, online, local, gallery ->
             PhotosUiState(
                 isOnline = online,
-                photos = photos,
+                photos = waiting.photos,
                 uploaded = gallery.photos,
                 galleryLoading = gallery.loading,
                 galleryFailed = gallery.failed,
-                pendingFailed = local.pendingFailed,
+                pendingFailed = waiting.failed,
                 // A photo that is no longer in the gallery cannot stay open.
                 viewing = gallery.photos.firstOrNull { it.id == local.viewingId },
                 currentUserId = currentUserId,
@@ -131,6 +134,7 @@ class PhotosViewModel(
   val effects: Flow<PhotosEffect> = _effects.receiveAsFlow()
 
   init {
+    observeWaiting()
     observeGallery()
     restorePreview()
   }
@@ -138,6 +142,11 @@ class PhotosViewModel(
   /** Reads the trip's photos again after they could not be read. */
   fun onGalleryRetry() {
     if (gallery.value.failed) observeGallery()
+  }
+
+  /** Reads the photos waiting on the device again after they could not be read. */
+  fun onPendingRetry() {
+    if (waiting.value.failed) observeWaiting()
   }
 
   /** Opens an uploaded photo full screen. */
@@ -260,16 +269,29 @@ class PhotosViewModel(
     closePreview()
   }
 
-  fun onRetry(photoId: String) {
+  fun onRetry(photoId: String) = queueAgain(listOf(photoId))
+
+  /** Queues every photo that failed to upload again. */
+  fun onRetryAll() =
+      queueAgain(
+          uiState.value.photos.filter { it.status == PhotoUploadStatus.FAILED }.map { it.id }
+      )
+
+  /** Tries each photo, and tells the screen once, however many of them could not be queued. */
+  private fun queueAgain(photoIds: List<String>) {
     viewModelScope.launch {
-      try {
-        repository.retry(photoId)
-      } catch (e: CancellationException) {
-        throw e
-      } catch (_: Exception) {
-        // The photo stays failed on screen, so the user is told and can try again.
-        _effects.trySend(PhotosEffect.RetryFailed)
+      var failed = false
+      for (photoId in photoIds) {
+        try {
+          repository.retry(photoId)
+        } catch (e: CancellationException) {
+          throw e
+        } catch (_: Exception) {
+          failed = true
+        }
       }
+      // The photos stay failed on screen, so the user is told and can try again.
+      if (failed) _effects.trySend(PhotosEffect.RetryFailed)
     }
   }
 
@@ -280,12 +302,20 @@ class PhotosViewModel(
     local.value.takeUnless { it.saving }?.preview?.let(repository::discard)
   }
 
-  /** The photos waiting on the device. A storage error shows as none, with a message. */
-  private fun waitingPhotos(): Flow<List<PendingPhoto>> =
-      repository.pendingPhotos(tripId).catch {
-        local.update { it.copy(pendingFailed = true) }
-        emit(emptyList())
+  private fun observeWaiting() {
+    waitingJob?.cancel()
+    waiting.update { it.copy(failed = false) }
+    waitingJob = viewModelScope.launch {
+      try {
+        repository.pendingPhotos(tripId).collect { photos -> waiting.value = Waiting(photos) }
+      } catch (e: CancellationException) {
+        throw e
+      } catch (_: Exception) {
+        // The photos read before stay on the screen, with a way to read them again.
+        waiting.update { it.copy(failed = true) }
       }
+    }
+  }
 
   private fun observeGallery() {
     galleryJob?.cancel()

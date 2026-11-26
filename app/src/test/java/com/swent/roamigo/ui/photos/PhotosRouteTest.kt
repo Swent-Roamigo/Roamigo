@@ -416,4 +416,23 @@ class PhotosRouteTest {
         ShadowToast.getTextOfLatestToast(),
     )
   }
+
+  @Test
+  fun showsOneMessageWhenSeveralFailedPhotosCannotBeQueuedAgain() {
+    val photos =
+        listOf("a", "b", "c").map {
+          pendingPhoto(it, tripId = "trip", userId = "alex", status = PhotoUploadStatus.FAILED)
+        }
+    val base = FakePhotoRepository(repository.newPhotoFile().parentFile!!, "alex", photos)
+    val broken =
+        object : PhotoRepository by base {
+          override suspend fun retry(photoId: String) = throw java.io.IOException("disk full")
+        }
+    show(photoRepository = broken)
+
+    tap(C.Tag.photos_retry_all)
+    composeRule.waitForIdle()
+
+    assertEquals(1, ShadowToast.shownToastCount())
+  }
 }
