@@ -46,6 +46,9 @@ class FakeLocationRepository(
   var observeMemberLocationsCalls = 0
     private set
 
+  var restoreSharingCalls = 0
+    private set
+
   /** Thrown by [startSharing] instead of starting, when set. */
   var startSharingError: Exception? = null
 
@@ -113,7 +116,9 @@ class FakeLocationRepository(
     sharingTripIds.value = emptySet()
   }
 
-  override suspend fun restoreSharing() = Unit
+  override suspend fun restoreSharing() {
+    restoreSharingCalls++
+  }
 
   override fun observeMemberLocations(tripId: String): Flow<List<MemberLocation>> {
     observeMemberLocationsCalls++
