@@ -25,9 +25,9 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.PersonRemove
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -43,6 +43,8 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -80,13 +82,13 @@ import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.theme.FriendAvatarBlue
+import com.swent.roamigo.ui.theme.FriendAvatarGreen
 import com.swent.roamigo.ui.theme.FriendAvatarRose
 import com.swent.roamigo.ui.theme.Paper
 import com.swent.roamigo.ui.theme.Spacing
-import com.swent.roamigo.ui.theme.Success
 
 /** Colors used for friend avatars to provide visual variety. */
-private val friendAvatarColors = listOf(FriendAvatarBlue, FriendAvatarRose, Success)
+private val friendAvatarColors = listOf(FriendAvatarBlue, FriendAvatarRose, FriendAvatarGreen)
 
 /**
  * Renders the Friends list from presentation-ready state and forwards user actions to the caller.
@@ -490,42 +492,28 @@ private fun LazyListScope.outgoingSection(
 @Composable
 private fun FriendsSearch(query: String, onQueryChange: (String) -> Unit) {
   val label = stringResource(R.string.friends_search)
-  BasicTextField(
+  TextField(
       value = query,
       onValueChange = onQueryChange,
+      modifier = Modifier.fillMaxWidth().testTag(C.Tag.friends_search),
       singleLine = true,
-      textStyle =
-          MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-      modifier =
-          Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag(C.Tag.friends_search).semantics {
-            contentDescription = label
-          },
-      decorationBox = { input ->
-        Row(
-            Modifier.fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
-                .padding(Spacing.cardPadding),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-          Icon(
-              painter = painterResource(R.drawable.ic_friends_search),
-              contentDescription = null,
-              tint = Color.Unspecified,
-              modifier = Modifier.size(18.dp),
-          )
-          Spacer(Modifier.width(10.dp))
-          Box(Modifier.weight(1f)) {
-            if (query.isEmpty()) {
-              Text(
-                  label,
-                  style = MaterialTheme.typography.bodyLarge,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
-              )
-            }
-            input()
-          }
-        }
+      textStyle = MaterialTheme.typography.bodyLarge,
+      placeholder = { Text(label) },
+      leadingIcon = {
+        Icon(
+            imageVector = Icons.Outlined.Search,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp),
+        )
       },
+      shape = RoundedCornerShape(12.dp),
+      colors =
+          TextFieldDefaults.colors(
+              focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+              unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+              unfocusedIndicatorColor = Color.Transparent,
+          ),
   )
 }
 
@@ -662,9 +650,9 @@ private fun FriendRow(
         }
       }
       Icon(
-          painter = painterResource(R.drawable.ic_friends_chevron),
+          painter = painterResource(R.drawable.ic_c2_chevron_right),
           contentDescription = null,
-          tint = Color.Unspecified,
+          tint = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.size(18.dp),
       )
     }
