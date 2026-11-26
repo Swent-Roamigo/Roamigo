@@ -53,6 +53,7 @@ class TripDetailsViewModel(
                         memberCount = members.map { it.userId }.distinct().size,
                         suggestedPlaceCount =
                             activities.count { it.activityType == ActivityType.SUGGESTION },
+                        destination = trip.destinations.firstOrNull(),
                     ),
             )
       } catch (exception: CancellationException) {

@@ -45,6 +45,7 @@ import com.swent.roamigo.model.trip.inviting.InvitationLinks
 import com.swent.roamigo.model.trip.inviting.TripInvitationService
 import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.users.UserRepository
+import com.swent.roamigo.model.weather.WeatherRepository
 import com.swent.roamigo.ui.authentication.AuthenticationRoute
 import com.swent.roamigo.ui.friends.FriendsRoute
 import com.swent.roamigo.ui.friends.FriendsSearchRoute
@@ -92,6 +93,8 @@ import kotlinx.coroutines.launch
  * @param locationRepository Shares the user's location on a trip map, and resumes at startup the
  *   sharing left on by a previous process. It must be the app-wide instance, since sharing must go
  *   through a single instance.
+ * @param weatherRepository Forecasts the weather of a trip; the trip screen shows no forecast
+ *   without one, so tests that do not care about it never reach the network.
  * @param placeRepository Searches places for the activity form; the app-wide instance of
  *   [RoamigoApplication] by default, since Search Box keeps one provider session.
  */
@@ -110,6 +113,7 @@ fun RoamigoApp(
     connectivityRepository: ConnectivityRepository? = null,
     locationRepository: LocationRepository,
     placeRepository: PlaceRepository? = null,
+    weatherRepository: WeatherRepository? = null,
     countryCounts: VisitedCountryCounts,
     invitationService: TripInvitationService,
 ) {
@@ -379,6 +383,7 @@ fun RoamigoApp(
           photoRepository = photoRepository,
           connectivityRepository = connectivityRepository,
           locationRepository = locationRepository,
+          weatherRepository = weatherRepository,
           onBack = {
             if (fromHistory) navController.popBackStack()
             else navController.popBackStack(Route.TRIPS, inclusive = false)
