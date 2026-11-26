@@ -7,7 +7,9 @@ import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.LocalActivity
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -23,8 +25,13 @@ import androidx.core.util.Consumer
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.ClearCredentialException
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -516,6 +523,8 @@ fun RoamigoApp(
       )
     }
   }
+  // After the NavHost, so that it is asked first (the last handler added is).
+  IgnoreSystemBackWhileNavigating(navController)
   inviteTripId?.let { tripId ->
     InviteRoute(tripId, invitationService, onDismiss = { inviteTripId = null })
   }
@@ -527,6 +536,46 @@ fun RoamigoApp(
         },
         onDismiss = { joinCodeOpen = false },
     )
+  }
+}
+
+/**
+ * Ignores the system Back while a screen is still arriving or leaving. The Back buttons already
+ * ignore a tap then ([dropUnlessResumed]), but the system Back goes to the NavHost's own handler,
+ * which pops again for each press and so could leave two screens at once.
+ *
+ * The handler is switched by navigation and lifecycle events and not by composition, so it is up to
+ * date at the moment of a press even when no frame has been drawn since the last one.
+ */
+@Composable
+private fun IgnoreSystemBackWhileNavigating(navController: NavHostController) {
+  val dispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher ?: return
+  val lifecycleOwner = LocalLifecycleOwner.current
+  DisposableEffect(navController, dispatcher, lifecycleOwner) {
+    // Added after the NavHost's own handler, so it is asked first (the last one added is).
+    val ignoreBack =
+        object : OnBackPressedCallback(false) {
+          override fun handleOnBackPressed() = Unit
+        }
+    var watched: NavBackStackEntry? = null
+    val resumed = LifecycleEventObserver { _, event ->
+      if (event == Lifecycle.Event.ON_RESUME) ignoreBack.isEnabled = false
+    }
+    val onDestination = NavController.OnDestinationChangedListener { controller, _, _ ->
+      watched?.lifecycle?.removeObserver(resumed)
+      val entry = controller.currentBackStackEntry
+      watched = entry
+      ignoreBack.isEnabled =
+          entry != null && entry.lifecycle.currentState != Lifecycle.State.RESUMED
+      entry?.lifecycle?.addObserver(resumed)
+    }
+    dispatcher.addCallback(lifecycleOwner, ignoreBack)
+    navController.addOnDestinationChangedListener(onDestination)
+    onDispose {
+      navController.removeOnDestinationChangedListener(onDestination)
+      watched?.lifecycle?.removeObserver(resumed)
+      ignoreBack.remove()
+    }
   }
 }
 

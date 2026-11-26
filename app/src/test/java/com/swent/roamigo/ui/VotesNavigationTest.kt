@@ -342,6 +342,95 @@ class VotesNavigationTest {
     }
   }
 
+  /** The system Back gesture or button, pressed [times] times while the exit is still running. */
+  private fun systemBackDuringTheExit(times: Int = 2) {
+    composeRule.mainClock.autoAdvance = false
+    repeat(times) {
+      composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+    }
+    composeRule.mainClock.autoAdvance = true
+  }
+
+  @Test
+  fun systemBackPressedTwiceDuringTheExitOnlyLeavesTheMembersScreen() {
+    openVotes()
+    composeRule.onNodeWithText("Plan").performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_member_avatars).performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_members_screen).assertIsDisplayed()
+
+    systemBackDuringTheExit()
+
+    composeRule.onNodeWithTag("trip_details_screen").assertIsDisplayed()
+    composeRule.runOnIdle {
+      assertEquals(Route.TRIP_DETAILS, navController.currentBackStackEntry?.destination?.route)
+    }
+  }
+
+  @Test
+  fun systemBackPressedTwiceDuringTheExitOnlyLeavesTheHistory() {
+    openVotes()
+    composeRule.onNodeWithTag(C.Tag.trips_navigation_trips).performClick()
+    composeRule.onNodeWithTag(C.Tag.trips_history_button).performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_history_back).assertIsDisplayed()
+
+    systemBackDuringTheExit()
+
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+    composeRule.runOnIdle {
+      assertEquals(Route.TRIPS, navController.currentBackStackEntry?.destination?.route)
+    }
+  }
+
+  @Test
+  fun systemBackPressedTwiceDuringTheExitOnlyLeavesTheNewVote() {
+    openVotes()
+    composeRule.onNodeWithText("New vote").performClick()
+    composeRule.onNodeWithTag(C.Tag.vote_question).assertIsDisplayed()
+
+    systemBackDuringTheExit()
+
+    composeRule.onNodeWithText(vote.question).assertIsDisplayed()
+    composeRule.runOnIdle {
+      assertEquals(Route.TRIP_DETAILS, navController.currentBackStackEntry?.destination?.route)
+    }
+  }
+
+  @Test
+  fun cancelTappedTwiceDuringTheExitOnlyLeavesTheNewVote() {
+    openVotes()
+    composeRule.onNodeWithText("New vote").performClick()
+    composeRule.onNodeWithTag(C.Tag.vote_question).assertIsDisplayed()
+
+    composeRule.mainClock.autoAdvance = false
+    repeat(2) { composeRule.onNodeWithText("Cancel").performClick() }
+    composeRule.mainClock.autoAdvance = true
+
+    composeRule.onNodeWithText(vote.question).assertIsDisplayed()
+    composeRule.runOnIdle {
+      assertEquals(Route.TRIP_DETAILS, navController.currentBackStackEntry?.destination?.route)
+    }
+  }
+
+  @Test
+  fun systemBackStillLeavesOneScreenAtATimeOnceEachHasArrived() {
+    openVotes()
+    composeRule.onNodeWithText("Plan").performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_member_avatars).performClick()
+    composeRule.onNodeWithTag(C.Tag.trip_members_screen).assertIsDisplayed()
+
+    // Not held back for good: each press works once the screen before it has settled.
+    composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+    composeRule.waitForIdle()
+    composeRule.onNodeWithTag("trip_details_screen").assertIsDisplayed()
+    composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+    composeRule.waitForIdle()
+
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+    composeRule.runOnIdle {
+      assertEquals(Route.TRIPS, navController.currentBackStackEntry?.destination?.route)
+    }
+  }
+
   @Test
   fun backFromTheExploredWorldReturnsToTheHistory() {
     openVotes()
