@@ -27,7 +27,25 @@ data class DailyForecast(
     val highCelsius: Int,
     val lowCelsius: Int,
     val rainChancePercent: Int?,
-)
+) {
+  /**
+   * Whether to plan for wet weather: rain or snow is forecast, or rain is at least as likely as
+   * not.
+   */
+  val isWet: Boolean
+    get() = isRainLikely || condition == WeatherCondition.SNOW
+
+  /** Whether rain, not snow, is forecast or at least as likely as not. */
+  val isRainLikely: Boolean
+    get() =
+        condition != WeatherCondition.SNOW &&
+            (condition == WeatherCondition.RAIN ||
+                (rainChancePercent ?: 0) >= WET_RAIN_CHANCE_PERCENT)
+
+  private companion object {
+    const val WET_RAIN_CHANCE_PERCENT = 50
+  }
+}
 
 /**
  * The forecast for a trip.

@@ -180,6 +180,26 @@ class TripDetailsViewModelTest {
     assertEquals("Lisbon & Porto", model.uiState.value.details?.name)
     assertNull(model.uiState.value.error)
   }
+
+  @Test
+  fun carriesTheFirstDestinationForTheWeather() = runTest {
+    val lisbon = TripLocation(38.7, -9.1, "Lisbon", "PT")
+    val porto = TripLocation(41.15, -8.61, "Porto", "PT")
+    val trip = detailsTestTrip().copy(destinations = listOf(lisbon, porto))
+
+    val model = TripDetailsViewModel("trip", FakeTripRepository(trips = listOf(trip)))
+    advanceUntilIdle()
+
+    assertEquals(lisbon, model.uiState.value.details?.destination)
+  }
+
+  @Test
+  fun aTripWithoutDestinationsHasNoneForTheWeather() = runTest {
+    val model = TripDetailsViewModel("trip", FakeTripRepository(trips = listOf(detailsTestTrip())))
+    advanceUntilIdle()
+
+    assertNull(model.uiState.value.details?.destination)
+  }
 }
 
 internal fun detailsTestTrip(id: String = "trip"): Trip {

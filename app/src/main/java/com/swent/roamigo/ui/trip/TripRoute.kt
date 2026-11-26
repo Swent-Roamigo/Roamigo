@@ -33,6 +33,7 @@ import com.swent.roamigo.model.trip.activity.ActivityRepository
 import com.swent.roamigo.model.trip.isCompletedOn
 import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.users.UserRepository
+import com.swent.roamigo.model.weather.WeatherRepository
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.map.LocationViewModel
 import com.swent.roamigo.ui.map.TripMapRoute
@@ -69,6 +70,7 @@ internal fun TripRoute(
     photoRepository: PhotoRepository,
     connectivityRepository: ConnectivityRepository?,
     locationRepository: LocationRepository?,
+    weatherRepository: WeatherRepository? = null,
     onBack: () -> Unit,
     onAuthenticationRequired: () -> Unit,
     onOpenVote: (String, Boolean) -> Unit,
@@ -197,6 +199,7 @@ internal fun TripRoute(
                 onPhotosClick = { tab = TripSection.Photos },
                 onMembersClick = onMembersClick,
                 onInviteClick = onInviteClick,
+                weatherRepository = weatherRepository,
             )
         // Keep the map and its camera state when trip loading changes action availability.
         TripSection.Map ->
