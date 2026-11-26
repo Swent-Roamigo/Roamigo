@@ -25,7 +25,8 @@ object Route {
   const val VOTE = "trip/{tripId}/vote/{voteId}?readOnly={readOnly}"
   const val NEW_VOTE = "trip/{tripId}/new_vote"
   const val NEW_ACTIVITY =
-      "trip/{tripId}/new_activity?tripName={tripName}&startDate={startDate}&endDate={endDate}"
+      "trip/{tripId}/new_activity?tripName={tripName}&startDate={startDate}&endDate={endDate}" +
+          "&day={day}"
   const val MEMBERS = "trip/{tripId}/members"
   const val TRIP_OVERVIEW_MAP = "trip_overview_map"
   const val JOIN = "join/{token}"
@@ -42,10 +43,14 @@ object Route {
 
   fun newVote(tripId: String): String = "trip/${Uri.encode(tripId)}/new_vote"
 
-  /** Opens the activity form for [trip], whose name and dates the trip screen already has. */
-  fun newActivity(tripId: String, trip: ActivityFormTrip): String =
+  /**
+   * Opens the activity form for [trip], whose name and dates the trip screen already has, on [day],
+   * or on the trip's first day when it is `null`.
+   */
+  fun newActivity(tripId: String, trip: ActivityFormTrip, day: LocalDate? = null): String =
       "trip/${Uri.encode(tripId)}/new_activity?tripName=${Uri.encode(trip.name)}" +
-          "&startDate=${trip.startDate}&endDate=${trip.endDate}"
+          "&startDate=${trip.startDate}&endDate=${trip.endDate}" +
+          day?.let { "&day=$it" }.orEmpty()
 }
 
 // Argument names are written in the route patterns above, so they are read back in one place.
@@ -66,6 +71,10 @@ internal fun NavBackStackEntry.activityFormTrip(): ActivityFormTrip {
       endDate = LocalDate.parse(argument("endDate")),
   )
 }
+
+/** The day given to [Route.newActivity], or `null` when the form starts on the trip's first day. */
+internal fun NavBackStackEntry.activityFormDay(): LocalDate? =
+    arguments?.getString("day")?.let(LocalDate::parse)
 
 /** The vote this destination was opened for. */
 internal fun NavBackStackEntry.voteId(): String = requireNotNull(arguments?.getString("voteId"))

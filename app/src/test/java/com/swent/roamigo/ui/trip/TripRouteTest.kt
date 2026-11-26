@@ -133,7 +133,7 @@ class TripRouteTest {
             onAuthenticationRequired = {},
             onOpenVote = { _, _ -> },
             onCreateVote = {},
-            onCreateActivity = {},
+            onCreateActivity = { _, _ -> },
             onMembersClick = {},
             onTripsClick = {},
             onMapClick = {},
@@ -182,7 +182,7 @@ class TripRouteTest {
               onAuthenticationRequired = {},
               onOpenVote = { _, _ -> },
               onCreateVote = {},
-              onCreateActivity = {},
+              onCreateActivity = { _, _ -> },
               onMembersClick = {},
               onTripsClick = {},
               onMapClick = {},
@@ -249,7 +249,7 @@ class TripRouteTest {
               onAuthenticationRequired = {},
               onOpenVote = { _, _ -> },
               onCreateVote = {},
-              onCreateActivity = {},
+              onCreateActivity = { _, _ -> },
               onMembersClick = {},
               onTripsClick = {},
               onMapClick = {},
@@ -437,7 +437,7 @@ class TripRouteTest {
               onAuthenticationRequired = onAuthenticationRequired,
               onOpenVote = { _, _ -> },
               onCreateVote = {},
-              onCreateActivity = {},
+              onCreateActivity = { _, _ -> },
               onMembersClick = {},
               onTripsClick = {},
               onMapClick = {},
@@ -492,7 +492,7 @@ class TripRouteTest {
             onAuthenticationRequired = {},
             onOpenVote = { _, _ -> },
             onCreateVote = {},
-            onCreateActivity = {},
+            onCreateActivity = { _, _ -> },
             onMembersClick = {},
             onTripsClick = {},
             onMapClick = {},
@@ -537,7 +537,7 @@ class TripRouteTest {
             onAuthenticationRequired = {},
             onOpenVote = { _, _ -> },
             onCreateVote = {},
-            onCreateActivity = {},
+            onCreateActivity = { _, _ -> },
             onMembersClick = {},
             onTripsClick = {},
             onMapClick = {},
@@ -576,7 +576,7 @@ class TripRouteTest {
               onAuthenticationRequired = {},
               onOpenVote = { _, _ -> },
               onCreateVote = {},
-              onCreateActivity = {},
+              onCreateActivity = { _, _ -> },
               onMembersClick = {},
               onTripsClick = {},
               onMapClick = {},
@@ -603,7 +603,7 @@ class TripRouteTest {
   private fun showRoute(
       fromHistory: Boolean,
       onCreateVote: () -> Unit = {},
-      onCreateActivity: (ActivityFormTrip) -> Unit = {},
+      onCreateActivity: (ActivityFormTrip, LocalDate?) -> Unit = { _, _ -> },
       activityRepository: ActivityRepository = FakeActivityRepository(),
       voteRepository: InMemoryVoteRepository = InMemoryVoteRepository(),
       authRepository: FakeAuthRepository = signedInAuth(),
@@ -659,19 +659,32 @@ class TripRouteTest {
 
   @Test
   fun addingAnActivityOpensTheFormForTheLoadedTrip() {
-    val opened = mutableListOf<ActivityFormTrip>()
-    showRoute(fromHistory = false, onCreateActivity = { opened += it })
+    val opened = mutableListOf<Pair<ActivityFormTrip, LocalDate?>>()
+    showRoute(fromHistory = false, onCreateActivity = { trip, day -> opened += trip to day })
 
     composeRule.onNodeWithTag(C.Tag.trip_add_button).performClick()
     addActivityInSheet().performClick()
 
+    // The sheet is the same on every tab, so it doesn't pick the day shown on the Plan.
     val today = LocalDate.now(ZoneId.systemDefault())
     composeRule.runOnIdle {
       assertEquals(
-          listOf(ActivityFormTrip("Lisbon & Porto", today.minusDays(1), today.plusDays(1))),
+          listOf(ActivityFormTrip("Lisbon & Porto", today.minusDays(1), today.plusDays(1)) to null),
           opened,
       )
     }
+  }
+
+  @Test
+  fun addingFromAnEmptyDayOfThePlanOpensTheFormOnThatDay() {
+    val days = mutableListOf<LocalDate?>()
+    showRoute(fromHistory = false, onCreateActivity = { _, day -> days += day })
+    val tomorrow = LocalDate.now(ZoneId.systemDefault()).plusDays(1)
+
+    composeRule.onNodeWithTag(C.Tag.itineraryDay(tomorrow)).performClick()
+    composeRule.onNodeWithTag(C.Tag.itinerary_add_activity).performClick()
+
+    composeRule.runOnIdle { assertEquals(listOf<LocalDate?>(tomorrow), days) }
   }
 
   @Test

@@ -58,7 +58,7 @@ class ItineraryScreenTest {
       state: ItineraryUiState,
       onSelectDay: (LocalDate) -> Unit = {},
       onRetry: () -> Unit = {},
-      onAddActivity: (() -> Unit)? = {},
+      onAddActivity: ((LocalDate?) -> Unit)? = {},
       onOpenVotes: () -> Unit = {},
   ) {
     composeRule.setContent {
@@ -142,22 +142,25 @@ class ItineraryScreenTest {
   }
 
   @Test
-  fun anEmptyTripInvitesToAddTheFirstActivity() {
-    var adds = 0
-    show(ready(emptyList(), hasActivities = false), onAddActivity = { adds++ })
+  fun anEmptyTripInvitesToAddTheFirstActivityOnTheSelectedDay() {
+    val adds = mutableListOf<LocalDate?>()
+    show(ready(emptyList(), hasActivities = false), onAddActivity = { adds += it })
 
     composeRule
         .onNodeWithText("Nothing planned yet. Add the first activity for the group.")
         .assertIsDisplayed()
     composeRule.onNodeWithTag(C.Tag.itinerary_add_activity).performClick()
-    composeRule.runOnIdle { assertEquals(1, adds) }
+    composeRule.runOnIdle { assertEquals(listOf<LocalDate?>(sun), adds) }
   }
 
   @Test
-  fun anEmptyDayOfAPlannedTripSaysSo() {
-    show(ready(emptyList(), hasActivities = true))
+  fun anEmptyDayOfAPlannedTripOffersToAddOnThatDay() {
+    val adds = mutableListOf<LocalDate?>()
+    show(ready(emptyList(), hasActivities = true), onAddActivity = { adds += it })
 
     composeRule.onNodeWithText("Nothing planned this day.").assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.itinerary_add_activity).assertIsDisplayed().performClick()
+    composeRule.runOnIdle { assertEquals(listOf<LocalDate?>(sun), adds) }
   }
 
   @Test

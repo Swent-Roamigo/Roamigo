@@ -288,7 +288,7 @@ class TripMapCameraTest {
             onAuthenticationRequired = {},
             onOpenVote = { _, _ -> },
             onCreateVote = {},
-            onCreateActivity = {},
+            onCreateActivity = { _, _ -> },
             onMembersClick = {},
             onTripsClick = {},
             onMapClick = {},
