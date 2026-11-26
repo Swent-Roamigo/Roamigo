@@ -121,7 +121,7 @@ class TripMapActivityPopupTest {
           attemptedUris.map { it.toString() },
       )
     }
-    // The failure is reported with a toast, and the map stays usable.
+    // The map stays usable. The toast telling the user is checked by DirectionsTest.
     composeRule.onNodeWithTag(C.Tag.trip_map_activity_popup).assertIsDisplayed()
   }
 

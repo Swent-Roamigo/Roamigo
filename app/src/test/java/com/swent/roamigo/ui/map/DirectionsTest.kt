@@ -2,18 +2,23 @@
 package com.swent.roamigo.ui.map
 
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.net.Uri
+import com.swent.roamigo.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowToast
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class DirectionsTest {
+  private val context: Context = RuntimeEnvironment.getApplication()
 
   @Test
   fun opensTheGeoUriWhenAMapsAppIsInstalled() {
@@ -54,12 +59,62 @@ class DirectionsTest {
   }
 
   @Test
-  fun otherFailuresAreNotMistakenForAMissingApp() {
-    val navigator = UriNavigator { throw SecurityException("Not exported") }
+  fun aMapsAppThatRefusesToStartFallsBackToTheBrowser() {
+    val opened = mutableListOf<String>()
+    val navigator = UriNavigator { uri ->
+      if (uri.scheme == "geo") throw SecurityException("Not exported")
+      opened += uri.toString()
+    }
+
+    assertTrue(navigator.openDirectionsTo(LOUVRE))
+
+    assertEquals(
+        listOf("https://www.google.com/maps/dir/?api=1&destination=48.8606,2.3376"),
+        opened,
+    )
+  }
+
+  @Test
+  fun unexpectedFailuresAreNotMistakenForAMissingApp() {
+    val navigator = UriNavigator { throw IllegalStateException("Broken navigator") }
 
     val failure = runCatching { navigator.openDirectionsTo(LOUVRE) }.exceptionOrNull()
 
-    assertTrue(failure is SecurityException)
+    assertTrue(failure is IllegalStateException)
+  }
+
+  @Test
+  fun theUserIsToldWhenNoAppCanShowDirections() {
+    ShadowToast.reset()
+
+    openDirectionsOrTellUser(context, FakeUriNavigator(installed = { false }), LOUVRE)
+
+    assertEquals(
+        context.getString(R.string.trip_map_directions_no_app),
+        ShadowToast.getTextOfLatestToast(),
+    )
+  }
+
+  @Test
+  fun unexpectedFailuresAreToldToTheUserInsteadOfCrashing() {
+    ShadowToast.reset()
+    val navigator = UriNavigator { throw IllegalStateException("Broken navigator") }
+
+    openDirectionsOrTellUser(context, navigator, LOUVRE)
+
+    assertEquals(
+        context.getString(R.string.trip_map_directions_no_app),
+        ShadowToast.getTextOfLatestToast(),
+    )
+  }
+
+  @Test
+  fun noToastIsShownWhenDirectionsOpen() {
+    ShadowToast.reset()
+
+    openDirectionsOrTellUser(context, FakeUriNavigator(installed = { true }), LOUVRE)
+
+    assertEquals(0, ShadowToast.shownToastCount())
   }
 
   @Test

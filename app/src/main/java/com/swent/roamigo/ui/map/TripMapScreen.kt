@@ -4,7 +4,6 @@ package com.swent.roamigo.ui.map
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
@@ -191,11 +190,7 @@ fun TripMapRoute(
       onPhotoViewerClose = tripMapViewModel::closePhotoViewer,
       onActivityMarkerClick = tripMapViewModel::selectActivity,
       onActivityPopupDismiss = tripMapViewModel::clearActivitySelection,
-      onDirectionsClick = { activity ->
-        if (!uriNavigator.openDirectionsTo(activity)) {
-          Toast.makeText(context, R.string.trip_map_directions_no_app, Toast.LENGTH_SHORT).show()
-        }
-      },
+      onDirectionsClick = { activity -> openDirectionsOrTellUser(context, uriNavigator, activity) },
       currentUserId = currentUserId,
       onTurnOnSharing = { locationViewModel?.onTurnOnSharingClick(permissionChecker.isGranted()) },
       onPauseSharing = { locationViewModel?.stopSharing() },
