@@ -137,7 +137,7 @@ class TripMapViewModelTest {
     advanceUntilIdle()
 
     assertEquals(
-        TripMapUiState.Error(TripMapViewModel.TRIP_NOT_FOUND_MESSAGE),
+        TripMapUiState.Error(TripMapViewModel.TRIP_NOT_FOUND_MESSAGE, notFound = true),
         viewModel.uiState.value,
     )
   }

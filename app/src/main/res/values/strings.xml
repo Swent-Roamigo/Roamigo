@@ -488,6 +488,7 @@
     <!-- Itinerary (Plan tab) -->
     <string name="itinerary_loading">Loading the plan…</string>
     <string name="itinerary_load_failed">We couldn\'t load the plan. Check your connection and try again.</string>
+    <string name="itinerary_trip_not_found">We couldn\'t open this trip. It may be private or no longer available.</string>
     <string name="itinerary_refresh_failed">The plan may be out of date.</string>
     <string name="itinerary_retry">Retry</string>
     <string name="itinerary_empty_trip">Nothing planned yet. Add the first activity for the group.</string>

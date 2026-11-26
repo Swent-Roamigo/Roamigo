@@ -158,6 +158,16 @@ class ItineraryScreenTest {
   }
 
   @Test
+  fun aTripThatCannotBeFoundSaysSoWithoutARetry() {
+    show(ItineraryUiState.TripNotFound)
+
+    composeRule
+        .onNodeWithText("We couldn't open this trip. It may be private or no longer available.")
+        .assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.itinerary_retry).assertDoesNotExist()
+  }
+
+  @Test
   fun aReadOnlyTripOffersNoAddAction() {
     show(ready(emptyList(), hasActivities = false), onAddActivity = null)
 

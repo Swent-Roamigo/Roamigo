@@ -65,8 +65,8 @@ import java.time.format.FormatStyle
  * @param tripEndDate last day of the trip, or `null` while the trip is loading.
  * @param onAddActivity opens the activity form, or `null` when the trip is read-only.
  * @param onOpenVotes opens the trip's votes, where waiting suggestions are decided.
- * @param tripFailed whether the trip itself failed to load; the plan then shows an error.
- * @param onRetryTrip reloads the trip itself, whose dates and header may have failed to load too.
+ * @param tripError why the trip itself could not be loaded, or `null`; the plan then shows it.
+ * @param onRetryTrip reloads the trip itself, whose dates and header failed to load too.
  * @param forecast the weather of the trip's days, shown above the plan, or `null` when there is
  *   none to show.
  */
@@ -80,7 +80,7 @@ fun ItineraryRoute(
     onAddActivity: (() -> Unit)?,
     onOpenVotes: () -> Unit,
     modifier: Modifier = Modifier,
-    tripFailed: Boolean = false,
+    tripError: TripLoadError? = null,
     onRetryTrip: () -> Unit = {},
     forecast: TripForecastUi? = null,
 ) {
@@ -96,17 +96,31 @@ fun ItineraryRoute(
   }
   val state by model.uiState.collectAsStateWithLifecycle()
   ItineraryScreen(
-      if (tripFailed) ItineraryUiState.Error else state,
+      when (tripError) {
+        TripLoadError.NOT_FOUND -> ItineraryUiState.TripNotFound
+        TripLoadError.FAILED -> ItineraryUiState.Error
+        null -> state
+      },
       onSelectDay = model::selectDay,
       onRetry = {
         model.retry()
-        onRetryTrip()
+        // Reloading the trip also restarts the map's listeners, so only do it when the trip failed.
+        if (tripError == TripLoadError.FAILED) onRetryTrip()
       },
       onAddActivity = onAddActivity,
       onOpenVotes = onOpenVotes,
       modifier = modifier,
       forecast = forecast,
   )
+}
+
+/** Why the trip around the plan could not be loaded. */
+enum class TripLoadError {
+  /** The trip doesn't exist or isn't visible to the user, so retrying cannot help. */
+  NOT_FOUND,
+
+  /** Loading failed, for example while offline, so retrying can help. */
+  FAILED,
 }
 
 /**
@@ -134,15 +148,17 @@ fun ItineraryScreen(
             Text(stringResource(R.string.itinerary_loading))
           }
       ItineraryUiState.Error ->
-          Column(
-              Modifier.align(Alignment.Center).padding(Spacing.screenPadding),
-              horizontalAlignment = Alignment.CenterHorizontally,
-          ) {
-            Text(stringResource(R.string.itinerary_load_failed), textAlign = TextAlign.Center)
-            Button(onClick = onRetry, modifier = Modifier.testTag(C.Tag.itinerary_retry)) {
-              Text(stringResource(R.string.itinerary_retry))
-            }
-          }
+          PlanUnavailable(
+              stringResource(R.string.itinerary_load_failed),
+              onRetry,
+              Modifier.align(Alignment.Center),
+          )
+      ItineraryUiState.TripNotFound ->
+          PlanUnavailable(
+              stringResource(R.string.itinerary_trip_not_found),
+              onRetry = null,
+              Modifier.align(Alignment.Center),
+          )
       is ItineraryUiState.Ready ->
           ItineraryContent(state, onSelectDay, onRetry, onAddActivity, onOpenVotes, forecast)
     }
@@ -201,6 +217,26 @@ private fun ItineraryContent(
     }
     if (state.waitingSuggestions > 0) {
       item { WaitingSuggestionsRow(state.waitingSuggestions, onOpenVotes) }
+    }
+  }
+}
+
+/** Explains why the plan can't be shown, with Retry when [onRetry] can help. */
+@Composable
+private fun PlanUnavailable(
+    message: String,
+    onRetry: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+  Column(
+      modifier.padding(Spacing.screenPadding),
+      horizontalAlignment = Alignment.CenterHorizontally,
+  ) {
+    Text(message, textAlign = TextAlign.Center)
+    if (onRetry != null) {
+      Button(onClick = onRetry, modifier = Modifier.testTag(C.Tag.itinerary_retry)) {
+        Text(stringResource(R.string.itinerary_retry))
+      }
     }
   }
 }
