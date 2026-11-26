@@ -44,6 +44,7 @@ import com.swent.roamigo.model.destination.DestinationPhoto
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.users.UserRepository
+import com.swent.roamigo.model.weather.WeatherRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.components.AppBottomBar
 import com.swent.roamigo.ui.components.markNotImplemented
@@ -88,6 +89,7 @@ fun TripsRoute(
     userRepository: UserRepository,
     destinationRepository: DestinationRepository? = null,
     authRepository: AuthRepository? = null,
+    weatherRepository: WeatherRepository? = null,
     @DrawableRes mainTripImageRes: Int? = null,
     @DrawableRes nextActivityImageRes: Int? = null,
     onInviteTrip: ((tripId: String) -> Unit)? = null,
@@ -112,6 +114,7 @@ fun TripsRoute(
                   clock = clock,
                   destinationRepository = destinationRepository,
                   authRepository = authRepository,
+                  weatherRepository = weatherRepository,
               )
       )
 
@@ -273,6 +276,7 @@ fun TripsScreen(
                     onPhotoLoadError = onPhotoLoadError,
                     onInviteClick = onInviteClick,
                     onOpenTrip = { onOpenTrip(trip.id) },
+                    weather = uiState.mainTripWeather,
                 )
               }
             }

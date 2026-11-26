@@ -3,6 +3,8 @@ package com.swent.roamigo.ui.trips
 
 import androidx.annotation.StringRes
 import com.swent.roamigo.model.destination.DestinationPhoto
+import com.swent.roamigo.model.weather.WeatherCondition
+import java.time.LocalDate
 
 /**
  * Represents all presentation state required by the Trips Home screen.
@@ -33,6 +35,8 @@ data class TripsUiState(
     val otherTrips: List<OtherTripUiModel> = emptyList(),
     val mainTripPhoto: DestinationPhoto? = null,
     val mainTripPhotoAttempt: Int = 0,
+    /** The forecast chip on the main trip card, or null when there is none to show. */
+    val mainTripWeather: WeatherChipUiModel? = null,
 )
 
 /**
@@ -54,6 +58,20 @@ data class MainTripUiModel(
     val stopCount: Int,
     val memberInitials: List<String>,
     val badge: MainTripBadge?,
+)
+
+/**
+ * The weather the main trip card shows: one day, one temperature.
+ *
+ * @property date the day the forecast is for: today during the trip, else the first trip day.
+ * @property isToday whether [date] is today, so the card can say "Today" instead of the weekday.
+ * @property highCelsius the day's highest temperature in whole degrees.
+ */
+data class WeatherChipUiModel(
+    val date: LocalDate,
+    val isToday: Boolean,
+    val condition: WeatherCondition,
+    val highCelsius: Int,
 )
 
 /** Trip status rendered with localized strings by the main card. */

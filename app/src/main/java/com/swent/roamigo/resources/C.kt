@@ -122,6 +122,7 @@ object C {
     const val invite_code = "invite_code"
     const val trip_details_screen = "trip_details_screen"
     const val weather_card = "weather_card"
+    const val weather_chip = "weather_chip"
     const val weather_day_prefix = "weather_day_"
     const val weather_loading = "weather_loading"
     const val weather_retry = "weather_retry"

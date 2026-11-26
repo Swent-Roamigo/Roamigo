@@ -11,14 +11,17 @@ import java.time.ZoneOffset
 
 /**
  * In-memory [WeatherRepository] for previews and tests. It follows the contract of the real one: it
- * refuses coordinates that are not on Earth, and it leaves out the days before "today" (the day it
- * was fetched, in UTC) and the days beyond [ForecastWindow], so a test cannot pass on a forecast that
- * production would never return. It fails with [failure] when that is set.
+ * refuses coordinates that are not on Earth, and it leaves out the days before "today" and the days
+ * beyond [ForecastWindow], so a test cannot pass on a forecast that production would never return.
+ * "Today" is [destinationToday] when a test sets it, else the day it was fetched, in UTC. It fails
+ * with [failure] when that is set.
  */
 class FakeWeatherRepository(
     var days: List<DailyForecast> = emptyList(),
     var failure: Exception? = null,
     private val fetchedAt: Instant = Instant.parse("2026-11-23T10:00:00Z"),
+    /** The day it is at the destination, or null when the fake does not say. */
+    var destinationToday: LocalDate? = null,
 ) : WeatherRepository {
   /** The date ranges that were asked for, oldest request first. */
   val requests = mutableListOf<Pair<LocalDate, LocalDate>>()
@@ -34,7 +37,7 @@ class FakeWeatherRepository(
     }
     requests += from to to
     failure?.let { throw it }
-    val today = fetchedAt.atZone(ZoneOffset.UTC).toLocalDate()
+    val today = destinationToday ?: fetchedAt.atZone(ZoneOffset.UTC).toLocalDate()
     val window = maxOf(from, today)..minOf(to, ForecastWindow.lastDay(today))
     return Forecast(days.filter { it.date in window }, fetchedAt, destinationToday = today)
   }

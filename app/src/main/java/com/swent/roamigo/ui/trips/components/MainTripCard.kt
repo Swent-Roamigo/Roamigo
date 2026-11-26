@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -52,6 +53,7 @@ import com.swent.roamigo.ui.components.PhotoCreditsDialog
 import com.swent.roamigo.ui.components.markNotImplemented
 import com.swent.roamigo.ui.trips.MainTripBadge
 import com.swent.roamigo.ui.trips.MainTripUiModel
+import com.swent.roamigo.ui.trips.WeatherChipUiModel
 
 /** Displays the featured trip, its details, and invite action. */
 @Composable
@@ -63,6 +65,7 @@ internal fun MainTripCard(
     onOpenTrip: () -> Unit,
     photoAttempt: Int = 0,
     onPhotoLoadError: (DestinationPhoto) -> Unit = {},
+    weather: WeatherChipUiModel? = null,
 ) {
   var imageLoaded by remember(photo?.imageUrl, photoAttempt) { mutableStateOf(false) }
   var showCredits by remember(photo?.imageUrl) { mutableStateOf(false) }
@@ -170,42 +173,46 @@ internal fun MainTripCard(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          MemberAvatars(trip.memberInitials)
+        CardFooter(
+            weather = weather?.let { chip -> { WeatherChip(chip, Modifier) } },
+        ) {
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            MemberAvatars(trip.memberInitials)
 
-          Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(14.dp))
 
-          Surface(
-              onClick = onInviteClick,
-              modifier =
-                  Modifier.markNotImplemented(onInviteClick).semantics {
-                    testTag = C.Tag.trips_invite_button
-                  },
-              shape = CircleShape,
-              color = MaterialTheme.colorScheme.surface,
-          ) {
-            Row(
+            Surface(
+                onClick = onInviteClick,
                 modifier =
-                    Modifier.padding(
-                        horizontal = 14.dp,
-                        vertical = 8.dp,
-                    ),
-                verticalAlignment = Alignment.CenterVertically,
+                    Modifier.markNotImplemented(onInviteClick).semantics {
+                      testTag = C.Tag.trips_invite_button
+                    },
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surface,
             ) {
-              Icon(
-                  imageVector = Icons.Default.Add,
-                  contentDescription = null,
-                  modifier = Modifier.size(20.dp),
-                  tint = MaterialTheme.colorScheme.primary,
-              )
+              Row(
+                  modifier =
+                      Modifier.padding(
+                          horizontal = 14.dp,
+                          vertical = 8.dp,
+                      ),
+                  verticalAlignment = Alignment.CenterVertically,
+              ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
 
-              Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(4.dp))
 
-              Text(
-                  text = stringResource(R.string.trips_invite),
-                  style = MaterialTheme.typography.bodyLarge,
-                  color = MaterialTheme.colorScheme.onSurface,
-              )
+                Text(
+                    text = stringResource(R.string.trips_invite),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+              }
             }
           }
         }
@@ -265,6 +272,42 @@ private fun MemberAvatars(initials: List<String>) {
             color = avatarColors.second,
         )
       }
+    }
+  }
+}
+
+/**
+ * The avatars and the invite button, and the weather chip at the far end when there is room for it
+ * as well. The chip is decoration, so on a narrow screen or at a large font it is left out instead
+ * of covering the invite button.
+ */
+@Composable
+private fun CardFooter(
+    weather: (@Composable () -> Unit)?,
+    modifier: Modifier = Modifier,
+    actions: @Composable () -> Unit,
+) {
+  Layout(
+      content = {
+        Box { actions() }
+        weather?.let { Box { it() } }
+      },
+      modifier = modifier.fillMaxWidth(),
+  ) { measurables, constraints ->
+    val loose = constraints.copy(minWidth = 0, minHeight = 0)
+    val main = measurables[0].measure(loose)
+    val gap = 12.dp.roundToPx()
+    val chipMeasurable = measurables.getOrNull(1)
+    val chip =
+        chipMeasurable
+            ?.takeIf {
+              main.width + gap + it.maxIntrinsicWidth(main.height) <= constraints.maxWidth
+            }
+            ?.measure(loose)
+    val height = maxOf(main.height, chip?.height ?: 0)
+    layout(constraints.maxWidth, height) {
+      main.placeRelative(0, (height - main.height) / 2)
+      chip?.placeRelative(constraints.maxWidth - chip.width, (height - chip.height) / 2)
     }
   }
 }
