@@ -157,7 +157,11 @@ class ItineraryViewModel(
   private data class PlanEntry(val activity: Activity, val start: ZonedDateTime)
 
   companion object {
-    private const val STOP_TIMEOUT_MILLIS = 5_000L
+    /**
+     * How long the plan keeps listening after leaving the screen, so a quick tab switch doesn't
+     * restart it.
+     */
+    internal const val STOP_TIMEOUT_MILLIS = 5_000L
 
     /** Creates the ViewModel for [tripId] backed by [activityRepository] and [voteRepository]. */
     fun factory(
