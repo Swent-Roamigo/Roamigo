@@ -270,7 +270,7 @@ class DefaultLocationRepository(
     // Concurrent, since each trip may wait several seconds for a fix and for the database. Run on
     // the repository's scope so that a caller cancelled meanwhile, e.g. when the app UI closes,
     // cannot skip the removal of a trip that then fails to resume; it was already forgotten.
-    tripIds.map { scope.launch { restoreTrip(it) } }.joinAll()
+    tripIds.map { scope.launch { restoreTrip(it, userId) } }.joinAll()
   }
 
   /**
@@ -317,13 +317,18 @@ class DefaultLocationRepository(
   override fun isSharing(tripId: String): Flow<Boolean> =
       sharings.map { it[tripId]?.isPublished == true }.distinctUntilChanged()
 
-  private suspend fun restoreTrip(tripId: String) {
+  private suspend fun restoreTrip(tripId: String, userId: String) {
+    // The trips were read for userId, and startSharing and stopSharing act as the current user:
+    // after an account switch they would share without that user's opt-in or edit their trips.
+    // The trip stays saved, so it is restored at userId's next startup.
+    if (auth.currentUser?.uid != userId) return
     try {
       startSharing(tripId)
     } catch (e: CancellationException) {
       // Also thrown when the user stops this trip's sharing meanwhile, which needs no cleanup.
       currentCoroutineContext().ensureActive()
     } catch (e: Exception) {
+      if (auth.currentUser?.uid != userId) return
       // E.g. the permission was revoked or there is no fix: the position left by the previous
       // process must not stay published while the trip is not shown as shared.
       try {
