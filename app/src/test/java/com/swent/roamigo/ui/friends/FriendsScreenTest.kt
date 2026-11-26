@@ -11,11 +11,13 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -28,6 +30,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.R
@@ -151,10 +154,14 @@ class FriendsScreenTest {
 
     composeRule
         .onNodeWithTag(C.Tag.friends_avatar_prefix + "mia", useUnmergedTree = true)
+        .assertWidthIsEqualTo(40.dp)
+        .assertHeightIsEqualTo(40.dp)
         .assert(hasAnyDescendant(hasText("M")))
 
     composeRule
         .onNodeWithTag(C.Tag.friends_avatar_prefix + "jonas")
+        .assertWidthIsEqualTo(40.dp)
+        .assertHeightIsEqualTo(40.dp)
         .assert(hasAnyDescendant(hasText("J")))
   }
 
