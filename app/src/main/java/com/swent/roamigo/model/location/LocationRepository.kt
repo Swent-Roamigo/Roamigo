@@ -70,10 +70,10 @@ interface LocationRepository {
    * so that no position stays published without [isSharing] reporting it. It does nothing while
    * signed out. It may take several seconds, so it must not run on a path the UI waits for.
    *
-   * Called only by [LocationSharingRestorer], which `LocationSharingRestoreViewModel` drives from
-   * the root of `RoamigoApp`: once the app UI starts with a user signed in, or after a later
-   * sign-in. It therefore runs only while the app is in the foreground; resuming in the background
-   * would need a foreground service.
+   * Called only by [LocationSharingRestorer], and only started while the app is in the foreground:
+   * once the app starts with a user signed in, or after a later sign-in. Restored trips may still
+   * complete after the app UI closes, but resuming while the app is in the background would need a
+   * foreground service.
    */
   suspend fun restoreSharing()
 
