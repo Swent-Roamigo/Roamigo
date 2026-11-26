@@ -68,7 +68,7 @@ class TripMapViewModel(
       try {
         val trip = tripRepository.getTrips().find { it.uid == tripId }
         if (trip == null) {
-          _uiState.value = TripMapUiState.Error(TRIP_NOT_FOUND_MESSAGE)
+          _uiState.value = TripMapUiState.Error(TRIP_NOT_FOUND_MESSAGE, notFound = true)
           return@launch
         }
         currentCoroutineContext().ensureActive()

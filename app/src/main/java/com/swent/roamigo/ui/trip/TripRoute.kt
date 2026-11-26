@@ -44,6 +44,7 @@ import com.swent.roamigo.ui.trip.activity.ActivityFormTrip
 import com.swent.roamigo.ui.trip.components.AddToTripSheet
 import com.swent.roamigo.ui.trip.details.rememberTripForecast
 import com.swent.roamigo.ui.trip.itinerary.ItineraryRoute
+import com.swent.roamigo.ui.trip.itinerary.TripLoadError
 import com.swent.roamigo.ui.trip.voting.PreferencesVotesHintStore
 import com.swent.roamigo.ui.trip.voting.VoteCloseDialog
 import com.swent.roamigo.ui.trip.voting.VoteDialog
@@ -196,7 +197,10 @@ internal fun TripRoute(
                 tripEndDate = header?.endDate,
                 onAddActivity = if (readOnly) null else openActivityForm,
                 onOpenVotes = { openTab(TripSection.Votes) },
-                tripFailed = tripState is TripMapUiState.Error,
+                tripError =
+                    (tripState as? TripMapUiState.Error)?.let {
+                      if (it.notFound) TripLoadError.NOT_FOUND else TripLoadError.FAILED
+                    },
                 onRetryTrip = tripModel::retryTrip,
                 forecast =
                     rememberTripForecast(

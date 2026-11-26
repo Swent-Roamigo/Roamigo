@@ -12,8 +12,10 @@ sealed interface TripMapUiState {
    * The trip could not be loaded.
    *
    * @property message describes why loading failed.
+   * @property notFound whether the trip doesn't exist or isn't visible to the user, so retrying
+   *   cannot help.
    */
-  data class Error(val message: String) : TripMapUiState
+  data class Error(val message: String, val notFound: Boolean = false) : TripMapUiState
 
   /**
    * The trip was loaded.

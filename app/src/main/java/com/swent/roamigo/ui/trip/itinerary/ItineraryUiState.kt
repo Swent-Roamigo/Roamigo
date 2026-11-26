@@ -15,6 +15,9 @@ sealed interface ItineraryUiState {
   /** The activities could not be loaded and nothing is available to show. */
   data object Error : ItineraryUiState
 
+  /** The trip doesn't exist or isn't visible to the user, so there is no plan to retry. */
+  data object TripNotFound : ItineraryUiState
+
   /**
    * The plan is available, possibly with an outdated or empty day.
    *

@@ -608,6 +608,7 @@ class TripRouteTest {
       voteRepository: InMemoryVoteRepository = InMemoryVoteRepository(),
       authRepository: FakeAuthRepository = signedInAuth(),
       onAuthenticationRequired: () -> Unit = {},
+      tripStored: Boolean = true,
   ) {
     val trip =
         trip(
@@ -622,7 +623,7 @@ class TripRouteTest {
             fromHistory = fromHistory,
             openMap = false,
             authRepository = authRepository,
-            tripRepository = FakeTripRepository(trips = listOf(trip)),
+            tripRepository = FakeTripRepository(trips = listOfNotNull(trip.takeIf { tripStored })),
             activityRepository = activityRepository,
             userRepository = FakeUserRepository(User("member", "Member", null)),
             voteRepository = voteRepository,
@@ -671,6 +672,16 @@ class TripRouteTest {
           opened,
       )
     }
+  }
+
+  @Test
+  fun aTripThatCannotBeFoundSaysSoOnThePlanWithoutARetry() {
+    showRoute(fromHistory = false, tripStored = false)
+
+    composeRule
+        .onNodeWithText("We couldn't open this trip. It may be private or no longer available.")
+        .assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.itinerary_retry).assertDoesNotExist()
   }
 
   @Test
