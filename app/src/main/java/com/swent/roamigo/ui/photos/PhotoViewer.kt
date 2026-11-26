@@ -3,6 +3,7 @@ package com.swent.roamigo.ui.photos
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +33,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.AwaitPointerEventScope
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
@@ -111,7 +114,15 @@ fun PhotoViewer(
       DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, locale)
           .format(Date(photo.takenAtMillis))
 
-  Box(modifier.fillMaxSize().background(Color.Black).testTag(C.Tag.photo_viewer)) {
+  Box(
+      modifier
+          .fillMaxSize()
+          .background(Color.Black)
+          // Callers may draw the viewer over a map; without this, gestures on the photo pass
+          // through to the map and move it.
+          .pointerInput(Unit) { awaitEachGesture { consumeGesture() } }
+          .testTag(C.Tag.photo_viewer)
+  ) {
     TripPhotoImage(
         photo = photo,
         contentDescription = stringResource(R.string.photo_viewer_image_description, dateTime),
@@ -206,6 +217,14 @@ fun PhotoViewer(
       }
     }
   }
+}
+
+/** Consumes every event of the current gesture, until its last pointer is lifted. */
+private suspend fun AwaitPointerEventScope.consumeGesture() {
+  do {
+    val event = awaitPointerEvent()
+    event.changes.forEach { it.consume() }
+  } while (event.changes.any { it.pressed })
 }
 
 /** Who took the photo, and when. */
