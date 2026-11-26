@@ -201,6 +201,8 @@ object C {
     const val photos_uploaded_prefix = "photos_uploaded_"
     const val photos_gallery_loading = "photos_gallery_loading"
     const val photos_gallery_error = "photos_gallery_error"
+    const val photos_pending_error = "photos_pending_error"
+    const val photos_pending_retry = "photos_pending_retry"
     const val photos_gallery_retry = "photos_gallery_retry"
 
     const val photo_viewer = "photo_viewer"
