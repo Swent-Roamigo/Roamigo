@@ -317,7 +317,7 @@ class DefaultLocationRepository(
   private suspend fun restoreTrip(tripId: String, userId: String) {
     // The trips were read for userId, and startSharing and stopSharing act as the current user:
     // after an account switch they would share without that user's opt-in or edit their trips.
-    // The trip stays saved, so it is restored at userId's next startup.
+    // The trip stays saved, or is saved again below, so it is restored at userId's next startup.
     if (auth.currentUser?.uid != userId) return
     try {
       startSharing(tripId)
@@ -325,7 +325,16 @@ class DefaultLocationRepository(
       // Also thrown when the user stops this trip's sharing meanwhile, which needs no cleanup.
       currentCoroutineContext().ensureActive()
     } catch (e: Exception) {
-      if (auth.currentUser?.uid != userId) return
+      if (auth.currentUser?.uid != userId) {
+        // The failed start may have forgotten the trip, but its position may still be published
+        // and only userId may remove it.
+        try {
+          editSharedTrips(userId) { it + tripId }
+        } catch (e: LocationSharingException) {
+          // Nothing more can be done, and nobody is waiting to be told.
+        }
+        return
+      }
       // E.g. the permission was revoked or there is no fix: the position left by the previous
       // process must not stay published while the trip is not shown as shared.
       try {

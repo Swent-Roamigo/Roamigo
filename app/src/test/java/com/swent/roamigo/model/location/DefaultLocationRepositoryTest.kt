@@ -1049,7 +1049,90 @@ class DefaultLocationRepositoryTest {
 
     verifyUpdates(otherUserLocation, 0)
     verifyRemovals(otherUserLocation, 0)
+    verifyRemovals(ownLocation, 0)
     assertFalse(repository.isSharing(TRIP_ID).first())
+
+    // The trip is still saved, so it is restored once the user signs in again.
+    doAnswer { invocation ->
+          invocation.getArgument<CompletionListener>(1).onComplete(null, ownLocation)
+        }
+        .`when`(ownLocation)
+        .setValue(any(), any(CompletionListener::class.java))
+    `when`(auth.currentUser).thenReturn(user)
+    val nextRepository = createRepository(backgroundScope)
+    nextRepository.restoreSharing()
+
+    verifyUpdates(ownLocation, 3)
+    assertTrue(nextRepository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_keepsTheTripSavedWhenAnotherAccountSignedInBeforeAResumeTimedOut() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    holdUpdates = true
+    val repository = createRepository(backgroundScope)
+    val restore = launch { repository.restoreSharing() }
+    runCurrent()
+
+    // Another account signs in while the first update is pending, and the update then times out.
+    val otherUserLocation = signInAsOtherUser()
+    advanceTimeBy(DefaultLocationRepository.WRITE_TIMEOUT)
+    runCurrent()
+    restore.join()
+
+    verifyUpdates(otherUserLocation, 0)
+    verifyRemovals(otherUserLocation, 0)
+    // Only the removal queued after the unacknowledged update; stopSharing did not run.
+    verifyRemovals(ownLocation, 1)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+
+    // The trip is still saved, so it is restored once the user signs in again.
+    holdUpdates = false
+    `when`(auth.currentUser).thenReturn(user)
+    val nextRepository = createRepository(backgroundScope)
+    nextRepository.restoreSharing()
+
+    verifyUpdates(ownLocation, 3)
+    assertTrue(nextRepository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_ignoresAFailedSaveAfterAnotherAccountSignedInBeforeAResumeFailed() = runTest {
+    val store = InMemoryDataStore().also { sharedTripsStore = it }
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    holdUpdates = true
+    val repository = createRepository(backgroundScope)
+    val restore = launch { repository.restoreSharing() }
+    runCurrent()
+
+    // Another account signs in while the first update is pending, then the update times out and
+    // the saved trips cannot be written.
+    val otherUserLocation = signInAsOtherUser()
+    store.failWrites = true
+    advanceTimeBy(DefaultLocationRepository.WRITE_TIMEOUT)
+    runCurrent()
+    restore.join()
+
+    verifyRemovals(otherUserLocation, 0)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+
+    // The failed start could not forget the trip either, so it is restored at the next sign-in.
+    store.failWrites = false
+    holdUpdates = false
+    `when`(auth.currentUser).thenReturn(user)
+    val nextRepository = createRepository(backgroundScope)
+    nextRepository.restoreSharing()
+
+    verifyUpdates(ownLocation, 3)
+    assertTrue(nextRepository.isSharing(TRIP_ID).first())
   }
 
   @Test
@@ -1542,9 +1625,15 @@ class DefaultLocationRepositoryTest {
   private class InMemoryDataStore : DataStore<Preferences> {
     override val data = MutableStateFlow(emptyPreferences())
 
+    // Makes the next writes fail, like a full disk, while reads still succeed.
+    var failWrites = false
+
     override suspend fun updateData(
         transform: suspend (t: Preferences) -> Preferences
-    ): Preferences = transform(data.value).also { data.value = it }
+    ): Preferences {
+      if (failWrites) throw IOException("Disk error")
+      return transform(data.value).also { data.value = it }
+    }
   }
 
   private class FailingDataStore : DataStore<Preferences> {
