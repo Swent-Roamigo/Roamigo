@@ -54,6 +54,9 @@ import com.swent.roamigo.model.trip.activity.newSuggestionPair
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
+import com.swent.roamigo.model.weather.DailyForecast
+import com.swent.roamigo.model.weather.FakeWeatherRepository
+import com.swent.roamigo.model.weather.WeatherCondition
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import com.swent.roamigo.ui.trip.activity.ActivityFormTrip
@@ -609,12 +612,15 @@ class TripRouteTest {
       authRepository: FakeAuthRepository = signedInAuth(),
       onAuthenticationRequired: () -> Unit = {},
       tripStored: Boolean = true,
+      weatherRepository: FakeWeatherRepository? = null,
+      destinations: List<TripLocation> = listOf(TripLocation(38.7, -9.1, "Lisbon")),
   ) {
     val trip =
         trip(
             endDate =
                 if (fromHistory) LocalDate.now(ZoneId.systemDefault()).minusDays(1)
-                else LocalDate.now(ZoneId.systemDefault()).plusDays(1)
+                else LocalDate.now(ZoneId.systemDefault()).plusDays(1),
+            destinations = destinations,
         )
     composeRule.setContent {
       RoamigoTheme {
@@ -630,6 +636,7 @@ class TripRouteTest {
             photoRepository = FakePhotoRepository(composeRule.activity.cacheDir),
             connectivityRepository = FakeConnectivityRepository(),
             locationRepository = FakeLocationRepository(),
+            weatherRepository = weatherRepository,
             onBack = {},
             onAuthenticationRequired = onAuthenticationRequired,
             onOpenVote = { _, _ -> },
@@ -685,6 +692,54 @@ class TripRouteTest {
     composeRule.onNodeWithTag(C.Tag.itinerary_add_activity).performClick()
 
     composeRule.runOnIdle { assertEquals(listOf<LocalDate?>(tomorrow), days) }
+  }
+
+  /** A sunny forecast for every day of the trip [showRoute] opens. */
+  private fun sunnyTrip() =
+      FakeWeatherRepository(
+          (-1L..1L).map {
+            DailyForecast(
+                LocalDate.now(ZoneId.systemDefault()).plusDays(it),
+                WeatherCondition.SUNNY,
+                16,
+                10,
+                5,
+            )
+          }
+      )
+
+  @Test
+  fun thePlanShowsTheForecastOfTheFirstDestination() {
+    val weather = sunnyTrip()
+    showRoute(
+        fromHistory = false,
+        weatherRepository = weather,
+        destinations =
+            listOf(TripLocation(38.72, -9.14, "Lisbon"), TripLocation(41.15, -8.61, "Porto")),
+    )
+
+    composeRule.onNodeWithTag(C.Tag.weather_card).assertIsDisplayed()
+    composeRule.onNodeWithText("Weather in Lisbon").assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.itinerary_list).assertIsDisplayed()
+    composeRule.runOnIdle { assertEquals(1, weather.requests.size) }
+  }
+
+  @Test
+  fun thePlanShowsNoForecastWithoutAWeatherRepository() {
+    showRoute(fromHistory = false)
+
+    composeRule.onNodeWithTag(C.Tag.itinerary_list).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.weather_card).assertDoesNotExist()
+  }
+
+  @Test
+  fun thePlanShowsNoForecastForATripWithoutADestination() {
+    val weather = sunnyTrip()
+    showRoute(fromHistory = false, weatherRepository = weather, destinations = emptyList())
+
+    composeRule.onNodeWithTag(C.Tag.itinerary_list).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.weather_card).assertDoesNotExist()
+    composeRule.runOnIdle { assertTrue(weather.requests.isEmpty()) }
   }
 
   @Test
@@ -761,7 +816,10 @@ class TripRouteTest {
           initiallySignedIn = true,
       )
 
-  private fun trip(endDate: LocalDate = LocalDate.now(ZoneId.systemDefault()).plusDays(1)): Trip {
+  private fun trip(
+      endDate: LocalDate = LocalDate.now(ZoneId.systemDefault()).plusDays(1),
+      destinations: List<TripLocation> = listOf(TripLocation(38.7, -9.1, "Lisbon")),
+  ): Trip {
     val zone = ZoneId.systemDefault()
     val start = LocalDate.now(zone).minusDays(1).atStartOfDay(zone).toInstant()
     val end = endDate.atStartOfDay(zone).toInstant()
@@ -769,7 +827,7 @@ class TripRouteTest {
         uid = "trip-id",
         name = "Lisbon & Porto",
         description = null,
-        destinations = listOf(TripLocation(38.7, -9.1, "Lisbon")),
+        destinations = destinations,
         startDate = Timestamp(start.epochSecond, start.nano),
         endDate = Timestamp(end.epochSecond, end.nano),
         flexibleDates = false,
