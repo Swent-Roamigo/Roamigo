@@ -274,7 +274,6 @@
     <string name="friends_decline_failed">Could not decline the request. Please try again.</string>
     <string name="friends_remove_failed">Could not remove the friend. Please try again.</string>
     <string name="friends_no_matches">No matching friends or requests.</string>
-    <string name="friends_privacy_subtitle">Maps are visible to friends only</string>
     <string name="profile_log_out_title">Log out of Roamigo?</string>
     <string name="profile_log_out_message">Your trips stay saved. Trips you opened offline will need a connection after you sign in again.</string>
     <string name="profile_log_out_cancel">Stay signed in</string>
@@ -283,7 +282,6 @@
         <item quantity="one">%d friend</item>
         <item quantity="other">%d friends</item>
     </plurals>
-    <string name="friends_view_map">View map</string>
     <string name="friends_view_map_accessibility">View map for %1$s</string>
     <string name="friends_pending">Pending</string>
     <string name="friends_request_sent">request sent</string>
