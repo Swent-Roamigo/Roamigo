@@ -50,6 +50,7 @@ import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.activity.ActivityRepository
 import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.resources.C
+import com.swent.roamigo.ui.components.rememberTimeFormatter
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.details.ForecastUiState
 import com.swent.roamigo.ui.trip.details.TripForecastCard
@@ -174,9 +175,7 @@ private fun ItineraryContent(
     onOpenVotes: () -> Unit,
     forecast: TripForecastUi?,
 ) {
-  val locale = LocalConfiguration.current.locales[0]
-  val timeFormatter =
-      remember(locale) { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale) }
+  val timeFormatter = rememberTimeFormatter()
   val startTimes =
       remember(state.activities, timeFormatter) {
         state.activities.map { timeFormatter.format(it.startTime) }
