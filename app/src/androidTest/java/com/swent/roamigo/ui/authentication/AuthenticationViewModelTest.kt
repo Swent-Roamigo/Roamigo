@@ -1,12 +1,7 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.ui.authentication
 
-import android.content.Context
-import android.os.Bundle
 import androidx.credentials.Credential
-import androidx.credentials.CredentialManager
-import androidx.credentials.CustomCredential
-import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
 import androidx.credentials.exceptions.GetCredentialUnknownException
 import androidx.credentials.exceptions.NoCredentialException
@@ -16,6 +11,7 @@ import com.swent.roamigo.R
 import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
+import com.swent.roamigo.model.authentication.FakeCredentialManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
@@ -32,7 +28,7 @@ class AuthenticationViewModelTest {
   private val context = instrumentation.targetContext
   private val user = AuthenticatedUser("test-user", "Test User", null, null)
 
-  private fun signIn(viewModel: AuthenticationViewModel, manager: TestCredentialManager) {
+  private fun signIn(viewModel: AuthenticationViewModel, manager: FakeCredentialManager) {
     instrumentation.runOnMainSync { viewModel.signIn(context, manager) }
     instrumentation.waitForIdleSync()
   }
@@ -40,7 +36,7 @@ class AuthenticationViewModelTest {
   @Test
   fun existingSessionDoesNotRequestCredentials() {
     val viewModel = AuthenticationViewModel(FakeAuthRepository(user, initiallySignedIn = true))
-    val manager = TestCredentialManager(context)
+    val manager = FakeCredentialManager(context)
     signIn(viewModel, manager)
     assertEquals(AuthenticationUiState(user = user), viewModel.uiState.value)
     assertEquals(0, manager.requests)
@@ -50,7 +46,7 @@ class AuthenticationViewModelTest {
   fun duplicateRequestIsIgnoredWhileCredentialsArePending() {
     val viewModel = AuthenticationViewModel(FakeAuthRepository(user))
     val pending = CompletableDeferred<GetCredentialResponse>()
-    val manager = TestCredentialManager(context).apply { pendingResponse = pending }
+    val manager = FakeCredentialManager(context).apply { pendingResponse = pending }
     signIn(viewModel, manager)
     signIn(viewModel, manager)
     assertTrue(viewModel.uiState.value.isLoading)
@@ -73,7 +69,7 @@ class AuthenticationViewModelTest {
                     ?: fake.signInWithGoogle(credential)
           }
       val viewModel = AuthenticationViewModel(repository)
-      val manager = TestCredentialManager(context)
+      val manager = FakeCredentialManager(context)
       signIn(viewModel, manager)
       assertEquals(
           AuthenticationUiState(
@@ -93,7 +89,7 @@ class AuthenticationViewModelTest {
     for (message in listOf("Invalid configuration", null)) {
       val viewModel = AuthenticationViewModel(FakeAuthRepository(user))
       val manager =
-          TestCredentialManager(context).apply { failure = IllegalStateException(message) }
+          FakeCredentialManager(context).apply { failure = IllegalStateException(message) }
       signIn(viewModel, manager)
       assertEquals(
           AuthenticationUiState(
@@ -108,7 +104,7 @@ class AuthenticationViewModelTest {
   fun credentialFailureHidesTechnicalDetails() {
     val viewModel = AuthenticationViewModel(FakeAuthRepository(user))
     val manager =
-        TestCredentialManager(context).apply {
+        FakeCredentialManager(context).apply {
           failure = GetCredentialUnknownException("Technical provider details")
         }
     signIn(viewModel, manager)
@@ -121,7 +117,7 @@ class AuthenticationViewModelTest {
   @Test
   fun noCredentialsStopsLoadingAndReportsError() {
     val viewModel = AuthenticationViewModel(FakeAuthRepository(user))
-    val manager = TestCredentialManager(context).apply { failure = NoCredentialException() }
+    val manager = FakeCredentialManager(context).apply { failure = NoCredentialException() }
     signIn(viewModel, manager)
     assertEquals(
         AuthenticationUiState(
@@ -135,7 +131,7 @@ class AuthenticationViewModelTest {
   fun coroutineCancellationStopsLoadingWithoutReportingLoginFailure() {
     val viewModel = AuthenticationViewModel(FakeAuthRepository(user))
     val manager =
-        TestCredentialManager(context).apply { failure = CancellationException("Cancelled") }
+        FakeCredentialManager(context).apply { failure = CancellationException("Cancelled") }
     signIn(viewModel, manager)
     assertEquals(AuthenticationUiState(), viewModel.uiState.value)
   }
@@ -149,26 +145,9 @@ class AuthenticationViewModelTest {
               Result.failure<AuthenticatedUser>(CancellationException("Cancelled"))
         }
     val viewModel = AuthenticationViewModel(repository)
-    signIn(viewModel, TestCredentialManager(context))
+    signIn(viewModel, FakeCredentialManager(context))
     assertFalse(viewModel.uiState.value.isLoading)
     assertNull(viewModel.uiState.value.errorMessageRes)
     assertNull(viewModel.uiState.value.user)
-  }
-
-  private class TestCredentialManager(context: Context) :
-      CredentialManager by CredentialManager.create(context) {
-    var requests = 0
-    var failure: Exception? = null
-    var pendingResponse: CompletableDeferred<GetCredentialResponse>? = null
-    val response = GetCredentialResponse(CustomCredential("test-credential", Bundle()))
-
-    override suspend fun getCredential(
-        context: Context,
-        request: GetCredentialRequest,
-    ): GetCredentialResponse {
-      requests++
-      failure?.let { throw it }
-      return pendingResponse?.await() ?: response
-    }
   }
 }

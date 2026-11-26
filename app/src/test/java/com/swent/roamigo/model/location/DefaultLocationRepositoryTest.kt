@@ -21,8 +21,11 @@ import com.google.firebase.database.DatabaseReference.CompletionListener
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ServerValue
 import com.google.firebase.database.ValueEventListener
+import com.swent.roamigo.model.photo.PHOTO_LOCATION_TIMEOUT
 import java.io.IOException
 import java.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -90,6 +93,9 @@ class DefaultLocationRepositoryTest {
 
   // Thrown by the next updates instead of writing.
   private var updateFailure: RuntimeException? = null
+
+  // Device time seen by the repository, in milliseconds since the epoch.
+  private var now = System.currentTimeMillis()
 
   @Before
   fun setUp() {
@@ -231,43 +237,60 @@ class DefaultLocationRepositoryTest {
       }
 
   @Test
-  fun getCurrentLocation_fallsBackToNetworkProviderWhenGpsHasNoFix() = runTest {
+  fun getCurrentLocation_returnsNetworkFixWithoutWaitingForGps() = runTest {
     application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
 
     val pending = async { repository.getCurrentLocation() }
     runCurrent()
-    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMinutes(1))
-    runCurrent()
-    assertFalse(pending.isCompleted)
-
+    advanceTimeBy(1.seconds)
+    // GPS stays silent, e.g. indoors, while the network provider answers.
     locationManager.simulateLocation(
         recentLocation(LocationManager.NETWORK_PROVIDER).apply {
           latitude = 47.3769
           longitude = 8.5417
         }
     )
+    runCurrent()
 
+    assertTrue(pending.isCompleted)
+    assertTrue(testScheduler.currentTime.milliseconds < PHOTO_LOCATION_TIMEOUT)
     assertEquals(47.3769, pending.await()!!.latitude, 0.0)
+    // The GPS request still searching is cancelled once the network fix is chosen.
+    assertTrue(locationManager.getLocationRequests(LocationManager.GPS_PROVIDER).isEmpty())
   }
 
   @Test
-  fun getCurrentLocation_fallsBackToNetworkProviderWhenGpsIsTooSlow() = runTest {
+  fun getCurrentLocation_prefersGpsWhenBothProvidersHaveAFix() = runTest {
     application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
-
-    val pending = async { repository.getCurrentLocation() }
-    runCurrent()
-    advanceTimeBy(DefaultLocationRepository.PROVIDER_TIMEOUT)
-    runCurrent()
-    assertFalse(pending.isCompleted)
-
     locationManager.simulateLocation(
         recentLocation(LocationManager.NETWORK_PROVIDER).apply {
           latitude = 47.3769
           longitude = 8.5417
         }
     )
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
 
-    assertEquals(47.3769, pending.await()!!.latitude, 0.0)
+    val result = repository.getCurrentLocation()
+
+    assertEquals(46.5191, result!!.latitude, 0.0)
+    assertEquals(6.5668, result.longitude, 0.0)
+  }
+
+  @Test
+  fun getCurrentLocation_returnsNullWhenNoProviderAnswersWithinProviderTimeout() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+
+    val pending = async { repository.getCurrentLocation() }
+    runCurrent()
+    // Runs everything scheduled before the timeout, but not the timeout itself.
+    advanceTimeBy(DefaultLocationRepository.PROVIDER_TIMEOUT)
+    assertFalse(pending.isCompleted)
+    runCurrent()
+
+    assertTrue(pending.isCompleted)
+    assertNull(pending.await())
+    assertTrue(locationManager.getLocationRequests(LocationManager.GPS_PROVIDER).isEmpty())
+    assertTrue(locationManager.getLocationRequests(LocationManager.NETWORK_PROVIDER).isEmpty())
   }
 
   @Test
@@ -300,28 +323,187 @@ class DefaultLocationRepositoryTest {
     application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
 
     val pending = async { repository.getCurrentLocation() }
-    // GPS and then the network provider each time out without a fix.
-    repeat(2) {
-      runCurrent()
-      shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMinutes(1))
-    }
+    runCurrent()
+    // Both providers are asked at once and the platform ends each request without a fix.
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMinutes(1))
 
     assertNull(pending.await())
   }
 
   @Test
-  fun getCurrentLocation_stopsWaitingWhenCancelled() = runTest {
+  fun getCurrentLocation_cancelsEveryProviderRequestWhenCancelled() = runTest {
     application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
 
     val pending = async { repository.getCurrentLocation() }
     runCurrent()
+    assertEquals(1, locationManager.getLocationRequests(LocationManager.GPS_PROVIDER).size)
+    assertEquals(1, locationManager.getLocationRequests(LocationManager.NETWORK_PROVIDER).size)
     pending.cancel()
     runCurrent()
+
+    assertTrue(locationManager.getLocationRequests(LocationManager.GPS_PROVIDER).isEmpty())
+    assertTrue(locationManager.getLocationRequests(LocationManager.NETWORK_PROVIDER).isEmpty())
 
     // A fix arriving after cancellation must not be delivered to the cancelled request.
     locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
 
     assertTrue(pending.isCancelled)
+  }
+
+  @Test
+  fun lastKnownLocation_returnsFixFromGetCurrentLocation() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val fix = repository.getCurrentLocation()
+    // Only the fix remembered by the repository is left.
+    locationManager.setLastKnownLocation(LocationManager.GPS_PROVIDER, null)
+
+    assertEquals(fix, repository.lastKnownLocation(5.minutes))
+  }
+
+  @Test
+  fun lastKnownLocation_ignoresFixOlderThanMaxAge() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(
+        recentLocation(LocationManager.GPS_PROVIDER).apply {
+          time = now - 10.minutes.inWholeMilliseconds
+        }
+    )
+    repository.getCurrentLocation()
+    locationManager.setLastKnownLocation(LocationManager.GPS_PROVIDER, null)
+
+    assertNull(repository.lastKnownLocation(5.minutes))
+    assertEquals(46.5191, repository.lastKnownLocation(15.minutes)!!.latitude, 0.0)
+  }
+
+  @Test
+  fun lastKnownLocation_ignoresSystemFixOlderThanMaxAge() {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.setLastKnownLocation(
+        LocationManager.GPS_PROVIDER,
+        recentLocation(LocationManager.GPS_PROVIDER).apply {
+          time = now - 10.minutes.inWholeMilliseconds
+        },
+    )
+
+    assertNull(repository.lastKnownLocation(5.minutes))
+  }
+
+  @Test
+  fun lastKnownLocation_returnsNullWithoutPermission() = runTest {
+    locationManager.setLastKnownLocation(
+        LocationManager.GPS_PROVIDER,
+        recentLocation(LocationManager.GPS_PROVIDER),
+    )
+
+    assertNull(repository.lastKnownLocation(5.minutes))
+  }
+
+  @Test
+  fun lastKnownLocation_returnsNullWhenPermissionIsRevokedAfterAFix() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    repository.getCurrentLocation()
+
+    application.denyPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+
+    assertNull(repository.lastKnownLocation(5.minutes))
+  }
+
+  @Test
+  fun lastKnownLocation_usesSystemFixWhenNoneIsRemembered() {
+    application.grantPermissions(Manifest.permission.ACCESS_COARSE_LOCATION)
+    locationManager.setLastKnownLocation(
+        LocationManager.NETWORK_PROVIDER,
+        recentLocation(LocationManager.NETWORK_PROVIDER).apply {
+          latitude = 47.3769
+          longitude = 8.5417
+        },
+    )
+
+    assertEquals(47.3769, repository.lastKnownLocation(5.minutes)!!.latitude, 0.0)
+  }
+
+  @Test
+  fun lastKnownLocation_ignoresGpsFixWithCoarsePermissionOnly() {
+    application.grantPermissions(Manifest.permission.ACCESS_COARSE_LOCATION)
+    locationManager.setLastKnownLocation(
+        LocationManager.GPS_PROVIDER,
+        recentLocation(LocationManager.GPS_PROVIDER),
+    )
+
+    assertNull(repository.lastKnownLocation(5.minutes))
+  }
+
+  @Test
+  fun lastKnownLocation_ignoresRememberedGpsFixAfterDowngradeToCoarse() = runTest {
+    application.grantPermissions(
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.ACCESS_COARSE_LOCATION,
+    )
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    repository.getCurrentLocation()
+    // Only the fix remembered by the repository is left.
+    locationManager.setLastKnownLocation(LocationManager.GPS_PROVIDER, null)
+
+    application.denyPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+
+    assertNull(repository.lastKnownLocation(5.minutes))
+  }
+
+  @Test
+  fun lastKnownLocation_returnsRememberedNetworkFixWithCoarsePermissionOnly() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_COARSE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.NETWORK_PROVIDER))
+    repository.getCurrentLocation()
+    // Only the fix remembered by the repository is left.
+    locationManager.setLastKnownLocation(LocationManager.NETWORK_PROVIDER, null)
+
+    assertEquals(46.5191, repository.lastKnownLocation(5.minutes)!!.latitude, 0.0)
+  }
+
+  @Test
+  fun lastKnownLocation_returnsNewerOfRememberedAndSystemFixes() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(
+        recentLocation(LocationManager.GPS_PROVIDER).apply {
+          time = now - 2.minutes.inWholeMilliseconds
+        }
+    )
+    repository.getCurrentLocation()
+    locationManager.setLastKnownLocation(LocationManager.GPS_PROVIDER, null)
+    locationManager.setLastKnownLocation(
+        LocationManager.NETWORK_PROVIDER,
+        recentLocation(LocationManager.NETWORK_PROVIDER).apply {
+          latitude = 47.3769
+          time = now - 1.minutes.inWholeMilliseconds
+        },
+    )
+
+    assertEquals(47.3769, repository.lastKnownLocation(5.minutes)!!.latitude, 0.0)
+  }
+
+  @Test
+  fun lastKnownLocation_keepsNewerFixWhenALaterCallReadsAnOlderOne() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(
+        recentLocation(LocationManager.GPS_PROVIDER).apply { time = now }
+    )
+    val newer = repository.getCurrentLocation()
+    locationManager.simulateLocation(
+        recentLocation(LocationManager.GPS_PROVIDER).apply {
+          latitude = 47.3769
+          time = now - 1.minutes.inWholeMilliseconds
+        }
+    )
+
+    val older = repository.getCurrentLocation()
+    // Only the fix remembered by the repository is left.
+    locationManager.setLastKnownLocation(LocationManager.GPS_PROVIDER, null)
+
+    assertEquals(47.3769, older!!.latitude, 0.0)
+    assertEquals(now - 1.minutes.inWholeMilliseconds, older.timestampMillis)
+    assertEquals(newer, repository.lastKnownLocation(5.minutes))
   }
 
   @Test
@@ -1062,6 +1244,7 @@ class DefaultLocationRepositoryTest {
           sharedTripsStore = sharedTripsStore,
           scope = scope,
           updateInterval = UPDATE_INTERVAL,
+          clock = { now },
       )
 
   // Can be cancelled to simulate the system killing the app process.

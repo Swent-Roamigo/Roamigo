@@ -1,0 +1,501 @@
+// AI assistance was used for implementation support.
+package com.swent.roamigo.ui.trip.itinerary
+
+import androidx.lifecycle.ViewModelStore
+import com.google.firebase.Timestamp
+import com.swent.roamigo.model.TripLocation
+import com.swent.roamigo.model.trip.Activity
+import com.swent.roamigo.model.trip.ActivityType
+import com.swent.roamigo.model.trip.activity.ActivityDraft
+import com.swent.roamigo.model.trip.activity.ActivityRepository
+import com.swent.roamigo.model.trip.activity.initialSuggestionVoteId
+import com.swent.roamigo.model.trip.activity.newSuggestionPair
+import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
+import com.swent.roamigo.model.trip.voting.VoteStatus
+import java.time.Clock
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZoneOffset
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class ItineraryViewModelTest {
+  private val dispatcher = StandardTestDispatcher()
+  private val subscribers = CoroutineScope(dispatcher + SupervisorJob())
+  private val store = ViewModelStore()
+  private val repository = ControlledActivityRepository()
+  private val votes = InMemoryVoteRepository()
+  private lateinit var viewModel: ItineraryViewModel
+
+  @Before
+  fun setUp() {
+    Dispatchers.setMain(dispatcher)
+  }
+
+  @After
+  fun tearDown() {
+    subscribers.cancel()
+    store.clear()
+    Dispatchers.resetMain()
+  }
+
+  private fun createViewModel(today: LocalDate = DAY_1) {
+    val clock = Clock.fixed(today.atTime(12, 0).atZone(ZONE).toInstant(), ZONE)
+    viewModel = ItineraryViewModel(TRIP_ID, repository, votes, clock)
+    subscribers.launch { viewModel.uiState.collect() }
+    store.put("itinerary", viewModel)
+  }
+
+  private fun ready() = viewModel.uiState.value as ItineraryUiState.Ready
+
+  @Test
+  fun listsOnlyAcceptedActivitiesOfTheSelectedDayInStartOrder() =
+      runTest(dispatcher) {
+        repository.activities.value =
+            listOf(
+                activity("late", DAY_1.atTime(18, 0)),
+                activity("early", DAY_1.atTime(9, 30)),
+                activity("idea", DAY_1.atTime(10, 0), ActivityType.SUGGESTION),
+                activity("next day", DAY_2.atTime(8, 0)),
+            )
+        createViewModel()
+        viewModel.setTripDates(DAY_1, DAY_2)
+        runCurrent()
+
+        val state = ready()
+        assertEquals(DAY_1, state.selectedDay)
+        assertEquals(listOf("early", "late"), state.activities.map { it.id })
+        assertEquals(LocalTime.of(9, 30), state.activities.first().startTime)
+        assertEquals("Lisbon", state.activities.first().locationName)
+      }
+
+  @Test
+  fun offersEveryTripDayAndDaysOutsideTheTripThatHaveActivities() =
+      runTest(dispatcher) {
+        val outside = DAY_1.plusDays(5)
+        repository.activities.value = listOf(activity("after", outside.atTime(10, 0)))
+        createViewModel()
+        viewModel.setTripDates(DAY_1, DAY_2)
+        runCurrent()
+
+        assertEquals(listOf(DAY_1, DAY_2, outside), ready().days)
+      }
+
+  @Test
+  fun opensOnTodayDuringTheTripOtherwiseOnTheFirstPlannedDay() =
+      runTest(dispatcher) {
+        repository.activities.value = listOf(activity("museum", DAY_2.atTime(10, 0)))
+        createViewModel(today = DAY_1.minusDays(30))
+        viewModel.setTripDates(DAY_1, DAY_2.plusDays(1))
+        runCurrent()
+        assertEquals(DAY_2, ready().selectedDay)
+
+        store.clear()
+        createViewModel(today = DAY_2.plusDays(1))
+        viewModel.setTripDates(DAY_1, DAY_2.plusDays(1))
+        runCurrent()
+        assertEquals(DAY_2.plusDays(1), ready().selectedDay)
+      }
+
+  @Test
+  fun todayOutsideTheTripDoesNotOpenEvenWithAnActivity() =
+      runTest(dispatcher) {
+        val today = DAY_2.plusDays(3)
+        repository.activities.value =
+            listOf(activity("museum", DAY_2.atTime(10, 0)), activity("late", today.atTime(20, 0)))
+        createViewModel(today = today)
+        viewModel.setTripDates(DAY_1, DAY_2)
+        runCurrent()
+
+        assertEquals(DAY_2, ready().selectedDay)
+        assertTrue(today in ready().days)
+      }
+
+  @Test
+  fun anEmptyTripOpensOnItsFirstDayAndSaysItHasNoActivity() =
+      runTest(dispatcher) {
+        createViewModel(today = DAY_1.minusDays(30))
+        viewModel.setTripDates(DAY_1, DAY_2)
+        runCurrent()
+
+        val state = ready()
+        assertEquals(DAY_1, state.selectedDay)
+        assertFalse(state.hasActivities)
+        assertTrue(state.activities.isEmpty())
+      }
+
+  @Test
+  fun selectingADayShowsItsActivitiesAndAVanishedDayFallsBack() =
+      runTest(dispatcher) {
+        val outside = DAY_2.plusDays(3)
+        repository.activities.value =
+            listOf(activity("a", DAY_1.atTime(9, 0)), activity("b", outside.atTime(9, 0)))
+        createViewModel()
+        viewModel.setTripDates(DAY_1, DAY_2)
+        runCurrent()
+
+        viewModel.selectDay(outside)
+        runCurrent()
+        assertEquals(listOf("b"), ready().activities.map { it.id })
+
+        // Removing the only activity outside the trip removes its day, so selection falls back.
+        repository.activities.value = listOf(activity("a", DAY_1.atTime(9, 0)))
+        runCurrent()
+        assertEquals(DAY_1, ready().selectedDay)
+        assertEquals(listOf(DAY_1, DAY_2), ready().days)
+      }
+
+  @Test
+  fun keepsTheShownDayWhenActivitiesChangeElsewhereOrItBecomesEmpty() =
+      runTest(dispatcher) {
+        val lastDay = DAY_2.plusDays(1)
+        repository.activities.value = listOf(activity("museum", DAY_2.atTime(10, 0)))
+        createViewModel(today = DAY_1.minusDays(30))
+        viewModel.setTripDates(DAY_1, lastDay)
+        runCurrent()
+        assertEquals(DAY_2, ready().selectedDay)
+
+        // An earlier activity would now be the first planned day, but the plan stays where it is.
+        repository.activities.value += activity("market", DAY_1.atTime(9, 0))
+        runCurrent()
+        assertEquals(DAY_2, ready().selectedDay)
+        assertEquals(listOf("museum"), ready().activities.map { it.id })
+
+        repository.activities.value = listOf(activity("market", DAY_1.atTime(9, 0)))
+        runCurrent()
+        assertEquals(DAY_2, ready().selectedDay)
+        assertEquals(listOf(DAY_1, DAY_2, lastDay), ready().days)
+        assertTrue(ready().activities.isEmpty())
+        assertTrue(ready().hasActivities)
+      }
+
+  @Test
+  fun theOpeningDayWaitsForTheTripDates() =
+      runTest(dispatcher) {
+        repository.activities.value = listOf(activity("museum", DAY_2.atTime(10, 0)))
+        createViewModel(today = DAY_1)
+        runCurrent()
+        assertEquals(DAY_2, ready().selectedDay)
+
+        viewModel.setTripDates(DAY_1, DAY_2)
+        runCurrent()
+        assertEquals(DAY_1, ready().selectedDay)
+      }
+
+  @Test
+  fun followsLiveChangesIncludingAConvertedSuggestion() =
+      runTest(dispatcher) {
+        val idea = activity("idea", DAY_1.atTime(11, 0), ActivityType.SUGGESTION)
+        repository.activities.value = listOf(idea)
+        createViewModel()
+        viewModel.setTripDates(DAY_1, DAY_2)
+        runCurrent()
+        assertTrue(ready().activities.isEmpty())
+
+        repository.activities.value = listOf(idea.copy(activityType = ActivityType.ACCEPTED))
+        runCurrent()
+        assertEquals(listOf("idea"), ready().activities.map { it.id })
+
+        repository.activities.value = emptyList()
+        runCurrent()
+        assertFalse(ready().hasActivities)
+        assertEquals(DAY_1, ready().selectedDay)
+        assertEquals(listOf(DAY_1, DAY_2), ready().days)
+      }
+
+  @Test
+  fun groupsByLocalDayInTheClockZone() =
+      runTest(dispatcher) {
+        // 23:30 UTC on day 1 is already 00:30 on day 2 in Lisbon summer time (UTC+1).
+        val lateUtc = DAY_1.atTime(23, 30).toInstant(ZoneOffset.UTC)
+        repository.activities.value =
+            listOf(activity("night", DAY_1.atTime(0, 0)).copy(startTime = timestamp(lateUtc)))
+        createViewModel()
+        viewModel.setTripDates(DAY_1, DAY_2)
+        viewModel.selectDay(DAY_2)
+        runCurrent()
+
+        assertEquals(listOf("night"), ready().activities.map { it.id })
+        assertEquals(LocalTime.of(0, 30), ready().activities.single().startTime)
+      }
+
+  @Test
+  fun skipsAcceptedActivitiesWithoutAStartTime() =
+      runTest(dispatcher) {
+        repository.activities.value =
+            listOf(
+                activity("legacy", DAY_1.atTime(9, 0)).copy(startTime = null),
+                activity("ok", DAY_1.atTime(10, 0)),
+            )
+        createViewModel()
+        viewModel.setTripDates(DAY_1, DAY_2)
+        runCurrent()
+
+        assertEquals(listOf("ok"), ready().activities.map { it.id })
+      }
+
+  @Test
+  fun aReversedTripRangeStillOffersItsFirstDay() =
+      runTest(dispatcher) {
+        createViewModel()
+        viewModel.setTripDates(DAY_2, DAY_1)
+        runCurrent()
+
+        assertEquals(listOf(DAY_2), ready().days)
+      }
+
+  @Test
+  fun aFailedFirstLoadShowsAnErrorAndRetryRecovers() =
+      runTest(dispatcher) {
+        repository.failNextObservation = true
+        createViewModel()
+        runCurrent()
+        assertEquals(ItineraryUiState.Error, viewModel.uiState.value)
+
+        repository.activities.value = listOf(activity("a", DAY_1.atTime(9, 0)))
+        viewModel.retry()
+        runCurrent()
+        assertEquals(listOf("a"), ready().activities.map { it.id })
+        assertEquals(2, repository.observations)
+      }
+
+  @Test
+  fun aFailureAfterLoadingKeepsThePlanAndRetryClearsTheWarning() =
+      runTest(dispatcher) {
+        repository.activities.value = listOf(activity("a", DAY_1.atTime(9, 0)))
+        createViewModel()
+        viewModel.setTripDates(DAY_1, DAY_2)
+        runCurrent()
+
+        repository.failures.emit(IllegalStateException("listener lost"))
+        runCurrent()
+        assertTrue(ready().refreshFailed)
+        assertEquals(listOf("a"), ready().activities.map { it.id })
+
+        viewModel.retry()
+        runCurrent()
+        assertFalse(ready().refreshFailed)
+      }
+
+  @Test
+  fun stopsObservingWhenNobodyIsSubscribed() =
+      runTest(dispatcher) {
+        createViewModel()
+        runCurrent()
+        assertEquals(1, repository.activeObservers)
+        assertEquals(1, votes.activeObservers)
+
+        subscribers.cancel()
+        dispatcher.scheduler.advanceTimeBy(5_001)
+        runCurrent()
+        assertEquals(0, repository.activeObservers)
+        assertEquals(0, votes.activeObservers)
+      }
+
+  @Test
+  fun countsSuggestionsWhoseCurrentVoteRoundIsOpen() =
+      runTest(dispatcher) {
+        val revoted = suggestionVote("revoted", VoteStatus.CLOSED, nextRound = "round-2")
+        votes.snapshots.value =
+            Result.success(
+                listOf(
+                    suggestionVote("open"),
+                    suggestionVote("decided", VoteStatus.CLOSED),
+                    revoted,
+                    laterRound("revoted", "round-2"),
+                    suggestionVote("pending-round", VoteStatus.CLOSED, nextRound = "late"),
+                )
+            )
+        repository.activities.value =
+            listOf("open", "decided", "revoted", "pending-round", "no-vote-yet").map {
+              suggestion(it)
+            } + suggestion("legacy").copy(linkedVoteId = null)
+        createViewModel()
+        viewModel.setTripDates(DAY_1, DAY_2)
+        runCurrent()
+        assertEquals(2, ready().waitingSuggestions)
+
+        // Closing the second round settles the revoted suggestion.
+        votes.snapshots.value =
+            Result.success(
+                votes.snapshots.value.getOrThrow().map {
+                  if (it.uid == "round-2") it.copy(status = VoteStatus.CLOSED) else it
+                }
+            )
+        runCurrent()
+        assertEquals(1, ready().waitingSuggestions)
+
+        // An accepted suggestion no longer waits, whatever its vote says.
+        repository.activities.value =
+            repository.activities.value.map {
+              if (it.uid == "open") it.copy(activityType = ActivityType.ACCEPTED) else it
+            }
+        runCurrent()
+        assertEquals(0, ready().waitingSuggestions)
+      }
+
+  // The timeout turns an endless walk of the rounds into a failure instead of a hung build.
+  @Test(timeout = CYCLE_TIMEOUT_MILLIS)
+  fun roundsThatPointBackToEachOtherStillGiveACount() =
+      runTest(dispatcher) {
+        votes.snapshots.value =
+            Result.success(
+                listOf(
+                    suggestionVote("loop", VoteStatus.CLOSED, nextRound = "round-2"),
+                    laterRound("loop", "round-2")
+                        .copy(nextRoundVoteId = initialSuggestionVoteId("loop")),
+                )
+            )
+        repository.activities.value = listOf(suggestion("loop"))
+        createViewModel()
+        viewModel.setTripDates(DAY_1, DAY_2)
+        runCurrent()
+
+        assertEquals(1, ready().waitingSuggestions)
+      }
+
+  @Test
+  fun aVoteFailureHidesTheCountWithoutWarningAboutThePlan() =
+      runTest(dispatcher) {
+        votes.snapshots.value = Result.success(listOf(suggestionVote("open")))
+        repository.activities.value = listOf(activity("a", DAY_1.atTime(9, 0)), suggestion("open"))
+        createViewModel()
+        viewModel.setTripDates(DAY_1, DAY_2)
+        runCurrent()
+        assertEquals(1, ready().waitingSuggestions)
+
+        val loaded = votes.snapshots.value
+        votes.snapshots.value = Result.failure(IllegalStateException("unreadable vote"))
+        runCurrent()
+        assertEquals(0, ready().waitingSuggestions)
+        assertEquals(listOf("a"), ready().activities.map { it.id })
+        assertFalse(ready().refreshFailed)
+
+        // Retry restarts the votes listener too, which brings the count back.
+        votes.snapshots.value = loaded
+        viewModel.retry()
+        runCurrent()
+        assertEquals(1, ready().waitingSuggestions)
+      }
+
+  @Test
+  fun votesFailingFromTheStartShowThePlanWithoutACount() =
+      runTest(dispatcher) {
+        votes.snapshots.value = Result.failure(IllegalStateException("denied"))
+        repository.activities.value = listOf(activity("a", DAY_1.atTime(9, 0)), suggestion("open"))
+        createViewModel()
+        viewModel.setTripDates(DAY_1, DAY_2)
+        runCurrent()
+
+        assertEquals(listOf("a"), ready().activities.map { it.id })
+        assertEquals(0, ready().waitingSuggestions)
+        assertFalse(ready().refreshFailed)
+      }
+
+  private fun activity(
+      id: String,
+      start: LocalDateTime,
+      type: ActivityType = ActivityType.ACCEPTED,
+  ) =
+      Activity(
+          uid = id,
+          tripId = TRIP_ID,
+          activityType = type,
+          name = id,
+          description = null,
+          location = TripLocation(38.7, -9.1, "Lisbon"),
+          startTime = timestamp(start.atZone(ZONE).toInstant()),
+          endTime = null,
+          createdByUserId = "alex",
+          creationTime = Timestamp(0, 0),
+      )
+
+  /** A suggestion and its initial vote, built exactly as suggestion creation stores them. */
+  private fun suggestionPair(id: String) =
+      ActivityDraft(id, null, TripLocation(38.7, -9.1, "Lisbon"), null, null)
+          .newSuggestionPair(TRIP_ID, id, initialSuggestionVoteId(id), "alex")
+
+  private fun suggestion(id: String) = suggestionPair(id).activity
+
+  private fun suggestionVote(
+      suggestionId: String,
+      status: VoteStatus = VoteStatus.OPEN,
+      nextRound: String? = null,
+  ) = suggestionPair(suggestionId).vote.copy(status = status, nextRoundVoteId = nextRound)
+
+  /** The second round of [suggestionId]'s vote, linked to its initial vote like a revote. */
+  private fun laterRound(suggestionId: String, roundId: String) =
+      suggestionPair(suggestionId)
+          .vote
+          .copy(
+              uid = roundId,
+              parentVoteId = initialSuggestionVoteId(suggestionId),
+              round = 2,
+              suggestionId = null,
+          )
+
+  private fun timestamp(instant: java.time.Instant) = Timestamp(instant.epochSecond, instant.nano)
+
+  /** Emits [activities] live, and can fail the first observation or an ongoing one on demand. */
+  private class ControlledActivityRepository : ActivityRepository {
+    val activities = MutableStateFlow<List<Activity>>(emptyList())
+    val failures = MutableSharedFlow<Exception>()
+    var failNextObservation = false
+    var observations = 0
+    var activeObservers = 0
+
+    override suspend fun createActivity(
+        tripId: String,
+        activityId: String,
+        draft: ActivityDraft,
+    ): Activity = throw UnsupportedOperationException()
+
+    override fun observeActivities(tripId: String): Flow<List<Activity>> = flow {
+      observations++
+      if (failNextObservation) {
+        failNextObservation = false
+        throw IllegalStateException("offline")
+      }
+      activeObservers++
+      try {
+        emitAll(merge(activities, failures.map { throw it }))
+      } finally {
+        activeObservers--
+      }
+    }
+  }
+
+  private companion object {
+    const val TRIP_ID = "trip"
+    const val CYCLE_TIMEOUT_MILLIS = 10_000L
+    val ZONE: ZoneId = ZoneId.of("Europe/Lisbon")
+    val DAY_1: LocalDate = LocalDate.of(2026, 7, 11)
+    val DAY_2: LocalDate = DAY_1.plusDays(1)
+  }
+}

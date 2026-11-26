@@ -1,4 +1,5 @@
-package com.swent.roamigo.model.place
+// AI assistance was used for implementation support.
+package com.swent.roamigo.model.network
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.io.IOException

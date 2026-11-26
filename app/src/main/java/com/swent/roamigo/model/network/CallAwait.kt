@@ -1,4 +1,5 @@
-package com.swent.roamigo.model.place
+// AI assistance was used for implementation support.
+package com.swent.roamigo.model.network
 
 import java.io.IOException
 import kotlin.coroutines.resume
