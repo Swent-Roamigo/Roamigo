@@ -39,6 +39,17 @@ jobs:
         with:
           google-services: ${{ secrets.GOOGLE_SERVICES }}
 
+      # Robolectric downloads the Android jar of each SDK it tests from Maven Central while the tests
+      # run. When that download fails, every test class that needs the jar fails at once, so the
+      # jars are kept here. A new Robolectric version changes the file in the key, and a miss still
+      # reuses the jars of the previous one.
+      - name: Robolectric Android jars cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: robolectric-
+
       - name: Run formatting, debug, and JVM checks
         run: ./gradlew ktfmtCheck assembleDebug lintDebug check --build-cache
 
@@ -158,18 +169,58 @@ jobs:
           disable-animations: false
           script: echo "Generated AVD snapshot for caching."
 
+      # The emulator renders with software GL on a shared runner, and a few map tests fail now and
+      # then for that reason alone, so a failed shard gets one more attempt. A test that really
+      # fails fails twice, and the job still fails. The first attempt's results are uploaded, so
+      # a flaky test can be found afterwards.
       - name: Run connected tests
+        id: first-attempt
+        continue-on-error: true
         timeout-minutes: 25
-        uses: reactivecircus/android-emulator-runner@v2
+        uses: ./.github/actions/run-connected-tests
         with:
-          api-level: 34
-          target: google_apis
-          arch: x86_64
-          force-avd-creation: false
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          disable-animations: true
-          script: |
-            bash -o pipefail -c "firebase emulators:exec --only auth,database,firestore,functions --project demo-roamigo --non-interactive '${{ matrix.shard == 0 && 'node --test tests/firestore/*.test.mjs && ' || '' }}./gradlew connectedCheck --build-cache -Pandroid.testInstrumentationRunnerArguments.numShards=${{ strategy.job-total }} -Pandroid.testInstrumentationRunnerArguments.shardIndex=${{ matrix.shard }}' 2>&1 | tee firebase-emulator.log"
+          shard: ${{ matrix.shard }}
+          shard-count: ${{ strategy.job-total }}
+
+      - name: Keep the results of the failed first attempt
+        if: steps.first-attempt.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: connected-test-results-and-firebase-logs-${{ matrix.shard }}-first-attempt
+          if-no-files-found: warn
+          path: |
+            firebase-emulator.log
+            app/build/reports/androidTests/connected/**
+            app/build/outputs/androidTest-results/connected/**
+
+      # A step that hits its timeout is killed from outside, so the emulator and the Firebase
+      # emulators may still be running and hold their ports. They are stopped before the retry, or
+      # a hung shard would fail again on "port in use" and never get its second chance. The
+      # brackets in the patterns keep pkill from matching this script itself.
+      - name: Stop what the failed first attempt may have left running
+        if: steps.first-attempt.outcome == 'failure'
+        run: |
+          adb emu kill || true
+          pkill -f '[f]irebase.*emulators' || true
+          pkill -f '[c]loud-firestore-emulator' || true
+          pkill -f '[q]emu-system' || true
+          ports='5554|5555|4000|4400|4500|5001|8080|9000|9099'
+          for _ in $(seq 1 15); do
+            ss -ltn | grep -qE ":($ports) " || break
+            sleep 2
+          done
+          if ss -ltn | grep -qE ":($ports) "; then
+            echo "::warning::A port of the emulators is still in use before the second attempt."
+            ss -ltnp | grep -E ":($ports) " || true
+          fi
+
+      - name: Run connected tests again after a failure
+        if: steps.first-attempt.outcome == 'failure'
+        timeout-minutes: 25
+        uses: ./.github/actions/run-connected-tests
+        with:
+          shard: ${{ matrix.shard }}
+          shard-count: ${{ strategy.job-total }}
 
       - name: Upload connected test results and Firebase logs
         if: always()

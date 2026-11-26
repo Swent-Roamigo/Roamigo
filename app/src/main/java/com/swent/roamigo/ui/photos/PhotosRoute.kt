@@ -102,6 +102,8 @@ fun PhotosRoute(
               viewModel.onCameraUnavailable()
               Toast.makeText(context, R.string.photos_no_camera, Toast.LENGTH_LONG).show()
             }
+        PhotosEffect.RetryFailed ->
+            Toast.makeText(context, R.string.photos_retry_failed, Toast.LENGTH_LONG).show()
         PhotosEffect.OpenSettings ->
             try {
               context.startActivity(
@@ -170,6 +172,8 @@ fun PhotosRoute(
           )
         },
         onRetryClick = viewModel::onRetry,
+        onRetryAllClick = viewModel::onRetryAll,
+        onPendingRetryClick = viewModel::onPendingRetry,
         onPhotoClick = viewModel::onPhotoClick,
         onGalleryRetryClick = viewModel::onGalleryRetry,
         summary = summary,
