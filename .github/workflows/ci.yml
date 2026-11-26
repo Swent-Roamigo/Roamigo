@@ -193,6 +193,27 @@ jobs:
             app/build/reports/androidTests/connected/**
             app/build/outputs/androidTest-results/connected/**
 
+      # A step that hits its timeout is killed from outside, so the emulator and the Firebase
+      # emulators may still be running and hold their ports. They are stopped before the retry, or
+      # a hung shard would fail again on "port in use" and never get its second chance. The
+      # brackets in the patterns keep pkill from matching this script itself.
+      - name: Stop what the failed first attempt may have left running
+        if: steps.first-attempt.outcome == 'failure'
+        run: |
+          adb emu kill || true
+          pkill -f '[f]irebase.*emulators' || true
+          pkill -f '[c]loud-firestore-emulator' || true
+          pkill -f '[q]emu-system' || true
+          ports='5554|5555|4000|4400|4500|5001|8080|9000|9099'
+          for _ in $(seq 1 15); do
+            ss -ltn | grep -qE ":($ports) " || break
+            sleep 2
+          done
+          if ss -ltn | grep -qE ":($ports) "; then
+            echo "::warning::A port of the emulators is still in use before the second attempt."
+            ss -ltnp | grep -E ":($ports) " || true
+          fi
+
       - name: Run connected tests again after a failure
         if: steps.first-attempt.outcome == 'failure'
         timeout-minutes: 25
