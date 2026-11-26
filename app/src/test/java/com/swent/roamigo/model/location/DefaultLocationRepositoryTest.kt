@@ -1053,6 +1053,60 @@ class DefaultLocationRepositoryTest {
   }
 
   @Test
+  fun restoreSharing_doesNotShareWhenSignedOutDuringTheRestore() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    val repository = createRepository(backgroundScope)
+
+    // Runs until the saved trips are read and the trips wait to be restored.
+    val restore = launch(start = CoroutineStart.UNDISPATCHED) { repository.restoreSharing() }
+    `when`(auth.currentUser).thenReturn(null)
+    restore.join()
+
+    verifyUpdates(ownLocation, 1)
+    verifyRemovals(ownLocation, 0)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+
+    // The trip stayed saved, so it is restored once the user signs in again.
+    `when`(auth.currentUser).thenReturn(user)
+    val nextRepository = createRepository(backgroundScope)
+    nextRepository.restoreSharing()
+
+    verifyUpdates(ownLocation, 2)
+    assertTrue(nextRepository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_doesNotStopTheSharingWhenSignedOutBeforeAResumeFailed() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    // Signed in when the trips are read and when the trip is about to resume, then signed out
+    // before startSharing reads the user, so that it fails.
+    `when`(auth.currentUser).thenReturn(user, user, null)
+    val repository = createRepository(backgroundScope)
+
+    repository.restoreSharing()
+
+    verifyUpdates(ownLocation, 1)
+    verifyRemovals(ownLocation, 0)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+
+    // The trip stayed saved, so it is restored once the user signs in again.
+    `when`(auth.currentUser).thenReturn(user)
+    val nextRepository = createRepository(backgroundScope)
+    nextRepository.restoreSharing()
+
+    verifyUpdates(ownLocation, 2)
+    assertTrue(nextRepository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
   fun restoreSharing_doesNothingWhenSignedOut() = runTest {
     application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
     locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
