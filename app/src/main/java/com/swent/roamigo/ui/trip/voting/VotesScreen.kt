@@ -90,7 +90,10 @@ fun VotesRoute(
   val listState = rememberLazyListState()
   val today by rememberLocalDate(ZoneId.systemDefault())
   LaunchedEffect(today) { resolution.refreshEligibility() }
-  LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { resolution.refreshEligibility() }
+  LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+    resolution.refreshEligibility()
+    viewModel.refreshHint()
+  }
   val source = resolutionState.revoteSource
   if (source != null) {
     key(source.uid) {

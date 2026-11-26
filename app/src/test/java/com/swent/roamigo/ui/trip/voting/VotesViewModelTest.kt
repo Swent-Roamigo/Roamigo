@@ -81,6 +81,51 @@ class VotesViewModelTest {
   }
 
   @Test
+  fun aHintDismissedAndRememberedStaysHiddenInANewViewModel() = runTest {
+    val hints = MemoryHintStore()
+    viewModel = VotesViewModel(repository, "trip", "member", hints)
+    store.put("votes", viewModel)
+    viewModel.dismissHint()
+
+    // The screen is recreated with the same store, as after a rotation or a new visit.
+    store.clear()
+    viewModel = VotesViewModel(repository, "trip", "member", hints)
+    store.put("votes", viewModel)
+
+    assertFalse(viewModel.hintVisible.value)
+  }
+
+  @Test
+  fun comingBackHidesAHintThatWasDismissedInAnotherInstance() = runTest {
+    val hints = MemoryHintStore()
+    viewModel = VotesViewModel(repository, "trip", "member", hints)
+    store.put("votes", viewModel)
+    assertTrue(viewModel.hintVisible.value)
+
+    hints.markSeen()
+    viewModel.refreshHint()
+
+    assertFalse(viewModel.hintVisible.value)
+  }
+
+  @Test
+  fun comingBackNeverBringsBackAHintThatWasDismissedWhenSavingFailed() = runTest {
+    val hints =
+        object : VotesHintStore {
+          override fun isSeen() = false
+
+          override fun markSeen() = Unit
+        }
+    viewModel = VotesViewModel(repository, "trip", "member", hints)
+    store.put("votes", viewModel)
+    viewModel.dismissHint()
+
+    viewModel.refreshHint()
+
+    assertFalse(viewModel.hintVisible.value)
+  }
+
+  @Test
   fun doesNotShowTheHintOnceItWasSeen() = runTest {
     viewModel = VotesViewModel(repository, "trip", "member", MemoryHintStore(seen = true))
     store.put("votes", viewModel)

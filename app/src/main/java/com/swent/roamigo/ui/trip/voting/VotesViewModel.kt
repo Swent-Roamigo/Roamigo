@@ -60,6 +60,15 @@ class VotesViewModel(
     hintStore.markSeen()
   }
 
+  /**
+   * Hides the hint if it was dismissed elsewhere, e.g. by another instance of this screen: the flag
+   * is shared by the whole app. It never shows the hint again, so a dismissal whose saving failed
+   * is not undone.
+   */
+  fun refreshHint() {
+    if (hintStore.isSeen()) _hintVisible.value = false
+  }
+
   /** Returns a displayed vote's ID for navigation, ignoring stale or unknown selections. */
   fun selectVote(voteId: String): String? {
     val state = _uiState.value as? VotesUiState.Ready ?: return null
