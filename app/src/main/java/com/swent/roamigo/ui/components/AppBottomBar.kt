@@ -6,6 +6,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CardTravel
 import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.People
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -14,13 +16,18 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import com.swent.roamigo.R
 import com.swent.roamigo.resources.C
+
+/** Shares the pending incoming request indicator with each bottom bar in the app. */
+internal val LocalHasPendingFriendRequests = compositionLocalOf { false }
 
 /**
  * Displays the primary Trips, Map, Photos and Friends navigation destinations.
@@ -45,6 +52,8 @@ internal fun AppBottomBar(
     friendsSelected: Boolean = false,
     mapSelected: Boolean = false,
 ) {
+  val hasPendingRequests = LocalHasPendingFriendRequests.current
+  val pendingDescription = stringResource(R.string.friends_pending_requests_indicator)
   Column {
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
@@ -92,12 +101,19 @@ internal fun AppBottomBar(
           modifier =
               Modifier.markNotImplemented(onFriendsClick).semantics {
                 testTag = C.Tag.trips_navigation_friends
+                if (hasPendingRequests) stateDescription = pendingDescription
               },
           icon = {
-            Icon(
-                imageVector = Icons.Outlined.People,
-                contentDescription = stringResource(R.string.trips_nav_friends),
-            )
+            BadgedBox(
+                badge = {
+                  if (hasPendingRequests) Badge(containerColor = MaterialTheme.colorScheme.error)
+                }
+            ) {
+              Icon(
+                  imageVector = Icons.Outlined.People,
+                  contentDescription = stringResource(R.string.trips_nav_friends),
+              )
+            }
           },
           label = { Text(stringResource(R.string.trips_nav_friends)) },
           colors = navigationColors(),

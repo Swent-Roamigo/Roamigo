@@ -2,11 +2,9 @@
 import {createHash} from "node:crypto";
 import {FieldValue, getFirestore, type Firestore} from "firebase-admin/firestore";
 import {logger} from "firebase-functions";
-import {onDocumentCreated, onDocumentWritten} from "firebase-functions/v2/firestore";
+import {onDocumentCreated} from "firebase-functions/v2/firestore";
 
-type NotificationEvent =
-  | {type: "FRIEND_REQUEST_RECEIVED"; requestId: string; senderUserId: string}
-  | {type: "TRIP_VOTE_CREATED"; tripId: string; voteId: string};
+type NotificationEvent = {type: "TRIP_VOTE_CREATED"; tripId: string; voteId: string};
 
 const ALREADY_EXISTS = 6; // gRPC status for a document that already exists.
 
@@ -40,32 +38,6 @@ function isIdentifier(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0 &&
     !value.includes("/") && value !== "." && value !== "..";
 }
-
-export const notifyFriendRequest = onDocumentWritten(
-  {document: "friendships/{documentId}", region: "europe-west1", retry: true},
-  async (event) => {
-    const before = event.data?.before.data();
-    const after = event.data?.after.data();
-    if (after?.status !== "PENDING" ||
-        (before && (before.status !== "DECLINED" || before.requestId === after.requestId))) {
-      return;
-    }
-
-    const {documentId} = event.params;
-    const {requestId, senderUserId, recipientUserId} = after;
-    if (!isIdentifier(requestId) || !isIdentifier(senderUserId) ||
-        !isIdentifier(recipientUserId) || senderUserId === recipientUserId) {
-      logger.warn("Skipping invalid friend request notification", {documentId});
-      return;
-    }
-
-    await createNotification(getFirestore(), recipientUserId, [documentId, requestId], {
-      type: "FRIEND_REQUEST_RECEIVED",
-      requestId,
-      senderUserId,
-    });
-  },
-);
 
 export const notifyTripVoteCreated = onDocumentCreated(
   {document: "trips/{tripId}/votes/{voteId}", region: "europe-west1", retry: true},

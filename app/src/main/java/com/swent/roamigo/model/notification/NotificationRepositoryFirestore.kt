@@ -110,6 +110,8 @@ private fun DocumentSnapshot.toNotificationOrNull(userId: String): Notification?
   return try {
     requireNotNull(fields) { "Missing notification fields" }
     requireNotNull(recipient) { "Missing or invalid notification recipient" }
+    // Older inboxes may still contain entries from before requests moved to the Friends tab.
+    if (fields["type"] == "FRIEND_REQUEST_RECEIVED") return null
     fields.toNotification(id, recipient)
   } catch (error: IllegalArgumentException) {
     Log.w(TAG, "Skipping unreadable notification", error)
@@ -118,20 +120,12 @@ private fun DocumentSnapshot.toNotificationOrNull(userId: String): Notification?
 }
 
 private fun Map<String, Any?>.toNotification(id: String, recipient: String): Notification {
+  require(this["type"] == "TRIP_VOTE_CREATED") { "Unsupported notification type" }
   val event =
-      when (this["type"]) {
-        "FRIEND_REQUEST_RECEIVED" ->
-            NotificationEvent.FriendRequestReceived(
-                requiredIdentifier("requestId"),
-                requiredIdentifier("senderUserId"),
-            )
-        "TRIP_VOTE_CREATED" ->
-            NotificationEvent.TripVoteCreated(
-                requiredIdentifier("tripId"),
-                requiredIdentifier("voteId"),
-            )
-        else -> throw IllegalArgumentException("Unsupported notification type")
-      }
+      NotificationEvent.TripVoteCreated(
+          requiredIdentifier("tripId"),
+          requiredIdentifier("voteId"),
+      )
   val createdAt = requireNotNull(this["createdAt"] as? Timestamp) { "Invalid creation timestamp" }
   return Notification(
       uid = validIdentifier(id),

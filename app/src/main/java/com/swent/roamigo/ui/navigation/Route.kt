@@ -12,6 +12,7 @@ object Route {
   const val AUTHENTICATION = "authentication"
   const val TRIPS = "trips"
   const val PROFILE = "profile"
+  const val NOTIFICATIONS = "notifications"
   const val FRIENDS = "friends"
   const val FRIENDS_SEARCH = "friends/search"
   const val NEW_TRIP = "new_trip"

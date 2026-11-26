@@ -2,6 +2,9 @@
 package com.swent.roamigo.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -14,10 +17,13 @@ import androidx.compose.ui.test.performTextInput
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.swent.roamigo.R
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.sampleDestinationRepository
 import com.swent.roamigo.model.friends.FakeFriendRepository
+import com.swent.roamigo.model.friends.FriendRepository
+import com.swent.roamigo.model.friends.FriendRequest
 import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.model.users.FakeUserRepository
@@ -25,13 +31,15 @@ import com.swent.roamigo.model.users.User
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.theme.RoamigoTheme
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Exercises the Friends-to-search navigation and friend request creation flow. */
+/** Exercises Friends navigation and pending request feedback through the app graph. */
 @RunWith(AndroidJUnit4::class)
 class FriendsSearchNavigationTest {
   @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
@@ -54,13 +62,13 @@ class FriendsSearchNavigationTest {
 
   private lateinit var nav: NavHostController
 
-  private fun show() {
+  private fun show(friendRepository: FriendRepository = alice) {
     compose.setContent {
       nav = rememberNavController()
 
       RoamigoTheme {
         TestRoamigoApp(
-            friendRepository = alice,
+            friendRepository = friendRepository,
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
             authRepository = auth,
@@ -74,6 +82,83 @@ class FriendsSearchNavigationTest {
 
   private fun waitForTag(tag: String) {
     compose.waitUntil(5_000) { compose.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty() }
+  }
+
+  private val pendingDot
+    get() =
+        SemanticsMatcher.expectValue(
+            SemanticsProperties.StateDescription,
+            compose.activity.getString(R.string.friends_pending_requests_indicator),
+        )
+
+  private val noDot = SemanticsMatcher.keyNotDefined(SemanticsProperties.StateDescription)
+
+  @Test
+  fun dotFollowsIncomingRequestsFromTripsToFriendsUntilTheLastResponse() {
+    show()
+    waitForTag(C.Tag.trips_navigation_friends)
+    val friendsTab = compose.onNodeWithTag(C.Tag.trips_navigation_friends)
+    friendsTab.assert(noDot)
+
+    runBlocking { alice.sendFriendRequest("outgoing") }
+    friendsTab.assert(noDot)
+
+    val fromBob = runBlocking { bob.sendFriendRequest("alice") }
+    val fromCarol = runBlocking { FakeFriendRepository("carol", store).sendFriendRequest("alice") }
+    friendsTab.assert(pendingDot).performClick()
+    waitForTag(C.Tag.friends_list)
+    friendsTab.assert(pendingDot)
+
+    val list = compose.onNodeWithTag(C.Tag.friends_list)
+    val accept = C.Tag.friends_accept_prefix + fromBob.uid
+    list.performScrollToNode(hasTestTag(accept))
+    compose.onNodeWithTag(accept).performClick()
+    friendsTab.assert(pendingDot)
+
+    val decline = C.Tag.friends_decline_prefix + fromCarol.uid
+    list.performScrollToNode(hasTestTag(decline))
+    compose.onNodeWithTag(decline).performClick()
+    friendsTab.assert(noDot)
+  }
+
+  @Test
+  fun dotClearsOnAccountChangeAndSignOut() {
+    runBlocking { bob.sendFriendRequest("alice") }
+    show()
+    waitForTag(C.Tag.trips_navigation_friends)
+    val friendsTab = compose.onNodeWithTag(C.Tag.trips_navigation_friends)
+    friendsTab.assert(pendingDot)
+
+    compose.runOnIdle {
+      alice.currentUserId = "bob"
+      auth.setCurrentAccount(AuthenticatedUser("bob", "Bob", null, null))
+    }
+    friendsTab.assert(noDot)
+
+    runBlocking { FakeFriendRepository("carol", store).sendFriendRequest("bob") }
+    friendsTab.assert(pendingDot)
+
+    compose.runOnIdle { auth.signOut() }
+    friendsTab.assert(noDot)
+  }
+
+  @Test
+  fun dotClearsIfIncomingRequestObservationFails() {
+    val request = runBlocking { bob.sendFriendRequest("alice") }
+    val snapshots = MutableStateFlow(Result.success<List<FriendRequest>>(listOf(request)))
+    val repository =
+        object : FriendRepository by alice {
+          override fun observeIncomingRequests() = snapshots.map { it.getOrThrow() }
+        }
+    show(repository)
+    waitForTag(C.Tag.trips_navigation_friends)
+    val friendsTab = compose.onNodeWithTag(C.Tag.trips_navigation_friends)
+    friendsTab.assert(pendingDot)
+
+    compose.runOnIdle { snapshots.value = Result.failure(IllegalStateException("Offline")) }
+
+    friendsTab.assert(noDot)
+    compose.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
   }
 
   @Test

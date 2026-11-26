@@ -29,6 +29,7 @@ import com.swent.roamigo.R
 import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.authentication.AuthenticatedUser
 import com.swent.roamigo.model.authentication.FakeAuthRepository
+import com.swent.roamigo.model.notification.NotificationRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.isNotImplemented
 import com.swent.roamigo.ui.theme.RoamigoTheme
@@ -37,6 +38,8 @@ import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.verifyNoInteractions
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.shadows.ShadowToast
 
@@ -49,6 +52,24 @@ class ProfileRouteTest {
           AuthenticatedUser("sam", "Sam", "sam@epfl.ch", null),
           initiallySignedIn = true,
       )
+
+  @Test
+  fun signedOutProfileDoesNotSubscribeToTheNotificationRepository() {
+    val signedOutAuth = FakeAuthRepository(AuthenticatedUser("sam", "Sam", null, null))
+    val notifications = mock(NotificationRepository::class.java)
+    composeRule.setContent {
+      RoamigoTheme {
+        ProfileRoute(
+            authRepository = signedOutAuth,
+            onSignedOut = {},
+            notificationRepository = notifications,
+        )
+      }
+    }
+
+    composeRule.onNodeWithTag(C.Tag.profile_name).assertTextEquals("Traveler")
+    composeRule.runOnIdle { verifyNoInteractions(notifications) }
+  }
 
   @Test
   fun defaultNavigationActionsKeepProfileVisibleAndExplainUnfinishedDestinations() {

@@ -50,6 +50,7 @@ object C {
     const val profile_name = "profile_screen_name"
     const val profile_email = "profile_screen_email"
     const val profile_friends_row = "profile_screen_friends_row"
+    const val profile_notifications_row = "profile_notifications_row"
     const val profile_action = "profile_screen_action"
     const val profile_log_out = "profile_screen_log_out"
     const val trips_screen = "trips_screen"

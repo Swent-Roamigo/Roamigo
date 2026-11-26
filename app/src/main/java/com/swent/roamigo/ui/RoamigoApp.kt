@@ -9,6 +9,7 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -23,6 +24,7 @@ import androidx.core.util.Consumer
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.ClearCredentialException
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -36,6 +38,7 @@ import com.swent.roamigo.model.connectivity.ConnectivityRepository
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.friends.FriendRepository
 import com.swent.roamigo.model.location.LocationRepository
+import com.swent.roamigo.model.notification.NotificationRepository
 import com.swent.roamigo.model.photo.PhotoRepository
 import com.swent.roamigo.model.place.PlaceRepository
 import com.swent.roamigo.model.trip.TripRepository
@@ -45,6 +48,8 @@ import com.swent.roamigo.model.trip.inviting.TripInvitationService
 import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.ui.authentication.AuthenticationRoute
+import com.swent.roamigo.ui.components.LocalHasPendingFriendRequests
+import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.friends.FriendsRoute
 import com.swent.roamigo.ui.friends.FriendsSearchRoute
 import com.swent.roamigo.ui.heatmap.ExploredWorldRoute
@@ -57,6 +62,7 @@ import com.swent.roamigo.ui.navigation.opensMap
 import com.swent.roamigo.ui.navigation.token
 import com.swent.roamigo.ui.navigation.tripId
 import com.swent.roamigo.ui.navigation.voteId
+import com.swent.roamigo.ui.notifications.NotificationsRoute
 import com.swent.roamigo.ui.permissions.PermissionsScreen
 import com.swent.roamigo.ui.profile.ProfileRoute
 import com.swent.roamigo.ui.trip.TripRoute
@@ -73,6 +79,14 @@ import com.swent.roamigo.ui.trip.voting.CreateVoteRoute
 import com.swent.roamigo.ui.trip.voting.VoteRoute
 import com.swent.roamigo.ui.trips.TripsRoute
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
@@ -109,6 +123,7 @@ fun RoamigoApp(
     placeRepository: PlaceRepository? = null,
     countryCounts: VisitedCountryCounts,
     invitationService: TripInvitationService,
+    notificationRepository: NotificationRepository,
 ) {
   val context = LocalContext.current
   val manager = credentialManager ?: remember(context) { CredentialManager.create(context) }
@@ -301,6 +316,11 @@ fun RoamigoApp(
     composable(Route.PROFILE) {
       ProfileRoute(
           authRepository = authRepository,
+          notificationRepository = notificationRepository,
+          onNotificationsClick =
+              dropUnlessResumed {
+                navController.navigate(Route.NOTIFICATIONS) { launchSingleTop = true }
+              },
           onSignedOut = {
             pendingJoinToken = null
             scope.launch {
@@ -320,6 +340,19 @@ fun RoamigoApp(
           onMapClick = onMapClick,
           onFriendsClick = onFriendsClick,
       )
+    }
+
+    composable(Route.NOTIFICATIONS) {
+      SignedIn(authRepository, navController) { userId ->
+        NotificationsRoute(
+            notificationRepository = notificationRepository,
+            authRepository = authRepository,
+            currentUserId = userId,
+            onBack = dropUnlessResumed { navController.popBackStack() },
+            onSessionEnded = { redirectToAuthentication(navController) },
+            onOpenNotification = rememberNotImplementedAction(),
+        )
+      }
     }
 
     composable(Route.TRIP_HISTORY) { entry ->
@@ -539,6 +572,49 @@ private fun navigateRoot(navController: NavHostController, route: String) {
     launchSingleTop = true
   }
 }
+
+/** Makes the signed-in account's pending request indicator available across app destinations. */
+@Composable
+internal fun ProvidePendingFriendRequests(
+    authRepository: AuthRepository,
+    friendRepository: FriendRepository,
+    content: @Composable () -> Unit,
+) {
+  val hasPendingFriendRequests by
+      remember(authRepository, friendRepository) {
+            observePendingFriendRequests(authRepository, friendRepository)
+          }
+          .collectAsStateWithLifecycle(initialValue = false)
+  CompositionLocalProvider(
+      LocalHasPendingFriendRequests provides hasPendingFriendRequests,
+      content = content,
+  )
+}
+
+@OptIn(ExperimentalCoroutinesApi::class)
+private fun observePendingFriendRequests(
+    authRepository: AuthRepository,
+    friendRepository: FriendRepository,
+): Flow<Boolean> =
+    authRepository
+        .observeCurrentUser()
+        .map { it?.uid }
+        .distinctUntilChanged()
+        .flatMapLatest { userId ->
+          flow {
+            emit(false)
+            if (userId != null) {
+              emitAll(
+                  friendRepository.observeIncomingRequests().map { requests ->
+                    requests.any { it.recipientUserId == userId }
+                  }
+              )
+            }
+          }
+              .catch { emit(false) }
+        }
+        .catch { emit(false) }
+        .distinctUntilChanged()
 
 private suspend fun publishProfileSafely(userRepository: UserRepository) {
   try {

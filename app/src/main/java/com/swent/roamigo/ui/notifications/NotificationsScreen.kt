@@ -52,7 +52,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.swent.roamigo.R
 import com.swent.roamigo.model.notification.Notification
-import com.swent.roamigo.model.notification.NotificationEvent
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.Spacing
 import java.time.ZoneId
@@ -181,13 +180,7 @@ private fun NotificationRow(
     onOpen: () -> Unit,
     onMarkAsRead: () -> Unit,
 ) {
-  val title =
-      stringResource(
-          when (entry.event) {
-            is NotificationEvent.FriendRequestReceived -> R.string.notifications_friend_request
-            is NotificationEvent.TripVoteCreated -> R.string.notifications_trip_vote
-          }
-      )
+  val title = stringResource(R.string.notifications_trip_vote)
   val readStatus =
       stringResource(
           if (entry.isRead) R.string.notifications_read else R.string.notifications_unread
@@ -221,13 +214,7 @@ private fun NotificationRow(
                 .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-          val tint = MaterialTheme.colorScheme.onPrimaryContainer
-          when (entry.event) {
-            is NotificationEvent.FriendRequestReceived ->
-                Icon(painterResource(R.drawable.ic_users), null, tint = tint)
-            is NotificationEvent.TripVoteCreated ->
-                Icon(Icons.Outlined.HowToVote, null, tint = tint)
-          }
+          Icon(Icons.Outlined.HowToVote, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
         }
         Column(
             modifier = Modifier.weight(1f),

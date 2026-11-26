@@ -11,6 +11,8 @@ import com.swent.roamigo.model.connectivity.ConnectivityRepository
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.friends.FriendRepository
 import com.swent.roamigo.model.location.LocationRepository
+import com.swent.roamigo.model.notification.Notification
+import com.swent.roamigo.model.notification.NotificationRepository
 import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.photo.PhotoRepository
 import com.swent.roamigo.model.place.PlaceRepository
@@ -25,6 +27,9 @@ import com.swent.roamigo.model.users.FakeUserRepository
 import com.swent.roamigo.model.users.User
 import com.swent.roamigo.model.users.UserRepository
 import com.swent.roamigo.ui.heatmap.VisitedCountryCounts
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 
 /**
  * [RoamigoApp] with in-memory data sources, so a test only passes the ones it is about. The fakes
@@ -48,22 +53,37 @@ internal fun TestRoamigoApp(
     placeRepository: PlaceRepository? = null,
     countryCounts: VisitedCountryCounts = remember { VisitedCountryCounts { emptyMap() } },
     invitationService: TripInvitationService = remember { FakeTripInvitationService() },
+    notificationRepository: NotificationRepository = EmptyNotificationRepository,
 ) {
-  RoamigoApp(
-      voteRepository = voteRepository,
-      friendRepository = friendRepository,
-      tripRepository = tripRepository,
-      activityRepository = activityRepository,
-      userRepository = userRepository,
-      navController = navController,
-      authRepository = authRepository,
-      credentialManager = credentialManager,
-      destinationRepository = destinationRepository,
-      photoRepository = photoRepository,
-      connectivityRepository = connectivityRepository,
-      locationRepository = locationRepository,
-      placeRepository = placeRepository,
-      countryCounts = countryCounts,
-      invitationService = invitationService,
-  )
+  ProvidePendingFriendRequests(authRepository, friendRepository) {
+    RoamigoApp(
+        voteRepository = voteRepository,
+        friendRepository = friendRepository,
+        tripRepository = tripRepository,
+        activityRepository = activityRepository,
+        userRepository = userRepository,
+        navController = navController,
+        authRepository = authRepository,
+        credentialManager = credentialManager,
+        destinationRepository = destinationRepository,
+        photoRepository = photoRepository,
+        connectivityRepository = connectivityRepository,
+        locationRepository = locationRepository,
+        placeRepository = placeRepository,
+        countryCounts = countryCounts,
+        invitationService = invitationService,
+        notificationRepository = notificationRepository,
+    )
+  }
+}
+
+private object EmptyNotificationRepository : NotificationRepository {
+  private val inbox = MutableStateFlow(emptyList<Notification>())
+
+  override fun observeNotifications(): Flow<List<Notification>> = inbox
+
+  override fun observeUnreadCount(): Flow<Int> = flowOf(0)
+
+  override suspend fun markAsRead(notificationId: String): Unit =
+      error("The empty inbox has no notifications")
 }
