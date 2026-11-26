@@ -18,6 +18,7 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.SnapshotMetadata
 import java.time.Instant
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
@@ -275,6 +276,19 @@ class NotificationRepositoryFirestoreTest {
     currentUser = mock(FirebaseUser::class.java)
     completion.setResult(null)
     pendingWrite.await()
+  }
+
+  @Test
+  fun accountChangeBeforeWriteDispatchDoesNotOpenAnInboxDocument() = runTest {
+    val repository = repository()
+    val pending =
+        async(start = CoroutineStart.UNDISPATCHED) {
+          runCatching { repository.markAsRead("request") }
+        }
+    currentUser = mock(FirebaseUser::class.java)
+
+    assertTrue(pending.await().exceptionOrNull() is IllegalStateException)
+    verifyNoInteractions(db)
   }
 
   @Test

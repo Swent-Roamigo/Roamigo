@@ -465,6 +465,29 @@ class PhotosViewModelTest {
   }
 
   @Test
+  fun doesNotWaitForAReturnFromSettingsThatCouldNotBeOpened() {
+    viewModel.onOpenSettings()
+    viewModel.onSettingsUnavailable()
+    val before = effects.size
+
+    viewModel.onScreenResumed(permissionGranted = true)
+
+    assertEquals(before, effects.size)
+  }
+
+  @Test
+  fun takesThePhotoWhenBackFromSettingsAfterTheAppWasRecreated() {
+    val handle = SavedStateHandle()
+    modelWith(handle, locator).onOpenSettings()
+
+    // Android killed the process while the user was in the settings.
+    val recreated = modelWith(afterProcessDeath(handle), locator)
+    recreated.onScreenResumed(permissionGranted = true)
+
+    assertTrue(effects.last() is PhotosEffect.LaunchCamera)
+  }
+
+  @Test
   fun anUnavailableCameraDiscardsTheFileItWasGiven() {
     viewModel.onTakePhotoClick(permissionGranted = true)
     val file = (effects.last() as PhotosEffect.LaunchCamera).file
