@@ -2,6 +2,9 @@
 package com.swent.roamigo.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
@@ -13,6 +16,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -28,7 +32,12 @@ import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.sampleDestinationRepository
 import com.swent.roamigo.model.friends.FakeFriendRepository
 import com.swent.roamigo.model.location.FakeLocationRepository
+import com.swent.roamigo.model.notification.Notification
+import com.swent.roamigo.model.notification.NotificationEvent
+import com.swent.roamigo.model.notification.NotificationRepository
 import com.swent.roamigo.model.trip.FakeTripRepository
+import com.swent.roamigo.model.trip.Trip
+import com.swent.roamigo.model.trip.TripRepository
 import com.swent.roamigo.model.trip.TripStatus
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.model.trip.voting.Vote
@@ -41,7 +50,12 @@ import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.navigation.Route
 import com.swent.roamigo.ui.theme.RoamigoTheme
 import java.time.Instant
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -75,10 +89,23 @@ class VotesNavigationTest {
           initiallySignedIn = true,
       )
   private lateinit var navController: NavHostController
+  private val notifications = MutableStateFlow<List<Notification>>(emptyList())
+  private val inboxRepository =
+      object : NotificationRepository {
+        override fun observeNotifications() = notifications
 
-  private fun openVotes(historical: Boolean = false) {
-    val now = Instant.now().epochSecond
-    val trip = navigationTestTrip(tripId, tripName, ended = historical)
+        override fun observeUnreadCount() = notifications.map { inbox ->
+          inbox.count { !it.isRead }
+        }
+
+        override suspend fun markAsRead(notificationId: String) {
+          notifications.update { inbox ->
+            inbox.map { if (it.uid == notificationId) it.copy(isRead = true) else it }
+          }
+        }
+      }
+
+  private fun showApp(tripRepository: TripRepository) {
     composeRule.setContent {
       navController = rememberNavController()
       RoamigoTheme {
@@ -87,26 +114,28 @@ class VotesNavigationTest {
             userRepository = FakeUserRepository(User("member", "Member", null)),
             voteRepository = repository,
             destinationRepository = sampleDestinationRepository(),
-            tripRepository =
-                FakeTripRepository(
-                    trips =
-                        listOf(
-                            trip,
-                            trip.copy(
-                                uid = "other",
-                                name = "Other trip",
-                                startDate = Timestamp(now + 86400, 0),
-                                endDate = Timestamp(now + 172800, 0),
-                                status = TripStatus.PLANNED,
-                            ),
-                        )
-                ),
+            tripRepository = tripRepository,
+            notificationRepository = inboxRepository,
             authRepository = auth,
             navController = navController,
             locationRepository = FakeLocationRepository(),
         )
       }
     }
+  }
+
+  private fun openVotes(historical: Boolean = false) {
+    val now = Instant.now().epochSecond
+    val trip = navigationTestTrip(tripId, tripName, ended = historical)
+    val otherTrip =
+        trip.copy(
+            uid = "other",
+            name = "Other trip",
+            startDate = Timestamp(now + 86400, 0),
+            endDate = Timestamp(now + 172800, 0),
+            status = TripStatus.PLANNED,
+        )
+    showApp(FakeTripRepository(trips = listOf(trip, otherTrip)))
     if (historical) {
       composeRule.onNodeWithTag(C.Tag.trips_history_button).performClick()
       val cardTag = C.Tag.trip_history_card_prefix + tripId
@@ -125,6 +154,117 @@ class VotesNavigationTest {
     composeRule.onNodeWithText("Votes").performClick()
     composeRule.onNodeWithText(vote.question).assertIsDisplayed()
   }
+
+  @Test
+  fun notificationOpensTheVotesTabAndHighlightsTheExactOlderVote() {
+    val newer = vote.copy(uid = "newer", question = "Lunch?", creationTime = Timestamp(2, 0))
+    runBlocking { repository.createVote(newer) }
+    openVoteFromInbox(vote.uid)
+
+    composeRule.onNodeWithText(label(R.string.trip_details_votes)).assertIsSelected()
+    composeRule.runOnIdle {
+      assertEquals(Route.TRIP_DETAILS_FOR_VOTE, navController.currentDestination?.route)
+      assertEquals(tripId, navController.currentBackStackEntry?.arguments?.getString("tripId"))
+      assertEquals(
+          vote.uid,
+          navController.currentBackStackEntry?.arguments?.getString("highlightedVoteId"),
+      )
+    }
+    val highlightedQuestion =
+        composeRule.onNode(hasText(vote.question) and hasAnyAncestor(highlightedVote()))
+    highlightedQuestion.assertIsDisplayed()
+    val newerQuestion = composeRule.onNodeWithText(newer.question).assertIsDisplayed()
+    assertTrue(
+        highlightedQuestion.fetchSemanticsNode().boundsInRoot.top <
+            newerQuestion.fetchSemanticsNode().boundsInRoot.top
+    )
+    composeRule.onNodeWithTag(C.Tag.voteAction(vote.uid)).assertHasClickAction()
+    assertTrue(!notifications.value.single().isRead)
+
+    composeRule.onNodeWithContentDescription(label(R.string.trip_details_back)).performClick()
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+  }
+
+  @Test
+  fun missingNotifiedVoteShowsFeedbackAndKeepsOtherVotesAccessible() {
+    openVoteFromInbox("deleted")
+
+    composeRule.onNodeWithText(label(R.string.vote_not_found)).assertIsDisplayed()
+    composeRule.onNode(highlightedVote()).assertDoesNotExist()
+    composeRule.onNodeWithTag(C.Tag.voteAction(vote.uid)).assertHasClickAction()
+  }
+
+  @Test
+  fun unavailableNotifiedTripOffersRetryAndBack() {
+    openVoteFromInbox(vote.uid, tripAvailable = false)
+
+    composeRule.onNodeWithText(label(R.string.trip_details_not_found)).assertIsDisplayed()
+    composeRule.onNodeWithText(label(R.string.vote_retry)).assertHasClickAction()
+    composeRule.onNodeWithText(vote.question).assertDoesNotExist()
+    composeRule.onNodeWithContentDescription(label(R.string.trip_details_back)).performClick()
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+  }
+
+  @Test
+  fun notificationShowsTripLoadingUntilTheVoteCanBeOpened() {
+    val trips = listOf(navigationTestTrip(tripId, tripName))
+    val allowTripLookup = CompletableDeferred<Unit>()
+    val holdTripLookup = MutableStateFlow(false)
+    val tripRepository =
+        object : TripRepository by FakeTripRepository(trips = trips) {
+          override suspend fun getTrips(): List<Trip> {
+            if (holdTripLookup.value) allowTripLookup.await()
+            return trips
+          }
+        }
+    openInboxWithVote(vote.uid, tripRepository)
+    composeRule.runOnIdle { holdTripLookup.value = true }
+    openInboxEntry()
+
+    composeRule.onNodeWithText(label(R.string.trip_details_loading)).assertIsDisplayed()
+    composeRule.onNodeWithText(vote.question).assertDoesNotExist()
+
+    allowTripLookup.complete(Unit)
+    composeRule
+        .onNode(hasText(vote.question) and hasAnyAncestor(highlightedVote()))
+        .assertIsDisplayed()
+  }
+
+  private fun openVoteFromInbox(voteId: String, tripAvailable: Boolean = true) {
+    val trips = if (tripAvailable) listOf(navigationTestTrip(tripId, tripName)) else emptyList()
+    openInboxWithVote(voteId, FakeTripRepository(trips = trips))
+    openInboxEntry()
+  }
+
+  private fun openInboxWithVote(voteId: String, tripRepository: TripRepository) {
+    notifications.value =
+        listOf(
+            Notification(
+                "vote-entry",
+                "member",
+                NotificationEvent.TripVoteCreated(tripId, voteId),
+                Instant.EPOCH,
+                false,
+            )
+        )
+    showApp(tripRepository)
+    composeRule.onNodeWithTag(C.Tag.trips_profile_avatar).performClick()
+    composeRule.onNodeWithTag(C.Tag.profile_notifications_row).performScrollTo().performClick()
+  }
+
+  private fun openInboxEntry() {
+    composeRule
+        .onNodeWithTag(C.Tag.notifications_row_prefix + notifications.value.single().uid)
+        .performClick()
+  }
+
+  private fun highlightedVote() =
+      SemanticsMatcher.expectValue(
+          SemanticsProperties.StateDescription,
+          label(R.string.vote_from_notification),
+      )
+
+  private fun label(id: Int) = composeRule.activity.getString(id)
 
   @Test
   fun historicalTripLetsMembersReadAnOpenVoteWithoutSubmitting() {

@@ -17,6 +17,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import com.swent.roamigo.R
+import com.swent.roamigo.model.trip.voting.Vote
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.Spacing
 import com.swent.roamigo.ui.trip.voting.VoteUiState
@@ -33,7 +34,34 @@ fun VotesList(
     onRevote: ((VoteUiState.Closed) -> Unit)? = null,
     onOwnerDecides: ((VoteUiState.Closed) -> Unit)? = null,
     listState: LazyListState = rememberLazyListState(),
+    highlightedVoteId: String? = null,
 ) {
+  val highlighted = highlightedVoteId?.let { id ->
+    state.liveVotes.firstOrNull { it.uid == id } ?: state.closedVotes.firstOrNull { it.uid == id }
+  }
+  fun remaining(votes: List<Vote>): List<Vote> =
+      if (highlighted == null) votes else votes.filterNot { it.uid == highlighted.uid }
+  val liveVotes = remaining(state.liveVotes)
+  val unresolvedVotes = remaining(state.unresolvedClosedVotes)
+  val decidedVotes = remaining(state.decidedVotes)
+  val renderVote: @Composable (Vote) -> Unit = { vote ->
+    val finalResult = state.finalSummaries[vote.uid]
+    val tied =
+        finalResult
+            ?.let { VoteUiState.Closed(vote, it) }
+            ?.takeIf { vote.nextRoundVoteId == null && it.isUnresolvedTie }
+    VoteCard(
+        vote,
+        onClick = { onOpenVote(vote.uid) },
+        summary = state.liveSummaries[vote.uid],
+        onCloseVote = onCloseVote?.let { close -> { close(vote.uid) } },
+        finalResult = finalResult,
+        onRevote = tied?.let { closed -> onRevote?.let { action -> { action(closed) } } },
+        onOwnerDecides =
+            tied?.let { closed -> onOwnerDecides?.let { action -> { action(closed) } } },
+        highlighted = vote.uid == highlightedVoteId,
+    )
+  }
   LazyColumn(
       modifier.fillMaxSize(),
       state = listState,
@@ -45,17 +73,13 @@ fun VotesList(
       VotesSyncState.RETRYING -> item { Text(stringResource(R.string.vote_syncing)) }
       VotesSyncState.FAILED -> item { VoteErrorContent(R.string.votes_sync_error, onRetry) }
     }
-    if (state.liveVotes.isNotEmpty()) {
-      items(state.liveVotes, key = { it.uid }) { vote ->
-        VoteCard(
-            vote,
-            onClick = { onOpenVote(vote.uid) },
-            summary = state.liveSummaries[vote.uid],
-            onCloseVote = onCloseVote?.let { close -> { close(vote.uid) } },
-        )
-      }
+    if (highlighted != null) {
+      item(key = highlighted.uid) { renderVote(highlighted) }
+    } else if (highlightedVoteId != null && state.syncState == VotesSyncState.SYNCED) {
+      item { VoteErrorContent(R.string.vote_not_found) }
     }
-    if (state.unresolvedClosedVotes.isNotEmpty()) {
+    items(liveVotes, key = { it.uid }) { renderVote(it) }
+    if (unresolvedVotes.isNotEmpty()) {
       item {
         Text(
             stringResource(R.string.votes_unresolved),
@@ -64,21 +88,8 @@ fun VotesList(
         )
       }
     }
-    items(state.unresolvedClosedVotes, key = { it.uid }) { vote ->
-      val tied =
-          state.finalSummaries[vote.uid]
-              ?.let { VoteUiState.Closed(vote, it) }
-              ?.takeIf { it.isUnresolvedTie }
-      VoteCard(
-          vote,
-          onClick = { onOpenVote(vote.uid) },
-          finalResult = state.finalSummaries[vote.uid],
-          onRevote = tied?.let { closed -> onRevote?.let { action -> { action(closed) } } },
-          onOwnerDecides =
-              tied?.let { closed -> onOwnerDecides?.let { action -> { action(closed) } } },
-      )
-    }
-    if (state.decidedVotes.isNotEmpty()) {
+    items(unresolvedVotes, key = { it.uid }) { renderVote(it) }
+    if (decidedVotes.isNotEmpty()) {
       item {
         Text(
             stringResource(R.string.votes_decided),
@@ -86,13 +97,7 @@ fun VotesList(
             modifier = Modifier.testTag(C.Tag.votes_decided_heading).semantics { heading() },
         )
       }
-      items(state.decidedVotes, key = { it.uid }) { vote ->
-        VoteCard(
-            vote,
-            onClick = { onOpenVote(vote.uid) },
-            finalResult = state.finalSummaries[vote.uid],
-        )
-      }
+      items(decidedVotes, key = { it.uid }) { renderVote(it) }
     }
   }
 }

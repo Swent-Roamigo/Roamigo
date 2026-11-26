@@ -3,6 +3,7 @@ package com.swent.roamigo.ui.trip.voting.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -53,13 +56,26 @@ fun VoteCard(
     finalResult: VoteResult? = null,
     onRevote: (() -> Unit)? = null,
     onOwnerDecides: (() -> Unit)? = null,
+    highlighted: Boolean = false,
 ) {
+  val cardModifier =
+      if (highlighted) {
+        val description = stringResource(R.string.vote_from_notification)
+        modifier.semantics { stateDescription = description }
+      } else modifier
   when (vote.status) {
-    VoteStatus.OPEN -> LiveVoteCard(vote, onClick, summary, modifier, onCloseVote)
-    VoteStatus.CLOSED ->
-        if (finalResult != null && (finalResult.hasUniqueWinner || vote.resolvedOptionId != null))
-            ClosedVoteRow(vote, finalResult, onClick, modifier)
-        else ClosedVoteCard(vote, finalResult, onClick, modifier, onRevote, onOwnerDecides)
+    VoteStatus.OPEN -> LiveVoteCard(vote, onClick, summary, cardModifier, onCloseVote, highlighted)
+    VoteStatus.CLOSED -> {
+      val outlined =
+          if (highlighted) {
+            cardModifier
+                .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.medium)
+                .padding(Spacing.small)
+          } else cardModifier
+      if (finalResult != null && (finalResult.hasUniqueWinner || vote.resolvedOptionId != null))
+          ClosedVoteRow(vote, finalResult, onClick, outlined)
+      else ClosedVoteCard(vote, finalResult, onClick, outlined, onRevote, onOwnerDecides)
+    }
   }
 }
 
@@ -71,31 +87,49 @@ private fun LiveVoteCard(
     summary: LiveVoteSummary?,
     modifier: Modifier,
     onCloseVote: (() -> Unit)?,
+    highlighted: Boolean,
 ) {
+  val colors = MaterialTheme.colorScheme
+  val foreground = if (highlighted) colors.onSurface else colors.onPrimary
+  val heading =
+      if (highlighted) {
+        MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+      } else MaterialTheme.typography.headlineLarge.copy(fontSize = 30.sp, lineHeight = 36.sp)
+  val status =
+      if (vote.parentVoteId != null) stringResource(R.string.vote_revote_round, vote.round)
+      else stringResource(R.string.votes_live_vote)
   Surface(
       modifier = modifier.fillMaxWidth(),
-      shape = RoundedCornerShape(22.dp),
-      color = MaterialTheme.colorScheme.primary,
-      contentColor = MaterialTheme.colorScheme.onPrimary,
+      shape = if (highlighted) MaterialTheme.shapes.medium else RoundedCornerShape(22.dp),
+      color = if (highlighted) colors.primaryContainer else colors.primary,
+      contentColor = foreground,
+      border = if (highlighted) BorderStroke(1.dp, colors.primary) else null,
   ) {
     Column(
-        Modifier.padding(horizontal = Spacing.screenPadding, vertical = 18.dp),
+        Modifier.padding(
+            horizontal = if (highlighted) Spacing.cardPadding else Spacing.screenPadding,
+            vertical = if (highlighted) Spacing.medium else 18.dp,
+        ),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-      Text(
-          if (vote.parentVoteId != null) stringResource(R.string.vote_revote_round, vote.round)
-          else stringResource(R.string.votes_live_vote),
-          style = MaterialTheme.typography.bodySmall,
-          fontSize = 13.sp,
-          lineHeight = 18.sp,
-          fontWeight = FontWeight.Medium,
-      )
-      Text(
-          vote.question,
-          style = MaterialTheme.typography.headlineLarge,
-          fontSize = 30.sp,
-          lineHeight = 36.sp,
-      )
+      if (highlighted) {
+        Surface(shape = CircleShape, color = colors.primary, contentColor = colors.onPrimary) {
+          Text(
+              status,
+              modifier = Modifier.padding(horizontal = Spacing.small, vertical = 3.dp),
+              style = MaterialTheme.typography.labelSmall,
+          )
+        }
+      } else {
+        Text(
+            status,
+            style = MaterialTheme.typography.bodySmall,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+            fontWeight = FontWeight.Medium,
+        )
+      }
+      Text(vote.question, style = heading)
       vote.options.forEach { option ->
         VoteCountRow(
             option.name,
@@ -123,11 +157,8 @@ private fun LiveVoteCard(
               onClick = onCloseVote,
               modifier = Modifier.heightIn(min = 48.dp).testTag(C.Tag.closeVote(vote.uid)),
               shape = CircleShape,
-              border = BorderStroke(1.dp, MaterialTheme.colorScheme.onPrimary),
-              colors =
-                  ButtonDefaults.outlinedButtonColors(
-                      contentColor = MaterialTheme.colorScheme.onPrimary
-                  ),
+              border = BorderStroke(1.dp, foreground),
+              colors = ButtonDefaults.outlinedButtonColors(contentColor = foreground),
           ) {
             Text(stringResource(R.string.vote_close))
           }

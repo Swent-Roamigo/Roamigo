@@ -5,11 +5,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasProgressBarRangeInfo
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -18,7 +23,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onParent
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.swent.roamigo.R
 import com.swent.roamigo.model.trip.voting.VoteResult
 import com.swent.roamigo.model.trip.voting.VoteStatus
 import com.swent.roamigo.resources.C
@@ -27,6 +34,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.RuntimeEnvironment
 
 @RunWith(AndroidJUnit4::class)
 class VotesScreenTest {
@@ -43,6 +51,7 @@ class VotesScreenTest {
       readOnly: Boolean = false,
       showHint: Boolean = false,
       onDismissHint: () -> Unit = {},
+      highlightedVoteId: String? = null,
   ) {
     composeRule.setContent {
       RoamigoTheme {
@@ -55,6 +64,7 @@ class VotesScreenTest {
             readOnly = readOnly,
             showHint = showHint,
             onDismissHint = onDismissHint,
+            highlightedVoteId = highlightedVoteId,
         )
       }
     }
@@ -279,6 +289,49 @@ class VotesScreenTest {
     composeRule.runOnIdle { assertEquals(1, creations) }
     composeRule.onNodeWithText("Live").assertDoesNotExist()
     composeRule.onNodeWithText("Decided").assertDoesNotExist()
+  }
+
+  @Test
+  fun notificationForAnEmptyVoteListShowsThatTheVoteIsMissing() {
+    content(VotesUiState.Empty, highlightedVoteId = "deleted")
+
+    composeRule
+        .onNodeWithText(RuntimeEnvironment.getApplication().getString(R.string.vote_not_found))
+        .assertIsDisplayed()
+    composeRule.onNodeWithText("No votes yet").assertDoesNotExist()
+  }
+
+  @Test
+  fun notifiedClosedRoundIsHighlightedAndCanBeReadAfterARevoteStarts() {
+    val revote = live.copy(uid = "round2", round = 2, parentVoteId = closed.uid)
+    val firstRound = closed.copy(nextRoundVoteId = revote.uid)
+    val tie = VoteResult(mapOf("a" to 1, "b" to 1), setOf("a", "b"))
+    val opened = mutableListOf<String>()
+    val resources = RuntimeEnvironment.getApplication().resources
+    content(
+        VotesUiState.Ready(
+            listOf(revote),
+            listOf(firstRound),
+            finalSummaries = mapOf(firstRound.uid to tie),
+        ),
+        onOpenVote = opened::add,
+        highlightedVoteId = firstRound.uid,
+    )
+    val highlighted =
+        SemanticsMatcher.expectValue(
+            SemanticsProperties.StateDescription,
+            resources.getString(R.string.vote_from_notification),
+        )
+
+    composeRule
+        .onNode(hasTestTag(C.Tag.closedVote(firstRound.uid)) and hasAnyAncestor(highlighted))
+        .assertIsDisplayed()
+        .performClick()
+    composeRule.onNodeWithText("Owner decides").assertDoesNotExist()
+    composeRule.runOnIdle { assertEquals(listOf(firstRound.uid), opened) }
+    val roundLabel = resources.getString(R.string.vote_revote_round, 2)
+    composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(roundLabel))
+    composeRule.onNodeWithText(roundLabel).assertIsDisplayed()
   }
 
   @Test
