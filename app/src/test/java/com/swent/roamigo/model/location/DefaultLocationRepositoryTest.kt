@@ -28,6 +28,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -977,6 +978,77 @@ class DefaultLocationRepositoryTest {
     repository.restoreSharing()
 
     verifyUpdates(otherUserLocation, 0)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_doesNotShareAsAnAccountThatSignedInDuringTheRestore() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    val repository = createRepository(backgroundScope)
+
+    // Runs until the saved trips are read and the trips wait to be restored.
+    val restore = launch(start = CoroutineStart.UNDISPATCHED) { repository.restoreSharing() }
+    val otherUserLocation = signInAsOtherUser()
+    restore.join()
+    // Nothing was saved for the new account either.
+    createRepository(backgroundScope).restoreSharing()
+
+    verifyUpdates(otherUserLocation, 0)
+    verifyRemovals(otherUserLocation, 0)
+    verifyRemovals(ownLocation, 0)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_keepsTheTripSavedWhenAnotherAccountSignedInDuringTheRestore() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    val restore =
+        launch(start = CoroutineStart.UNDISPATCHED) {
+          createRepository(backgroundScope).restoreSharing()
+        }
+    signInAsOtherUser()
+    restore.join()
+    `when`(auth.currentUser).thenReturn(user)
+    val repository = createRepository(backgroundScope)
+
+    repository.restoreSharing()
+
+    verifyUpdates(ownLocation, 2)
+    assertTrue(repository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_doesNotRemoveTheEntryOfAnAccountThatSignedInBeforeAResumeFailed() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    val pendingUpdates = mutableListOf<CompletionListener>()
+    doAnswer { invocation -> pendingUpdates += invocation.getArgument<CompletionListener>(1) }
+        .`when`(ownLocation)
+        .setValue(any(), any(CompletionListener::class.java))
+    val repository = createRepository(backgroundScope)
+    val restore = launch { repository.restoreSharing() }
+    runCurrent()
+
+    // Another account signs in while the first update is pending, and the update then fails.
+    val otherUserLocation = signInAsOtherUser()
+    pendingUpdates
+        .single()
+        .onComplete(DatabaseError.fromCode(DatabaseError.UNAVAILABLE), ownLocation)
+    restore.join()
+
+    verifyUpdates(otherUserLocation, 0)
+    verifyRemovals(otherUserLocation, 0)
     assertFalse(repository.isSharing(TRIP_ID).first())
   }
 
