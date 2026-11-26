@@ -54,6 +54,7 @@ import com.swent.roamigo.ui.heatmap.VisitedCountryCounts
 import com.swent.roamigo.ui.map.LocationSharingRestoreViewModel
 import com.swent.roamigo.ui.map.TripOverviewMapRoute
 import com.swent.roamigo.ui.navigation.Route
+import com.swent.roamigo.ui.navigation.activityFormDay
 import com.swent.roamigo.ui.navigation.activityFormTrip
 import com.swent.roamigo.ui.navigation.isReadOnly
 import com.swent.roamigo.ui.navigation.opensMap
@@ -255,6 +256,7 @@ fun RoamigoApp(
     composable(Route.NEW_ACTIVITY) { entry ->
       val tripId = entry.tripId()
       val trip = remember(entry) { entry.activityFormTrip() }
+      val day = remember(entry) { entry.activityFormDay() }
       val places =
           placeRepository
               ?: remember(context) {
@@ -266,7 +268,7 @@ fun RoamigoApp(
         ActivityFormRoute(
             activityRepository = activityRepository,
             placeRepository = places,
-            mode = ActivityFormMode.Create(tripId, defaultDate = null),
+            mode = ActivityFormMode.Create(tripId, defaultDate = day),
             trip = trip,
             onClose = leave,
             onActivitySaved = { leave() },
@@ -393,7 +395,9 @@ fun RoamigoApp(
             navController.navigate(Route.vote(tripId, voteId, readOnly))
           },
           onCreateVote = { navController.navigate(Route.newVote(tripId)) },
-          onCreateActivity = { trip -> navController.navigate(Route.newActivity(tripId, trip)) },
+          onCreateActivity = { trip, day ->
+            navController.navigate(Route.newActivity(tripId, trip, day))
+          },
           onMembersClick = { navController.navigate(Route.members(tripId)) },
           onTripsClick = onTripsClick,
           onMapClick = onMapClick,

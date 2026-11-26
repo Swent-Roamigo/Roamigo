@@ -77,7 +77,7 @@ internal fun TripRoute(
     onAuthenticationRequired: () -> Unit,
     onOpenVote: (String, Boolean) -> Unit,
     onCreateVote: () -> Unit,
-    onCreateActivity: (ActivityFormTrip) -> Unit,
+    onCreateActivity: (ActivityFormTrip, LocalDate?) -> Unit,
     onMembersClick: () -> Unit,
     onTripsClick: () -> Unit,
     onMapClick: () -> Unit,
@@ -157,13 +157,13 @@ internal fun TripRoute(
   val tabState = rememberSaveableStateHolder()
   BackHandler(onBack = onBack)
   // The form shows the trip's name and dates; Add is only offered once the trip has loaded.
-  val openActivityForm: () -> Unit = {
-    header?.let { onCreateActivity(ActivityFormTrip(it.name, it.startDate, it.endDate)) }
+  val openActivityForm: (LocalDate?) -> Unit = { day ->
+    header?.let { onCreateActivity(ActivityFormTrip(it.name, it.startDate, it.endDate), day) }
   }
   if (showAdd) {
     AddToTripSheet(
         onDismiss = { showAdd = false },
-        onActivity = openActivityForm,
+        onActivity = { openActivityForm(null) },
         onSuggestion = notImplemented,
         onVote = onCreateVote,
     )

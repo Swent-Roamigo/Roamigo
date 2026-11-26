@@ -2,6 +2,9 @@
 package com.swent.roamigo.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
@@ -35,6 +38,8 @@ import com.swent.roamigo.ui.trip.activity.pickNoon
 import com.swent.roamigo.ui.trip.activity.pickPlace
 import com.swent.roamigo.ui.trip.activity.waitForTag
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -107,6 +112,25 @@ class ActivityFormNavigationTest {
 
     composeRule.onNodeWithText(tripName, substring = true).assertIsDisplayed()
     composeRule.runOnIdle { assertEquals(Route.NEW_ACTIVITY, currentRoute()) }
+  }
+
+  @Test
+  fun addingFromAnEmptyDayOfThePlanStartsTheFormOnThatDay() {
+    val tomorrow = LocalDate.now().plusDays(1)
+    openTrip()
+    composeRule.onNodeWithTag(C.Tag.itineraryDay(tomorrow)).performClick()
+    composeRule.onNodeWithTag(C.Tag.itinerary_add_activity).performClick()
+    composeRule.waitForTag(ActivityFormTestTags.SCREEN)
+
+    // The form reads its date to TalkBack as the field's state, here in the test's US locale.
+    composeRule
+        .onNodeWithTag(ActivityFormTestTags.DATE)
+        .assert(
+            SemanticsMatcher.expectValue(
+                SemanticsProperties.StateDescription,
+                tomorrow.format(DateTimeFormatter.ofPattern("EEE, MMM d", Locale.US)),
+            )
+        )
   }
 
   @Test

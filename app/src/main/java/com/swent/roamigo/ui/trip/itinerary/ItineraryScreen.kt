@@ -64,7 +64,8 @@ import java.time.format.FormatStyle
  *
  * @param tripStartDate first day of the trip, or `null` while the trip is loading.
  * @param tripEndDate last day of the trip, or `null` while the trip is loading.
- * @param onAddActivity opens the activity form, or `null` when the trip is read-only.
+ * @param onAddActivity opens the activity form on the given day (the trip's first day when `null`),
+ *   or is `null` when the trip is read-only.
  * @param onOpenVotes opens the trip's votes, where waiting suggestions are decided.
  * @param tripError why the trip itself could not be loaded, or `null`; the plan then shows it.
  * @param onRetryTrip reloads the trip itself, whose dates and header failed to load too.
@@ -78,7 +79,7 @@ fun ItineraryRoute(
     voteRepository: VoteRepository,
     tripStartDate: LocalDate?,
     tripEndDate: LocalDate?,
-    onAddActivity: (() -> Unit)?,
+    onAddActivity: ((LocalDate?) -> Unit)?,
     onOpenVotes: () -> Unit,
     modifier: Modifier = Modifier,
     tripError: TripLoadError? = null,
@@ -133,7 +134,7 @@ fun ItineraryScreen(
     state: ItineraryUiState,
     onSelectDay: (LocalDate) -> Unit,
     onRetry: () -> Unit,
-    onAddActivity: (() -> Unit)?,
+    onAddActivity: ((LocalDate?) -> Unit)?,
     onOpenVotes: () -> Unit,
     modifier: Modifier = Modifier,
     forecast: TripForecastUi? = null,
@@ -171,7 +172,7 @@ private fun ItineraryContent(
     state: ItineraryUiState.Ready,
     onSelectDay: (LocalDate) -> Unit,
     onRetry: () -> Unit,
-    onAddActivity: (() -> Unit)?,
+    onAddActivity: ((LocalDate?) -> Unit)?,
     onOpenVotes: () -> Unit,
     forecast: TripForecastUi?,
 ) {
@@ -204,11 +205,13 @@ private fun ItineraryContent(
     if (state.days.isNotEmpty()) {
       item { DayChips(state.days, state.selectedDay, onSelectDay) }
     }
+    // Adding from an empty day starts on the day the user is looking at.
+    val addOnSelectedDay = onAddActivity?.let { add -> { add(state.selectedDay) } }
     when {
       !state.hasActivities ->
-          item { EmptyPlan(stringResource(R.string.itinerary_empty_trip), onAddActivity) }
+          item { EmptyPlan(stringResource(R.string.itinerary_empty_trip), addOnSelectedDay) }
       state.activities.isEmpty() ->
-          item { EmptyPlan(stringResource(R.string.itinerary_empty_day), onAddActivity) }
+          item { EmptyPlan(stringResource(R.string.itinerary_empty_day), addOnSelectedDay) }
       else ->
           itemsIndexed(state.activities, key = { _, activity -> activity.id }) { index, activity ->
             ActivityRow(activity, startTimes[index], timeColumnWidth)
