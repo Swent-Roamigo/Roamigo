@@ -103,10 +103,12 @@ service cloud.firestore {
     // The author is the requester, and the ID and trip come from the path.
     // The field list mirrors Activity.toFirestoreData() in model/trip/TripRepositoryFirestore.kt.
     function isValidNewActivity(activity) {
-      return hasExactly(activity, [
+      let fields = [
             'activityType', 'name', 'description', 'location', 'startTime', 'endTime',
             'createdByUserId', 'creationTime'
-          ])
+          ];
+      return hasExactly(activity, activity.activityType == 'SUGGESTION'
+          ? fields.concat(['linkedVoteId']) : fields)
           && activity.activityType in ['ACCEPTED', 'SUGGESTION']
           && activity.name is string
           && activity.name.trim().size() > 0
@@ -156,7 +158,8 @@ service cloud.firestore {
           && vote.keys().hasOnly([
             'uid', 'tripId', 'question', 'options', 'createdByUserId', 'status',
             'creationTime', 'closingTime', 'winningOptionId',
-            'parentVoteId', 'nextRoundVoteId', 'round', 'resolvedOptionId', 'resolvedByUserId'
+            'parentVoteId', 'nextRoundVoteId', 'round', 'resolvedOptionId', 'resolvedByUserId',
+            'suggestionId'
           ])
           && vote.uid == voteId
           && vote.tripId == tripId
@@ -175,6 +178,45 @@ service cloud.firestore {
           // Only the trusted callable creates linked rounds and resolution metadata.
           && vote.get('parentVoteId', null) == null
           && vote.get('round', 1) == 1;
+    }
+
+    // The reserved prefix is shared with initialSuggestionVoteId and createRevote.
+    function isReservedSuggestionVoteId(voteId) {
+      return voteId.matches('suggestion-[\\s\\S]*');
+    }
+
+    function createsLinkedVote(activity, tripId, activityId) {
+      let voteId = 'suggestion-' + activityId;
+      let path = /databases/$(database)/documents/trips/$(tripId)/votes/$(voteId);
+      return activityId.trim().size() > 0
+          && activity.linkedVoteId == voteId
+          && !exists(path)
+          && getAfter(path).data.suggestionId == activityId;
+    }
+
+    function createsLinkedSuggestion(vote, tripId, voteId) {
+      let suggestionId = vote.get('suggestionId', null);
+      return suggestionId is string
+          && suggestionId.trim().size() > 0
+          && voteId == 'suggestion-' + suggestionId
+          // Numeric equality also accepts 1.0, so require integer round metadata.
+          && vote.get('round', 1) is int
+          && vote.options == [{'uid': 'YES', 'name': 'Yes'}, {'uid': 'NO', 'name': 'No'}]
+          && hasNewSuggestion(vote, tripId, suggestionId, voteId);
+    }
+
+    function hasNewSuggestion(vote, tripId, suggestionId, voteId) {
+      let path = /databases/$(database)/documents/trips/$(tripId)/activities/$(suggestionId);
+      // Check the pre-write state before inspecting the transaction's final state.
+      return !exists(path) && matchesSuggestion(getAfter(path).data, vote, voteId);
+    }
+
+    function matchesSuggestion(activity, vote, voteId) {
+      return activity.activityType == 'SUGGESTION'
+          && activity.linkedVoteId == voteId
+          && activity.createdByUserId == vote.createdByUserId
+          && activity.creationTime == vote.creationTime
+          && activity.name == vote.question;
     }
 
     // Options are bounded by MAX_VOTE_OPTIONS; guard each optional index.
@@ -313,6 +355,18 @@ service cloud.firestore {
           allow delete: if false;
         }
 
+    match /users/{userId}/notifications/{notificationId} {
+      function isRecipient() {
+        return signedIn() && request.auth.uid == userId;
+      }
+
+      allow read: if isRecipient();
+      allow update: if isRecipient()
+          && request.resource.data.isRead == true
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
+      allow create, delete: if false;
+    }
+
     // tripInvitations has no rule on purpose: the catch-all below denies clients, and the callable
     // functions (functions/src/tripInvitations.ts) read and write it as Admin. A client that could
     // read the tokens could join any trip.
@@ -421,7 +475,9 @@ service cloud.firestore {
       match /activities/{activityId} {
         // Includes missing-document reads used by the activity creation transaction.
         allow read: if isMember(tripId);
-        allow create: if isMember(tripId) && isValidNewActivity(request.resource.data);
+        allow create: if isMember(tripId) && isValidNewActivity(request.resource.data)
+            && (request.resource.data.activityType == 'ACCEPTED'
+                || createsLinkedVote(request.resource.data, tripId, activityId));
         allow update, delete: if false;
       }
 
@@ -438,7 +494,10 @@ service cloud.firestore {
         // Includes missing-document reads used by the vote creation transaction.
         allow read: if isMember(tripId);
         allow create: if isMember(tripId)
-            && isValidNewVote(request.resource.data, tripId, voteId);
+            && isValidNewVote(request.resource.data, tripId, voteId)
+            && (isReservedSuggestionVoteId(voteId)
+                ? createsLinkedSuggestion(request.resource.data, tripId, voteId)
+                : !request.resource.data.keys().hasAny(['suggestionId']));
         allow update: if isMember(tripId)
             // Closed vote metadata is writable only by the trusted backend, which
             // recomputes the tie. Calendar-day writability remains app/repository policy.
@@ -460,7 +519,8 @@ service cloud.firestore {
       }
     }
 
-    // Everything else stays closed.
+    // Everything else stays closed, including both trip invitation collections.
+    // Only trusted Cloud Functions may access their documents.
     match /{document=**} {
       allow read, write: if false;
     }

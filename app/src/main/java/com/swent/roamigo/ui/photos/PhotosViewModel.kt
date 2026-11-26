@@ -6,10 +6,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.swent.roamigo.model.connectivity.ConnectivityRepository
 import com.swent.roamigo.model.photo.PHOTO_LOCATION_TIMEOUT
+import com.swent.roamigo.model.photo.PendingPhoto
 import com.swent.roamigo.model.photo.PhotoCoordinates
 import com.swent.roamigo.model.photo.PhotoLocationResult
 import com.swent.roamigo.model.photo.PhotoLocator
 import com.swent.roamigo.model.photo.PhotoRepository
+import com.swent.roamigo.model.photo.PhotoUploadStatus
 import com.swent.roamigo.model.photo.TripPhoto
 import java.io.File
 import kotlin.time.Duration
@@ -63,6 +65,12 @@ class PhotosViewModel(
       val viewingId: String? = null,
   )
 
+  /** The photos waiting on the device, and whether reading them failed. */
+  private data class Waiting(
+      val photos: List<PendingPhoto> = emptyList(),
+      val failed: Boolean = false,
+  )
+
   private data class Gallery(
       val photos: List<TripPhoto> = emptyList(),
       val loading: Boolean = true,
@@ -72,6 +80,8 @@ class PhotosViewModel(
   private val local = MutableStateFlow(Local())
   private val gallery = MutableStateFlow(Gallery())
   private var galleryJob: Job? = null
+  private val waiting = MutableStateFlow(Waiting())
+  private var waitingJob: Job? = null
 
   // The file the camera is writing into, until it reports back. It is kept in the saved state
   // because Android may kill the app while the camera is open.
@@ -92,21 +102,21 @@ class PhotosViewModel(
   // cannot overwrite the state of the photo that replaced it.
   private var fetchGeneration = 0
 
-  // Set while the user is in the app's settings, to resume the photo they asked for.
-  private var awaitingSettings = false
+  // Set while the user is in the app's settings, to resume the photo they asked for. It is kept in
+  // the saved state because Android may kill the app while the user is away.
+  private var awaitingSettings: Boolean
+    get() = savedStateHandle.get<Boolean>(AWAITING_SETTINGS_KEY) ?: false
+    set(value) = savedStateHandle.set(AWAITING_SETTINGS_KEY, value)
 
   val uiState: StateFlow<PhotosUiState> =
-      combine(repository.pendingPhotos(tripId), connectivity.isOnline, local, gallery) {
-              photos,
-              online,
-              local,
-              gallery ->
+      combine(waiting, connectivity.isOnline, local, gallery) { waiting, online, local, gallery ->
             PhotosUiState(
                 isOnline = online,
-                photos = photos,
+                photos = waiting.photos,
                 uploaded = gallery.photos,
                 galleryLoading = gallery.loading,
                 galleryFailed = gallery.failed,
+                pendingFailed = waiting.failed,
                 // A photo that is no longer in the gallery cannot stay open.
                 viewing = gallery.photos.firstOrNull { it.id == local.viewingId },
                 currentUserId = currentUserId,
@@ -128,6 +138,7 @@ class PhotosViewModel(
   val effects: Flow<PhotosEffect> = _effects.receiveAsFlow()
 
   init {
+    observeWaiting()
     observeGallery()
     restorePreview()
   }
@@ -135,6 +146,11 @@ class PhotosViewModel(
   /** Reads the trip's photos again after they could not be read. */
   fun onGalleryRetry() {
     if (gallery.value.failed) observeGallery()
+  }
+
+  /** Reads the photos waiting on the device again after they could not be read. */
+  fun onPendingRetry() {
+    if (waiting.value.failed) observeWaiting()
   }
 
   /** Opens an uploaded photo full screen. */
@@ -199,6 +215,11 @@ class PhotosViewModel(
     }
   }
 
+  /** The settings could not be opened, so there is no return from them to wait for. */
+  fun onSettingsUnavailable() {
+    awaitingSettings = false
+  }
+
   /** The camera could not be opened, e.g. because no camera app is installed. */
   fun onCameraUnavailable() {
     captureFile?.let(repository::discard)
@@ -257,8 +278,30 @@ class PhotosViewModel(
     closePreview()
   }
 
-  fun onRetry(photoId: String) {
-    viewModelScope.launch { repository.retry(photoId) }
+  fun onRetry(photoId: String) = queueAgain(listOf(photoId))
+
+  /** Queues every photo that failed to upload again. */
+  fun onRetryAll() =
+      queueAgain(
+          uiState.value.photos.filter { it.status == PhotoUploadStatus.FAILED }.map { it.id }
+      )
+
+  /** Tries each photo, and tells the screen once, however many of them could not be queued. */
+  private fun queueAgain(photoIds: List<String>) {
+    viewModelScope.launch {
+      var failed = false
+      for (photoId in photoIds) {
+        try {
+          repository.retry(photoId)
+        } catch (e: CancellationException) {
+          throw e
+        } catch (_: Exception) {
+          failed = true
+        }
+      }
+      // The photos stay failed on screen, so the user is told and can try again.
+      if (failed) _effects.trySend(PhotosEffect.RetryFailed)
+    }
   }
 
   override fun onCleared() {
@@ -266,6 +309,21 @@ class PhotosViewModel(
     captureFile?.let(repository::discard)
     // A photo being saved is the repository's now. Deleting it here could lose it.
     local.value.takeUnless { it.saving }?.preview?.let(repository::discard)
+  }
+
+  private fun observeWaiting() {
+    waitingJob?.cancel()
+    waiting.update { it.copy(failed = false) }
+    waitingJob = viewModelScope.launch {
+      try {
+        repository.pendingPhotos(tripId).collect { photos -> waiting.value = Waiting(photos) }
+      } catch (e: CancellationException) {
+        throw e
+      } catch (_: Exception) {
+        // The photos read before stay on the screen, with a way to read them again.
+        waiting.update { it.copy(failed = true) }
+      }
+    }
   }
 
   private fun observeGallery() {
@@ -448,6 +506,7 @@ class PhotosViewModel(
 
   private companion object {
     const val CAPTURE_FILE_KEY = "capture_file"
+    const val AWAITING_SETTINGS_KEY = "awaiting_settings"
     const val PREVIEW_FILE_KEY = "preview_file"
     const val LOCATION_STATUS_KEY = "preview_location_status"
     const val LATITUDE_KEY = "preview_latitude"

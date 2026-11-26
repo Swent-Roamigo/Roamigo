@@ -2,8 +2,6 @@
 package com.swent.roamigo.model.location
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.FirebaseUser
 import kotlin.time.Duration
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -14,23 +12,19 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito.mock
-import org.mockito.Mockito.`when`
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
 class LocationSharingRestorerTest {
 
-  private val auth = mock(FirebaseAuth::class.java)
   private val repository = RecordingRepository()
 
   @Test
   fun restoresOnceWhenAUserIsSignedIn() = runTest {
     val restorer = LocationSharingRestorer(repository, backgroundScope)
-    signIn(USER_ID)
 
-    restorer.onAuthStateChanged(auth)
-    restorer.onAuthStateChanged(auth)
+    restorer.onUserChanged(USER_ID)
+    restorer.onUserChanged(USER_ID)
     runCurrent()
 
     assertEquals(1, repository.restores)
@@ -40,7 +34,7 @@ class LocationSharingRestorerTest {
   fun doesNothingWhenSignedOut() = runTest {
     val restorer = LocationSharingRestorer(repository, backgroundScope)
 
-    restorer.onAuthStateChanged(auth)
+    restorer.onUserChanged(null)
     runCurrent()
 
     assertEquals(0, repository.restores)
@@ -49,13 +43,10 @@ class LocationSharingRestorerTest {
   @Test
   fun restoresAgainAfterAnotherSignIn() = runTest {
     val restorer = LocationSharingRestorer(repository, backgroundScope)
-    signIn(USER_ID)
-    restorer.onAuthStateChanged(auth)
-    `when`(auth.currentUser).thenReturn(null)
-    restorer.onAuthStateChanged(auth)
-    signIn(OTHER_USER_ID)
+    restorer.onUserChanged(USER_ID)
+    restorer.onUserChanged(null)
 
-    restorer.onAuthStateChanged(auth)
+    restorer.onUserChanged(OTHER_USER_ID)
     runCurrent()
 
     assertEquals(2, repository.restores)
@@ -65,18 +56,11 @@ class LocationSharingRestorerTest {
   fun survivesAFailedRestore() = runTest {
     repository.failure = LocationSharingException("Could not read the shared trips")
     val restorer = LocationSharingRestorer(repository, backgroundScope)
-    signIn(USER_ID)
 
-    restorer.onAuthStateChanged(auth)
+    restorer.onUserChanged(USER_ID)
     runCurrent()
 
     assertEquals(1, repository.restores)
-  }
-
-  private fun signIn(userId: String) {
-    val user = mock(FirebaseUser::class.java)
-    `when`(user.uid).thenReturn(userId)
-    `when`(auth.currentUser).thenReturn(user)
   }
 
   private class RecordingRepository : LocationRepository {

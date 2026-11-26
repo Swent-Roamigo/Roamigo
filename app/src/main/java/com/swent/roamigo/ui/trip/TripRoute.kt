@@ -19,7 +19,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.core.content.edit
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.roamigo.R
@@ -34,6 +33,7 @@ import com.swent.roamigo.model.trip.activity.ActivityRepository
 import com.swent.roamigo.model.trip.isCompletedOn
 import com.swent.roamigo.model.trip.voting.VoteRepository
 import com.swent.roamigo.model.users.UserRepository
+import com.swent.roamigo.model.weather.WeatherRepository
 import com.swent.roamigo.ui.components.rememberNotImplementedAction
 import com.swent.roamigo.ui.map.LocationViewModel
 import com.swent.roamigo.ui.map.TripMapRoute
@@ -43,6 +43,7 @@ import com.swent.roamigo.ui.photos.PhotosRoute
 import com.swent.roamigo.ui.trip.activity.ActivityFormTrip
 import com.swent.roamigo.ui.trip.components.AddToTripSheet
 import com.swent.roamigo.ui.trip.details.TripDetailsRoute
+import com.swent.roamigo.ui.trip.voting.PreferencesVotesHintStore
 import com.swent.roamigo.ui.trip.voting.VoteCloseDialog
 import com.swent.roamigo.ui.trip.voting.VoteDialog
 import com.swent.roamigo.ui.trip.voting.VoteViewModel
@@ -69,6 +70,7 @@ internal fun TripRoute(
     photoRepository: PhotoRepository,
     connectivityRepository: ConnectivityRepository?,
     locationRepository: LocationRepository?,
+    weatherRepository: WeatherRepository? = null,
     onBack: () -> Unit,
     onAuthenticationRequired: () -> Unit,
     onOpenVote: (String, Boolean) -> Unit,
@@ -197,6 +199,7 @@ internal fun TripRoute(
                 onPhotosClick = { tab = TripSection.Photos },
                 onMembersClick = onMembersClick,
                 onInviteClick = onInviteClick,
+                weatherRepository = weatherRepository,
             )
         // Keep the map and its camera state when trip loading changes action availability.
         TripSection.Map ->
@@ -282,7 +285,7 @@ private fun TripVotes(
   var confirmClose by rememberSaveable { mutableStateOf(false) }
   val userId = auth.getCurrentUser()?.uid
   val context = LocalContext.current
-  var hintSeen by remember { mutableStateOf(votesHintSeen(context)) }
+  val hintStore = remember(context) { PreferencesVotesHintStore(context) }
   VotesRoute(
       voteRepository = repository,
       tripRepository = tripRepository,
@@ -312,11 +315,7 @@ private fun TripVotes(
               },
       onCreateVote = { if (!readOnly) onCreateVote() },
       readOnly = readOnly,
-      showHint = !hintSeen,
-      onDismissHint = {
-        hintSeen = true
-        markVotesHintSeen(context)
-      },
+      hintStore = hintStore,
   )
   val voteId = selectedVoteId
   if (voteId != null && userId != null) {
@@ -332,25 +331,6 @@ private fun TripVotes(
           { VoteViewModel(repository, tripId, it, userId) },
           onDismiss = { selectedVoteId = null },
       )
-    }
-  }
-}
-
-private const val HINTS_PREFERENCES = "roamigo_hints"
-private const val VOTES_HINT_SEEN = "votes_hint_seen"
-
-// Losing this flag only shows the hint once more, so storage failures are not worth surfacing.
-private fun votesHintSeen(context: Context): Boolean = runCatching {
-  context
-      .getSharedPreferences(HINTS_PREFERENCES, Context.MODE_PRIVATE)
-      .getBoolean(VOTES_HINT_SEEN, false)
-}
-    .getOrDefault(false)
-
-private fun markVotesHintSeen(context: Context) {
-  runCatching {
-    context.getSharedPreferences(HINTS_PREFERENCES, Context.MODE_PRIVATE).edit {
-      putBoolean(VOTES_HINT_SEEN, true)
     }
   }
 }

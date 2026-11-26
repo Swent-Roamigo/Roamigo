@@ -200,6 +200,7 @@ internal fun activityFromFirestore(id: String, tripId: String, data: Map<String,
       endTime = endTime,
       createdByUserId = data.requiredString("createdByUserId"),
       creationTime = data.requiredTimestamp("creationTime"),
+      linkedVoteId = data.optionalString("linkedVoteId"),
   )
 }
 
@@ -214,7 +215,7 @@ internal fun Activity.toFirestoreData(): Map<String, Any?> =
         "endTime" to endTime,
         "createdByUserId" to createdByUserId,
         "creationTime" to creationTime,
-    )
+    ) + (linkedVoteId?.let { mapOf("linkedVoteId" to it) } ?: emptyMap())
 
 private fun TripLocation.toFirestoreData(): Map<String, Any?> = buildMap {
   put("name", name)

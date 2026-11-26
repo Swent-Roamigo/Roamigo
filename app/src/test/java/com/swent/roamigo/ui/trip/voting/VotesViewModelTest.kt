@@ -58,6 +58,81 @@ class VotesViewModelTest {
 
   private fun ready() = viewModel.uiState.value as VotesUiState.Ready
 
+  private class MemoryHintStore(var seen: Boolean = false) : VotesHintStore {
+    override fun isSeen() = seen
+
+    override fun markSeen() {
+      seen = true
+    }
+  }
+
+  @Test
+  fun showsTheHintUntilItIsDismissedAndRemembersThat() = runTest {
+    val hints = MemoryHintStore()
+    viewModel = VotesViewModel(repository, "trip", "member", hints)
+    store.put("votes", viewModel)
+
+    assertTrue(viewModel.hintVisible.value)
+
+    viewModel.dismissHint()
+
+    assertFalse(viewModel.hintVisible.value)
+    assertTrue(hints.seen)
+  }
+
+  @Test
+  fun aHintDismissedAndRememberedStaysHiddenInANewViewModel() = runTest {
+    val hints = MemoryHintStore()
+    viewModel = VotesViewModel(repository, "trip", "member", hints)
+    store.put("votes", viewModel)
+    viewModel.dismissHint()
+
+    // The screen is recreated with the same store, as after a rotation or a new visit.
+    store.clear()
+    viewModel = VotesViewModel(repository, "trip", "member", hints)
+    store.put("votes", viewModel)
+
+    assertFalse(viewModel.hintVisible.value)
+  }
+
+  @Test
+  fun comingBackHidesAHintThatWasDismissedInAnotherInstance() = runTest {
+    val hints = MemoryHintStore()
+    viewModel = VotesViewModel(repository, "trip", "member", hints)
+    store.put("votes", viewModel)
+    assertTrue(viewModel.hintVisible.value)
+
+    hints.markSeen()
+    viewModel.refreshHint()
+
+    assertFalse(viewModel.hintVisible.value)
+  }
+
+  @Test
+  fun comingBackNeverBringsBackAHintThatWasDismissedWhenSavingFailed() = runTest {
+    val hints =
+        object : VotesHintStore {
+          override fun isSeen() = false
+
+          override fun markSeen() = Unit
+        }
+    viewModel = VotesViewModel(repository, "trip", "member", hints)
+    store.put("votes", viewModel)
+    viewModel.dismissHint()
+
+    viewModel.refreshHint()
+
+    assertFalse(viewModel.hintVisible.value)
+  }
+
+  @Test
+  fun doesNotShowTheHintOnceItWasSeen() = runTest {
+    viewModel = VotesViewModel(repository, "trip", "member", MemoryHintStore(seen = true))
+    store.put("votes", viewModel)
+
+    assertFalse(viewModel.hintVisible.value)
+  }
+
   @Test
   fun identicalCollectionSnapshotsKeepAllBallotListenersAndRealtimeCounts() = runTest {
     val repeat = CompletableDeferred<Unit>()

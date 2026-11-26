@@ -8,6 +8,8 @@ import com.swent.roamigo.model.TripLocation
  * An activity of a trip: either a [ActivityType.SUGGESTION] or an [ActivityType.ACCEPTED] entry of
  * the itinerary.
  *
+ * @property linkedVoteId immutable ID of the initial vote for a suggestion. Legacy suggestions and
+ *   accepted activities may have no link.
  * @property startTime when the activity starts. Only a suggestion may have none, meaning that no
  *   time is proposed yet; an accepted activity always has one.
  * @property endTime when the activity ends, or `null` when it has no planned end. It is set only
@@ -24,6 +26,7 @@ data class Activity(
     val endTime: Timestamp?,
     val createdByUserId: String,
     val creationTime: Timestamp,
+    val linkedVoteId: String? = null,
 )
 
 enum class ActivityType {

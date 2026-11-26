@@ -150,6 +150,32 @@ class PhotoSyncerTest {
   }
 
   @Test
+  fun marksAPhotoFailedWhenTheUploadBreaksUnexpectedly() = runTest {
+    create()
+    val file = save("a")
+    uploader.failure = { IllegalStateException("encoder broke") }
+
+    val retryLater = syncer.sync()
+
+    // Left as UPLOADING, the photo would look busy on screen with nothing running.
+    assertEquals(PhotoUploadStatus.FAILED, queue.current.single().status)
+    assertTrue(retryLater)
+    assertTrue(file.exists())
+  }
+
+  @Test
+  fun goesOnWithTheNextPhotoAfterAnUnexpectedFailure() = runTest {
+    create()
+    listOf("a", "b", "c").forEach { save(it) }
+    uploader.failure = { if (it.id == "b") IllegalStateException("boom") else null }
+
+    syncer.sync()
+
+    assertEquals(listOf("a", "c"), uploader.uploaded)
+    assertEquals(listOf("b"), queue.current.map { it.id })
+  }
+
+  @Test
   fun goesOnWithTheNextPhotoAfterAFailure() = runTest {
     create()
     listOf("a", "b", "c").forEach { save(it) }
