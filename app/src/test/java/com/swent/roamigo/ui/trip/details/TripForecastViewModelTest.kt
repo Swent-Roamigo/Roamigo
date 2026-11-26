@@ -392,4 +392,35 @@ class TripForecastViewModelTest {
 
     assertEquals(ForecastUiState.Hidden, model.state.value)
   }
+
+  @Test
+  fun comingBackWhileTheFirstLoadIsStillRunningAsksNothingMore() = runTest {
+    val repository = FakeWeatherRepository(listOf(day(saturday)))
+    val model = viewModel(repository)
+
+    model.refresh()
+    advanceUntilIdle()
+
+    assertEquals(1, repository.requests.size)
+    assertTrue(model.state.value is ForecastUiState.Ready)
+  }
+
+  @Test
+  fun aLoadThatIsCancelledIsNotShownAsAFailure() = runTest {
+    val repository =
+        object : com.swent.roamigo.model.weather.WeatherRepository {
+          override suspend fun forecast(
+              latitude: Double,
+              longitude: Double,
+              from: LocalDate,
+              to: LocalDate,
+          ): com.swent.roamigo.model.weather.Forecast =
+              throw kotlinx.coroutines.CancellationException("The screen went away")
+        }
+    val model = TripForecastViewModel(lisbon, saturday, sunday, repository, clock)
+
+    advanceUntilIdle()
+
+    assertEquals(ForecastUiState.Loading, model.state.value)
+  }
 }

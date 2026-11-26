@@ -1,6 +1,9 @@
 // Implemented with assistance from Claude (Anthropic).
 package com.swent.roamigo.ui.trip.details
 
+import android.content.res.Configuration
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -23,6 +26,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
 class TripForecastCardTest {
@@ -233,5 +237,56 @@ class TripForecastCardTest {
     show(ForecastUiState.Ready(long, fetchedAt, fromCache = false))
 
     composeRule.onNodeWithText("Rain likely on Sat, Nov 28 and Sun, Dec 6.").assertIsDisplayed()
+  }
+
+  private fun showWith(state: ForecastUiState, adjust: Configuration.() -> Unit) {
+    composeRule.setContent {
+      val configuration = Configuration(LocalConfiguration.current).apply(adjust)
+      CompositionLocalProvider(LocalConfiguration provides configuration) {
+        RoamigoTheme { TripForecastCard(state, city = "Lisbon", onRetry = {}, now = now) }
+      }
+    }
+  }
+
+  @Test
+  fun fiveDaysScrollOnANarrowScreenSoEveryDayCanBeReached() {
+    showWith(ForecastUiState.Ready(days.take(5), fetchedAt, false)) { screenWidthDp = 320 }
+
+    composeRule
+        .onNodeWithTag(C.Tag.weather_day_prefix + "2026-12-02")
+        .performScrollTo()
+        .assertIsDisplayed()
+  }
+
+  @Test
+  fun fiveDaysScrollWithALargeFontSoNothingIsSqueezed() {
+    showWith(ForecastUiState.Ready(days.take(5), fetchedAt, false)) { fontScale = 1.8f }
+
+    composeRule
+        .onNodeWithTag(C.Tag.weather_day_prefix + "2026-12-02")
+        .performScrollTo()
+        .assertIsDisplayed()
+  }
+
+  @Test
+  fun keepsTheCardAndRenewsTheTimeWhenNoTimeIsGiven() {
+    composeRule.mainClock.autoAdvance = false
+    composeRule.setContent {
+      RoamigoTheme { TripForecastCard(ready(), city = "Lisbon", onRetry = {}) }
+    }
+
+    // The minute tick fires and the card is drawn again with a newer time.
+    composeRule.mainClock.advanceTimeBy(61_000)
+
+    composeRule.onNodeWithText("Weather in Lisbon").assertIsDisplayed()
+  }
+
+  @Test
+  @Config(sdk = [28])
+  fun listsTheRainyDaysInEnglishOnAPhoneWithoutAListFormatter() {
+    val rainy = days.take(3).map { it.copy(condition = WeatherCondition.RAIN) }
+    show(ForecastUiState.Ready(rainy, fetchedAt, fromCache = false))
+
+    composeRule.onNodeWithText("Rain likely on Saturday, Sunday and Monday.").assertIsDisplayed()
   }
 }
