@@ -99,6 +99,9 @@ private val avatarInitialFontSize = 16.8.sp
 private val defaultAvatarSize = 48.dp
 private val compactAvatarSize = 40.dp
 private val avatarBorderWidth = 2.dp
+private val searchCornerRadius = 12.dp
+private val removeIconSize = 20.dp
+private val removeProgressStrokeWidth = 2.dp
 
 /** Colors used for friend avatars to provide visual variety. */
 private val friendAvatarColors = listOf(FriendAvatarBlue, FriendAvatarRose, FriendAvatarGreen)
@@ -528,7 +531,7 @@ private fun FriendsSearch(query: String, onQueryChange: (String) -> Unit) {
             modifier = Modifier.size(compactIconSize),
         )
       },
-      shape = RoundedCornerShape(12.dp),
+      shape = RoundedCornerShape(searchCornerRadius),
       colors =
           TextFieldDefaults.colors(
               focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -674,12 +677,15 @@ private fun FriendRow(
                     },
         ) {
           if (friend.isProcessing) {
-            CircularProgressIndicator(Modifier.size(compactIconSize), strokeWidth = 2.dp)
+            CircularProgressIndicator(
+                Modifier.size(compactIconSize),
+                strokeWidth = removeProgressStrokeWidth,
+            )
           } else {
             Icon(
                 Icons.Outlined.PersonRemove,
                 contentDescription = null,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(removeIconSize),
             )
           }
         }
