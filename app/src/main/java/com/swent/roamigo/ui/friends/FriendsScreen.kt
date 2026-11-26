@@ -626,9 +626,12 @@ private fun FriendRow(
             Modifier.fillMaxWidth()
                 .heightIn(min = friendRowMinimumHeight)
                 .testTag(C.Tag.friends_view_map_prefix + friend.userId)
-                .clickable(role = Role.Button, onClick = onViewMapClick)
+                .clickable(
+                    role = Role.Button,
+                    onClickLabel = viewMapDescription,
+                    onClick = onViewMapClick,
+                )
                 .markNotImplemented(onViewMapClick)
-                .semantics { contentDescription = viewMapDescription }
                 .padding(horizontal = Spacing.cardPadding, vertical = Spacing.small),
         verticalAlignment = Alignment.CenterVertically,
     ) {

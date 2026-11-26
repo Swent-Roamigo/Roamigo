@@ -3,7 +3,9 @@ package com.swent.roamigo.ui.friends
 
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
@@ -43,6 +45,11 @@ class FriendsScreenTest {
   @get:Rule val composeRule = createComposeRule()
 
   private val resources = FriendsTestResources { ApplicationProvider.getApplicationContext() }
+
+  private fun hasClickLabel(label: String) =
+      SemanticsMatcher("Click action label is '$label'") {
+        it.config.getOrNull(SemanticsActions.OnClick)?.label == label
+      }
 
   private val populatedState =
       FriendsUiState(
@@ -168,19 +175,31 @@ class FriendsScreenTest {
   }
 
   @Test
-  fun viewMapActionsHaveFriendSpecificAccessibilityLabels() {
+  fun viewMapActionsPreserveFriendNamesAndMetadataWithFriendSpecificLabels() {
     show()
+
+    for (friend in populatedState.friends) {
+      composeRule
+          .onNodeWithTag(C.Tag.friends_view_map_prefix + friend.userId)
+          .assert(hasText(friend.displayName))
+          .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.ContentDescription))
+          .assert(
+              hasClickLabel(
+                  resources.string(R.string.friends_view_map_accessibility, friend.displayName)
+              )
+          )
+    }
 
     composeRule
         .onNodeWithTag(C.Tag.friends_view_map_prefix + "sam")
-        .assertContentDescriptionEquals(
-            resources.string(R.string.friends_view_map_accessibility, "Sam")
-        )
-
-    composeRule
-        .onNodeWithTag(C.Tag.friends_view_map_prefix + "mia")
-        .assertContentDescriptionEquals(
-            resources.string(R.string.friends_view_map_accessibility, "Mia")
+        .assert(
+            hasText(
+                resources.string(
+                    R.string.friends_metadata,
+                    resources.plural(R.plurals.friends_country_count, 5),
+                    resources.plural(R.plurals.friends_trip_together_count, 3),
+                )
+            )
         )
   }
 
@@ -458,9 +477,9 @@ class FriendsScreenTest {
 
     val row = composeRule.onNodeWithTag(C.Tag.friends_view_map_prefix + "sam")
     row.assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
-        .assertContentDescriptionEquals(
-            resources.string(R.string.friends_view_map_accessibility, "Sam")
-        )
+        .assert(hasText("Sam"))
+        .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.ContentDescription))
+        .assert(hasClickLabel(resources.string(R.string.friends_view_map_accessibility, "Sam")))
         .assertHasClickAction()
     composeRule
         .onNodeWithTag(C.Tag.friends_remove_prefix + "friendship-sam")
