@@ -10,6 +10,7 @@ import com.swent.roamigo.model.authentication.AuthRepository
 import com.swent.roamigo.model.connectivity.ConnectivityRepository
 import com.swent.roamigo.model.destination.DestinationRepository
 import com.swent.roamigo.model.friends.FriendRepository
+import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.location.LocationRepository
 import com.swent.roamigo.model.photo.FakePhotoRepository
 import com.swent.roamigo.model.photo.PhotoRepository
@@ -44,7 +45,7 @@ internal fun TestRoamigoApp(
     credentialManager: CredentialManager? = null,
     photoRepository: PhotoRepository = remember { FakePhotoRepository() },
     connectivityRepository: ConnectivityRepository? = null,
-    locationRepository: LocationRepository? = null,
+    locationRepository: LocationRepository = remember { FakeLocationRepository() },
     placeRepository: PlaceRepository? = null,
     countryCounts: VisitedCountryCounts = remember { VisitedCountryCounts { emptyMap() } },
     invitationService: TripInvitationService = remember { FakeTripInvitationService() },

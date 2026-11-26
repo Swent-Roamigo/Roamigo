@@ -56,6 +56,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.job
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -78,7 +79,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * @param database the Realtime Database holding shared member locations.
  * @param auth provides the signed-in user whose position is shared.
  * @param sharedTripsStore saves the trips each user is sharing with, across app processes.
- * @param scope runs the periodic position updates while sharing is on.
+ * @param scope runs the periodic position updates while sharing is on, and the restored trips.
  * @param updateInterval delay between two published positions while sharing is on.
  * @param clock current device time in milliseconds since the epoch, on the same clock as the fix
  *   timestamps; injectable for tests.
@@ -263,8 +264,10 @@ class DefaultLocationRepository(
   override suspend fun restoreSharing() {
     val userId = auth.currentUser?.uid ?: return
     val tripIds = readSharedTrips(userId)
-    // Concurrent, since each trip may wait several seconds for a fix and for the database.
-    coroutineScope { tripIds.forEach { launch { restoreTrip(it) } } }
+    // Concurrent, since each trip may wait several seconds for a fix and for the database. Run on
+    // the repository's scope so that a caller cancelled meanwhile, e.g. when the app UI closes,
+    // cannot skip the removal of a trip that then fails to resume; it was already forgotten.
+    tripIds.map { scope.launch { restoreTrip(it, userId) } }.joinAll()
   }
 
   /**
@@ -311,13 +314,27 @@ class DefaultLocationRepository(
   override fun isSharing(tripId: String): Flow<Boolean> =
       sharings.map { it[tripId]?.isPublished == true }.distinctUntilChanged()
 
-  private suspend fun restoreTrip(tripId: String) {
+  private suspend fun restoreTrip(tripId: String, userId: String) {
+    // The trips were read for userId, and startSharing and stopSharing act as the current user:
+    // after an account switch they would share without that user's opt-in or edit their trips.
+    // The trip stays saved, or is saved again below, so it is restored at userId's next startup.
+    if (auth.currentUser?.uid != userId) return
     try {
       startSharing(tripId)
     } catch (e: CancellationException) {
       // Also thrown when the user stops this trip's sharing meanwhile, which needs no cleanup.
       currentCoroutineContext().ensureActive()
     } catch (e: Exception) {
+      if (auth.currentUser?.uid != userId) {
+        // The failed start may have forgotten the trip, but its position may still be published
+        // and only userId may remove it.
+        try {
+          editSharedTrips(userId) { it + tripId }
+        } catch (e: LocationSharingException) {
+          // Nothing more can be done, and nobody is waiting to be told.
+        }
+        return
+      }
       // E.g. the permission was revoked or there is no fix: the position left by the previous
       // process must not stay published while the trip is not shown as shared.
       try {
