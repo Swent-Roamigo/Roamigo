@@ -156,7 +156,7 @@ private fun TripDetailsContent(
         Modifier.weight(1f).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(Spacing.large),
     ) {
-      forecast?.let { TripForecastCard(it.state, it.city, rememberNow(), it.onRetry) }
+      forecast?.let { TripForecastCard(it.state, it.city, it.onRetry) }
       val unfinished = rememberNotImplementedAction()
       TextButton(onClick = unfinished, modifier = Modifier.markNotImplemented(unfinished)) {
         Text(stringResource(R.string.trip_details_itinerary))

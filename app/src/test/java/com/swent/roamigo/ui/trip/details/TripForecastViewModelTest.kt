@@ -283,4 +283,113 @@ class TripForecastViewModelTest {
 
     assertTrue(model.state.value is ForecastUiState.Ready)
   }
+
+  /**
+   * Answers from the cache while [offline] is set, as the real repository does without a network.
+   */
+  private class FlakyNetwork(var offline: Boolean, private val days: List<DailyForecast>) :
+      com.swent.roamigo.model.weather.WeatherRepository {
+    var requests = 0
+
+    override suspend fun forecast(
+        latitude: Double,
+        longitude: Double,
+        from: LocalDate,
+        to: LocalDate,
+    ): com.swent.roamigo.model.weather.Forecast {
+      requests++
+      return com.swent.roamigo.model.weather.Forecast(
+          days,
+          Instant.parse("2026-11-22T08:00:00Z"),
+          fromCache = offline,
+      )
+    }
+  }
+
+  @Test
+  fun aSavedForecastIsRefreshedAsSoonAsTheScreenComesBackOnline() = runTest {
+    val network = FlakyNetwork(offline = true, days = listOf(day(saturday)))
+    val model = TripForecastViewModel(lisbon, saturday, sunday, network, clock)
+    advanceUntilIdle()
+    assertEquals(true, (model.state.value as ForecastUiState.Ready).fromCache)
+
+    // Back online a few minutes later: no need to wait for the hour to pass.
+    network.offline = false
+    model.refresh()
+    advanceUntilIdle()
+
+    assertEquals(false, (model.state.value as ForecastUiState.Ready).fromCache)
+    assertEquals(2, network.requests)
+  }
+
+  @Test
+  fun aFailedRefreshDoesNotPushTheNextTryAnotherHourAway() = runTest {
+    val movable = MovableClock(Instant.parse("2026-11-23T08:00:00Z"))
+    val repository = FakeWeatherRepository(listOf(day(saturday)))
+    val model = TripForecastViewModel(lisbon, saturday, sunday, repository, movable)
+    advanceUntilIdle()
+
+    repository.failure = WeatherUnavailableException("offline")
+    movable.now = Instant.parse("2026-11-23T09:30:00Z")
+    model.refresh()
+    advanceUntilIdle()
+    repository.failure = null
+    // Ten minutes after the failed try, but over an hour after the last forecast.
+    movable.now = Instant.parse("2026-11-23T09:40:00Z")
+    model.refresh()
+    advanceUntilIdle()
+
+    assertEquals(3, repository.requests.size)
+  }
+
+  @Test
+  fun aFailedRefreshDoesNotBringBackATooFarMessageThatIsOutOfDate() = runTest {
+    val movable = MovableClock(Instant.parse("2026-11-23T10:00:00Z"))
+    val repository = FakeWeatherRepository(listOf(day(LocalDate.of(2026, 12, 8))))
+    val model =
+        TripForecastViewModel(
+            lisbon,
+            LocalDate.of(2026, 12, 8),
+            LocalDate.of(2026, 12, 9),
+            repository,
+            movable,
+        )
+    advanceUntilIdle()
+    assertEquals(ForecastUiState.TooFar(LocalDate.of(2026, 11, 24)), model.state.value)
+
+    // On the 24th the forecast is due, but this time there is no connection and nothing saved.
+    repository.failure = WeatherUnavailableException("offline")
+    movable.now = Instant.parse("2026-11-24T10:00:00Z")
+    model.refresh()
+    advanceUntilIdle()
+
+    assertEquals(ForecastUiState.Failed, model.state.value)
+  }
+
+  @Test
+  fun comingBackSeveralTimesWhileARefreshIsRunningAsksOnlyOnce() = runTest {
+    val network = FlakyNetwork(offline = true, days = listOf(day(saturday)))
+    val model = TripForecastViewModel(lisbon, saturday, sunday, network, clock)
+    advanceUntilIdle()
+
+    model.refresh()
+    model.refresh()
+    advanceUntilIdle()
+
+    assertEquals(2, network.requests)
+  }
+
+  @Test
+  fun coordinatesThatAreNotOnEarthShowNoCardInsteadOfAnEndlessRetry() = runTest {
+    val repository =
+        FakeWeatherRepository(
+            listOf(day(saturday)),
+            IllegalArgumentException("Invalid coordinates"),
+        )
+    val model = viewModel(repository)
+
+    advanceUntilIdle()
+
+    assertEquals(ForecastUiState.Hidden, model.state.value)
+  }
 }

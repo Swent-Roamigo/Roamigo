@@ -4,6 +4,7 @@ package com.swent.roamigo.ui.trip.details
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -42,7 +43,7 @@ class TripForecastCardTest {
 
   private fun show(state: ForecastUiState) {
     composeRule.setContent {
-      RoamigoTheme { TripForecastCard(state, city = "Lisbon", now = now, onRetry = { retries++ }) }
+      RoamigoTheme { TripForecastCard(state, city = "Lisbon", onRetry = { retries++ }, now = now) }
     }
   }
 
@@ -55,10 +56,23 @@ class TripForecastCardTest {
     composeRule.onNodeWithText("Weather in Lisbon").assertIsDisplayed()
     val saturday = composeRule.onNodeWithTag(C.Tag.weather_day_prefix + "2026-11-28")
     saturday.assertIsDisplayed()
-    for (shown in listOf("SAT", "Nov 28", "Sunny", "16°", "10°", "5%")) {
+    for (shown in listOf("SAT", "Nov 28", "Sunny", "16°", "5%")) {
       saturday.assert(hasText(shown))
     }
     composeRule.onNodeWithText("Partly cloudy").assertIsDisplayed()
+  }
+
+  @Test
+  fun aScreenReaderIsToldWhichTemperatureIsTheHighAndWhichTheLow() {
+    show(ready())
+
+    // One description for both numbers, so the merged day does not read just "16°, 10°".
+    composeRule
+        .onNodeWithTag(C.Tag.weather_day_prefix + "2026-11-28")
+        .assert(hasContentDescription("High 16°, low 10°"))
+    composeRule
+        .onNodeWithTag(C.Tag.weather_day_prefix + "2026-12-03")
+        .assert(hasContentDescription("High -1°, low -6°"))
   }
 
   @Test

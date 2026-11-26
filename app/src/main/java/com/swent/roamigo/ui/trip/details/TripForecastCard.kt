@@ -38,6 +38,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -121,9 +123,10 @@ internal fun rememberNow(): Instant {
 fun TripForecastCard(
     state: ForecastUiState,
     city: String,
-    now: Instant,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    // Read here, not by the screen, so the minute tick redraws the card and not the whole screen.
+    now: Instant = rememberNow(),
 ) {
   if (state == ForecastUiState.Hidden) return
   Surface(
@@ -212,6 +215,8 @@ private fun StaleNotice(age: String) {
 private fun DayTile(day: DailyForecast, modifier: Modifier) {
   val locale = LocalConfiguration.current.locales[0]
   val weekday = formatted(day.date, "EEE", locale).uppercase(locale)
+  val highLow =
+      stringResource(R.string.weather_high_low_description, day.highCelsius, day.lowCelsius)
   Surface(
       // One item per day, so a screen reader reads the whole day in one go.
       modifier.testTag(C.Tag.weather_day_prefix + day.date).semantics(mergeDescendants = true) {},
@@ -249,13 +254,16 @@ private fun DayTile(day: DailyForecast, modifier: Modifier) {
           minLines = 2,
           maxLines = 2,
       )
+      // The two numbers alone do not say which is the high, so one description names both.
       Text(
           stringResource(R.string.weather_degrees, day.highCelsius),
+          Modifier.semantics { contentDescription = highLow },
           style = MaterialTheme.typography.titleSmall,
           fontWeight = FontWeight.Bold,
       )
       Text(
           stringResource(R.string.weather_degrees, day.lowCelsius),
+          Modifier.clearAndSetSemantics {},
           style = MaterialTheme.typography.bodySmall,
           color = TextSecondaryAa,
       )

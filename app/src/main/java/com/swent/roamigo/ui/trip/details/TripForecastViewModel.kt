@@ -70,18 +70,21 @@ class TripForecastViewModel(
   }
 
   /**
-   * Brings the card up to date when the screen comes back, e.g. the next day or after a long while.
-   * What is shown stays until the new answer arrives, and a failed refresh keeps it.
+   * Brings the card up to date when the screen comes back: the next day, after a long while, or
+   * whenever what is shown is a saved forecast, which is the one a returning connection replaces.
+   * What is shown stays until the new answer arrives, and a failed refresh keeps a forecast.
    */
   fun refresh() {
     val now = clock.instant()
     val dayChanged = LocalDate.now(clock) != loadedOn
     val stale = Duration.between(loadedAt, now) >= REFRESH_AFTER
-    when (_state.value) {
-      ForecastUiState.Loading -> Unit
-      ForecastUiState.Failed,
-      ForecastUiState.Busy -> load()
-      else -> if (dayChanged || stale) load(keepWhileLoading = true)
+    val current = _state.value
+    when {
+      current == ForecastUiState.Loading -> Unit
+      current.isFailure() -> load()
+      // Already on its way, e.g. the screen came back twice in a row.
+      job?.isActive == true -> Unit
+      current.isSavedForecast() || dayChanged || stale -> load(keepWhileLoading = true)
     }
   }
 
@@ -89,9 +92,8 @@ class TripForecastViewModel(
     job?.cancel()
     val before = _state.value
     if (!keepWhileLoading) _state.value = ForecastUiState.Loading
-    loadedAt = clock.instant()
-    loadedOn = LocalDate.now(clock)
     job = viewModelScope.launch {
+      val startedAt = clock.instant()
       val today = LocalDate.now(clock)
       val next =
           when {
@@ -100,8 +102,16 @@ class TripForecastViewModel(
                 ForecastUiState.TooFar(ForecastWindow.availableFrom(startDate))
             else -> fetch()
           }
-      // A refresh that fails must not replace a forecast that is still worth showing.
-      _state.value = if (keepWhileLoading && next.isFailure()) before else next
+      // Only a forecast is worth keeping when a refresh fails. Any other message, such as "too far
+      // ahead", may be out of date by now. A kept forecast does not count as refreshed, so the next
+      // time the screen comes back it tries again.
+      if (keepWhileLoading && before is ForecastUiState.Ready && next.isFailure()) {
+        _state.value = before
+      } else {
+        _state.value = next
+        loadedAt = startedAt
+        loadedOn = today
+      }
     }
   }
 
@@ -113,6 +123,9 @@ class TripForecastViewModel(
         else ForecastUiState.Ready(forecast.days, forecast.fetchedAt, forecast.fromCache)
       } catch (cancelled: CancellationException) {
         throw cancelled
+      } catch (_: IllegalArgumentException) {
+        // Coordinates that are not on Earth: asking again would fail the same way.
+        ForecastUiState.Hidden
       } catch (unavailable: WeatherUnavailableException) {
         if (unavailable.rateLimited) ForecastUiState.Busy else ForecastUiState.Failed
       } catch (_: Exception) {
@@ -126,3 +139,5 @@ class TripForecastViewModel(
 
 private fun ForecastUiState.isFailure() =
     this == ForecastUiState.Failed || this == ForecastUiState.Busy
+
+private fun ForecastUiState.isSavedForecast() = this is ForecastUiState.Ready && fromCache
