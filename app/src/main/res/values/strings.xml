@@ -564,6 +564,8 @@
     <string name="photos_status_uploading">%1$s · Uploading…</string>
     <string name="photos_status_failed">%1$s · Upload failed</string>
     <string name="photos_retry">Retry</string>
+    <string name="photos_retry_failed">The photo could not be queued again. Please try again.</string>
+    <string name="photos_pending_error">Could not read the photos waiting to upload.</string>
     <string name="photos_uploaded_title">Shared with the trip</string>
     <string name="photos_uploaded_by_you">You · %1$s</string>
     <string name="photos_uploaded_by_member">A member · %1$s</string>
