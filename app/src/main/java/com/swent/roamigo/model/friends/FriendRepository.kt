@@ -80,6 +80,17 @@ interface FriendRepository {
   suspend fun declineFriendRequest(otherUserId: String, requestId: String)
 
   /**
+   * Cancels an outgoing pending request.
+   *
+   * Only the original sender may cancel it. A missing request is an idempotent no-op. Accepted,
+   * declined or replaced requests fail with Conflict.
+   */
+  suspend fun cancelFriendRequest(
+      otherUserId: String,
+      requestId: String,
+  )
+
+  /**
    * Removes [friendshipId] with [otherUserId] for both participants. Either friend may remove it.
    * If no relationship remains, succeeds without changes. If a different request or friendship
    * exists, fails with [FriendRepositoryException.Conflict] instead of changing the newer state.

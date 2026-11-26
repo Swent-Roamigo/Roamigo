@@ -12,8 +12,11 @@ import kotlinx.coroutines.flow.Flow
  */
 interface VoteRepository {
   /**
-   * Creates a vote under its trip using an online transaction. Retrying the same creation request
-   * succeeds without overwriting an existing vote, even if its status or winner has changed.
+   * Creates an ordinary vote under its trip using an online transaction. Retrying the same creation
+   * request succeeds without overwriting an existing vote, even if its status or winner has
+   * changed.
+   *
+   * Suggestion votes are created through SuggestionVoteRepository.
    *
    * @param vote Vote to persist, including its trip and document IDs.
    * @throws IllegalArgumentException If the vote or trip ID is invalid.

@@ -2,6 +2,7 @@ package com.swent.roamigo.model.place
 
 import com.swent.roamigo.BuildConfig
 import com.swent.roamigo.model.destination.DESTINATION_USER_AGENT
+import com.swent.roamigo.model.network.await
 import com.swent.roamigo.model.validCountryCodeOrNull
 import java.io.IOException
 import java.util.UUID

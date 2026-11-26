@@ -37,7 +37,7 @@ class RoamigoAppProfileTest {
         )
     composeRule.setContent {
       RoamigoTheme {
-        RoamigoApp(
+        TestRoamigoApp(
             friendRepository = FakeFriendRepository("u1"),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
@@ -64,7 +64,7 @@ class RoamigoAppProfileTest {
         )
     composeRule.setContent {
       RoamigoTheme {
-        RoamigoApp(
+        TestRoamigoApp(
             friendRepository = FakeFriendRepository("u1"),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),
@@ -93,7 +93,7 @@ class RoamigoAppProfileTest {
         )
     composeRule.setContent {
       RoamigoTheme {
-        RoamigoApp(
+        TestRoamigoApp(
             friendRepository = FakeFriendRepository("u1"),
             voteRepository = InMemoryVoteRepository(),
             destinationRepository = sampleDestinationRepository(),

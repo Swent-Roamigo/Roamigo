@@ -27,6 +27,7 @@ import com.google.firebase.database.ValueEventListener
 import com.google.firebase.database.database
 import java.io.IOException
 import java.util.concurrent.Executor
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.resume
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -55,7 +56,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.job
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -76,8 +79,10 @@ import kotlinx.coroutines.withTimeoutOrNull
  * @param database the Realtime Database holding shared member locations.
  * @param auth provides the signed-in user whose position is shared.
  * @param sharedTripsStore saves the trips each user is sharing with, across app processes.
- * @param scope runs the periodic position updates while sharing is on.
+ * @param scope runs the periodic position updates while sharing is on, and the restored trips.
  * @param updateInterval delay between two published positions while sharing is on.
+ * @param clock current device time in milliseconds since the epoch, on the same clock as the fix
+ *   timestamps; injectable for tests.
  */
 class DefaultLocationRepository(
     context: Context,
@@ -88,6 +93,7 @@ class DefaultLocationRepository(
     private val sharedTripsStore: DataStore<Preferences> = context.sharedTripsDataStore,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     private val updateInterval: Duration = DEFAULT_UPDATE_INTERVAL,
+    private val clock: () -> Long = System::currentTimeMillis,
 ) : LocationRepository {
 
   private val appContext = context.applicationContext
@@ -99,16 +105,66 @@ class DefaultLocationRepository(
   // while waiting for a location fix or the database, so a stop is not delayed by a pending start.
   private val sharingMutex = Mutex()
 
+  // Newest fix produced by getCurrentLocation(), including the ones taken by the trip map and by
+  // sharing updates, so that callers that cannot wait for a new fix can still use it. Kept when the
+  // fine permission is revoked so it is usable again once the permission is granted back.
+  private val latestFix = AtomicReference<Location?>(null)
+
   override fun hasLocationPermission(): Boolean = LOCATION_PERMISSIONS.any {
     ContextCompat.checkSelfPermission(appContext, it) == PackageManager.PERMISSION_GRANTED
   }
 
   override suspend fun getCurrentLocation(): DeviceLocation? {
     if (!hasLocationPermission()) return null
-    // An enabled provider may still fail to get a fix (e.g. GPS indoors), so fall back to the next.
-    return usableProviders()
-        .firstNotNullOfOrNull { withTimeoutOrNull(PROVIDER_TIMEOUT) { requestSingleLocation(it) } }
+    val fix = firstFix(usableProviders()) ?: return null
+    // Calls may finish out of order, so a slower call must not replace a newer fix.
+    latestFix.updateAndGet { latest ->
+      if (latest != null && latest.time > fix.time) latest else fix
+    }
+    return fix.toDeviceLocation()
+  }
+
+  // The permission is checked first, like in getCurrentLocation().
+  @SuppressLint("MissingPermission")
+  override fun lastKnownLocation(maxAge: Duration): DeviceLocation? {
+    if (!hasLocationPermission()) return null
+    val oldestAllowed = clock() - maxAge.inWholeMilliseconds
+    val systemFixes = usableProviders().mapNotNull { locationManager.getLastKnownLocation(it) }
+    // A GPS fix remembered under the fine permission must not outlive a switch to approximate.
+    val rememberedFix =
+        latestFix.get()?.takeIf {
+          it.provider != LocationManager.GPS_PROVIDER || hasFinePermission()
+        }
+    return (systemFixes + listOfNotNull(rememberedFix))
+        .filter { it.time >= oldestAllowed }
+        .maxByOrNull { it.time }
         ?.toDeviceLocation()
+  }
+
+  // Returns the first fix, or null once each provider answered without one or timed out. GPS wins
+  // when it is ready at the same time as the network provider. The providers are asked at once
+  // rather than one after the other: GPS may take up to PROVIDER_TIMEOUT without a fix (e.g.
+  // indoors), so callers with a shorter deadline, such as the photo locator, would give up before
+  // the network provider was even asked. The first fix is taken rather than waiting for GPS, since
+  // a quick approximate position is more useful to those callers than none.
+  private suspend fun firstFix(providers: List<String>): Location? = coroutineScope {
+    val pending =
+        providers
+            .map { async { withTimeoutOrNull(PROVIDER_TIMEOUT) { requestSingleLocation(it) } } }
+            .toMutableList()
+    var fix: Location? = null
+    while (fix == null && pending.isNotEmpty()) {
+      // select picks the first clause in this list when several are ready, hence GPS first.
+      val (request, location) =
+          select<Pair<Deferred<Location?>, Location?>> {
+            pending.forEach { request -> request.onAwait { request to it } }
+          }
+      pending -= request
+      fix = location
+    }
+    // Cancelled, or coroutineScope would wait for the providers still searching and keep GPS on.
+    pending.forEach { it.cancel() }
+    fix
   }
 
   /**
@@ -208,8 +264,10 @@ class DefaultLocationRepository(
   override suspend fun restoreSharing() {
     val userId = auth.currentUser?.uid ?: return
     val tripIds = readSharedTrips(userId)
-    // Concurrent, since each trip may wait several seconds for a fix and for the database.
-    coroutineScope { tripIds.forEach { launch { restoreTrip(it) } } }
+    // Concurrent, since each trip may wait several seconds for a fix and for the database. Run on
+    // the repository's scope so that a caller cancelled meanwhile, e.g. when the app UI closes,
+    // cannot skip the removal of a trip that then fails to resume; it was already forgotten.
+    tripIds.map { scope.launch { restoreTrip(it, userId) } }.joinAll()
   }
 
   /**
@@ -256,13 +314,27 @@ class DefaultLocationRepository(
   override fun isSharing(tripId: String): Flow<Boolean> =
       sharings.map { it[tripId]?.isPublished == true }.distinctUntilChanged()
 
-  private suspend fun restoreTrip(tripId: String) {
+  private suspend fun restoreTrip(tripId: String, userId: String) {
+    // The trips were read for userId, and startSharing and stopSharing act as the current user:
+    // after an account switch they would share without that user's opt-in or edit their trips.
+    // The trip stays saved, or is saved again below, so it is restored at userId's next startup.
+    if (auth.currentUser?.uid != userId) return
     try {
       startSharing(tripId)
     } catch (e: CancellationException) {
       // Also thrown when the user stops this trip's sharing meanwhile, which needs no cleanup.
       currentCoroutineContext().ensureActive()
     } catch (e: Exception) {
+      if (auth.currentUser?.uid != userId) {
+        // The failed start may have forgotten the trip, but its position may still be published
+        // and only userId may remove it.
+        try {
+          editSharedTrips(userId) { it + tripId }
+        } catch (e: LocationSharingException) {
+          // Nothing more can be done, and nobody is waiting to be told.
+        }
+        return
+      }
       // E.g. the permission was revoked or there is no fix: the position left by the previous
       // process must not stay published while the trip is not shown as shared.
       try {
@@ -428,14 +500,16 @@ class DefaultLocationRepository(
 
   // GPS requires the fine permission; a coarse-only caller would get a SecurityException.
   private fun usableProviders(): List<String> {
-    val hasFinePermission =
-        ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_FINE_LOCATION) ==
-            PackageManager.PERMISSION_GRANTED
+    val hasFinePermission = hasFinePermission()
     return PREFERRED_PROVIDERS.filter {
       (it != LocationManager.GPS_PROVIDER || hasFinePermission) &&
           locationManager.isProviderEnabled(it)
     }
   }
+
+  private fun hasFinePermission(): Boolean =
+      ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_FINE_LOCATION) ==
+          PackageManager.PERMISSION_GRANTED
 
   // The permission is checked in getCurrentLocation(); Android kills the process when it is
   // revoked, so it cannot disappear between the check and this call.
@@ -472,8 +546,8 @@ class DefaultLocationRepository(
   )
 
   companion object {
-    // Long enough for a usual fix, short enough not to delay the fallback to the next provider
-    // when GPS cannot get one, e.g. indoors.
+    // Long enough for a usual fix, short enough to give up on a provider that cannot get one, e.g.
+    // GPS indoors.
     internal val PROVIDER_TIMEOUT = 10.seconds
 
     // Leaves room for a slow network while keeping callers from waiting on an offline database.

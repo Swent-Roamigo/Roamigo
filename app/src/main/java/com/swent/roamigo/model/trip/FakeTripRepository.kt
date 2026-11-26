@@ -2,6 +2,7 @@
 package com.swent.roamigo.model.trip
 
 import com.google.firebase.Timestamp
+import com.swent.roamigo.model.toFirebaseTimestamp
 
 /**
  * Configurable in-memory implementation of [TripRepository].

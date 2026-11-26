@@ -21,10 +21,14 @@ import com.google.firebase.database.DatabaseReference.CompletionListener
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ServerValue
 import com.google.firebase.database.ValueEventListener
+import com.swent.roamigo.model.photo.PHOTO_LOCATION_TIMEOUT
 import java.io.IOException
 import java.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -52,6 +56,7 @@ import org.mockito.ArgumentMatchers.eq
 import org.mockito.Mockito.doAnswer
 import org.mockito.Mockito.inOrder
 import org.mockito.Mockito.mock
+import org.mockito.Mockito.never
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
@@ -90,6 +95,9 @@ class DefaultLocationRepositoryTest {
 
   // Thrown by the next updates instead of writing.
   private var updateFailure: RuntimeException? = null
+
+  // Device time seen by the repository, in milliseconds since the epoch.
+  private var now = System.currentTimeMillis()
 
   @Before
   fun setUp() {
@@ -231,43 +239,60 @@ class DefaultLocationRepositoryTest {
       }
 
   @Test
-  fun getCurrentLocation_fallsBackToNetworkProviderWhenGpsHasNoFix() = runTest {
+  fun getCurrentLocation_returnsNetworkFixWithoutWaitingForGps() = runTest {
     application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
 
     val pending = async { repository.getCurrentLocation() }
     runCurrent()
-    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMinutes(1))
-    runCurrent()
-    assertFalse(pending.isCompleted)
-
+    advanceTimeBy(1.seconds)
+    // GPS stays silent, e.g. indoors, while the network provider answers.
     locationManager.simulateLocation(
         recentLocation(LocationManager.NETWORK_PROVIDER).apply {
           latitude = 47.3769
           longitude = 8.5417
         }
     )
+    runCurrent()
 
+    assertTrue(pending.isCompleted)
+    assertTrue(testScheduler.currentTime.milliseconds < PHOTO_LOCATION_TIMEOUT)
     assertEquals(47.3769, pending.await()!!.latitude, 0.0)
+    // The GPS request still searching is cancelled once the network fix is chosen.
+    assertTrue(locationManager.getLocationRequests(LocationManager.GPS_PROVIDER).isEmpty())
   }
 
   @Test
-  fun getCurrentLocation_fallsBackToNetworkProviderWhenGpsIsTooSlow() = runTest {
+  fun getCurrentLocation_prefersGpsWhenBothProvidersHaveAFix() = runTest {
     application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
-
-    val pending = async { repository.getCurrentLocation() }
-    runCurrent()
-    advanceTimeBy(DefaultLocationRepository.PROVIDER_TIMEOUT)
-    runCurrent()
-    assertFalse(pending.isCompleted)
-
     locationManager.simulateLocation(
         recentLocation(LocationManager.NETWORK_PROVIDER).apply {
           latitude = 47.3769
           longitude = 8.5417
         }
     )
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
 
-    assertEquals(47.3769, pending.await()!!.latitude, 0.0)
+    val result = repository.getCurrentLocation()
+
+    assertEquals(46.5191, result!!.latitude, 0.0)
+    assertEquals(6.5668, result.longitude, 0.0)
+  }
+
+  @Test
+  fun getCurrentLocation_returnsNullWhenNoProviderAnswersWithinProviderTimeout() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+
+    val pending = async { repository.getCurrentLocation() }
+    runCurrent()
+    // Runs everything scheduled before the timeout, but not the timeout itself.
+    advanceTimeBy(DefaultLocationRepository.PROVIDER_TIMEOUT)
+    assertFalse(pending.isCompleted)
+    runCurrent()
+
+    assertTrue(pending.isCompleted)
+    assertNull(pending.await())
+    assertTrue(locationManager.getLocationRequests(LocationManager.GPS_PROVIDER).isEmpty())
+    assertTrue(locationManager.getLocationRequests(LocationManager.NETWORK_PROVIDER).isEmpty())
   }
 
   @Test
@@ -300,28 +325,187 @@ class DefaultLocationRepositoryTest {
     application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
 
     val pending = async { repository.getCurrentLocation() }
-    // GPS and then the network provider each time out without a fix.
-    repeat(2) {
-      runCurrent()
-      shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMinutes(1))
-    }
+    runCurrent()
+    // Both providers are asked at once and the platform ends each request without a fix.
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMinutes(1))
 
     assertNull(pending.await())
   }
 
   @Test
-  fun getCurrentLocation_stopsWaitingWhenCancelled() = runTest {
+  fun getCurrentLocation_cancelsEveryProviderRequestWhenCancelled() = runTest {
     application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
 
     val pending = async { repository.getCurrentLocation() }
     runCurrent()
+    assertEquals(1, locationManager.getLocationRequests(LocationManager.GPS_PROVIDER).size)
+    assertEquals(1, locationManager.getLocationRequests(LocationManager.NETWORK_PROVIDER).size)
     pending.cancel()
     runCurrent()
+
+    assertTrue(locationManager.getLocationRequests(LocationManager.GPS_PROVIDER).isEmpty())
+    assertTrue(locationManager.getLocationRequests(LocationManager.NETWORK_PROVIDER).isEmpty())
 
     // A fix arriving after cancellation must not be delivered to the cancelled request.
     locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
 
     assertTrue(pending.isCancelled)
+  }
+
+  @Test
+  fun lastKnownLocation_returnsFixFromGetCurrentLocation() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val fix = repository.getCurrentLocation()
+    // Only the fix remembered by the repository is left.
+    locationManager.setLastKnownLocation(LocationManager.GPS_PROVIDER, null)
+
+    assertEquals(fix, repository.lastKnownLocation(5.minutes))
+  }
+
+  @Test
+  fun lastKnownLocation_ignoresFixOlderThanMaxAge() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(
+        recentLocation(LocationManager.GPS_PROVIDER).apply {
+          time = now - 10.minutes.inWholeMilliseconds
+        }
+    )
+    repository.getCurrentLocation()
+    locationManager.setLastKnownLocation(LocationManager.GPS_PROVIDER, null)
+
+    assertNull(repository.lastKnownLocation(5.minutes))
+    assertEquals(46.5191, repository.lastKnownLocation(15.minutes)!!.latitude, 0.0)
+  }
+
+  @Test
+  fun lastKnownLocation_ignoresSystemFixOlderThanMaxAge() {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.setLastKnownLocation(
+        LocationManager.GPS_PROVIDER,
+        recentLocation(LocationManager.GPS_PROVIDER).apply {
+          time = now - 10.minutes.inWholeMilliseconds
+        },
+    )
+
+    assertNull(repository.lastKnownLocation(5.minutes))
+  }
+
+  @Test
+  fun lastKnownLocation_returnsNullWithoutPermission() = runTest {
+    locationManager.setLastKnownLocation(
+        LocationManager.GPS_PROVIDER,
+        recentLocation(LocationManager.GPS_PROVIDER),
+    )
+
+    assertNull(repository.lastKnownLocation(5.minutes))
+  }
+
+  @Test
+  fun lastKnownLocation_returnsNullWhenPermissionIsRevokedAfterAFix() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    repository.getCurrentLocation()
+
+    application.denyPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+
+    assertNull(repository.lastKnownLocation(5.minutes))
+  }
+
+  @Test
+  fun lastKnownLocation_usesSystemFixWhenNoneIsRemembered() {
+    application.grantPermissions(Manifest.permission.ACCESS_COARSE_LOCATION)
+    locationManager.setLastKnownLocation(
+        LocationManager.NETWORK_PROVIDER,
+        recentLocation(LocationManager.NETWORK_PROVIDER).apply {
+          latitude = 47.3769
+          longitude = 8.5417
+        },
+    )
+
+    assertEquals(47.3769, repository.lastKnownLocation(5.minutes)!!.latitude, 0.0)
+  }
+
+  @Test
+  fun lastKnownLocation_ignoresGpsFixWithCoarsePermissionOnly() {
+    application.grantPermissions(Manifest.permission.ACCESS_COARSE_LOCATION)
+    locationManager.setLastKnownLocation(
+        LocationManager.GPS_PROVIDER,
+        recentLocation(LocationManager.GPS_PROVIDER),
+    )
+
+    assertNull(repository.lastKnownLocation(5.minutes))
+  }
+
+  @Test
+  fun lastKnownLocation_ignoresRememberedGpsFixAfterDowngradeToCoarse() = runTest {
+    application.grantPermissions(
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.ACCESS_COARSE_LOCATION,
+    )
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    repository.getCurrentLocation()
+    // Only the fix remembered by the repository is left.
+    locationManager.setLastKnownLocation(LocationManager.GPS_PROVIDER, null)
+
+    application.denyPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+
+    assertNull(repository.lastKnownLocation(5.minutes))
+  }
+
+  @Test
+  fun lastKnownLocation_returnsRememberedNetworkFixWithCoarsePermissionOnly() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_COARSE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.NETWORK_PROVIDER))
+    repository.getCurrentLocation()
+    // Only the fix remembered by the repository is left.
+    locationManager.setLastKnownLocation(LocationManager.NETWORK_PROVIDER, null)
+
+    assertEquals(46.5191, repository.lastKnownLocation(5.minutes)!!.latitude, 0.0)
+  }
+
+  @Test
+  fun lastKnownLocation_returnsNewerOfRememberedAndSystemFixes() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(
+        recentLocation(LocationManager.GPS_PROVIDER).apply {
+          time = now - 2.minutes.inWholeMilliseconds
+        }
+    )
+    repository.getCurrentLocation()
+    locationManager.setLastKnownLocation(LocationManager.GPS_PROVIDER, null)
+    locationManager.setLastKnownLocation(
+        LocationManager.NETWORK_PROVIDER,
+        recentLocation(LocationManager.NETWORK_PROVIDER).apply {
+          latitude = 47.3769
+          time = now - 1.minutes.inWholeMilliseconds
+        },
+    )
+
+    assertEquals(47.3769, repository.lastKnownLocation(5.minutes)!!.latitude, 0.0)
+  }
+
+  @Test
+  fun lastKnownLocation_keepsNewerFixWhenALaterCallReadsAnOlderOne() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(
+        recentLocation(LocationManager.GPS_PROVIDER).apply { time = now }
+    )
+    val newer = repository.getCurrentLocation()
+    locationManager.simulateLocation(
+        recentLocation(LocationManager.GPS_PROVIDER).apply {
+          latitude = 47.3769
+          time = now - 1.minutes.inWholeMilliseconds
+        }
+    )
+
+    val older = repository.getCurrentLocation()
+    // Only the fix remembered by the repository is left.
+    locationManager.setLastKnownLocation(LocationManager.GPS_PROVIDER, null)
+
+    assertEquals(47.3769, older!!.latitude, 0.0)
+    assertEquals(now - 1.minutes.inWholeMilliseconds, older.timestampMillis)
+    assertEquals(newer, repository.lastKnownLocation(5.minutes))
   }
 
   @Test
@@ -798,6 +982,214 @@ class DefaultLocationRepositoryTest {
   }
 
   @Test
+  fun restoreSharing_doesNotShareAsAnAccountThatSignedInDuringTheRestore() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    val repository = createRepository(backgroundScope)
+
+    // Runs until the saved trips are read and the trips wait to be restored.
+    val restore = launch(start = CoroutineStart.UNDISPATCHED) { repository.restoreSharing() }
+    val otherUserLocation = signInAsOtherUser()
+    restore.join()
+    // Nothing was saved for the new account either.
+    createRepository(backgroundScope).restoreSharing()
+
+    verifyUpdates(otherUserLocation, 0)
+    verifyRemovals(otherUserLocation, 0)
+    verifyRemovals(ownLocation, 0)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_keepsTheTripSavedWhenAnotherAccountSignedInDuringTheRestore() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    val restore =
+        launch(start = CoroutineStart.UNDISPATCHED) {
+          createRepository(backgroundScope).restoreSharing()
+        }
+    signInAsOtherUser()
+    restore.join()
+    `when`(auth.currentUser).thenReturn(user)
+    val repository = createRepository(backgroundScope)
+
+    repository.restoreSharing()
+
+    verifyUpdates(ownLocation, 2)
+    assertTrue(repository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_doesNotRemoveTheEntryOfAnAccountThatSignedInBeforeAResumeFailed() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    val pendingUpdates = mutableListOf<CompletionListener>()
+    doAnswer { invocation -> pendingUpdates += invocation.getArgument<CompletionListener>(1) }
+        .`when`(ownLocation)
+        .setValue(any(), any(CompletionListener::class.java))
+    val repository = createRepository(backgroundScope)
+    val restore = launch { repository.restoreSharing() }
+    runCurrent()
+
+    // Another account signs in while the first update is pending, and the update then fails.
+    val otherUserLocation = signInAsOtherUser()
+    pendingUpdates
+        .single()
+        .onComplete(DatabaseError.fromCode(DatabaseError.UNAVAILABLE), ownLocation)
+    restore.join()
+
+    verifyUpdates(otherUserLocation, 0)
+    verifyRemovals(otherUserLocation, 0)
+    verifyRemovals(ownLocation, 0)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+
+    // The trip is still saved, so it is restored once the user signs in again.
+    doAnswer { invocation ->
+          invocation.getArgument<CompletionListener>(1).onComplete(null, ownLocation)
+        }
+        .`when`(ownLocation)
+        .setValue(any(), any(CompletionListener::class.java))
+    `when`(auth.currentUser).thenReturn(user)
+    val nextRepository = createRepository(backgroundScope)
+    nextRepository.restoreSharing()
+
+    verifyUpdates(ownLocation, 3)
+    assertTrue(nextRepository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_keepsTheTripSavedWhenAnotherAccountSignedInBeforeAResumeTimedOut() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    holdUpdates = true
+    val repository = createRepository(backgroundScope)
+    val restore = launch { repository.restoreSharing() }
+    runCurrent()
+
+    // Another account signs in while the first update is pending, and the update then times out.
+    val otherUserLocation = signInAsOtherUser()
+    advanceTimeBy(DefaultLocationRepository.WRITE_TIMEOUT)
+    runCurrent()
+    restore.join()
+
+    verifyUpdates(otherUserLocation, 0)
+    verifyRemovals(otherUserLocation, 0)
+    // Only the removal queued after the unacknowledged update; stopSharing did not run.
+    verifyRemovals(ownLocation, 1)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+
+    // The trip is still saved, so it is restored once the user signs in again.
+    holdUpdates = false
+    `when`(auth.currentUser).thenReturn(user)
+    val nextRepository = createRepository(backgroundScope)
+    nextRepository.restoreSharing()
+
+    verifyUpdates(ownLocation, 3)
+    assertTrue(nextRepository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_ignoresAFailedSaveAfterAnotherAccountSignedInBeforeAResumeFailed() = runTest {
+    val store = InMemoryDataStore().also { sharedTripsStore = it }
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    holdUpdates = true
+    val repository = createRepository(backgroundScope)
+    val restore = launch { repository.restoreSharing() }
+    runCurrent()
+
+    // Another account signs in while the first update is pending, then the update times out and
+    // the saved trips cannot be written.
+    val otherUserLocation = signInAsOtherUser()
+    store.failWrites = true
+    advanceTimeBy(DefaultLocationRepository.WRITE_TIMEOUT)
+    runCurrent()
+    restore.join()
+
+    verifyRemovals(otherUserLocation, 0)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+
+    // The failed start could not forget the trip either, so it is restored at the next sign-in.
+    store.failWrites = false
+    holdUpdates = false
+    `when`(auth.currentUser).thenReturn(user)
+    val nextRepository = createRepository(backgroundScope)
+    nextRepository.restoreSharing()
+
+    verifyUpdates(ownLocation, 3)
+    assertTrue(nextRepository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_doesNotShareWhenSignedOutDuringTheRestore() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    val repository = createRepository(backgroundScope)
+
+    // Runs until the saved trips are read and the trips wait to be restored.
+    val restore = launch(start = CoroutineStart.UNDISPATCHED) { repository.restoreSharing() }
+    `when`(auth.currentUser).thenReturn(null)
+    restore.join()
+
+    verifyUpdates(ownLocation, 1)
+    verifyRemovals(ownLocation, 0)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+
+    // The trip stayed saved, so it is restored once the user signs in again.
+    `when`(auth.currentUser).thenReturn(user)
+    val nextRepository = createRepository(backgroundScope)
+    nextRepository.restoreSharing()
+
+    verifyUpdates(ownLocation, 2)
+    assertTrue(nextRepository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_doesNotStopTheSharingWhenSignedOutBeforeAResumeFailed() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    // Signed in when the trips are read and when the trip is about to resume, then signed out
+    // before startSharing reads the user, so that it fails.
+    `when`(auth.currentUser).thenReturn(user, user, null)
+    val repository = createRepository(backgroundScope)
+
+    repository.restoreSharing()
+
+    verifyUpdates(ownLocation, 1)
+    verifyRemovals(ownLocation, 0)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+
+    // The trip stayed saved, so it is restored once the user signs in again.
+    `when`(auth.currentUser).thenReturn(user)
+    val nextRepository = createRepository(backgroundScope)
+    nextRepository.restoreSharing()
+
+    verifyUpdates(ownLocation, 2)
+    assertTrue(nextRepository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
   fun restoreSharing_doesNothingWhenSignedOut() = runTest {
     application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
     locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
@@ -993,6 +1385,108 @@ class DefaultLocationRepositoryTest {
   }
 
   @Test
+  fun restoreSharing_removesThePositionWhenNoLocationFixIsAvailable() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    locationManager.setProviderEnabled(LocationManager.GPS_PROVIDER, false)
+    locationManager.setProviderEnabled(LocationManager.NETWORK_PROVIDER, false)
+    val repository = createRepository(backgroundScope)
+
+    repository.restoreSharing()
+    locationManager.setProviderEnabled(LocationManager.GPS_PROVIDER, true)
+    repository.restoreSharing()
+
+    // Removed once, and forgotten so that the second restore does not share again.
+    verifyRemovals(ownLocation, 1)
+    verifyUpdates(ownLocation, 1)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_handlesEachTripIndependently() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    val previousRepository = createRepository(killedProcess)
+    previousRepository.startSharing(TRIP_ID)
+    previousRepository.startSharing(OTHER_TRIP_ID)
+    killedProcess.cancel()
+    // The user was removed from the other trip meanwhile, so its updates are denied.
+    doAnswer { invocation ->
+          invocation
+              .getArgument<CompletionListener>(1)
+              .onComplete(
+                  DatabaseError.fromCode(DatabaseError.PERMISSION_DENIED),
+                  ownOtherTripLocation,
+              )
+        }
+        .`when`(ownOtherTripLocation)
+        .setValue(any(), any(CompletionListener::class.java))
+    val repository = createRepository(backgroundScope)
+
+    repository.restoreSharing()
+    advanceTimeBy(UPDATE_INTERVAL)
+    runCurrent()
+
+    assertTrue(repository.isSharing(TRIP_ID).first())
+    assertFalse(repository.isSharing(OTHER_TRIP_ID).first())
+    verifyUpdates(ownLocation, 3)
+    verifyRemovals(ownLocation, 0)
+    verifyUpdates(ownOtherTripLocation, 2)
+    verifyRemovals(ownOtherTripLocation, 1)
+  }
+
+  @Test
+  fun restoreSharing_removesThePositionWhenSharingFailsAfterTheCallerIsCancelled() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    val pendingUpdates = mutableListOf<CompletionListener>()
+    doAnswer { invocation -> pendingUpdates += invocation.getArgument<CompletionListener>(1) }
+        .`when`(ownLocation)
+        .setValue(any(), any(CompletionListener::class.java))
+    val repository = createRepository(backgroundScope)
+    val restore = launch { repository.restoreSharing() }
+    runCurrent()
+
+    // The app UI closes while the first update is pending, and the update then fails.
+    restore.cancel()
+    pendingUpdates
+        .single()
+        .onComplete(DatabaseError.fromCode(DatabaseError.UNAVAILABLE), ownLocation)
+    runCurrent()
+
+    verifyRemovals(ownLocation, 1)
+    assertFalse(repository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
+  fun restoreSharing_twiceDoesNotStartASecondUpdateLoop() = runTest {
+    application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
+    val killedProcess = killableScope()
+    createRepository(killedProcess).startSharing(TRIP_ID)
+    killedProcess.cancel()
+    val repository = createRepository(backgroundScope)
+
+    repository.restoreSharing()
+    repository.restoreSharing()
+    advanceTimeBy(UPDATE_INTERVAL)
+    runCurrent()
+
+    // One update from the killed process, one when resuming, and one from a single update loop.
+    verifyUpdates(ownLocation, 3)
+    verifyRemovals(ownLocation, 0)
+    verify(tripLocations, never()).addValueEventListener(any())
+    assertTrue(repository.isSharing(TRIP_ID).first())
+  }
+
+  @Test
   fun stopAllSharing_stopsEveryTripAndRemovesItsEntry() = runTest {
     application.grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
     locationManager.simulateLocation(recentLocation(LocationManager.GPS_PROVIDER))
@@ -1062,6 +1556,7 @@ class DefaultLocationRepositoryTest {
           sharedTripsStore = sharedTripsStore,
           scope = scope,
           updateInterval = UPDATE_INTERVAL,
+          clock = { now },
       )
 
   // Can be cancelled to simulate the system killing the app process.
@@ -1130,9 +1625,15 @@ class DefaultLocationRepositoryTest {
   private class InMemoryDataStore : DataStore<Preferences> {
     override val data = MutableStateFlow(emptyPreferences())
 
+    // Makes the next writes fail, like a full disk, while reads still succeed.
+    var failWrites = false
+
     override suspend fun updateData(
         transform: suspend (t: Preferences) -> Preferences
-    ): Preferences = transform(data.value).also { data.value = it }
+    ): Preferences {
+      if (failWrites) throw IOException("Disk error")
+      return transform(data.value).also { data.value = it }
+    }
   }
 
   private class FailingDataStore : DataStore<Preferences> {

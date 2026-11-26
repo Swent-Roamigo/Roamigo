@@ -78,7 +78,12 @@ class FriendsUiStateTest {
         relationships
             .copy(
                 profiles = profiles,
-                processingIds = setOf("friend-bob", "incoming-dana"),
+                processingIds =
+                    setOf(
+                        "friend-bob",
+                        "incoming-dana",
+                        "outgoing-erin",
+                    ),
                 isLoading = true,
                 loadError = FriendsLoadError.PROFILES,
                 actionFailure = failure,
@@ -93,6 +98,14 @@ class FriendsUiStateTest {
     assertEquals("https://example.com/erin.png", ui.outgoingRequests.single().profilePictureUrl)
     assertEquals(listOf(true, false), ui.friends.map { it.isProcessing })
     assertEquals(true, ui.incomingRequests.single().isProcessing)
+    assertEquals(
+        "outgoing-erin",
+        ui.outgoingRequests.single().requestId,
+    )
+    assertEquals(
+        true,
+        ui.outgoingRequests.single().isProcessing,
+    )
     assertEquals(true, ui.isLoading)
     assertEquals(FriendsLoadError.PROFILES, ui.loadError)
     assertEquals(failure, ui.actionFailure)

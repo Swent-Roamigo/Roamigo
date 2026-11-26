@@ -13,6 +13,10 @@ val SlateMist = Color(0xFFECEEEC)
 val Ochre = Color(0xFFE2A04A)
 val Border = Color(0xFFE1E2DB)
 
+// Small secondary text that stays above 4.5:1 on cards and tiles (InkMuted is 3.7 to 4.2:1 there).
+// Same value as the proposed/text-secondary-aa variable in Figma.
+val TextSecondaryAa = Color(0xFF646C72)
+
 // Authentication feedback banners from Figma (2394:80 and 2398:85).
 val AuthErrorSurface = Color(0xFFFBEAE8)
 val AuthErrorBorder = Color(0xFFF0C4BF)

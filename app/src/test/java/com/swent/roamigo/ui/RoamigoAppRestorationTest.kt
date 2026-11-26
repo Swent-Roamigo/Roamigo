@@ -27,6 +27,7 @@ import com.swent.roamigo.model.authentication.FakeAuthRepository
 import com.swent.roamigo.model.destination.sampleDestination
 import com.swent.roamigo.model.destination.sampleDestinationRepository
 import com.swent.roamigo.model.friends.FakeFriendRepository
+import com.swent.roamigo.model.location.FakeLocationRepository
 import com.swent.roamigo.model.trip.voting.InMemoryVoteRepository
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.authentication.AuthenticationScreenTestTags
@@ -67,7 +68,7 @@ class RoamigoAppRestorationTest {
             }
           }
       RoamigoTheme {
-        RoamigoApp(
+        TestRoamigoApp(
             friendRepository = FakeFriendRepository("alex"),
             destinationRepository = sampleDestinationRepository(),
             authRepository = authRepository,
@@ -109,13 +110,62 @@ class RoamigoAppRestorationTest {
   }
 
   @Test
+  fun restoresLocationSharingOnceAtStartupAndNotAgainAfterStateRestoration() {
+    val restoration = StateRestorationTester(composeRule)
+    val locationRepository = FakeLocationRepository()
+    val authRepository =
+        FakeAuthRepository(AuthenticatedUser("alex", "Alex", null, null), initiallySignedIn = true)
+    restoration.setContent {
+      RoamigoTheme {
+        TestRoamigoApp(
+            friendRepository = FakeFriendRepository("alex"),
+            destinationRepository = sampleDestinationRepository(),
+            authRepository = authRepository,
+            voteRepository = InMemoryVoteRepository(),
+            locationRepository = locationRepository,
+        )
+      }
+    }
+    composeRule.waitUntil { locationRepository.restoreSharingCalls == 1 }
+
+    restoration.emulateSavedInstanceStateRestore()
+
+    composeRule.onNodeWithTag(C.Tag.trips_screen).assertIsDisplayed()
+    composeRule.runOnIdle { assertEquals(1, locationRepository.restoreSharingCalls) }
+  }
+
+  @Test
+  fun restoresLocationSharingWhenTheUserSignsInAfterStartup() {
+    val locationRepository = FakeLocationRepository()
+    val user = AuthenticatedUser("alex", "Alex", null, null)
+    val authRepository = FakeAuthRepository(user)
+    composeRule.setContent {
+      RoamigoTheme {
+        TestRoamigoApp(
+            friendRepository = FakeFriendRepository("alex"),
+            destinationRepository = sampleDestinationRepository(),
+            authRepository = authRepository,
+            voteRepository = InMemoryVoteRepository(),
+            locationRepository = locationRepository,
+        )
+      }
+    }
+    composeRule.onNodeWithTag(AuthenticationScreenTestTags.heading).assertIsDisplayed()
+    composeRule.runOnIdle { assertEquals(0, locationRepository.restoreSharingCalls) }
+
+    composeRule.runOnIdle { authRepository.setCurrentAccount(user) }
+
+    composeRule.waitUntil { locationRepository.restoreSharingCalls == 1 }
+  }
+
+  @Test
   fun staysOnTheProfileAfterTheActivityIsRecreated() {
     val restoration = StateRestorationTester(composeRule)
     val authRepository =
         FakeAuthRepository(AuthenticatedUser("alex", "Alex", null, null), initiallySignedIn = true)
     restoration.setContent {
       RoamigoTheme {
-        RoamigoApp(
+        TestRoamigoApp(
             friendRepository = FakeFriendRepository("alex"),
             destinationRepository = sampleDestinationRepository(),
             authRepository = authRepository,
@@ -143,7 +193,7 @@ class RoamigoAppRestorationTest {
         FakeAuthRepository(AuthenticatedUser("alex", "Alex", null, null), initiallySignedIn = true)
     restoration.setContent {
       RoamigoTheme {
-        RoamigoApp(
+        TestRoamigoApp(
             friendRepository = FakeFriendRepository("alex"),
             destinationRepository = sampleDestinationRepository(),
             authRepository = authRepository,

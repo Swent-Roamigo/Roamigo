@@ -56,7 +56,8 @@ class TripDetailsViewModelTest {
             "Tower",
             null,
             location,
-            trip.startDate,
+            // An unscheduled suggestion still counts, since its place is known.
+            null,
             null,
             "alex",
             trip.createdAt,
@@ -70,7 +71,11 @@ class TripDetailsViewModelTest {
                     trip.uid to
                         listOf(
                             suggestion,
-                            suggestion.copy(uid = "planned", activityType = ActivityType.ACCEPTED),
+                            suggestion.copy(
+                                uid = "planned",
+                                activityType = ActivityType.ACCEPTED,
+                                startTime = trip.startDate,
+                            ),
                         )
                 ),
         )
@@ -174,6 +179,26 @@ class TripDetailsViewModelTest {
     advanceUntilIdle()
     assertEquals("Lisbon & Porto", model.uiState.value.details?.name)
     assertNull(model.uiState.value.error)
+  }
+
+  @Test
+  fun carriesTheFirstDestinationForTheWeather() = runTest {
+    val lisbon = TripLocation(38.7, -9.1, "Lisbon", "PT")
+    val porto = TripLocation(41.15, -8.61, "Porto", "PT")
+    val trip = detailsTestTrip().copy(destinations = listOf(lisbon, porto))
+
+    val model = TripDetailsViewModel("trip", FakeTripRepository(trips = listOf(trip)))
+    advanceUntilIdle()
+
+    assertEquals(lisbon, model.uiState.value.details?.destination)
+  }
+
+  @Test
+  fun aTripWithoutDestinationsHasNoneForTheWeather() = runTest {
+    val model = TripDetailsViewModel("trip", FakeTripRepository(trips = listOf(detailsTestTrip())))
+    advanceUntilIdle()
+
+    assertNull(model.uiState.value.details?.destination)
   }
 }
 
