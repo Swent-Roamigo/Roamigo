@@ -2,15 +2,22 @@
 package com.swent.roamigo.ui.friends
 
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -469,14 +476,32 @@ class FriendsScreenTest {
   }
 
   @Test
-  fun searchFiltersFriendsAndRequestsByName() {
+  fun searchCanBeFocusedAndFiltersFriendsWithoutRepeatingItsHint() {
     show()
 
-    composeRule.onNodeWithTag(C.Tag.friends_search).performTextInput("sa")
+    val hint = resources.string(R.string.friends_search)
+    composeRule.onAllNodesWithText(hint).assertCountEquals(1)
+    val search = composeRule.onNodeWithTag(C.Tag.friends_search)
+    search
+        .assert(hasSetTextAction())
+        .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.ContentDescription))
+        .performScrollTo()
+        .performClick()
+        .assertIsFocused()
+        .performTextInput("sa")
+
+    search.assertTextEquals("sa")
+    composeRule.onAllNodesWithText(hint).assertCountEquals(0)
 
     composeRule.onNodeWithText("Sam").assertIsDisplayed()
     composeRule.onNodeWithText("Mia").assertDoesNotExist()
     composeRule.onNodeWithText("Jonas").assertDoesNotExist()
+
+    search.performTextReplacement("")
+    search.assertIsFocused()
+    composeRule.onAllNodesWithText(hint).assertCountEquals(1)
+    composeRule.onNodeWithText("Mia").assertExists()
+    composeRule.onNodeWithText("Jonas").performScrollTo().assertIsDisplayed()
   }
 
   @Test
