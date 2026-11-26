@@ -96,6 +96,9 @@ private val relationshipBorderWidth = 1.dp
 private val friendCountFontSize = 13.sp
 private val friendCountLineHeight = 18.sp
 private val avatarInitialFontSize = 16.8.sp
+private val defaultAvatarSize = 48.dp
+private val compactAvatarSize = 40.dp
+private val avatarBorderWidth = 2.dp
 
 /** Colors used for friend avatars to provide visual variety. */
 private val friendAvatarColors = listOf(FriendAvatarBlue, FriendAvatarRose, FriendAvatarGreen)
@@ -560,7 +563,12 @@ private fun IncomingRequestRow(
   ) {
     Column(Modifier.padding(Spacing.cardPadding)) {
       Row(verticalAlignment = Alignment.CenterVertically) {
-        InitialAvatar(request.displayName, request.userId, request.profilePictureUrl)
+        InitialAvatar(
+            request.displayName,
+            request.userId,
+            request.profilePictureUrl,
+            compact = true,
+        )
         Spacer(Modifier.width(Spacing.medium))
         Text(
             request.displayName,
@@ -639,7 +647,7 @@ private fun FriendRow(
                 .padding(horizontal = Spacing.cardPadding, vertical = Spacing.small),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-      InitialAvatar(friend.displayName, friend.userId, friend.profilePictureUrl)
+      InitialAvatar(friend.displayName, friend.userId, friend.profilePictureUrl, compact = true)
       Spacer(Modifier.width(Spacing.medium))
       Column(Modifier.weight(1f)) {
         Text(friend.displayName, style = MaterialTheme.typography.titleSmall)
@@ -705,6 +713,7 @@ private fun OutgoingRequestRow(
             displayName = request.displayName,
             userId = request.userId,
             profilePictureUrl = request.profilePictureUrl,
+            compact = true,
         )
 
         Spacer(modifier = Modifier.width(Spacing.medium))
@@ -779,34 +788,44 @@ private fun OutgoingRequestRow(
   }
 }
 
+/**
+ * [compact] opts into Friends-list styling; other callers retain the original avatar appearance.
+ */
 @Composable
 internal fun InitialAvatar(
     displayName: String,
     userId: String,
     profilePictureUrl: String? = null,
+    compact: Boolean = false,
 ) {
   val initial = displayName.trim().firstOrNull()?.uppercase() ?: "?"
 
   val avatarColor = friendAvatarColors[(userId.hashCode() ushr 2) % friendAvatarColors.size]
+  val border =
+      if (compact)
+          Modifier.border(avatarBorderWidth, MaterialTheme.colorScheme.surface, CircleShape)
+      else Modifier
 
   Box(
       modifier =
-          Modifier.size(40.dp)
+          Modifier.size(if (compact) compactAvatarSize else defaultAvatarSize)
               .background(
                   color = avatarColor,
                   shape = CircleShape,
               )
-              .border(2.dp, Paper, CircleShape)
+              .then(border)
               .testTag(C.Tag.friends_avatar_prefix + userId),
       contentAlignment = Alignment.Center,
   ) {
     Text(
         text = initial,
         style =
-            MaterialTheme.typography.titleMedium.copy(
-                fontSize = avatarInitialFontSize,
-                fontWeight = FontWeight.Bold,
-            ),
+            if (compact)
+                MaterialTheme.typography.titleMedium.copy(
+                    fontSize = avatarInitialFontSize,
+                    fontWeight = FontWeight.Bold,
+                )
+            else MaterialTheme.typography.titleMedium,
         color = Paper,
     )
     if (profilePictureUrl != null) {

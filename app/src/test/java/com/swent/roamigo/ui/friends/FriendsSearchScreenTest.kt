@@ -3,9 +3,11 @@ package com.swent.roamigo.ui.friends
 
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -89,7 +91,10 @@ class FriendsSearchScreenTest {
     )
 
     compose.onNodeWithTag(C.Tag.friends_directory_user_prefix + "bob").assertIsDisplayed()
-    compose.onNodeWithTag(C.Tag.friends_avatar_prefix + "bob").assertExists()
+    compose
+        .onNodeWithTag(C.Tag.friends_avatar_prefix + "bob")
+        .assertWidthIsEqualTo(48.dp)
+        .assertHeightIsEqualTo(48.dp)
     compose
         .onNodeWithTag(C.Tag.friends_directory_send_prefix + "bob")
         .assertIsEnabled()
