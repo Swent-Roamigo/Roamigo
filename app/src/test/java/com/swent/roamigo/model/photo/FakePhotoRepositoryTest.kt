@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -18,9 +19,9 @@ class FakePhotoRepositoryTest {
   @Test
   fun keepsSavedPhotosPerTrip() = runTest {
     val repository = repository()
-    val file = repository.newPhotoFile()
+    val file = repository.newPhotoFile().also { it.writeText("jpeg") }
     repository.savePhoto("trip", file, 7L, PhotoCoordinates(46.5, 6.6))
-    repository.savePhoto("other", repository.newPhotoFile(), 8L, null)
+    repository.savePhoto("other", repository.newPhotoFile().also { it.writeText("jpeg") }, 8L, null)
 
     val photos = repository.pendingPhotos("trip").first()
 
@@ -31,6 +32,18 @@ class FakePhotoRepositoryTest {
     assertEquals(46.5, photos.single().latitude)
     assertEquals(6.6, photos.single().longitude)
     assertEquals(file, repository.fileOf(photos.single()))
+  }
+
+  @Test
+  fun refusesToSaveAnEmptyPhotoLikeTheRealRepository() = runTest {
+    val repository = repository()
+    val file = repository.newPhotoFile()
+
+    assertThrows(IllegalStateException::class.java) {
+      kotlinx.coroutines.runBlocking { repository.savePhoto("trip", file, 1L, null) }
+    }
+
+    assertEquals(emptyList<PendingPhoto>(), repository.pendingPhotos("trip").first())
   }
 
   @Test
@@ -86,7 +99,7 @@ class FakePhotoRepositoryTest {
   @Test
   fun hasUsableDefaults() = runTest {
     val repository = FakePhotoRepository()
-    val file = repository.newPhotoFile()
+    val file = repository.newPhotoFile().also { it.writeText("jpeg") }
     repository.savePhoto("trip", file, 1L, null)
 
     assertEquals("alex", repository.pendingPhotos("trip").first().single().userId)
