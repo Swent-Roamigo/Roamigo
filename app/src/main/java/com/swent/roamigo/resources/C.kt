@@ -91,6 +91,7 @@ object C {
     const val trip_add_sheet = "trip_add_sheet"
     const val trip_members_screen = "trip_members_screen"
     const val trip_members_back = "trip_members_back"
+    const val trip_members_list = "trip_members_list"
     const val trip_members_invite = "trip_members_invite"
     const val trip_members_row_prefix = "trip_members_row_"
     const val create_trip_discard_confirm = "create_trip_discard_confirm"
