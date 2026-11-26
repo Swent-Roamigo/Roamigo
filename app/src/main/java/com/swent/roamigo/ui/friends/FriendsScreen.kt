@@ -87,6 +87,15 @@ import com.swent.roamigo.ui.theme.FriendAvatarRose
 import com.swent.roamigo.ui.theme.Paper
 import com.swent.roamigo.ui.theme.Spacing
 
+private val addFriendMinimumHeight = 50.dp
+private val addFriendVerticalPadding = 15.dp
+private val friendRowMinimumHeight = 66.dp
+private val compactIconSize = 18.dp
+private val relationshipBorderWidth = 1.dp
+private val friendCountFontSize = 13.sp
+private val friendCountLineHeight = 18.sp
+private val avatarInitialFontSize = 16.8.sp
+
 /** Colors used for friend avatars to provide visual variety. */
 private val friendAvatarColors = listOf(FriendAvatarBlue, FriendAvatarRose, FriendAvatarGreen)
 
@@ -286,11 +295,15 @@ fun FriendsScreen(
           modifier =
               Modifier.fillMaxWidth()
                   .padding(bottom = Spacing.large)
-                  .heightIn(min = 50.dp)
+                  .heightIn(min = addFriendMinimumHeight)
                   .testTag(C.Tag.friends_add_friend)
                   .markNotImplemented(onAddFriendClick),
           shape = MaterialTheme.shapes.small,
-          contentPadding = PaddingValues(horizontal = Spacing.screenPadding, vertical = 15.dp),
+          contentPadding =
+              PaddingValues(
+                  horizontal = Spacing.screenPadding,
+                  vertical = addFriendVerticalPadding,
+              ),
       ) {
         Text(stringResource(R.string.friends_add_friend))
       }
@@ -324,7 +337,11 @@ private fun FriendsHeader(friendCount: Int) {
     if (friendCount > 0) {
       Text(
           text = pluralStringResource(R.plurals.friends_count, friendCount, friendCount),
-          style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp, lineHeight = 18.sp),
+          style =
+              MaterialTheme.typography.bodySmall.copy(
+                  fontSize = friendCountFontSize,
+                  lineHeight = friendCountLineHeight,
+              ),
           color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
     }
@@ -504,7 +521,7 @@ private fun FriendsSearch(query: String, onQueryChange: (String) -> Unit) {
             imageVector = Icons.Outlined.Search,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(compactIconSize),
         )
       },
       shape = RoundedCornerShape(12.dp),
@@ -538,7 +555,7 @@ private fun IncomingRequestRow(
               .testTag(C.Tag.friends_incoming_request_prefix + request.requestId),
       shape = MaterialTheme.shapes.medium,
       color = MaterialTheme.colorScheme.surface,
-      border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+      border = BorderStroke(relationshipBorderWidth, MaterialTheme.colorScheme.outlineVariant),
   ) {
     Column(Modifier.padding(Spacing.cardPadding)) {
       Row(verticalAlignment = Alignment.CenterVertically) {
@@ -602,12 +619,12 @@ private fun FriendRow(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.friends_friend_row),
       shape = MaterialTheme.shapes.medium,
       color = MaterialTheme.colorScheme.surface,
-      border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+      border = BorderStroke(relationshipBorderWidth, MaterialTheme.colorScheme.outlineVariant),
   ) {
     Row(
         modifier =
             Modifier.fillMaxWidth()
-                .heightIn(min = 66.dp)
+                .heightIn(min = friendRowMinimumHeight)
                 .testTag(C.Tag.friends_view_map_prefix + friend.userId)
                 .clickable(role = Role.Button, onClick = onViewMapClick)
                 .markNotImplemented(onViewMapClick)
@@ -639,7 +656,7 @@ private fun FriendRow(
                     .semantics { contentDescription = removeDescription },
         ) {
           if (friend.isProcessing) {
-            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+            CircularProgressIndicator(Modifier.size(compactIconSize), strokeWidth = 2.dp)
           } else {
             Icon(
                 Icons.Outlined.PersonRemove,
@@ -653,7 +670,7 @@ private fun FriendRow(
           painter = painterResource(R.drawable.ic_c2_chevron_right),
           contentDescription = null,
           tint = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier.size(18.dp),
+          modifier = Modifier.size(compactIconSize),
       )
     }
   }
@@ -668,7 +685,7 @@ private fun OutgoingRequestRow(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.friends_pending_request_row),
       shape = MaterialTheme.shapes.medium,
       color = MaterialTheme.colorScheme.surface,
-      border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+      border = BorderStroke(relationshipBorderWidth, MaterialTheme.colorScheme.outlineVariant),
   ) {
     Column(modifier = Modifier.padding(Spacing.cardPadding)) {
       Row(
@@ -777,7 +794,7 @@ internal fun InitialAvatar(
         text = initial,
         style =
             MaterialTheme.typography.titleMedium.copy(
-                fontSize = 16.8.sp,
+                fontSize = avatarInitialFontSize,
                 fontWeight = FontWeight.Bold,
             ),
         color = Paper,
