@@ -72,6 +72,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -615,6 +616,7 @@ private fun FriendRow(
 ) {
   val viewMapDescription =
       stringResource(R.string.friends_view_map_accessibility, friend.displayName)
+  val updatingDescription = stringResource(R.string.friends_updating)
   Surface(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.friends_friend_row),
       shape = MaterialTheme.shapes.medium,
@@ -627,11 +629,13 @@ private fun FriendRow(
                 .heightIn(min = friendRowMinimumHeight)
                 .testTag(C.Tag.friends_view_map_prefix + friend.userId)
                 .clickable(
+                    enabled = !friend.isProcessing,
                     role = Role.Button,
                     onClickLabel = viewMapDescription,
                     onClick = onViewMapClick,
                 )
                 .markNotImplemented(onViewMapClick)
+                .semantics { if (friend.isProcessing) stateDescription = updatingDescription }
                 .padding(horizontal = Spacing.cardPadding, vertical = Spacing.small),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -656,7 +660,10 @@ private fun FriendRow(
             modifier =
                 Modifier.testTag(C.Tag.friends_remove_prefix + friend.friendshipId)
                     .markNotImplemented(onRemove)
-                    .semantics { contentDescription = removeDescription },
+                    .semantics {
+                      contentDescription = removeDescription
+                      if (friend.isProcessing) stateDescription = updatingDescription
+                    },
         ) {
           if (friend.isProcessing) {
             CircularProgressIndicator(Modifier.size(compactIconSize), strokeWidth = 2.dp)

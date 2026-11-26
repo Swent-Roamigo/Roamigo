@@ -12,6 +12,7 @@ import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
@@ -774,7 +775,7 @@ class FriendsScreenTest {
   }
 
   @Test
-  fun removalDialogClosesIfFriendStartsProcessing() {
+  fun removalProcessingClosesTheDialogBlocksActionsAndRecovers() {
     val friend =
         FriendUiModel(
             userId = "bob",
@@ -784,12 +785,14 @@ class FriendsScreenTest {
 
     val state = mutableStateOf(FriendsUiState(friends = listOf(friend)))
     var removals = 0
+    var mapOpens = 0
 
     composeRule.setContent {
       RoamigoTheme {
         FriendsScreen(
             uiState = state.value,
             onRemoveFriend = { removals++ },
+            onViewMapClick = { mapOpens++ },
         )
       }
     }
@@ -807,10 +810,35 @@ class FriendsScreenTest {
 
     composeRule.onNodeWithTag(C.Tag.friends_remove_confirm_dialog).assertDoesNotExist()
 
+    val updating = resources.string(R.string.friends_updating)
+    val row = composeRule.onNodeWithTag(C.Tag.friends_view_map_prefix + "bob")
+    val remove = composeRule.onNodeWithTag(C.Tag.friends_remove_prefix + "friend-bob")
+    row.assertIsNotEnabled()
+        .assert(hasText("Bob"))
+        .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, updating))
+        .performClick()
+    remove
+        .assertIsNotEnabled()
+        .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, updating))
+        .performClick()
+    assertEquals(0, mapOpens)
+    assertEquals(0, removals)
+    composeRule.onNodeWithTag(C.Tag.friends_remove_confirm_dialog).assertDoesNotExist()
+
     composeRule.runOnIdle { state.value = FriendsUiState(friends = listOf(friend)) }
 
     composeRule.onNodeWithTag(C.Tag.friends_remove_confirm_dialog).assertDoesNotExist()
-    assertEquals(0, removals)
+    row.assertIsEnabled()
+        .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.StateDescription))
+        .performClick()
+    remove
+        .assertIsEnabled()
+        .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.StateDescription))
+        .performClick()
+    assertEquals(1, mapOpens)
+    composeRule.onNodeWithTag(C.Tag.friends_remove_confirm_dialog).assertIsDisplayed()
+    composeRule.onNodeWithTag(C.Tag.friends_remove_confirm_action).performClick()
+    assertEquals(1, removals)
   }
 
   @Test
