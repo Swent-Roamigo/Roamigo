@@ -1,6 +1,8 @@
 // AI assistance was used for implementation support.
 package com.swent.roamigo.ui.trip.itinerary
 
+import android.content.Context
+import android.provider.Settings
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
@@ -14,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.dp
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.resources.C
 import com.swent.roamigo.ui.theme.RoamigoTheme
@@ -155,6 +158,19 @@ class ItineraryScreenTest {
     show(ready(emptyList(), hasActivities = true))
 
     composeRule.onNodeWithText("Nothing planned this day.").assertIsDisplayed()
+  }
+
+  @Test
+  fun startTimesFollowTheSystem24HourSetting() {
+    Settings.System.putString(
+        ApplicationProvider.getApplicationContext<Context>().contentResolver,
+        Settings.System.TIME_12_24,
+        "24",
+    )
+    show(ready())
+
+    composeRule.onNodeWithText("14:00").assertIsDisplayed()
+    composeRule.onNodeWithText("PM", substring = true).assertDoesNotExist()
   }
 
   @Test
