@@ -355,6 +355,18 @@ service cloud.firestore {
           allow delete: if false;
         }
 
+    match /users/{userId}/notifications/{notificationId} {
+      function isRecipient() {
+        return signedIn() && request.auth.uid == userId;
+      }
+
+      allow read: if isRecipient();
+      allow update: if isRecipient()
+          && request.resource.data.isRead == true
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
+      allow create, delete: if false;
+    }
+
     // tripInvitations has no rule on purpose: the catch-all below denies clients, and the callable
     // functions (functions/src/tripInvitations.ts) read and write it as Admin. A client that could
     // read the tokens could join any trip.
@@ -507,7 +519,8 @@ service cloud.firestore {
       }
     }
 
-    // Everything else stays closed.
+    // Everything else stays closed, including both trip invitation collections.
+    // Only trusted Cloud Functions may access their documents.
     match /{document=**} {
       allow read, write: if false;
     }
