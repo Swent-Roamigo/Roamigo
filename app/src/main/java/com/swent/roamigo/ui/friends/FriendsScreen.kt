@@ -516,7 +516,7 @@ private fun FriendsSearch(query: String, onQueryChange: (String) -> Unit) {
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.friends_search),
       singleLine = true,
       textStyle = MaterialTheme.typography.bodyLarge,
-      placeholder = { Text(label) },
+      label = { Text(label) },
       leadingIcon = {
         Icon(
             imageVector = Icons.Outlined.Search,

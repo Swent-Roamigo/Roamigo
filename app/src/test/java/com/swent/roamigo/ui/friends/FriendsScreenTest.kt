@@ -16,7 +16,6 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -28,6 +27,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.text.AnnotatedString
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.roamigo.R
@@ -509,30 +509,38 @@ class FriendsScreenTest {
   }
 
   @Test
-  fun searchCanBeFocusedAndFiltersFriendsWithoutRepeatingItsHint() {
+  fun searchKeepsOneAccessibleLabelWhileFilteringAndClearing() {
     show()
 
-    val hint = resources.string(R.string.friends_search)
-    composeRule.onAllNodesWithText(hint).assertCountEquals(1)
+    val label = resources.string(R.string.friends_search)
+    composeRule.onAllNodesWithText(label).assertCountEquals(1)
     val search = composeRule.onNodeWithTag(C.Tag.friends_search)
     search
         .assert(hasSetTextAction())
+        .assert(hasText(label))
         .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.ContentDescription))
         .performScrollTo()
         .performClick()
         .assertIsFocused()
         .performTextInput("sa")
 
-    search.assertTextEquals("sa")
-    composeRule.onAllNodesWithText(hint).assertCountEquals(0)
+    search
+        .assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("sa"))
+        )
+        .assert(hasText(label))
+    composeRule.onAllNodesWithText(label).assertCountEquals(1)
 
     composeRule.onNodeWithText("Sam").assertIsDisplayed()
     composeRule.onNodeWithText("Mia").assertDoesNotExist()
     composeRule.onNodeWithText("Jonas").assertDoesNotExist()
 
     search.performTextReplacement("")
-    search.assertIsFocused()
-    composeRule.onAllNodesWithText(hint).assertCountEquals(1)
+    search
+        .assertIsFocused()
+        .assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
+        .assert(hasText(label))
+    composeRule.onAllNodesWithText(label).assertCountEquals(1)
     composeRule.onNodeWithText("Mia").assertExists()
     composeRule.onNodeWithText("Jonas").performScrollTo().assertIsDisplayed()
   }
