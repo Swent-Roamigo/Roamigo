@@ -193,4 +193,42 @@ class RoamigoAppJoinTest {
 
     assertEquals(Route.JOIN, route())
   }
+
+  @Test
+  fun backTappedTwiceDuringTheExitOnlyClosesTheJoinScreen() {
+    start(signedIn = true)
+    composeRule.runOnUiThread { navController.navigate(Route.join(token)) }
+    composeRule.waitUntil(5_000) { service.previewed.isNotEmpty() }
+    composeRule.onNodeWithTag(C.Tag.join_back).assertIsDisplayed()
+
+    // The second tap reaches the screen that is already leaving.
+    composeRule.mainClock.autoAdvance = false
+    repeat(2) { composeRule.onNodeWithTag(C.Tag.join_back).performClick() }
+    composeRule.mainClock.autoAdvance = true
+
+    composeRule.waitUntil(5_000) { route() == Route.TRIPS }
+    assertEquals(
+        listOf(Route.TRIPS),
+        composeRule
+            .runOnUiThread { navController.currentBackStack.value.map { it.destination.route } }
+            .filterNotNull()
+            .filter { it == Route.TRIPS },
+    )
+  }
+
+  @Test
+  fun systemBackPressedTwiceDuringTheExitOnlyClosesTheJoinScreen() {
+    start(signedIn = true)
+    composeRule.runOnUiThread { navController.navigate(Route.join(token)) }
+    composeRule.waitUntil(5_000) { service.previewed.isNotEmpty() }
+    composeRule.onNodeWithTag(C.Tag.join_back).assertIsDisplayed()
+
+    composeRule.mainClock.autoAdvance = false
+    repeat(2) {
+      composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+    }
+    composeRule.mainClock.autoAdvance = true
+
+    composeRule.waitUntil(5_000) { route() == Route.TRIPS }
+  }
 }

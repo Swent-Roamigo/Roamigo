@@ -7,7 +7,9 @@ import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.LocalActivity
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -23,8 +25,13 @@ import androidx.core.util.Consumer
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.ClearCredentialException
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -235,7 +242,7 @@ fun RoamigoApp(
             tripId = tripId,
             voteId = voteId,
             currentUserId = userId,
-            onBack = { navController.popBackStack() },
+            onBack = dropUnlessResumed { navController.popBackStack() },
             readOnly = entry.isReadOnly(),
         )
       }
@@ -243,12 +250,14 @@ fun RoamigoApp(
     composable(Route.NEW_VOTE) { entry ->
       val tripId = entry.tripId()
       SignedIn(authRepository, navController) { userId ->
+        // Ignores a second back or save during the exit animation, which would also pop the trip.
+        val leave = dropUnlessResumed { navController.popBackStack() }
         CreateVoteRoute(
             voteRepository = voteRepository,
             tripId = tripId,
             currentUserId = userId,
-            onBack = { navController.popBackStack() },
-            onVoteCreated = { navController.popBackStack() },
+            onBack = leave,
+            onVoteCreated = { leave() },
         )
       }
     }
@@ -281,7 +290,7 @@ fun RoamigoApp(
             currentUserId = userId,
             tripRepository = tripRepository,
             userRepository = userRepository,
-            onBack = { navController.popBackStack() },
+            onBack = dropUnlessResumed { navController.popBackStack() },
             onInviteClick = { inviteTripId = tripId },
             // The profile source may not know the signed-in user; their account name does.
             currentUserName = authRepository.getCurrentUser()?.displayName,
@@ -310,7 +319,7 @@ fun RoamigoApp(
             friendRepository = friendRepository,
             authRepository = authRepository,
             currentUserId = userId,
-            onBack = { navController.popBackStack() },
+            onBack = dropUnlessResumed { navController.popBackStack() },
             onSessionEnded = { redirectToAuthentication(navController) },
         )
       }
@@ -344,7 +353,7 @@ fun RoamigoApp(
           tripRepository = tripRepository,
           countryCounts = countryCounts,
           sharedOwner = entry,
-          onBackClick = { navController.popBackStack() },
+          onBackClick = dropUnlessResumed { navController.popBackStack() },
           onMapClick = onMapClick,
           onTripsClick = onTripsClick,
           onOpenTrip = { tripId ->
@@ -364,7 +373,7 @@ fun RoamigoApp(
           tripRepository = tripRepository,
           countryCounts = countryCounts,
           sharedOwner = historyEntry,
-          onBackClick = { navController.popBackStack() },
+          onBackClick = dropUnlessResumed { navController.popBackStack() },
       )
     }
 
@@ -384,10 +393,11 @@ fun RoamigoApp(
           connectivityRepository = connectivityRepository,
           locationRepository = locationRepository,
           weatherRepository = weatherRepository,
-          onBack = {
-            if (fromHistory) navController.popBackStack()
-            else navController.popBackStack(Route.TRIPS, inclusive = false)
-          },
+          onBack =
+              dropUnlessResumed {
+                if (fromHistory) navController.popBackStack()
+                else navController.popBackStack(Route.TRIPS, inclusive = false)
+              },
           onAuthenticationRequired = { redirectToAuthentication(navController) },
           onOpenVote = { voteId, readOnly ->
             navController.navigate(Route.vote(tripId, voteId, readOnly))
@@ -453,11 +463,12 @@ fun RoamigoApp(
                 launchSingleTop = true
               }
             },
-            onClose = {
-              if (!navController.popBackStack()) {
-                navController.navigate(Route.TRIPS) { launchSingleTop = true }
-              }
-            },
+            onClose =
+                dropUnlessResumed {
+                  if (!navController.popBackStack()) {
+                    navController.navigate(Route.TRIPS) { launchSingleTop = true }
+                  }
+                },
         )
       }
     }
@@ -467,7 +478,7 @@ fun RoamigoApp(
           tripRepository = tripRepository,
           destinationRepository = destinationRepository,
           savedStateHandle = entry.savedStateHandle,
-          onClose = { navController.popBackStack() },
+          onClose = dropUnlessResumed { navController.popBackStack() },
           onSignIn = {
             navController.navigate(Route.AUTHENTICATION) {
               popUpTo(Route.TRIPS) { inclusive = true }
@@ -512,6 +523,8 @@ fun RoamigoApp(
       )
     }
   }
+  // After the NavHost, so that it is asked first (the last handler added is).
+  IgnoreSystemBackWhileNavigating(navController)
   inviteTripId?.let { tripId ->
     InviteRoute(tripId, invitationService, onDismiss = { inviteTripId = null })
   }
@@ -523,6 +536,46 @@ fun RoamigoApp(
         },
         onDismiss = { joinCodeOpen = false },
     )
+  }
+}
+
+/**
+ * Ignores the system Back while a screen is still arriving or leaving. The Back buttons already
+ * ignore a tap then ([dropUnlessResumed]), but the system Back goes to the NavHost's own handler,
+ * which pops again for each press and so could leave two screens at once.
+ *
+ * The handler is switched by navigation and lifecycle events and not by composition, so it is up to
+ * date at the moment of a press even when no frame has been drawn since the last one.
+ */
+@Composable
+private fun IgnoreSystemBackWhileNavigating(navController: NavHostController) {
+  val dispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher ?: return
+  val lifecycleOwner = LocalLifecycleOwner.current
+  DisposableEffect(navController, dispatcher, lifecycleOwner) {
+    // Added after the NavHost's own handler, so it is asked first (the last one added is).
+    val ignoreBack =
+        object : OnBackPressedCallback(false) {
+          override fun handleOnBackPressed() = Unit
+        }
+    var watched: NavBackStackEntry? = null
+    val resumed = LifecycleEventObserver { _, event ->
+      if (event == Lifecycle.Event.ON_RESUME) ignoreBack.isEnabled = false
+    }
+    val onDestination = NavController.OnDestinationChangedListener { controller, _, _ ->
+      watched?.lifecycle?.removeObserver(resumed)
+      val entry = controller.currentBackStackEntry
+      watched = entry
+      ignoreBack.isEnabled =
+          entry != null && entry.lifecycle.currentState != Lifecycle.State.RESUMED
+      entry?.lifecycle?.addObserver(resumed)
+    }
+    dispatcher.addCallback(lifecycleOwner, ignoreBack)
+    navController.addOnDestinationChangedListener(onDestination)
+    onDispose {
+      navController.removeOnDestinationChangedListener(onDestination)
+      watched?.lifecycle?.removeObserver(resumed)
+      ignoreBack.remove()
+    }
   }
 }
 
